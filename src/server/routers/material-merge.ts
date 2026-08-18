@@ -99,7 +99,7 @@ export const materialMergeRouter = router({
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (input.level === "global" && !isOrgAdmin(ctx.user)) {
+      if (input.level === "global" && !ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only SuperAdmins can merge global materials." });
       }
       if (input.level === "org" && ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {

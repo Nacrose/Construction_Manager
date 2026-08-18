@@ -529,7 +529,7 @@ export const materialCatalogCleanupRouter = router({
   purgeArchived: protectedProcedure
     .input(z.object({ organizationId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only SuperAdmins can purge archived catalog items.",

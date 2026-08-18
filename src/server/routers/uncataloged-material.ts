@@ -1,4 +1,3 @@
-import { isOrgAdmin } from "@/lib/authz";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
@@ -166,7 +165,7 @@ export const uncatalogedMaterialRouter = router({
       code: z.string().optional().nullable(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only SuperAdmins can promote items to Global Catalog." });
       }
 

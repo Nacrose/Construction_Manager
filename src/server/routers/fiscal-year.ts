@@ -1,4 +1,3 @@
-import { isOrgAdmin } from "@/lib/authz";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
@@ -276,7 +275,7 @@ export const fiscalYearRouter = router({
       inflationMultiplier: z.number().min(0.5).max(3.0).default(1.0),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only SuperAdmins can roll forward baseline rate catalogs." });
       }
 

@@ -64,7 +64,7 @@ const enforceAuth = t.middleware(async ({ ctx, next }) => {
   // Set RLS context — defense-in-depth at the database level.
   // If this fails (e.g., pgbouncer mode mismatch), the app-level
   // filtering in project.list is still active.
-  await setOrgContext(db, ctx.user.organizationId);
+  await setOrgContext(db, ctx.user.organizationId, ctx.user.isSuperAdmin);
 
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

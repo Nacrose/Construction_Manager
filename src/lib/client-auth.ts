@@ -15,6 +15,7 @@ export type ClientUser = {
   role: string;
   organizationId?: string | null;
   orgRole?: string;
+  isSuperAdmin?: boolean;
   organization?: { id: string; name: string; code: string } | null;
 };
 

@@ -45,7 +45,8 @@ DROP POLICY IF EXISTS "project_insert_org_check" ON "Project";
 CREATE POLICY "project_org_isolation" ON "Project"
   FOR SELECT
   USING (
-    "organizationId" IS NULL  -- legacy/shared rows (pre-multi-tenancy)
+    current_setting('app.is_superadmin', true) = 'true'  -- platform superadmin sees all orgs
+    OR "organizationId" IS NULL  -- legacy/shared rows (pre-multi-tenancy)
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   );
 
@@ -88,15 +89,18 @@ CREATE POLICY "project_delete_org_check" ON "Project"
  *
  * @param db Prisma client
  * @param organizationId The user's organization ID (null for users without an org)
+ * @param isSuperAdmin When true, the session can bypass organization scoping
  */
 export async function setOrgContext(
   db: import("@prisma/client").PrismaClient,
   organizationId: string | null | undefined,
+  isSuperAdmin = false,
 ): Promise<void> {
   try {
     await db.$executeRawUnsafe(
-      `SELECT set_config('app.organization_id', $1, false)`,
-      organizationId ?? ""
+      `SELECT set_config('app.organization_id', $1, false), set_config('app.is_superadmin', $2, false)`,
+      organizationId ?? "",
+      isSuperAdmin ? "true" : "false"
     );
   } catch (err) {
     // Don't throw — RLS is defense-in-depth, not the primary filter.

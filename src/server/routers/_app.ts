@@ -48,6 +48,7 @@ import { storeLocationRouter } from "./store-location";
 import { vendorBillRouter } from "./vendor-bill";
 import { procurementLookaheadRouter } from "./procurement-lookahead";
 import { plantProductionRouter } from "./plant-production";
+import { adminRouter } from "./admin";
 
 import { projectRateRouter } from "./project-rate";
 
@@ -98,6 +99,7 @@ export const appRouter = router({
   vendorBill: vendorBillRouter,
   procurementLookahead: procurementLookaheadRouter,
   plantProduction: plantProductionRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

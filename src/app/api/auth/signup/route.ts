@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
         role: result.user.role,
         organizationId: result.org.id,
         orgRole: "org_admin",
+        isSuperAdmin: false,
         organization: { id: result.org.id, name: result.org.name, code: result.org.code },
       },
     });

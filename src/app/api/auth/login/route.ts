@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
         role: user.role,
         organizationId: user.organizationId,
         orgRole: user.orgRole,
+        isSuperAdmin: user.isSuperAdmin,
       },
       token,
     });

@@ -62,6 +62,7 @@ export type AuthUser = {
   avatarUrl?: string | null;
   organizationId?: string | null;
   orgRole?: string;
+  isSuperAdmin?: boolean;
   organization?: { id: string; name: string; code: string } | null;
 };
 
@@ -217,6 +218,7 @@ export async function getCurrentUser(authHeader?: string | null): Promise<AuthUs
         avatarUrl: true,
         organizationId: true,
         orgRole: true,
+        isSuperAdmin: true,
         organization: { select: { id: true, name: true, code: true } },
       },
     });

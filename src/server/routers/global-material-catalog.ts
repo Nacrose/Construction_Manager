@@ -1,4 +1,3 @@
-import { isOrgAdmin } from "@/lib/authz";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
@@ -104,7 +103,7 @@ export const globalMaterialCatalogRouter = router({
       aliases: z.array(z.string()).default([]),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only SuperAdmins can create global material catalog items.",
@@ -160,7 +159,7 @@ export const globalMaterialCatalogRouter = router({
       isActive: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only SuperAdmins can modify global material catalog items.",
@@ -201,7 +200,7 @@ export const globalMaterialCatalogRouter = router({
   deactivate: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user)) {
+      if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only SuperAdmins can deactivate global material catalog items.",

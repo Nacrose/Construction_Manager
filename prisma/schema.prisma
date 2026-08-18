@@ -495,6 +495,7 @@ model User {
   avatarUrl       String?
   organizationId  String?  // null = not yet assigned to an org
   orgRole         String   @default("member") // org_admin | member
+  isSuperAdmin    Boolean  @default(false) // platform operator (cross-org)
   lastActiveAt    DateTime? // last time the user hit any API endpoint (presence)
   deactivatedAt   DateTime? // null = active; set when admin deactivates
   deactivatedReason String?

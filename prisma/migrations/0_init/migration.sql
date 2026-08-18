@@ -337,6 +337,7 @@ CREATE TABLE "User" (
     "avatarUrl" TEXT,
     "organizationId" TEXT,
     "orgRole" TEXT NOT NULL DEFAULT 'member',
+    "isSuperAdmin" BOOLEAN NOT NULL DEFAULT false,
     "lastActiveAt" TIMESTAMP(3),
     "deactivatedAt" TIMESTAMP(3),
     "deactivatedReason" TEXT,

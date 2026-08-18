@@ -157,7 +157,7 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
   const isHorizontal = position === "top" || position === "bottom";
 
   const { data: meData } = useQuery<{
-    user: { id: string; name: string; email: string; role: string; organization?: { id: string; name: string; code: string } | null };
+    user: { id: string; name: string; email: string; role: string; isSuperAdmin?: boolean; organization?: { id: string; name: string; code: string } | null };
   }>({
     queryKey: ["me"],
     queryFn: async () => { const res = await fetchWithAuth("/api/auth/me"); if (!res.ok) throw new Error("not authed"); return res.json(); },
@@ -198,12 +198,19 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
     window.location.href = "/login";
   }
 
+  const adminItem: NavItem | null = user?.isSuperAdmin
+    ? { label: "Admin", href: "/admin", icon: ShieldAlert }
+    : null;
+
   const navItems: NavItem[] = projectId
-    ? PROJECT_MODULES.map((item) => ({
-        ...item,
-        href: item.href === "" ? `/projects/${projectId}` : `/projects/${projectId}${item.href}`,
-      }))
-    : TOP_NAV;
+    ? [
+        ...PROJECT_MODULES.map((item) => ({
+          ...item,
+          href: item.href === "" ? `/projects/${projectId}` : `/projects/${projectId}${item.href}`,
+        })),
+        ...(adminItem ? [adminItem] : []),
+      ]
+    : [...TOP_NAV, ...(adminItem ? [adminItem] : [])];
 
   const adminItems: NavItem[] = projectId
     ? PROJECT_ADMIN_MODULES.map((item) => ({
