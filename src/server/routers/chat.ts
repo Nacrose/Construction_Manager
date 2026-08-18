@@ -207,6 +207,17 @@ export const chatRouter = router({
       };
     }),
 
+  /** Get channel members for @mention autocomplete. */
+  getChannelMembers: protectedProcedure
+    .input(z.object({ channelId: z.string() }))
+    .query(async ({ input }) => {
+      const members = await db.chatMember.findMany({
+        where: { channelId: input.channelId },
+        include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
+      });
+      return { members: members.map((m) => m.user) };
+    }),
+
   /** Send a message. */
   sendMessage: protectedProcedure
     .input(z.object({
@@ -289,6 +300,43 @@ export const chatRouter = router({
             emailSubject: `📢 Project Order — ${channel.name}`,
             emailHtml: emailTemplates.projectOrder(channel.name, input.text, projectName, ctx.user.name).html,
           });
+        }
+      }
+
+      // Parse @mentions from text
+      const mentionRegex = /@([\w]+(?:\s[\w]+)*)/g;
+      const members = await db.chatMember.findMany({
+        where: { channelId: input.channelId },
+        include: { user: { select: { id: true, name: true } } },
+      });
+      const mentionedIds: string[] = [];
+      let match;
+      while ((match = mentionRegex.exec(input.text)) !== null) {
+        const nameQuery = match[1].toLowerCase();
+        const found = members.find((m) =>
+          m.user.name?.toLowerCase().includes(nameQuery)
+        );
+        if (found && found.userId !== ctx.user.id) {
+          mentionedIds.push(found.userId);
+        }
+      }
+      if (mentionedIds.length > 0) {
+        await db.chatMessage.update({
+          where: { id: message.id },
+          data: { mentionedUserIds: JSON.stringify(mentionedIds) },
+        });
+        for (const userId of mentionedIds) {
+          try {
+            const { createNotification } = await import("@/server/utils/notify");
+            await createNotification({
+              userId,
+              projectId: channel.projectId ?? undefined,
+              type: "chat_mention",
+              title: `Mentioned in #${channel.name}`,
+              message: `${ctx.user.name} mentioned you: "${input.text.slice(0, 100)}"`,
+              postToChannel: false,
+            });
+          } catch { /* non-blocking */ }
         }
       }
 

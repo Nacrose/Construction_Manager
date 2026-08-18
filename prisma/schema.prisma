@@ -2162,6 +2162,7 @@ model Drawing {
   revisions      DrawingRevision[]
   rfis           Rfi[]
   markups        DrawingMarkup[]
+  punchItems     PunchItem[]
   drawingSetId   String?
   drawingSet     DrawingSet?       @relation(fields: [drawingSetId], references: [id], onDelete: SetNull)
 
@@ -2752,6 +2753,7 @@ model DrawingMarkup {
   stampType     String?  // approved | rejected | revision | draft | final | caution
   linkedItemId  String?  // link to RFI, punch item, etc.
   linkedItemType String? // rfi | punch | observation
+  percentComplete Float? // 0-100, for "staged" type markups
   createdById   String?
   createdAt     DateTime @default(now())
 
@@ -2848,6 +2850,11 @@ model PunchItem {
   linkedGanttTaskId String?
   linkedDrawingId  String?
 
+  // Drawing/Markup pin links
+  drawingId     String?
+  revisionId    String?
+  markupId      String?  // link to the markup that marks this defect on a drawing
+
   // Photo evidence
   photoData     String?
   photoName     String?
@@ -2865,10 +2872,13 @@ model PunchItem {
   updatedAt     DateTime @updatedAt
 
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  drawing       Drawing? @relation(fields: [drawingId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, number])
   @@index([projectId, status])
   @@index([projectId, severity])
+  @@index([drawingId])
+  @@index([markupId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2913,6 +2923,7 @@ model ChatMessage {
   userId        String
   user          User     @relation("ChatMessageUser", fields: [userId], references: [id], onDelete: Cascade)
   text          String
+  mentionedUserIds String? // JSON array of user IDs mentioned with @
   attachmentData String?
   attachmentName String?
   attachmentType String?

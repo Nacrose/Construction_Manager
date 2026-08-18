@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  MessageCircle, Mail, Link as LinkIcon, Printer, Check, Copy, FileText,
+  MessageCircle, Mail, Link as LinkIcon, Printer, Check, Copy, FileText, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
+import { trpc } from "@/lib/trpc-client";
 
 type Report = {
   id: string;
@@ -76,7 +77,16 @@ function summarizeReport(report: Report): string {
 export function ShareReportDialog({ open, onOpenChange, report, clientName }: Props) {
   const [copied, setCopied] = useState(false);
   const [emailTo, setEmailTo] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
   const [emailSent, setEmailSent] = useState(false);
+
+  const emailMut = trpc.workflow.dailyReport.emailReport.useMutation({
+    onSuccess: () => {
+      toast.success("Email sent successfully");
+      setEmailSent(true);
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const reportUrl = useMemo(() => {
     if (typeof window === "undefined" || !report) return "";
@@ -137,19 +147,17 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
     window.open(printUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleMailTo = () => {
-    const subject = `${report.number} — Daily Site Report (${format(new Date(report.reportDate), "dd MMM yyyy")})`;
-    const body =
-      `Dear ${clientName || "Client"},\n\n` +
-      `Please find the daily site report summary below.\n\n` +
-      `${summary}\n\n` +
-      `View full report:\n${reportUrl}\n\n` +
-      `Printable PDF version:\n${printUrl}\n\n` +
-      `Please review and share your approval. Thank you.\n\n` +
-      `Best regards,\n${report.createdBy?.name ?? ""}`;
-    const url = `mailto:${emailTo || ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = url;
-    setEmailSent(true);
+  const handleSendEmail = () => {
+    if (!emailTo.trim()) {
+      toast.error("Please enter an email address");
+      return;
+    }
+    emailMut.mutate({
+      reportId: report.id,
+      to: emailTo,
+      subject: `${report.number} — Daily Site Report (${format(new Date(report.reportDate), "dd MMM yyyy")})`,
+      message: emailMessage || undefined,
+    });
   };
 
   return (
@@ -178,11 +186,16 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
             <Button
               variant="outline"
               className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950"
-              onClick={handleMailTo}
+              onClick={handleSendEmail}
+              disabled={emailMut.isPending}
             >
-              <Mail className="h-5 w-5 text-blue-600" />
+              {emailMut.isPending ? (
+                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+              ) : (
+                <Mail className="h-5 w-5 text-blue-600" />
+              )}
               <div className="text-xs font-medium">Email</div>
-              <div className="text-[10px] text-muted-foreground">Opens mail client</div>
+              <div className="text-[10px] text-muted-foreground">Send via SMTP</div>
             </Button>
 
             <Link href={designerHref} onClick={() => onOpenChange(false)}>
@@ -218,7 +231,7 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Email recipient (optional)</Label>
+            <Label className="text-xs">Email recipient</Label>
             <div className="flex gap-2">
               <Input
                 type="email"
@@ -230,14 +243,30 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleMailTo}
+                onClick={handleSendEmail}
+                disabled={emailMut.isPending}
                 className="h-9 shrink-0"
               >
-                {emailSent ? <Check className="h-3 w-3 mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
-                {emailSent ? "Opened" : "Open Mail"}
+                {emailMut.isPending ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : emailSent ? (
+                  <Check className="h-3 w-3 mr-1" />
+                ) : (
+                  <Mail className="h-3 w-3 mr-1" />
+                )}
+                {emailMut.isPending ? "Sending..." : emailSent ? "Sent" : "Send"}
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground">Leaves the body pre-filled; opens in your default mail app.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Optional message (included in email body)</Label>
+            <Textarea
+              placeholder="Add a note to include in the email..."
+              value={emailMessage}
+              onChange={(e) => setEmailMessage(e.target.value)}
+              className="h-20 text-sm resize-none"
+            />
           </div>
 
           <div className="space-y-1.5">

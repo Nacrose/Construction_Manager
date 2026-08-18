@@ -493,7 +493,7 @@ export const documentRouter = router({
     .input(z.object({
       drawingId: z.string(),
       revisionId: z.string().optional(),
-      type: z.enum(["cloud", "arrow", "text", "pin", "highlight", "measurement", "freehand", "callout", "stamp", "area"]),
+      type: z.enum(["cloud", "arrow", "text", "pin", "highlight", "measurement", "freehand", "callout", "stamp", "area", "staged"]),
       x: z.number().min(0).max(1),
       y: z.number().min(0).max(1),
       w: z.number().optional(),
@@ -509,6 +509,7 @@ export const documentRouter = router({
       stampType: z.string().optional(),
       linkedItemId: z.string().optional(),
       linkedItemType: z.string().optional(),
+      percentComplete: z.number().min(0).max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const drawing = await db.drawing.findUnique({
@@ -538,6 +539,7 @@ export const documentRouter = router({
           stampType: input.stampType || null,
           linkedItemId: input.linkedItemId || null,
           linkedItemType: input.linkedItemType || null,
+          percentComplete: input.percentComplete ?? null,
           createdById: ctx.user.id,
         },
       });

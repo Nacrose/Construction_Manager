@@ -937,6 +937,43 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "impersonatedOrgId" TEXT`,
     `ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "impersonatedByUserId" TEXT`,
     `CREATE INDEX IF NOT EXISTS "AuditLog_impersonatedOrgId_idx" ON "AuditLog"("impersonatedOrgId")`,
+
+    // ChatMessage — @mentions support
+    `ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "mentionedUserIds" TEXT`,
+
+    // PunchItem — snag/punch list for defect tracking
+    `CREATE TABLE IF NOT EXISTS "PunchItem" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "drawingId" TEXT,
+      "revisionId" TEXT,
+      "markupId" TEXT,
+      "number" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "description" TEXT,
+      "category" TEXT NOT NULL DEFAULT 'general',
+      "severity" TEXT NOT NULL DEFAULT 'minor',
+      "status" TEXT NOT NULL DEFAULT 'open',
+      "location" TEXT,
+      "assignedToId" TEXT,
+      "dueDate" TIMESTAMP(3),
+      "photoData" TEXT,
+      "photoName" TEXT,
+      "resolvedAt" TIMESTAMP(3),
+      "resolvedById" TEXT,
+      "verifiedAt" TIMESTAMP(3),
+      "verifiedById" TEXT,
+      "createdById" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "PunchItem_projectId_number_key" ON "PunchItem"("projectId", "number")`,
+    `CREATE INDEX IF NOT EXISTS "PunchItem_projectId_status_idx" ON "PunchItem"("projectId", "status")`,
+    `CREATE INDEX IF NOT EXISTS "PunchItem_drawingId_idx" ON "PunchItem"("drawingId")`,
+    `CREATE INDEX IF NOT EXISTS "PunchItem_markupId_idx" ON "PunchItem"("markupId")`,
+
+    // DrawingMarkup — completed/staged work percentage
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "percentComplete" DOUBLE PRECISION; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
   ];
 
   for (const stmt of alterStatements) {

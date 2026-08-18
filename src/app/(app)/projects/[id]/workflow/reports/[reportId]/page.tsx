@@ -192,6 +192,7 @@ export default function UnifiedDailyReportPage({
             {/* 2. PLAN VS ACTUAL (PROGRESS) */}
             {activeSection === "progress" && (
               <ProgressSection
+                projectId={id}
                 progress={progress}
                 setProgress={setProgress}
                 canEdit={canEdit}

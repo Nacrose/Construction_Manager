@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -9,11 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ListChecks, Loader2, RefreshCw } from "lucide-react";
+import { ListChecks, Loader2, RefreshCw, FileQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { jsonArrayString } from "./types";
+import { CreateRfiFromProgressDialog } from "../dialogs/create-rfi-from-progress-dialog";
 
 export function ProgressSection({
+  projectId,
   progress,
   setProgress,
   canEdit,
@@ -21,6 +25,7 @@ export function ProgressSection({
   onSyncFromProgram,
   saveField,
 }: {
+  projectId: string;
   progress: any[];
   setProgress: (val: any[]) => void;
   canEdit: boolean;
@@ -28,6 +33,8 @@ export function ProgressSection({
   onSyncFromProgram: () => void;
   saveField: (field: string, val: any) => void | Promise<void>;
 }) {
+  const [rfiDialogRow, setRfiDialogRow] = useState<number | null>(null);
+  const [rfiDialogData, setRfiDialogData] = useState<any>(null);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -100,6 +107,7 @@ export function ProgressSection({
                 Yield / Wastage
               </TableHead>
               <TableHead className="h-7 text-[10px] w-12">Unit</TableHead>
+              <TableHead className="h-7 text-[10px] w-20 text-center">RFI</TableHead>
               {canEdit && <TableHead className="h-7 w-6"></TableHead>}
             </TableRow>
           </TableHeader>
@@ -107,7 +115,7 @@ export function ProgressSection({
             {progress.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={canEdit ? 9 : 8}
+                  colSpan={canEdit ? 10 : 9}
                   className="py-6 text-center text-xs text-muted-foreground"
                 >
                   No work progress entries yet. Click &quot;Sync from Daily Program&quot; or
@@ -259,6 +267,36 @@ export function ProgressSection({
                         onBlur={() => saveField("workProgress", jsonArrayString(progress))}
                       />
                     </TableCell>
+                    <TableCell className="py-1 px-1 text-center">
+                      {r.rfiId ? (
+                        <Link
+                          href={`/projects/${projectId}/workflow/rfi`}
+                          className="text-[10px] font-mono text-primary underline hover:text-primary/80"
+                          title={r.rfiNumber || "View RFI"}
+                        >
+                          {r.rfiNumber || "RFI"}
+                        </Link>
+                      ) : canEdit ? (
+                        <button
+                          onClick={() => {
+                            setRfiDialogRow(i);
+                            setRfiDialogData({
+                              boqCode: r.boqCode,
+                              boqDesc: r.boqDesc,
+                              location: r.location,
+                              taskDescription: r.boqDesc,
+                            });
+                          }}
+                          className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary px-1 py-0.5 rounded hover:bg-primary/5"
+                          title="Create RFI from this row"
+                        >
+                          <FileQuestion className="h-3 w-3" />
+                          RFI
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     {canEdit && (
                       <TableCell className="py-1 px-1">
                         <button
@@ -280,6 +318,22 @@ export function ProgressSection({
           </TableBody>
         </Table>
       </div>
+
+      {rfiDialogRow !== null && rfiDialogData && (
+        <CreateRfiFromProgressDialog
+          projectId={projectId}
+          progress={rfiDialogData}
+          onClose={() => { setRfiDialogRow(null); setRfiDialogData(null); }}
+          onRfiCreated={(rfiId, rfiNumber) => {
+            const updated = [...progress];
+            updated[rfiDialogRow] = { ...updated[rfiDialogRow], rfiId, rfiNumber };
+            setProgress(updated);
+            saveField("workProgress", jsonArrayString(updated));
+            setRfiDialogRow(null);
+            setRfiDialogData(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -166,8 +166,8 @@ export function MarkupOverlay({
     const w = Math.abs(dragCurrent.x - dragStart.x), h = Math.abs(dragCurrent.y - dragStart.y);
     if (w < 0.005 && h < 0.005) { setDragStart(null); setDragCurrent(null); return; }
 
-    if (activeTool === "cloud" || activeTool === "highlight" || activeTool === "area") {
-      addMarkup.mutate({ drawingId, revisionId, type: activeTool, x, y, w, h, color: activeColor });
+    if (activeTool === "cloud" || activeTool === "highlight" || activeTool === "area" || activeTool === "staged") {
+      addMarkup.mutate({ drawingId, revisionId, type: activeTool, x, y, w, h, color: activeTool === "staged" ? "#22c55e" : activeColor });
     } else if (activeTool === "arrow" || activeTool === "measurement") {
       addMarkup.mutate({ drawingId, revisionId, type: activeTool, x: dragStart.x, y: dragStart.y, w: dragCurrent.x - dragStart.x, h: dragCurrent.y - dragStart.y, color: activeColor });
     } else if (activeTool === "callout") {
@@ -264,10 +264,18 @@ export function MarkupOverlay({
         <path d={d} fill="none" stroke={m.color} strokeWidth={isSel ? 4 : sw(m)} strokeLinecap="round" strokeLinejoin="round" opacity={op(m)} />
       </g>;
     }
+    if (m.type === "staged") {
+      return <g key={m.id} onClick={(e) => handleMarkupClick(e, m.id)} className="cursor-pointer">
+        <rect x={x1} y={y1} width={w} height={h} fill="#22c55e20" stroke="#22c55e" strokeWidth={isSel ? 3 : 2} strokeDasharray="8 4" rx={4} opacity={op(m)} />
+        <text x={x1 + w / 2} y={y1 + h / 2 + 3} textAnchor="middle" fill="#22c55e" fontSize={12} fontWeight="bold">
+          ✓ STAGED
+        </text>
+      </g>;
+    }
     return null;
   };
 
-  const isDragTool = ["cloud", "highlight", "area", "arrow", "measurement", "callout"].includes(activeTool);
+  const isDragTool = ["cloud", "highlight", "area", "arrow", "measurement", "callout", "staged"].includes(activeTool);
   const cursor = activeTool === "select" ? "cursor-default" : "cursor-crosshair";
 
   return (
@@ -301,7 +309,7 @@ export function MarkupOverlay({
       {/* Drag preview */}
       {dragStart && dragCurrent && isDragTool && (
         <>
-          {(activeTool === "cloud" || activeTool === "highlight" || activeTool === "area") && (
+          {(activeTool === "cloud" || activeTool === "highlight" || activeTool === "area" || activeTool === "staged") && (
             <rect
               x={Math.min(dragStart.x, dragCurrent.x) * 1000} y={Math.min(dragStart.y, dragCurrent.y) * 1000}
               width={Math.abs(dragCurrent.x - dragStart.x) * 1000} height={Math.abs(dragCurrent.y - dragStart.y) * 1000}

@@ -16,6 +16,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { fetchWithAuth, getToken } from "@/lib/client-auth";
 import { useQuery } from "@tanstack/react-query";
 import { VoiceRecorder } from "@/components/voice-recorder";
+import { MentionText } from "@/components/chat/mention-text";
 
 const CHANNEL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   public: Hash, group: Users, personal: MessageSquare, project_order: Megaphone, org_order: Building2,
@@ -51,6 +52,22 @@ export function ChatPiP() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // @mention autocomplete state
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [selectedMentionIdx, setSelectedMentionIdx] = useState(0);
+
+  // Fetch channel members for @mention autocomplete
+  const { data: membersData } = trpc.chat.getChannelMembers.useQuery(
+    { channelId: selectedChannelId ?? "" },
+    { enabled: showMentionDropdown && !!selectedChannelId }
+  );
+  const channelMembers = membersData?.members ?? [];
+  const filteredMembers = mentionQuery
+    ? channelMembers.filter((m) => m.name?.toLowerCase().includes(mentionQuery.toLowerCase()))
+    : channelMembers;
 
   // Restore state from localStorage
   useEffect(() => {
@@ -211,6 +228,34 @@ export function ChatPiP() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    if (showMentionDropdown && filteredMembers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedMentionIdx((i) => Math.min(i + 1, filteredMembers.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedMentionIdx((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const member = filteredMembers[selectedMentionIdx];
+        if (member) {
+          const lastAt = messageText.lastIndexOf("@");
+          setMessageText(messageText.slice(0, lastAt) + `@${member.name} `);
+          setShowMentionDropdown(false);
+          setMentionQuery("");
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        setShowMentionDropdown(false);
+        setMentionQuery("");
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -504,7 +549,7 @@ export function ChatPiP() {
                   "text-sm whitespace-pre-wrap break-words",
                   isOwn ? "text-foreground" : "text-foreground/90"
                 )}>
-                  {msg.text}
+                  <MentionText text={msg.text} />
                 </p>
               )}
               {msg.attachmentData && msg.attachmentType?.startsWith("image/") && (
@@ -545,10 +590,52 @@ export function ChatPiP() {
       </div>
 
       {/* Input */}
-      <div className="border-t bg-background/80 backdrop-blur p-2 space-y-2">
+      <div className="border-t bg-background/80 backdrop-blur p-2 space-y-2 relative">
+        {/* @mention autocomplete dropdown */}
+        {showMentionDropdown && filteredMembers.length > 0 && (
+          <div className="absolute bottom-full left-2 right-2 mb-1 bg-card border border-border rounded-lg shadow-lg py-1 max-h-40 overflow-y-auto z-50">
+            {filteredMembers.slice(0, 8).map((member, idx) => (
+              <button
+                key={member.id}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-xs flex items-center gap-2",
+                  idx === selectedMentionIdx ? "bg-primary/10" : "hover:bg-muted"
+                )}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const lastAt = messageText.lastIndexOf("@");
+                  setMessageText(messageText.slice(0, lastAt) + `@${member.name} `);
+                  setShowMentionDropdown(false);
+                  setMentionQuery("");
+                  inputRef.current?.focus();
+                }}
+              >
+                <span className="font-medium">{member.name}</span>
+                <span className="text-muted-foreground truncate">{member.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <Textarea
+          ref={inputRef}
           value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setMessageText(val);
+            // Detect @mention trigger
+            const lastAt = val.lastIndexOf("@");
+            if (lastAt >= 0) {
+              const afterAt = val.slice(lastAt + 1);
+              if (!afterAt.includes(" ") || afterAt.split(" ").length <= 2) {
+                setMentionQuery(afterAt);
+                setShowMentionDropdown(true);
+                setSelectedMentionIdx(0);
+                return;
+              }
+            }
+            setShowMentionDropdown(false);
+            setMentionQuery("");
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
           className="min-h-[40px] max-h-24 resize-none text-sm"

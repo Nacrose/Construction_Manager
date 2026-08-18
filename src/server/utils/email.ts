@@ -62,6 +62,7 @@ export async function sendEmail(params: {
   subject: string;
   html: string;
   text?: string;
+  attachments?: { filename: string; content: string; encoding?: string }[];
 }): Promise<boolean> {
   const t = getTransporter();
   if (!t) {
@@ -76,6 +77,7 @@ export async function sendEmail(params: {
       subject: params.subject,
       html: params.html,
       text: params.text || params.html.replace(/<[^>]*>/g, ""),
+      attachments: params.attachments,
     });
     console.log("[email] Sent:", info.messageId, "to:", params.to);
     return true;

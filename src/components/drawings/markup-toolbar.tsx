@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Cloud, ArrowUpRight, Type, Highlighter, Ruler, MapPin, Trash2, MousePointer,
-  Pencil, MessageSquare, Stamp, Square, Undo2, Redo2,
+  Pencil, MessageSquare, Stamp, Square, Undo2, Redo2, CheckCircle2,
 } from "lucide-react";
 
-export type MarkupTool = "select" | "cloud" | "arrow" | "text" | "highlight" | "measurement" | "pin" | "freehand" | "callout" | "stamp" | "area";
+export type MarkupTool = "select" | "cloud" | "arrow" | "text" | "highlight" | "measurement" | "pin" | "freehand" | "callout" | "stamp" | "area" | "staged";
 
 const TOOLS: { tool: MarkupTool; icon: typeof MousePointer; label: string; shortcut?: string }[] = [
   { tool: "select", icon: MousePointer, label: "Select", shortcut: "V" },
@@ -21,6 +21,7 @@ const TOOLS: { tool: MarkupTool; icon: typeof MousePointer; label: string; short
   { tool: "area", icon: Square, label: "Area", shortcut: "U" },
   { tool: "pin", icon: MapPin, label: "Pin", shortcut: "I" },
   { tool: "stamp", icon: Stamp, label: "Stamp", shortcut: "S" },
+  { tool: "staged", icon: CheckCircle2, label: "Work Staged", shortcut: "G" },
 ];
 
 const COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ffffff"];
