@@ -1,0 +1,835 @@
+/**
+ * Gantt versioning, approval, and revision workflow router.
+ */
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { router, protectedProcedure } from "@/server/trpc";
+import { db } from "@/lib/db";
+import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { audit } from "@/lib/audit";
+import { notifyProjectMembers } from "@/server/utils/notify";
+
+export async function cloneDependencies(
+  idMap: Map<string, string>,
+  tx: any
+): Promise<void> {
+  const oldIds = Array.from(idMap.keys());
+  if (oldIds.length === 0) return;
+  const deps = await tx.taskDependency.findMany({
+    where: { OR: [{ predecessorId: { in: oldIds } }, { successorId: { in: oldIds } }] },
+  });
+  for (const dep of deps) {
+    const newPred = idMap.get(dep.predecessorId);
+    const newSucc = idMap.get(dep.successorId);
+    if (!newPred || !newSucc) continue;
+    await tx.taskDependency
+      .create({
+        data: {
+          predecessorId: newPred,
+          successorId: newSucc,
+          type: dep.type,
+          offset: dep.offset,
+        },
+      })
+      .catch(() => {});
+  }
+}
+
+export async function cloneResourceAssignments(
+  idMap: Map<string, string>,
+  tx: any
+): Promise<void> {
+  const oldIds = Array.from(idMap.keys());
+  if (oldIds.length === 0) return;
+  const assignments = await tx.resourceAssignment.findMany({
+    where: { taskId: { in: oldIds } },
+  });
+  for (const a of assignments) {
+    const newTaskId = idMap.get(a.taskId);
+    if (!newTaskId) continue;
+    await tx.resourceAssignment
+      .create({
+        data: {
+          taskId: newTaskId,
+          staffRoleId: a.staffRoleId,
+          staffId: null,
+          equipmentId: null,
+          quantity: a.quantity,
+          unit: a.unit,
+          notes: a.notes,
+        },
+      })
+      .catch(() => {});
+  }
+}
+
+const CreateVersionSchema = z.object({
+  projectId: z.string(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  baseVersionId: z.string().optional(),
+});
+
+export const ganttVersionsRouter = router({
+  listVersions: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      let versions = await db.ganttVersion.findMany({
+        where: { projectId: input.projectId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (versions.length === 0) {
+        const defaultVer = await db.ganttVersion.create({
+          data: { projectId: input.projectId, name: "Default Running", isActive: true },
+        });
+        versions = [defaultVer];
+        await db.ganttTask.updateMany({
+          where: { projectId: input.projectId, versionId: null },
+          data: { versionId: defaultVer.id },
+        });
+      }
+      return { versions };
+    }),
+
+  createVersion: protectedProcedure
+    .input(CreateVersionSchema)
+    .mutation(async ({ ctx, input }) => {
+      const role = await assertProjectMember(ctx.user, input.projectId);
+      if (role === "client" || role === "inspector")
+        throw new TRPCError({ code: "FORBIDDEN", message: "Read-only" });
+
+      const baseVersionId =
+        input.baseVersionId ||
+        (
+          await db.ganttVersion.findFirst({
+            where: { projectId: input.projectId, isActive: true },
+            select: { id: true },
+          })
+        )?.id;
+
+      if (!baseVersionId) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No base version found to clone from",
+        });
+      }
+
+      const maxVersion = await db.ganttVersion.aggregate({
+        where: { projectId: input.projectId },
+        _max: { versionNumber: true },
+      });
+      const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
+
+      const newVersion = await db.$transaction(async (tx) => {
+        const newVer = await tx.ganttVersion.create({
+          data: {
+            projectId: input.projectId,
+            versionNumber: nextVersionNumber,
+            name: input.name,
+            description: input.description,
+            baseVersionId: baseVersionId,
+            status: "DRAFT",
+          },
+        });
+
+        const sourceTasks = await tx.ganttTask.findMany({
+          where: { versionId: baseVersionId },
+          include: { boqLinks: true },
+        });
+
+        const idMap = new Map();
+        for (const task of sourceTasks) {
+          const newTask = await tx.ganttTask.create({
+            data: {
+              projectId: input.projectId,
+              versionId: newVer.id,
+              name: task.name,
+              code: task.code,
+              startDate: task.startDate,
+              endDate: task.endDate,
+              duration: task.duration,
+              progress: task.progress,
+              baseProgress: task.progress,
+              isProgressEdited: false,
+              baseVersionId: baseVersionId,
+              sortOrder: task.sortOrder,
+              boqLinks: {
+                create: task.boqLinks.map((link) => ({
+                  boqItemId: link.boqItemId,
+                  quantity: link.quantity,
+                })),
+              },
+            },
+          });
+          idMap.set(task.id, newTask.id);
+        }
+
+        for (const task of sourceTasks) {
+          if (!task.parentId && !task.dependencies) continue;
+          let newDeps = task.dependencies;
+          if (newDeps) {
+            try {
+              const deps = JSON.parse(newDeps);
+              newDeps = JSON.stringify(
+                deps.map((d: any) => ({
+                  ...d,
+                  taskId: idMap.get(d.taskId) ?? d.taskId,
+                }))
+              );
+            } catch (e) {
+              console.error(
+                "[gantt.createVersion] Failed to remap dependencies for task",
+                task.id,
+                e
+              );
+            }
+          }
+          await tx.ganttTask.update({
+            where: { id: idMap.get(task.id) },
+            data: {
+              parentId: task.parentId ? idMap.get(task.parentId) : null,
+              dependencies: newDeps,
+            },
+          });
+        }
+
+        await cloneDependencies(idMap, tx);
+        await cloneResourceAssignments(idMap, tx);
+
+        return newVer;
+      });
+
+      return { version: newVersion };
+    }),
+
+  approveVersion: protectedProcedure
+    .input(z.object({ projectId: z.string(), versionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const role = await assertProjectMember(ctx.user, input.projectId);
+      if (role !== "project_manager") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only project managers can approve versions.",
+        });
+      }
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: { id: true, status: true, projectId: true, versionNumber: true },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.status !== "DRAFT") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only draft versions can be approved.",
+        });
+      }
+
+      const currentActive = await db.ganttVersion.findFirst({
+        where: {
+          projectId: input.projectId,
+          isActive: true,
+          id: { not: input.versionId },
+        },
+      });
+
+      await db.$transaction(async (tx) => {
+        if (currentActive) {
+          await tx.ganttVersion.update({
+            where: { id: currentActive.id },
+            data: { isActive: false, status: "ARCHIVED" },
+          });
+        }
+        await tx.ganttVersion.update({
+          where: { id: input.versionId },
+          data: {
+            status: "APPROVED",
+            isActive: true,
+            approvedAt: new Date(),
+            approvedById: ctx.user.id,
+          },
+        });
+      });
+
+      return { version: { ...version, status: "APPROVED" as const } };
+    }),
+
+  createRevision: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        reason: z.string().min(1).max(500),
+        name: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const currentBaseline = await db.ganttVersion.findFirst({
+        where: {
+          projectId: input.projectId,
+          scheduleType: "PLANNING",
+          status: "APPROVED",
+        },
+        select: { id: true, versionNumber: true, name: true },
+      });
+      if (!currentBaseline) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "No approved planning baseline found. Create and approve a planning schedule first.",
+        });
+      }
+
+      const pending = await db.ganttVersion.findFirst({
+        where: {
+          projectId: input.projectId,
+          scheduleType: "PLANNING",
+          revisionStatus: { in: ["DRAFT", "SUBMITTED"] },
+        },
+        select: { id: true },
+      });
+      if (pending) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "A pending revision already exists. Approve or reject it before creating a new one.",
+        });
+      }
+
+      const maxVersion = await db.ganttVersion.aggregate({
+        where: { projectId: input.projectId },
+        _max: { versionNumber: true },
+      });
+      const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
+
+      const revision = await db.$transaction(async (tx) => {
+        const rev = await tx.ganttVersion.create({
+          data: {
+            projectId: input.projectId,
+            versionNumber: nextVersionNumber,
+            name:
+              input.name ||
+              `Revision of ${currentBaseline.name || "v" + currentBaseline.versionNumber}`,
+            baseVersionId: currentBaseline.id,
+            scheduleType: "PLANNING",
+            status: "DRAFT",
+            revisionOfId: currentBaseline.id,
+            revisionReason: input.reason,
+            revisionStatus: "DRAFT",
+          },
+        });
+
+        const sourceTasks = await tx.ganttTask.findMany({
+          where: { versionId: currentBaseline.id },
+          include: { boqLinks: true },
+          orderBy: { sortOrder: "asc" },
+        });
+
+        const idMap = new Map<string, string>();
+        for (const task of sourceTasks) {
+          const newTask = await tx.ganttTask.create({
+            data: {
+              projectId: input.projectId,
+              versionId: rev.id,
+              name: task.name,
+              code: task.code,
+              startDate: task.startDate,
+              endDate: task.endDate,
+              duration: task.duration,
+              progress: task.progress,
+              baseProgress: task.progress,
+              isProgressEdited: false,
+              baseVersionId: currentBaseline.id,
+              sortOrder: task.sortOrder,
+              laborCount: task.laborCount,
+              assignees: task.assignees,
+              isMilestone: task.isMilestone,
+              boqLinks: {
+                create: task.boqLinks.map((link) => ({
+                  boqItemId: link.boqItemId,
+                  quantity: link.quantity,
+                })),
+              },
+            },
+          });
+          idMap.set(task.id, newTask.id);
+        }
+
+        for (const task of sourceTasks) {
+          if (!task.parentId && !task.dependencies) continue;
+          let newDeps = task.dependencies;
+          if (newDeps) {
+            try {
+              const deps = JSON.parse(newDeps);
+              newDeps = JSON.stringify(
+                deps.map((d: any) => ({
+                  ...d,
+                  taskId: idMap.get(d.taskId) ?? d.taskId,
+                }))
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+          await tx.ganttTask.update({
+            where: { id: idMap.get(task.id)! },
+            data: {
+              parentId: task.parentId ? idMap.get(task.parentId) : null,
+              dependencies: newDeps,
+            },
+          });
+        }
+
+        await cloneDependencies(idMap, tx);
+        await cloneResourceAssignments(idMap, tx);
+
+        return rev;
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.createRevision",
+        entityType: "gantt_version",
+        entityId: revision.id,
+        metadata: { reason: input.reason, revisionOf: currentBaseline.id },
+      });
+
+      return { version: revision };
+    }),
+
+  submitRevision: protectedProcedure
+    .input(z.object({ versionId: z.string(), projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: { id: true, scheduleType: true, revisionStatus: true, projectId: true },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.scheduleType !== "PLANNING") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only planning schedules can be submitted for revision.",
+        });
+      }
+      if (version.revisionStatus !== "DRAFT") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only DRAFT revisions can be submitted.",
+        });
+      }
+
+      const updated = await db.ganttVersion.update({
+        where: { id: input.versionId },
+        data: {
+          revisionStatus: "SUBMITTED",
+          submittedAt: new Date(),
+          submittedById: ctx.user.id,
+        },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.submitRevision",
+        entityType: "gantt_version",
+        entityId: input.versionId,
+      });
+
+      await notifyProjectMembers({
+        projectId: input.projectId,
+        type: "revision_submitted",
+        title: "Schedule revision submitted for approval",
+        message: `Revision v${(version as any).versionNumber} has been submitted for approval. Review and approve/reject in the Schedule tab.`,
+        metadata: { versionId: input.versionId },
+        excludeUserId: ctx.user.id,
+      });
+
+      return { version: updated };
+    }),
+
+  approveRevision: protectedProcedure
+    .input(
+      z.object({
+        versionId: z.string(),
+        projectId: z.string(),
+        approvalNote: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const role = await assertProjectMember(ctx.user, input.projectId);
+      if (role !== "project_manager") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only project managers can approve revisions.",
+        });
+      }
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: {
+          id: true,
+          scheduleType: true,
+          revisionStatus: true,
+          revisionOfId: true,
+          projectId: true,
+        },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.revisionStatus !== "SUBMITTED") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only SUBMITTED revisions can be approved.",
+        });
+      }
+
+      await db.$transaction(async (tx) => {
+        if (version.revisionOfId) {
+          await tx.ganttVersion.update({
+            where: { id: version.revisionOfId },
+            data: { isActive: false, status: "ARCHIVED", revisionStatus: "ARCHIVED" },
+          });
+        }
+        await tx.ganttVersion.update({
+          where: { id: input.versionId },
+          data: {
+            status: "APPROVED",
+            isActive: true,
+            revisionStatus: "APPROVED",
+            approvedAt: new Date(),
+            approvedById: ctx.user.id,
+            approvalNote: input.approvalNote,
+          },
+        });
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.approveRevision",
+        entityType: "gantt_version",
+        entityId: input.versionId,
+        metadata: { approvalNote: input.approvalNote },
+      });
+
+      await notifyProjectMembers({
+        projectId: input.projectId,
+        type: "revision_approved",
+        title: "Schedule revision approved",
+        message: `Revision v${(version as any).versionNumber} has been approved. The new baseline is now active.`,
+        metadata: { versionId: input.versionId, approvalNote: input.approvalNote },
+        excludeUserId: ctx.user.id,
+      });
+
+      return { ok: true };
+    }),
+
+  rejectRevision: protectedProcedure
+    .input(
+      z.object({
+        versionId: z.string(),
+        projectId: z.string(),
+        rejectionNote: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const role = await assertProjectMember(ctx.user, input.projectId);
+      if (role !== "project_manager") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only project managers can reject revisions.",
+        });
+      }
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: { id: true, revisionStatus: true },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.revisionStatus !== "SUBMITTED") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only SUBMITTED revisions can be rejected.",
+        });
+      }
+
+      await db.ganttVersion.update({
+        where: { id: input.versionId },
+        data: { revisionStatus: "DRAFT", approvalNote: input.rejectionNote },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.rejectRevision",
+        entityType: "gantt_version",
+        entityId: input.versionId,
+        metadata: { rejectionNote: input.rejectionNote },
+      });
+
+      await notifyProjectMembers({
+        projectId: input.projectId,
+        type: "revision_rejected",
+        title: "Schedule revision rejected",
+        message: `Revision v${(version as any).versionNumber} was rejected. It has been reset to DRAFT for editing. Reason: ${input.rejectionNote ?? "Not specified"}`,
+        metadata: {
+          versionId: input.versionId,
+          rejectionNote: input.rejectionNote,
+        },
+      });
+
+      return { ok: true };
+    }),
+
+  deleteVersion: protectedProcedure
+    .input(z.object({ projectId: z.string(), versionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: {
+          id: true,
+          status: true,
+          projectId: true,
+          isActive: true,
+          scheduleType: true,
+        },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.projectId !== input.projectId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Version does not belong to this project.",
+        });
+      }
+      if (version.isActive) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete the active version. Archive it first.",
+        });
+      }
+      if (version.status === "APPROVED") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete an APPROVED version. Archive it first.",
+        });
+      }
+
+      await db.ganttVersion.delete({ where: { id: input.versionId } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.deleteVersion",
+        entityType: "gantt_version",
+        entityId: input.versionId,
+      });
+
+      return { ok: true };
+    }),
+
+  archiveVersion: protectedProcedure
+    .input(z.object({ projectId: z.string(), versionId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        select: { id: true, projectId: true, isActive: true },
+      });
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      if (version.projectId !== input.projectId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Version does not belong to this project.",
+        });
+      }
+
+      await db.ganttVersion.update({
+        where: { id: input.versionId },
+        data: { status: "ARCHIVED", isActive: false, revisionStatus: "ARCHIVED" },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "gantt.archiveVersion",
+        entityType: "gantt_version",
+        entityId: input.versionId,
+      });
+
+      return { ok: true };
+    }),
+
+  getRevisionDocument: protectedProcedure
+    .input(z.object({ projectId: z.string(), versionId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const version = await db.ganttVersion.findUnique({
+        where: { id: input.versionId },
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              client: true,
+              location: true,
+              contractValue: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          revisionOf: {
+            select: {
+              id: true,
+              versionNumber: true,
+              name: true,
+              approvedAt: true,
+              approvedById: true,
+            },
+          },
+          approvedBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+
+      const currentTasks = await db.ganttTask.findMany({
+        where: { versionId: input.versionId },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          startDate: true,
+          endDate: true,
+          duration: true,
+          progress: true,
+        },
+      });
+
+      let previousTasks: Array<{
+        id: string;
+        name: string;
+        code: string | null;
+        startDate: Date;
+        endDate: Date;
+        duration: number;
+      }> = [];
+      if (version.revisionOfId) {
+        previousTasks = await db.ganttTask.findMany({
+          where: { versionId: version.revisionOfId },
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startDate: true,
+            endDate: true,
+            duration: true,
+          },
+        });
+      }
+
+      const prevStartDates = previousTasks
+        .map((t) => new Date(t.startDate).getTime())
+        .filter(Boolean);
+      const prevEndDates = previousTasks
+        .map((t) => new Date(t.endDate).getTime())
+        .filter(Boolean);
+      const currStartDates = currentTasks
+        .map((t) => new Date(t.startDate).getTime())
+        .filter(Boolean);
+      const currEndDates = currentTasks
+        .map((t) => new Date(t.endDate).getTime())
+        .filter(Boolean);
+
+      const prevProjectStart = prevStartDates.length
+        ? new Date(Math.min(...prevStartDates))
+        : null;
+      const prevProjectEnd = prevEndDates.length
+        ? new Date(Math.max(...prevEndDates))
+        : null;
+      const currProjectStart = currStartDates.length
+        ? new Date(Math.min(...currStartDates))
+        : null;
+      const currProjectEnd = currEndDates.length
+        ? new Date(Math.max(...currEndDates))
+        : null;
+
+      const prevDuration =
+        prevProjectStart && prevProjectEnd
+          ? Math.round(
+              (prevProjectEnd.getTime() - prevProjectStart.getTime()) /
+                (1000 * 60 * 60 * 24)
+            )
+          : 0;
+      const currDuration =
+        currProjectStart && currProjectEnd
+          ? Math.round(
+              (currProjectEnd.getTime() - currProjectStart.getTime()) /
+                (1000 * 60 * 60 * 24)
+            )
+          : 0;
+      const durationChange = currDuration - prevDuration;
+
+      const changedTasks = currentTasks.filter((ct) => {
+        const pt = previousTasks.find((p) => p.code === ct.code);
+        if (!pt) return true;
+        return (
+          new Date(ct.startDate).getTime() !== new Date(pt.startDate).getTime() ||
+          new Date(ct.endDate).getTime() !== new Date(pt.endDate).getTime() ||
+          ct.duration !== pt.duration
+        );
+      });
+
+      return {
+        version: {
+          id: version.id,
+          versionNumber: version.versionNumber,
+          name: version.name,
+          scheduleType: version.scheduleType,
+          status: version.status,
+          revisionReason: version.revisionReason,
+          revisionStatus: version.revisionStatus,
+          submittedAt: version.submittedAt,
+          approvedAt: version.approvedAt,
+          approvalNote: version.approvalNote,
+          createdAt: version.createdAt,
+        },
+        project: version.project,
+        previousVersion: version.revisionOf
+          ? {
+              versionNumber: version.revisionOf.versionNumber,
+              name: version.revisionOf.name,
+              approvedAt: version.revisionOf.approvedAt,
+            }
+          : null,
+        approvedBy: version.approvedBy
+          ? { name: version.approvedBy.name, email: version.approvedBy.email }
+          : null,
+        impact: {
+          prevProjectStart,
+          prevProjectEnd,
+          currProjectStart,
+          currProjectEnd,
+          prevDuration,
+          currDuration,
+          durationChange,
+          totalTasks: currentTasks.length,
+          changedTasks: changedTasks.length,
+          newTasks: currentTasks.filter(
+            (ct) => !previousTasks.find((p) => p.code === ct.code)
+          ).length,
+        },
+        submittedBy: ctx.user,
+      };
+    }),
+});

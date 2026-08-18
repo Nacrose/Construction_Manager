@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gantt Chart — Design Sample</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 24px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* Header */
+  .header { margin-bottom: 24px; }
+  .breadcrumb { font-size: 13px; color: #64748b; margin-bottom: 4px; }
+  .breadcrumb a { color: #64748b; text-decoration: none; }
+  .breadcrumb a:hover { color: #0f172a; }
+  .header h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+  .header p { font-size: 14px; color: #64748b; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 20px;
+  }
+  .tab {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+  }
+  .tab.active {
+    color: #0f172a;
+    border-bottom-color: #059669;
+  }
+
+  /* Card */
+  .card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* Gantt table */
+  .gantt { overflow-x: auto; }
+  .gantt-inner { min-width: 1100px; }
+
+  /* Header row */
+  .gantt-header {
+    display: flex;
+    border-bottom: 2px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .task-col-header {
+    width: 480px;
+    shrink: 0;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .task-col-header .col-wbs { width: 50px; text-align: center; }
+  .task-col-header .col-name { flex: 1; }
+  .task-col-header .col-dates { width: 90px; text-align: center; }
+  .task-col-header .col-pct { width: 40px; text-align: center; }
+  .task-col-header .col-labor { width: 50px; text-align: center; }
+  .task-col-header .col-value { width: 80px; text-align: right; }
+  .timeline-header { flex: 1; display: flex; }
+  .timeline-header .day {
+    flex: 1;
+    padding: 6px 0;
+    text-align: center;
+    font-size: 10px;
+    color: #64748b;
+    border-left: 1px solid #e2e8f0;
+  }
+  .timeline-header .day.weekend { background: #f1f5f9; }
+
+  /* Task row */
+  .task-row { border-bottom: 1px solid #e2e8f0; }
+  .task-row:hover .task-info { background: #f8fafc; }
+  .task-main { display: flex; align-items: stretch; }
+  .task-info {
+    width: 480px;
+    shrink: 0;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+
+  /* WBS Badge — the star of the show */
+  .wbs-badge {
+    flex-shrink: 0;
+    min-width: 40px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #059669;
+    color: white;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+  }
+
+  /* Expand/collapse */
+  .expand-btn {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #64748b;
+  }
+  .expand-btn:hover { background: #e2e8f0; }
+
+  .task-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: text;
+    padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .task-name:hover { background: #e2e8f0; }
+
+  .task-dates {
+    width: 90px;
+    shrink: 0;
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+  }
+  .task-pct {
+    width: 40px;
+    shrink: 0;
+    font-size: 11px;
+    text-align: center;
+    color: #64748b;
+  }
+  .task-labor {
+    width: 50px;
+    shrink: 0;
+    font-size: 11px;
+    text-align: center;
+    color: #64748b;
+  }
+  .task-value {
+    width: 80px;
+    shrink: 0;
+    font-size: 11px;
+    text-align: right;
+    color: #059669;
+    font-weight: 500;
+  }
+
+  /* Timeline cell */
+  .timeline-cell {
+    flex: 1;
+    position: relative;
+    min-height: 44px;
+  }
+  .weekend-cols {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    pointer-events: none;
+  }
+  .weekend-cols .day-col {
+    flex: 1;
+    border-left: 1px solid #f1f5f9;
+  }
+  .weekend-cols .day-col.weekend { background: #f8fafc; }
+
+  /* Task bar */
+  .task-bar {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    background: #10b981;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .task-bar .bar-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .task-bar.milestone { background: #f59e0b; }
+  .task-bar.complete { background: #059669; }
+
+  /* Action bar — below each task */
+  .action-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+    font-size: 12px;
+  }
+  .action-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 8px;
+  }
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: none;
+    background: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: #475569;
+    transition: all 0.15s;
+  }
+  .action-btn:hover { background: white; color: #0f172a; }
+  .action-btn.indent { color: #059669; }
+  .action-btn.indent:hover { background: #d1fae5; }
+  .action-btn.outdent { color: #059669; }
+  .action-btn.outdent:hover { background: #d1fae5; }
+  .action-btn.boq { color: #2563eb; }
+  .action-btn.boq:hover { background: #dbeafe; }
+  .action-btn.boq .badge-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    background: #2563eb;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 0 4px;
+  }
+  .action-btn.delete { color: #dc2626; margin-left: auto; }
+  .action-btn.delete:hover { background: #fee2e2; }
+  .action-divider {
+    width: 1px;
+    height: 16px;
+    background: #cbd5e1;
+    margin: 0 4px;
+  }
+  .action-icon { font-size: 14px; line-height: 1; }
+
+  /* Subtask indentation */
+  .subtask .task-info { padding-left: 36px; }
+
+  /* Add task row */
+  .add-task-row {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .add-task-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1.5px dashed #059669;
+    background: none;
+    border-radius: 6px;
+    color: #059669;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .add-task-btn:hover { background: #d1fae5; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch {
+    width: 16px;
+    height: 12px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="breadcrumb">
+      <a href="#">Project</a> / <span>Gantt Chart</span>
+    </div>
+    <h1>Project Schedule</h1>
+    <p>Hierarchical task tree with inline editing, WBS numbering, and resource loading.</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active">📊 Schedule</button>
+    <button class="tab">📈 Resource Loading</button>
+  </div>
+
+  <!-- Gantt Card -->
+  <div class="card">
+    <div class="gantt">
+      <div class="gantt-inner">
+        <!-- Header -->
+        <div class="gantt-header">
+          <div class="task-col-header">
+            <span class="col-wbs">No.</span>
+            <span class="col-name">Task</span>
+            <span class="col-dates">Dates</span>
+            <span class="col-pct">%</span>
+            <span class="col-labor">Labor</span>
+            <span class="col-value">Value</span>
+          </div>
+          <div class="timeline-header">
+            <div class="day">30 Jun</div>
+            <div class="day">01 Jul</div>
+            <div class="day">02 Jul</div>
+            <div class="day">03 Jul</div>
+            <div class="day weekend">04 Jul</div>
+            <div class="day weekend">05 Jul</div>
+            <div class="day">06 Jul</div>
+            <div class="day">07 Jul</div>
+            <div class="day">08 Jul</div>
+            <div class="day">09 Jul</div>
+          </div>
+        </div>
+
+        <!-- Task 1: Site Mobilization (WBS = 1) -->
+        <div class="task-row">
+          <div class="task-main">
+            <div class="task-info">
+              <button class="expand-btn">▶</button>
+              <span class="wbs-badge">1</span>
+              <span class="task-name">Site Mobilization</span>
+              <span class="task-dates">02 Jul → 05 Jul</span>
+              <span class="task-pct">60%</span>
+              <span class="task-labor">6</span>
+              <span class="task-value">50,000</span>
+            </div>
+            <div class="timeline-cell">
+              <div class="weekend-cols">
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+              </div>
+              <div class="task-bar" style="left: 20%; width: 30%; background: linear-gradient(to right, #059669 60%, #10b981 60%);">
+                <span class="bar-label">1 · 60%</span>
+              </div>
+            </div>
+          </div>
+          <!-- Action Bar -->
+          <div class="action-bar">
+            <span class="action-label">Actions:</span>
+            <button class="action-btn"><span class="action-icon">↑</span> Up</button>
+            <button class="action-btn"><span class="action-icon">↓</span> Down</button>
+            <div class="action-divider"></div>
+            <button class="action-btn indent"><span class="action-icon">↳</span> Indent</button>
+            <button class="action-btn outdent"><span class="action-icon">⇤</span> Outdent</button>
+            <div class="action-divider"></div>
+            <button class="action-btn boq"><span class="action-icon">📦</span> BOQ <span class="badge-count">2</span></button>
+            <button class="action-btn delete"><span class="action-icon">🗑</span> Delete</button>
+          </div>
+        </div>
+
+        <!-- Task 1.1: Subtask under Site Mobilization -->
+        <div class="task-row subtask">
+          <div class="task-main">
+            <div class="task-info">
+              <span style="width: 20px;"></span>
+              <span class="wbs-badge">1.1</span>
+              <span class="task-name">Equipment setup</span>
+              <span class="task-dates">02 Jul → 04 Jul</span>
+              <span class="task-pct">100%</span>
+              <span class="task-labor">4</span>
+              <span class="task-value">20,000</span>
+            </div>
+            <div class="timeline-cell">
+              <div class="weekend-cols">
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+              </div>
+              <div class="task-bar complete" style="left: 20%; width: 20%;">
+                <span class="bar-label">1.1 · 100%</span>
+              </div>
+            </div>
+          </div>
+          <div class="action-bar">
+            <span class="action-label">Actions:</span>
+            <button class="action-btn"><span class="action-icon">↑</span> Up</button>
+            <button class="action-btn"><span class="action-icon">↓</span> Down</button>
+            <div class="action-divider"></div>
+            <button class="action-btn indent"><span class="action-icon">↳</span> Indent</button>
+            <button class="action-btn outdent"><span class="action-icon">⇤</span> Outdent</button>
+            <div class="action-divider"></div>
+            <button class="action-btn boq"><span class="action-icon">📦</span> BOQ</button>
+            <button class="action-btn delete"><span class="action-icon">🗑</span> Delete</button>
+          </div>
+        </div>
+
+        <!-- Task 2: Earthwork (WBS = 2) -->
+        <div class="task-row">
+          <div class="task-main">
+            <div class="task-info">
+              <button class="expand-btn">▶</button>
+              <span class="wbs-badge">2</span>
+              <span class="task-name">Earthwork — Bulk Excavation</span>
+              <span class="task-dates">04 Jul → 12 Jul</span>
+              <span class="task-pct">25%</span>
+              <span class="task-labor">12</span>
+              <span class="task-value">1,50,000</span>
+            </div>
+            <div class="timeline-cell">
+              <div class="weekend-cols">
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+              </div>
+              <div class="task-bar" style="left: 40%; width: 50%; background: linear-gradient(to right, #059669 25%, #10b981 25%);">
+                <span class="bar-label">2 · 25%</span>
+              </div>
+            </div>
+          </div>
+          <div class="action-bar">
+            <span class="action-label">Actions:</span>
+            <button class="action-btn"><span class="action-icon">↑</span> Up</button>
+            <button class="action-btn"><span class="action-icon">↓</span> Down</button>
+            <div class="action-divider"></div>
+            <button class="action-btn indent"><span class="action-icon">↳</span> Indent</button>
+            <button class="action-btn outdent"><span class="action-icon">⇤</span> Outdent</button>
+            <div class="action-divider"></div>
+            <button class="action-btn boq"><span class="action-icon">📦</span> BOQ <span class="badge-count">1</span></button>
+            <button class="action-btn delete"><span class="action-icon">🗑</span> Delete</button>
+          </div>
+        </div>
+
+        <!-- Task 3: Concrete Works (WBS = 3) -->
+        <div class="task-row">
+          <div class="task-main">
+            <div class="task-info">
+              <span style="width: 20px;"></span>
+              <span class="wbs-badge">3</span>
+              <span class="task-name">Concrete Works — PCC 1:4:8</span>
+              <span class="task-dates">06 Jul → 09 Jul</span>
+              <span class="task-pct">0%</span>
+              <span class="task-labor">8</span>
+              <span class="task-value">2,00,000</span>
+            </div>
+            <div class="timeline-cell">
+              <div class="weekend-cols">
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col weekend"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+                <div class="day-col"></div>
+              </div>
+              <div class="task-bar" style="left: 60%; width: 30%;">
+                <span class="bar-label">3 · 0%</span>
+              </div>
+            </div>
+          </div>
+          <div class="action-bar">
+            <span class="action-label">Actions:</span>
+            <button class="action-btn"><span class="action-icon">↑</span> Up</button>
+            <button class="action-btn"><span class="action-icon">↓</span> Down</button>
+            <div class="action-divider"></div>
+            <button class="action-btn indent"><span class="action-icon">↳</span> Indent</button>
+            <button class="action-btn outdent"><span class="action-icon">⇤</span> Outdent</button>
+            <div class="action-divider"></div>
+            <button class="action-btn boq"><span class="action-icon">📦</span> BOQ</button>
+            <button class="action-btn delete"><span class="action-icon">🗑</span> Delete</button>
+          </div>
+        </div>
+
+        <!-- Add task row -->
+        <div class="add-task-row">
+          <button class="add-task-btn">+ Add task inline</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background: #10b981;"></div>
+      In progress
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background: #059669;"></div>
+      Complete
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background: #f59e0b;"></div>
+      Milestone
+    </div>
+    <div class="legend-item">
+      <span class="wbs-badge" style="min-width: 30px; height: 22px; font-size: 11px;">1.1</span>
+      WBS number (auto)
+    </div>
+  </div>
+</div>
+</body>
+</html>

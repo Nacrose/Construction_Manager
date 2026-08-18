@@ -1,0 +1,721 @@
+/**
+ * tRPC router for RFIs.
+ */
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { router, protectedProcedure } from "@/server/trpc";
+import { db } from "@/lib/db";
+import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { audit } from "@/lib/audit";
+import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
+import { uploadFile } from "@/lib/storage";
+
+// Map discipline → eligible roles for auto-routing
+const DISCIPLINE_ROUTES: Record<string, string[]> = {
+  civil: ["project_manager", "coordinator"],
+  structural: ["project_manager", "coordinator"],
+  electrical: ["project_manager", "coordinator"],
+  mechanical: ["project_manager", "coordinator"],
+  architectural: ["project_manager", "coordinator"],
+};
+
+const RfiItemSchema = z.object({
+  boqItemId: z.string().nullable().optional(),
+  boqCode: z.string().optional(),
+  boqDesc: z.string().optional(),
+  quantity: z.number().optional(),
+  unit: z.string().optional(),
+  paymentType: z.enum(["payable", "unpayable", "temporary"]).default("payable"),
+  remark: z.string().optional(),
+});
+
+const CreateRfiSchema = z.object({
+  projectId: z.string(),
+  number: z.string().min(1).max(50),
+  subject: z.string().min(1).max(300),
+  description: z.string().max(5000).optional(),
+  location: z.string().max(500).optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  discipline: z
+    .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
+    .optional(),
+  workDate: z.string().datetime().optional(),
+  inspectionStartTime: z.string().datetime().optional(),
+  inspectionEndTime: z.string().datetime().optional(),
+  ganttTaskId: z.string().nullable().optional(),
+  boqItemId: z.string().nullable().optional(),
+  drawingId: z.string().nullable().optional(),
+  subcontractorId: z.string().nullable().optional(),
+  assignedToId: z.string().nullable().optional(),
+  pinX: z.number().nullable().optional(),
+  pinY: z.number().nullable().optional(),
+  costImpact: z.boolean().default(false),
+  scheduleImpact: z.boolean().default(false),
+  items: z.array(RfiItemSchema).default([]),
+});
+
+const UpdateRfiSchema = z.object({
+  id: z.string(),
+  subject: z.string().min(1).max(300).optional(),
+  description: z.string().max(5000).optional(),
+  location: z.string().max(500).nullable().optional(),
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+  discipline: z
+    .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
+    .optional(),
+  workDate: z.string().datetime().nullable().optional(),
+  inspectionStartTime: z.string().datetime().nullable().optional(),
+  inspectionEndTime: z.string().datetime().nullable().optional(),
+  ganttTaskId: z.string().nullable().optional(),
+  boqItemId: z.string().nullable().optional(),
+  drawingId: z.string().nullable().optional(),
+  subcontractorId: z.string().nullable().optional(),
+  assignedToId: z.string().nullable().optional(),
+  pinX: z.number().nullable().optional(),
+  pinY: z.number().nullable().optional(),
+  costImpact: z.boolean().optional(),
+  scheduleImpact: z.boolean().optional(),
+  status: z.enum(["draft", "submitted", "approved", "rejected", "closed"]).optional(),
+  items: z.array(RfiItemSchema).optional(),
+});
+
+const RespondSchema = z.object({
+  id: z.string(),
+  response: z.string().min(1).max(5000),
+  decision: z.enum(["info", "approved", "rejected", "clarifications_requested"]),
+});
+
+export const rfiRouter = router({
+  /** List RFIs in a project. */
+  list: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      status: z.string().optional().nullable(),
+      q: z.string().optional().nullable(),
+    }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const queryStr = input.q?.toLowerCase();
+
+      const rfis = await db.rfi.findMany({
+        where: {
+          projectId: input.projectId,
+          ...(input.status && { status: input.status }),
+          ...(queryStr && {
+            OR: [
+              { subject: { contains: queryStr } },
+              { number: { contains: queryStr } },
+              { description: { contains: queryStr } },
+            ],
+          }),
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          number: true,
+          subject: true,
+          status: true,
+          priority: true,
+          discipline: true,
+          location: true,
+          workDate: true,
+          costImpact: true,
+          scheduleImpact: true,
+          createdAt: true,
+          submittedAt: true,
+          inspectionStartTime: true,
+          inspectionEndTime: true,
+          createdBy: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, user: { select: { id: true, name: true, role: true } } } },
+          ganttTask: { select: { id: true, code: true, name: true } },
+          boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } },
+          drawing: { select: { id: true, number: true, title: true, revision: true } },
+          subcontractor: { select: { id: true, name: true, contact: true, phone: true } },
+          items: { include: { boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } } } },
+          _count: { select: { attachments: true, responses: true } },
+          dailyProgramTasks: {
+            select: { plannedQty: true, actualQty: true, carriedOverFromId: true },
+          },
+        },
+      });
+
+      return { rfis };
+    }),
+
+  /** Get RFI details. */
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rfi = await db.rfi.findUnique({
+        where: { id: input.id },
+        include: {
+          project: { select: { id: true, name: true, code: true, client: true } },
+          items: { include: { boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } } } },
+          attachments: true,
+          comments: {
+            include: { author: { select: { id: true, name: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+          responses: {
+            include: { responder: { select: { id: true, name: true, role: true } } },
+            orderBy: { createdAt: "desc" },
+          },
+          createdBy: { select: { id: true, name: true, role: true } },
+          assignedTo: { select: { id: true, role: true, user: { select: { id: true, name: true, role: true } } } },
+          ganttTask: { select: { id: true, code: true, name: true } },
+          boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } },
+          drawing: { select: { id: true, number: true, title: true, revision: true } },
+          subcontractor: { select: { id: true, name: true, contact: true, phone: true } },
+        },
+      });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+      await assertProjectMember(ctx.user, rfi.projectId);
+
+      return { rfi };
+    }),
+
+  /** Create an RFI. */
+  create: protectedProcedure
+    .input(CreateRfiSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+      const dup = await db.rfi.findUnique({
+        where: { projectId_number: { projectId: input.projectId, number: input.number } },
+        select: { id: true },
+      });
+      if (dup) {
+        throw new TRPCError({ code: "CONFLICT", message: `RFI number ${input.number} already exists.` });
+      }
+
+      // Auto-route: if discipline is set and no explicit assignee, find a matching project member
+      let assignedToId = input.assignedToId ?? null;
+      if (!assignedToId && input.discipline) {
+        const disciplineRole = DISCIPLINE_ROUTES[input.discipline] ?? "project_manager";
+        const member = await db.projectMember.findFirst({
+          where: { projectId: input.projectId, role: { in: disciplineRole } },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        });
+        assignedToId = member?.id ?? null;
+      }
+
+      const rfi = await db.rfi.create({
+        data: {
+          projectId: input.projectId,
+          createdById: ctx.user.id,
+          number: input.number,
+          subject: input.subject,
+          description: input.description ?? "",
+          location: input.location ?? null,
+          priority: input.priority,
+          discipline: input.discipline,
+          workDate: input.workDate ? new Date(input.workDate) : null,
+          inspectionStartTime: input.inspectionStartTime ? new Date(input.inspectionStartTime) : null,
+          inspectionEndTime: input.inspectionEndTime ? new Date(input.inspectionEndTime) : null,
+          ganttTaskId: input.ganttTaskId ?? null,
+          boqItemId: input.boqItemId ?? null,
+          drawingId: input.drawingId ?? null,
+          subcontractorId: input.subcontractorId ?? null,
+          assignedToId,
+          pinX: input.pinX ?? null,
+          pinY: input.pinY ?? null,
+          costImpact: input.costImpact,
+          scheduleImpact: input.scheduleImpact,
+          items: input.items.length ? { create: input.items } : undefined,
+        },
+        include: { items: { include: { boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } } } } },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "rfi.create",
+        entityType: "rfi",
+        entityId: rfi.id,
+        metadata: { number: rfi.number, subject: rfi.subject },
+      });
+
+      // Notify the assigned member (if any) that a new RFI was created
+      if (assignedToId) {
+        const assignee = await db.projectMember.findUnique({
+          where: { id: assignedToId },
+          select: { userId: true },
+        });
+        if (assignee && assignee.userId !== ctx.user.id) {
+          await createNotification({
+            userId: assignee.userId,
+            projectId: input.projectId,
+            type: "rfi_created",
+            title: `New RFI assigned: ${rfi.number}`,
+            message: `${rfi.subject}${input.priority === "urgent" || input.priority === "high" ? ` (Priority: ${input.priority})` : ""}`,
+            metadata: { rfiId: rfi.id, number: rfi.number, entityType: "rfi", entityId: rfi.id },
+            postToChannel: true,
+          });
+        }
+      }
+
+      return { rfi };
+    }),
+
+  /** Update/PATCH RFI. */
+  update: protectedProcedure
+    .input(UpdateRfiSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      const rfi = await db.rfi.findUnique({ where: { id }, select: { projectId: true, status: true, number: true } });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+
+      const role = await assertCanWrite(ctx.user, rfi.projectId);
+      const isWriter = role === "project_manager" || role === "coordinator" || role === "engineer";
+      const isAdmin = role === "project_manager" || role === "coordinator";
+
+      const updateData: Record<string, any> = {};
+      if (rfi.status === "draft" && isWriter) {
+        if (data.subject !== undefined) updateData.subject = data.subject;
+        if (data.description !== undefined) updateData.description = data.description;
+        if (data.priority !== undefined) updateData.priority = data.priority;
+        if (data.discipline !== undefined) updateData.discipline = data.discipline;
+        if (data.workDate !== undefined) updateData.workDate = data.workDate ? new Date(data.workDate) : null;
+        if (data.inspectionStartTime !== undefined) updateData.inspectionStartTime = data.inspectionStartTime ? new Date(data.inspectionStartTime) : null;
+        if (data.inspectionEndTime !== undefined) updateData.inspectionEndTime = data.inspectionEndTime ? new Date(data.inspectionEndTime) : null;
+        if (data.ganttTaskId !== undefined) updateData.ganttTaskId = data.ganttTaskId || null;
+        if (data.boqItemId !== undefined) updateData.boqItemId = data.boqItemId || null;
+        if (data.drawingId !== undefined) updateData.drawingId = data.drawingId || null;
+        if (data.subcontractorId !== undefined) updateData.subcontractorId = data.subcontractorId || null;
+        if (data.location !== undefined) updateData.location = data.location || null;
+        if (data.assignedToId !== undefined) updateData.assignedToId = data.assignedToId ?? null;
+        if (data.pinX !== undefined) updateData.pinX = data.pinX ?? null;
+        if (data.pinY !== undefined) updateData.pinY = data.pinY ?? null;
+        if (data.costImpact !== undefined) updateData.costImpact = data.costImpact;
+        if (data.scheduleImpact !== undefined) updateData.scheduleImpact = data.scheduleImpact;
+      }
+
+      if (data.status !== undefined && data.status !== rfi.status) {
+        const transition = `${rfi.status}→${data.status}`;
+        const allowed: Record<string, boolean> = {
+          "draft→submitted": isWriter,
+          "submitted→approved": isAdmin,
+          "submitted→rejected": isAdmin,
+          "submitted→closed": isAdmin,
+          "approved→closed": isAdmin,
+          "rejected→closed": isAdmin,
+        };
+        if (!allowed[transition]) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Status transition ${transition} is not permitted for your role.`,
+          });
+        }
+        updateData.status = data.status;
+        if (data.status === "submitted") updateData.submittedAt = new Date();
+        if (["approved", "rejected", "closed"].includes(data.status)) {
+          updateData.respondedAt = new Date();
+        }
+      }
+
+      const updated = await db.rfi.update({ where: { id }, data: updateData });
+
+      // Notify on submit — PMs and coordinators need to review (internal + channel)
+      if (data.status === "submitted" && rfi.status !== "submitted") {
+        await notifyProject({
+          projectId: rfi.projectId,
+          type: "rfi_submitted",
+          title: `RFI submitted for review: ${rfi.number}`,
+          message: `${updated.subject} — awaiting your response.`,
+          metadata: { rfiId: id, number: rfi.number, entityType: "rfi", entityId: id },
+          excludeUserId: ctx.user.id,
+          postToChannel: true,
+        });
+      }
+
+      // Notify the RFI creator when their RFI is approved/rejected/closed (internal + channel)
+      if (["approved", "rejected", "closed"].includes(data.status as string) &&
+          rfi.status !== data.status) {
+        const creator = await db.rfi.findUnique({
+          where: { id },
+          select: { createdById: true, subject: true },
+        });
+        if (creator && creator.createdById !== ctx.user.id) {
+          await createNotification({
+            userId: creator.createdById,
+            projectId: rfi.projectId,
+            type: `rfi_${data.status}`,
+            title: `RFI ${data.status}: ${rfi.number}`,
+            message: `${creator.subject} has been ${data.status}.`,
+            metadata: { rfiId: id, number: rfi.number, entityType: "rfi", entityId: id },
+            postToChannel: true,
+          });
+        }
+      }
+
+      if (rfi.status === "draft" && isWriter && data.items !== undefined) {
+        await db.rfiItem.deleteMany({ where: { rfiId: id } });
+        if (data.items.length > 0) {
+          await db.rfiItem.createMany({
+            data: data.items.map((item: any) => ({
+              rfiId: id,
+              boqItemId: item.boqItemId || null,
+              boqCode: item.boqCode || null,
+              boqDesc: item.boqDesc || null,
+              quantity: item.quantity || null,
+              unit: item.unit || null,
+              paymentType: item.paymentType || "payable",
+              remark: item.remark || null,
+            })),
+          });
+        }
+      }
+
+      // Auto-add approved RFI to daily program if workDate is set
+      if (data.status === "approved" && rfi.status !== "approved") {
+        const approvedRfi = await db.rfi.findUnique({
+          where: { id },
+          select: { workDate: true, subject: true, location: true, ganttTaskId: true, items: { include: { boqItem: { select: { id: true, code: true, description: true, unit: true } } } } },
+        });
+        if (approvedRfi?.workDate) {
+          const programDate = new Date(approvedRfi.workDate);
+          programDate.setHours(0, 0, 0, 0);
+          let program = await db.dailyProgram.findFirst({
+            where: { projectId: rfi.projectId, programDate },
+          });
+          if (!program) {
+            program = await db.dailyProgram.create({
+              data: { projectId: rfi.projectId, programDate, status: "draft" },
+            });
+          }
+          const existingTask = await db.dailyProgramTask.findFirst({
+            where: { rfiId: id, programId: program.id },
+          });
+          if (!existingTask) {
+            const rfiItems = approvedRfi.items || [];
+            if (rfiItems.length > 0) {
+              await db.dailyProgramTask.createMany({
+                  data: rfiItems.map((item: any) => ({
+                    programId: program.id,
+                    rfiId: id,
+                    rfiItemId: item.id,
+                    taskName: `${approvedRfi.subject}${item.boqDesc ? ` - ${item.boqDesc}` : ""}`.trim(),
+                    location: approvedRfi.location,
+                    ganttTaskId: approvedRfi.ganttTaskId,
+                    boqItemId: item.boqItemId,
+                  boqCode: item.boqCode,
+                  boqDesc: item.boqDesc,
+                  plannedQty: item.quantity || 0,
+                  unit: item.unit,
+                  paymentType: item.paymentType || "payable",
+                })),
+              });
+            } else {
+              await db.dailyProgramTask.create({
+                  data: {
+                    programId: program.id,
+                    rfiId: id,
+                    taskName: approvedRfi.subject,
+                    location: approvedRfi.location,
+                    ganttTaskId: approvedRfi.ganttTaskId,
+                    plannedQty: 0,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: rfi.projectId,
+        action: "rfi.update",
+        entityType: "rfi",
+        entityId: id,
+        metadata: { number: rfi.number, changes: updateData },
+      });
+
+      return { rfi: updated };
+    }),
+
+  /** Delete RFI. */
+  delete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const rfi = await db.rfi.findUnique({
+        where: { id: input.id },
+        select: { id: true, projectId: true, status: true, createdById: true, number: true },
+      });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+
+      const role = await assertCanWrite(ctx.user, rfi.projectId);
+      const isAuthor = rfi.createdById === ctx.user.id;
+      const isPm = role === "project_manager";
+
+      if (!isPm && !isAuthor) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the author or a Project Manager can delete RFIs." });
+      }
+      if (isAuthor && !isPm && rfi.status !== "draft") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You can only delete your own draft RFIs." });
+      }
+
+      // Remove related program tasks first (prevents orphaned tasks with null rfiId)
+      await db.dailyProgramTask.deleteMany({ where: { rfiId: input.id } });
+      await db.rfi.delete({ where: { id: input.id } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: rfi.projectId,
+        action: "rfi.delete",
+        entityType: "rfi",
+        entityId: input.id,
+        metadata: { number: rfi.number },
+      });
+
+      return { ok: true };
+    }),
+
+  /** Respond to an RFI. */
+  respond: protectedProcedure
+    .input(RespondSchema)
+    .mutation(async ({ ctx, input }) => {
+      const rfi = await db.rfi.findUnique({
+        where: { id: input.id },
+        select: { id: true, projectId: true, status: true, number: true },
+      });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+
+      await assertProjectAdmin(ctx.user, rfi.projectId);      if (rfi.status !== "submitted") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted RFIs can be responded to." });
+      }
+
+      const [response] = await db.$transaction([
+        db.rfiResponse.create({
+          data: {
+            rfiId: input.id,
+            responderId: ctx.user.id,
+            response: input.response,
+            decision: input.decision,
+          },
+        }),
+        db.rfi.update({
+          where: { id: input.id },
+          data: {
+            status: input.decision === "approved" ? "approved" : input.decision === "rejected" ? "rejected" : "submitted",
+            respondedAt: new Date(),
+          },
+        }),
+      ]);
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: rfi.projectId,
+        action: "rfi.respond",
+        entityType: "rfi",
+        entityId: input.id,
+        metadata: { number: rfi.number, decision: input.decision },
+      });
+
+      // Notify the RFI creator that a response was recorded
+      const creator = await db.rfi.findUnique({
+        where: { id: input.id },
+        select: { createdById: true, subject: true },
+      });
+      if (creator && creator.createdById !== ctx.user.id) {
+        await createNotification({
+          userId: creator.createdById,
+          projectId: rfi.projectId,
+          type: `rfi_response_${input.decision}`,
+          title: `RFI response: ${rfi.number}`,
+          message: `${creator.subject} — decision: ${input.decision.replace("_", " ")}`,
+          metadata: { rfiId: input.id, number: rfi.number, decision: input.decision },
+        });
+      }
+
+      return { response };
+    }),
+
+  /** Get project members who can be assigned to RFIs (PM, coordinator, engineer). */
+  assignableMembers: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const members = await db.projectMember.findMany({
+        where: { projectId: input.projectId, role: { in: ["project_manager", "coordinator", "engineer"] } },
+        select: { id: true, role: true, user: { select: { id: true, name: true, email: true, role: true } } },
+        orderBy: { user: { name: "asc" } },
+      });
+      return { members };
+    }),
+
+  /** Upload a file attachment to an RFI. */
+  uploadAttachment: protectedProcedure
+    .input(z.object({
+      rfiId: z.string(),
+      fileName: z.string().min(1),
+      fileType: z.string().min(1),
+      fileSize: z.number().int().positive().max(10 * 1024 * 1024),
+      data: z.string().min(1).max(14 * 1024 * 1024), // base64-encoded file content
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const rfi = await db.rfi.findUnique({ where: { id: input.rfiId }, select: { projectId: true } });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+      await assertProjectMember(ctx.user, rfi.projectId);
+
+      // Upload to storage
+      const stored = await uploadFile(input.data, input.fileName, input.fileType);
+
+      const attachment = await db.rfiAttachment.create({
+        data: {
+          rfiId: input.rfiId,
+          fileName: input.fileName,
+          fileType: input.fileType,
+          fileSize: input.fileSize,
+          data: input.data,
+          storageUrl: stored.url,
+          uploadedById: ctx.user.id,
+        },
+      });
+      return { attachment };
+    }),
+
+  /** Delete an attachment. */
+  deleteAttachment: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const att = await db.rfiAttachment.findUnique({ where: { id: input.id }, include: { rfi: { select: { projectId: true } } } });
+      if (!att) throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found." });
+      await assertProjectMember(ctx.user, att.rfi.projectId);
+      await db.rfiAttachment.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
+
+  /** Add a comment to an RFI (threaded — parentId for replies). */
+  addComment: protectedProcedure
+    .input(z.object({
+      rfiId: z.string(),
+      content: z.string().min(1).max(5000),
+      parentId: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const rfi = await db.rfi.findUnique({ where: { id: input.rfiId }, select: { projectId: true } });
+      if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
+      await assertProjectMember(ctx.user, rfi.projectId);
+
+      const comment = await db.rfiComment.create({
+        data: {
+          rfiId: input.rfiId,
+          authorId: ctx.user.id,
+          content: input.content,
+          parentId: input.parentId ?? null,
+        },
+        include: { author: { select: { id: true, name: true } } },
+      });
+      return { comment };
+    }),
+
+  /** Delete a comment. */
+  deleteComment: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const comment = await db.rfiComment.findUnique({ where: { id: input.id }, include: { rfi: { select: { projectId: true } } } });
+      if (!comment) throw new TRPCError({ code: "NOT_FOUND", message: "Comment not found." });
+      await assertProjectMember(ctx.user, comment.rfi.projectId);
+      if (comment.authorId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete your own comments." });
+      await db.rfiComment.delete({ where: { id: input.id } });
+      return { success: true };
+    }),
+
+  /** Bulk create RFIs from CSV/JSON array. */
+  bulkCreate: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      rfis: z.array(z.object({
+        number: z.string().min(1).max(50),
+        subject: z.string().min(1).max(300),
+        description: z.string().max(5000).default(""),
+        location: z.string().max(500).optional(),
+        priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+        discipline: z.enum(["civil", "structural", "electrical", "mechanical", "architectural", "none"]).optional(),
+        workDate: z.string().optional(),
+        costImpact: z.boolean().default(false),
+        scheduleImpact: z.boolean().default(false),
+        status: z.enum(["draft", "submitted"]).default("draft"),
+      })).min(1).max(500),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const created = await db.rfi.createManyAndReturn({
+        data: input.rfis.map((r) => ({
+          projectId: input.projectId,
+          createdById: ctx.user.id,
+          number: r.number,
+          subject: r.subject,
+          description: r.description,
+          location: r.location ?? null,
+          priority: r.priority,
+          discipline: r.discipline === "none" ? null : r.discipline ?? null,
+          workDate: r.workDate ? new Date(r.workDate) : null,
+          costImpact: r.costImpact,
+          scheduleImpact: r.scheduleImpact,
+          status: r.status,
+        })),
+      });
+      return { count: created.length };
+    }),
+
+  /** Search past RFIs (knowledge base) matching subject/description/discipline. */
+  searchSimilar: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      subject: z.string().optional(),
+      description: z.string().optional(),
+      discipline: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const terms = [input.subject, input.description].filter(Boolean).join(" ").toLowerCase().split(/\s+/).filter(Boolean);
+      if (terms.length === 0) return { rfis: [] };
+
+      const rfis = await db.rfi.findMany({
+        where: {
+          projectId: input.projectId,
+          status: { not: "draft" },
+          ...(input.discipline && input.discipline !== "none" && { discipline: input.discipline }),
+          OR: terms.map((t) => ({
+            OR: [
+              { subject: { contains: t } },
+              { description: { contains: t } },
+            ],
+          })),
+        },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          number: true,
+          subject: true,
+          discipline: true,
+          status: true,
+          createdAt: true,
+          responses: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            select: { decision: true, response: true, createdAt: true },
+          },
+          createdBy: { select: { name: true } },
+        },
+      });
+      return { rfis };
+    }),
+
+  /** Get count of RFIs created on a specific date for unique number generation. */
+  countAll: protectedProcedure
+    .input(z.object({ projectId: z.string(), dateStr: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const prefix = `RFI-${input.dateStr}-`;
+      const count = await db.rfi.count({
+        where: {
+          projectId: input.projectId,
+          number: { startsWith: prefix },
+        },
+      });
+      return { count };
+    }),
+});

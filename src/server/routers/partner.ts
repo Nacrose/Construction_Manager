@@ -1,0 +1,465 @@
+/**
+ * tRPC router for partners (subcontractors and suppliers).
+ */
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { router, protectedProcedure } from "@/server/trpc";
+import { db } from "@/lib/db";
+import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+
+const SubcontractorSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1).max(200),
+  contact: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  pan: z.string().optional().nullable(),
+  status: z.enum(["active", "inactive"]).default("active"),
+});
+
+const UpdateSubcontractorSchema = z.object({
+  projectId: z.string(),
+  subId: z.string(),
+  name: z.string().optional(),
+  contact: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  pan: z.string().optional().nullable(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
+const SupplierSchema = z.object({
+  projectId: z.string(),
+  name: z.string().min(1).max(200),
+  contact: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  pan: z.string().optional().nullable(),
+  rating: z.number().min(0).max(5).default(0),
+});
+
+export const partnerRouter = router({
+  /** List subcontractors in a project. */
+  listSubcontractors: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const subcontractors = await db.subcontractor.findMany({
+        where: { projectId: input.projectId },
+        orderBy: { name: "asc" },
+      });
+      return { subcontractors };
+    }),
+
+  /** Get subcontractor details including debits. */
+  getSubcontractor: protectedProcedure
+    .input(z.object({ projectId: z.string(), subId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const subcontractor = await db.subcontractor.findFirst({
+        where: { id: input.subId, projectId: input.projectId },
+      });
+      if (!subcontractor) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
+
+      const debits = await db.materialTransaction.findMany({
+        where: {
+          projectId: input.projectId,
+          subcontractorId: input.subId,
+          isDebitable: true,
+        },
+        include: {
+          material: { select: { name: true, code: true, unit: true } },
+        },
+        orderBy: { date: "desc" },
+      });
+
+      const totalDebitAmount = debits.reduce((acc, curr) => {
+        const rate = curr.recoveryRate ?? curr.rate;
+        return acc + (curr.quantity * rate);
+      }, 0);
+
+      return { subcontractor, debits, totalDebitAmount };
+    }),
+
+  /**
+   * Get all works (tasks) linked to a subcontractor across daily programs.
+   * Aggregates: total tasks, planned qty, actual qty, done count, partial count.
+   * Used by the subcontractor detail page to show "works-on" tracking.
+   */
+  getSubcontractorWorks: protectedProcedure
+    .input(z.object({ projectId: z.string(), subId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      // Verify subcontractor exists and belongs to project
+      const sub = await db.subcontractor.findFirst({
+        where: { id: input.subId, projectId: input.projectId },
+        select: { id: true, name: true },
+      });
+      if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
+
+      // Fetch all daily program tasks linked to this subcontractor
+      const tasks = await db.dailyProgramTask.findMany({
+        where: { subcontractorId: input.subId },
+        include: {
+          program: { select: { id: true, programDate: true, status: true } },
+          rfi: { select: { id: true, number: true, subject: true } },
+          ganttTask: { select: { id: true, code: true, name: true } },
+          boqItem: { select: { id: true, code: true, description: true, unit: true } },
+        },
+        orderBy: { program: { programDate: "desc" } },
+      });
+
+      // Aggregate stats
+      const totalTasks = tasks.length;
+      const totalPlannedQty = tasks.reduce((s, t) => s + (t.plannedQty || 0), 0);
+      const totalActualQty = tasks.reduce((s, t) => s + (t.actualQty || 0), 0);
+      const tasksDone = tasks.filter(t => t.executionStatus === "done").length;
+      const tasksPartial = tasks.filter(t => t.executionStatus === "partially_completed").length;
+      const tasksNotStarted = tasks.filter(t => t.executionStatus === "planned" || t.executionStatus === "uncompleted").length;
+
+      // Group by date for timeline view
+      const byDate: Record<string, typeof tasks> = {};
+      for (const t of tasks) {
+        const dateKey = t.program?.programDate
+          ? new Date(t.program.programDate).toISOString().slice(0, 10)
+          : "unknown";
+        if (!byDate[dateKey]) byDate[dateKey] = [];
+        byDate[dateKey].push(t);
+      }
+
+      // Linked RFIs (distinct)
+      const rfiIds = new Set(
+        tasks.map(t => t.rfiId).filter((id): id is string => !!id)
+      );
+      const rfis = rfiIds.size > 0
+        ? await db.rfi.findMany({
+            where: { id: { in: Array.from(rfiIds) } },
+            select: { id: true, number: true, subject: true, status: true, workDate: true },
+          })
+        : [];
+
+      return {
+        subcontractor: sub,
+        tasks,
+        rfis,
+        stats: {
+          totalTasks,
+          totalPlannedQty,
+          totalActualQty,
+          tasksDone,
+          tasksPartial,
+          tasksNotStarted,
+          completionPct: totalTasks > 0 ? Math.round((tasksDone / totalTasks) * 100) : 0,
+        },
+        byDate,
+      };
+    }),
+
+  /** Create a subcontractor. */
+  createSubcontractor: protectedProcedure
+    .input(SubcontractorSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+      const subcontractor = await db.subcontractor.create({
+        data: {
+          projectId: input.projectId,
+          name: input.name,
+          contact: input.contact || null,
+          phone: input.phone || null,
+          email: input.email || null,
+          pan: input.pan || null,
+          status: input.status,
+        },
+      });
+      return { subcontractor };
+    }),
+
+  /** Update subcontractor. */
+  updateSubcontractor: protectedProcedure
+    .input(UpdateSubcontractorSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const subcontractor = await db.subcontractor.findFirst({
+        where: { id: input.subId, projectId: input.projectId },
+      });
+      if (!subcontractor) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
+
+      const updated = await db.subcontractor.update({
+        where: { id: input.subId },
+        data: {
+          name: input.name,
+          contact: input.contact,
+          phone: input.phone,
+          email: input.email,
+          pan: input.pan,
+          status: input.status,
+        },
+      });
+      return { subcontractor: updated };
+    }),
+
+  /** Delete subcontractor. */
+  deleteSubcontractor: protectedProcedure
+    .input(z.object({ projectId: z.string(), subId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      const subcontractor = await db.subcontractor.findFirst({
+        where: { id: input.subId, projectId: input.projectId },
+      });
+      if (!subcontractor) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
+
+      const linked = await db.materialTransaction.count({
+        where: { subcontractorId: input.subId },
+      });
+      if (linked > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete subcontractor with active material issues. Please void transactions first.",
+        });
+      }
+
+      await db.subcontractor.delete({
+        where: { id: input.subId },
+      });
+      return { ok: true };
+    }),
+
+  /** List suppliers. */
+  listSuppliers: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const suppliers = await db.supplier.findMany({
+        where: { projectId: input.projectId },
+        orderBy: { name: "asc" },
+      });
+      return { suppliers };
+    }),
+
+  /** Create supplier. */
+  createSupplier: protectedProcedure
+    .input(SupplierSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+      const supplier = await db.supplier.create({
+        data: {
+          projectId: input.projectId,
+          name: input.name,
+          contact: input.contact || null,
+          phone: input.phone || null,
+          email: input.email || null,
+          address: input.address || null,
+          pan: input.pan || null,
+          rating: input.rating,
+        },
+      });
+      return { supplier };
+    }),
+
+  // ─────────────────────────────────────────────────────────
+  // UNIFIED PARTNER — supersedes Supplier & EquipmentVendor
+  // ─────────────────────────────────────────────────────────
+
+  /** List partners by type. */
+  listPartners: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      type: z.enum(["material_supplier", "equipment_vendor", "both"]).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const where: any = { projectId: input.projectId };
+      if (input.type) where.type = input.type;
+      const partners = await db.partner.findMany({
+        where,
+        orderBy: { name: "asc" },
+        include: {
+          _count: { select: { purchaseOrders: true, rentals: true } },
+          supplies: {
+            orderBy: { materialName: "asc" },
+          },
+        },
+      });
+      return { partners };
+    }),
+
+  /** Create a partner. */
+  createPartner: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      name: z.string().min(1).max(200),
+      type: z.enum(["material_supplier", "equipment_vendor", "both"]).default("material_supplier"),
+      code: z.string().optional().nullable(),
+      regNumber: z.string().optional().nullable(),
+      contact: z.string().optional().nullable(),
+      phone: z.string().optional().nullable(),
+      email: z.string().optional().nullable(),
+      address: z.string().optional().nullable(),
+      pan: z.string().optional().nullable(),
+      rating: z.number().min(0).max(5).default(0),
+      notes: z.string().optional().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+
+      if (input.code) {
+        const existing = await db.partner.findFirst({
+          where: { projectId: input.projectId, code: input.code },
+        });
+        if (existing) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Vendor code "${input.code}" is already in use in this project.`,
+          });
+        }
+      }
+
+      const partner = await db.partner.create({
+        data: {
+          projectId: input.projectId,
+          name: input.name,
+          type: input.type,
+          code: input.code || null,
+          regNumber: input.regNumber || null,
+          contact: input.contact || null,
+          phone: input.phone || null,
+          email: input.email || null,
+          address: input.address || null,
+          pan: input.pan || null,
+          rating: input.rating,
+          notes: input.notes || null,
+        },
+      });
+      return { partner };
+    }),
+
+  /** Update a partner. */
+  updatePartner: protectedProcedure
+    .input(z.object({
+      partnerId: z.string(),
+      name: z.string().optional(),
+      type: z.enum(["material_supplier", "equipment_vendor", "both"]).optional(),
+      code: z.string().nullable().optional(),
+      regNumber: z.string().nullable().optional(),
+      contact: z.string().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      email: z.string().nullable().optional(),
+      address: z.string().nullable().optional(),
+      pan: z.string().nullable().optional(),
+      rating: z.number().optional(),
+      status: z.string().optional(),
+      notes: z.string().nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const partner = await db.partner.findUnique({ where: { id: input.partnerId } });
+      if (!partner) throw new TRPCError({ code: "NOT_FOUND", message: "Partner not found." });
+      await assertCanWrite(ctx.user, partner.projectId);
+
+      if (input.code) {
+        const existing = await db.partner.findFirst({
+          where: {
+            projectId: partner.projectId,
+            code: input.code,
+            id: { not: input.partnerId },
+          },
+        });
+        if (existing) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Vendor code "${input.code}" is already in use in this project.`,
+          });
+        }
+      }
+
+      const { partnerId, ...data } = input;
+      const updated = await db.partner.update({
+        where: { id: partnerId },
+        data: {
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.type !== undefined && { type: data.type }),
+          ...(data.code !== undefined && { code: data.code || null }),
+          ...(data.regNumber !== undefined && { regNumber: data.regNumber || null }),
+          ...(data.contact !== undefined && { contact: data.contact }),
+          ...(data.phone !== undefined && { phone: data.phone }),
+          ...(data.email !== undefined && { email: data.email }),
+          ...(data.address !== undefined && { address: data.address }),
+          ...(data.pan !== undefined && { pan: data.pan }),
+          ...(data.rating !== undefined && { rating: data.rating }),
+          ...(data.status !== undefined && { status: data.status }),
+          ...(data.notes !== undefined && { notes: data.notes }),
+        },
+      });
+      return { partner: updated };
+    }),
+
+  /** Delete a partner. */
+  deletePartner: protectedProcedure
+    .input(z.object({ partnerId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const partner = await db.partner.findUnique({ where: { id: input.partnerId } });
+      if (!partner) throw new TRPCError({ code: "NOT_FOUND", message: "Partner not found." });
+      await assertCanWrite(ctx.user, partner.projectId);
+
+      const linkedPOs = await db.purchaseOrder.count({ where: { partnerId: input.partnerId } });
+      const linkedRentals = await db.equipmentRental.count({ where: { partnerId: input.partnerId } });
+      if (linkedPOs > 0 || linkedRentals > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete partner with active purchase orders or equipment rentals.",
+        });
+      }
+
+      await db.partner.delete({ where: { id: input.partnerId } });
+      return { ok: true };
+    }),
+
+  /** Create a partner supply item with catalog link, brand & specType. */
+  createPartnerSupply: protectedProcedure
+    .input(z.object({
+      partnerId: z.string(),
+      materialCatalogId: z.string().optional().nullable(),
+      materialName: z.string().min(1),
+      brand: z.string().optional().nullable(),
+      specType: z.string().optional().nullable(),
+      unit: z.string().min(1),
+      exFactoryRate: z.number().min(0),
+      transportRate: z.number().min(0),
+      notes: z.string().optional().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const partner = await db.partner.findUnique({ where: { id: input.partnerId } });
+      if (!partner) throw new TRPCError({ code: "NOT_FOUND", message: "Partner not found." });
+      await assertCanWrite(ctx.user, partner.projectId);
+
+      const supply = await db.partnerSupply.create({
+        data: {
+          partnerId: input.partnerId,
+          materialCatalogId: input.materialCatalogId || null,
+          materialName: input.materialName,
+          brand: input.brand || null,
+          specType: input.specType || null,
+          unit: input.unit,
+          exFactoryRate: input.exFactoryRate,
+          transportRate: input.transportRate,
+          notes: input.notes || null,
+        },
+      });
+      return { supply };
+    }),
+
+  /** Delete a partner supply item. */
+  deletePartnerSupply: protectedProcedure
+    .input(z.object({ supplyId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const supply = await db.partnerSupply.findUnique({ where: { id: input.supplyId }, include: { partner: true } });
+      if (!supply) throw new TRPCError({ code: "NOT_FOUND", message: "Supply item not found." });
+      await assertCanWrite(ctx.user, supply.partner.projectId);
+
+      await db.partnerSupply.delete({ where: { id: input.supplyId } });
+      return { ok: true };
+    }),
+});

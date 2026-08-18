@@ -1,0 +1,44 @@
+"use client";
+
+import { useState, useEffect, Fragment } from "react";
+import { trpc } from "@/lib/trpc-client";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Loader2, X, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+function parseJsonArray(val: string | any[] | null): any[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
+export function MeetingsView({ data }: { data: string | null }) {
+  const items = parseJsonArray(data);
+  if (!items.length) return <p className="text-sm text-muted-foreground">No meetings recorded.</p>;
+  return (
+    <table className="w-full text-sm">
+      <thead><tr className="text-xs text-muted-foreground border-b">
+        <th className="pb-2 text-left font-medium">Topic</th>
+        <th className="pb-2 text-left font-medium">Attendees</th>
+        <th className="pb-2 text-left font-medium">Notes</th>
+      </tr></thead>
+      <tbody>
+        {items.map((item: any, i: number) => (
+          <tr key={i} className="border-b last:border-0">
+            <td className="py-2 text-xs font-medium">{item.topic || "—"}</td>
+            <td className="py-2 text-xs">{item.attendees || "—"}</td>
+            <td className="py-2 text-xs">{item.notes || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Generic simple table editor for visitors/meetings */
