@@ -48,6 +48,8 @@ const UpdateDrawingSchema = z.object({
   discipline: z.string().nullable().optional(),
   status: z.string().optional(),
   revision: z.string().optional(),
+  scaleValue: z.number().nullable().optional(),
+  scaleUnit: z.string().nullable().optional(),
 });
 
 export const documentRouter = router({
@@ -135,6 +137,7 @@ export const documentRouter = router({
       projectId: z.string(),
       discipline: z.string().optional().nullable(),
       q: z.string().optional().nullable(),
+      setId: z.string().optional().nullable(),
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -144,6 +147,8 @@ export const documentRouter = router({
         where: {
           projectId: input.projectId,
           ...(input.discipline && input.discipline !== "all" && { discipline: input.discipline }),
+          ...(input.setId === "none" && { drawingSetId: null }),
+          ...(input.setId && input.setId !== "none" && input.setId !== "all" && { drawingSetId: input.setId }),
           ...(queryStr && {
             OR: [{ number: { contains: queryStr } }, { title: { contains: queryStr } }],
           }),
@@ -153,8 +158,9 @@ export const documentRouter = router({
           id: true, number: true, title: true, discipline: true, status: true,
           revision: true, issuedDate: true, fileName: true, fileType: true,
           ganttTaskId: true, approvalStatus: true, approvedAt: true, approvalNotes: true,
-          createdById: true, createdAt: true, updatedAt: true,
+          createdById: true, createdAt: true, updatedAt: true, drawingSetId: true,
           ganttTask: { select: { id: true, code: true, name: true } },
+          drawingSet: { select: { id: true, name: true } },
           _count: { select: { revisions: true, rfis: true } },
         },
       });
@@ -471,6 +477,12 @@ export const documentRouter = router({
           ...(input.revisionId ? { OR: [{ revisionId: input.revisionId }, { revisionId: null }] } : {}),
         },
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true, type: true, x: true, y: true, w: true, h: true,
+          x2: true, y2: true, rotation: true, color: true, strokeWidth: true,
+          opacity: true, text: true, points: true, stampType: true,
+          linkedItemId: true, linkedItemType: true, createdById: true, createdAt: true,
+        },
       });
 
       return { markups };
@@ -481,14 +493,20 @@ export const documentRouter = router({
     .input(z.object({
       drawingId: z.string(),
       revisionId: z.string().optional(),
-      type: z.enum(["cloud", "arrow", "text", "pin", "highlight", "measurement"]),
+      type: z.enum(["cloud", "arrow", "text", "pin", "highlight", "measurement", "freehand", "callout", "stamp", "area"]),
       x: z.number().min(0).max(1),
       y: z.number().min(0).max(1),
       w: z.number().optional(),
       h: z.number().optional(),
+      x2: z.number().min(0).max(1).optional(),
+      y2: z.number().min(0).max(1).optional(),
       rotation: z.number().optional(),
       color: z.string().default("#ef4444"),
+      strokeWidth: z.number().optional(),
+      opacity: z.number().optional(),
       text: z.string().optional(),
+      points: z.string().optional(),
+      stampType: z.string().optional(),
       linkedItemId: z.string().optional(),
       linkedItemType: z.string().optional(),
     }))
@@ -509,9 +527,15 @@ export const documentRouter = router({
           y: input.y,
           w: input.w || null,
           h: input.h || null,
+          x2: input.x2 ?? null,
+          y2: input.y2 ?? null,
           rotation: input.rotation || null,
           color: input.color,
+          strokeWidth: input.strokeWidth ?? null,
+          opacity: input.opacity ?? null,
           text: input.text || null,
+          points: input.points || null,
+          stampType: input.stampType || null,
           linkedItemId: input.linkedItemId || null,
           linkedItemType: input.linkedItemType || null,
           createdById: ctx.user.id,

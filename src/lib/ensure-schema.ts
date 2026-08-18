@@ -449,6 +449,18 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
       END IF;
     END $$`,
 
+    // DrawingMarkup — new columns for bluebeam-style markups
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "x2" DOUBLE PRECISION; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "y2" DOUBLE PRECISION; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "strokeWidth" DOUBLE PRECISION DEFAULT 2; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "opacity" DOUBLE PRECISION DEFAULT 1; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "points" TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "stampType" TEXT; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+
+    // Drawing — scale fields for real-world measurements
+    `DO $$ BEGIN ALTER TABLE "Drawing" ADD COLUMN IF NOT EXISTS "scaleValue" DOUBLE PRECISION; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+    `DO $$ BEGIN ALTER TABLE "Drawing" ADD COLUMN IF NOT EXISTS "scaleUnit" TEXT DEFAULT 'm'; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+
     // DrawingSet — group drawings
     `CREATE TABLE IF NOT EXISTS "DrawingSet" (
       "id" TEXT NOT NULL,

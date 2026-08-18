@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ZoomIn, ZoomOut, Maximize2, FileImage, GitBranch, CheckCircle2, FileQuestion,
-  MapPin, Columns2, Trash2, Crosshair,
+  MapPin, Columns2, Trash2, Crosshair, Pencil, List,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -19,7 +19,14 @@ import { APPROVAL_CONFIG } from "./constants";
 import { AddRevisionDialog } from "../dialogs/add-revision-dialog";
 import { ApproveDrawingDialog } from "../dialogs/approve-drawing-dialog";
 import { CreateRfiFromDrawingDialog } from "../dialogs/create-rfi-from-drawing-dialog";
+import { EditDrawingDialog } from "../dialogs/edit-drawing-dialog";
 import { DrawingComparatorPane } from "@/components/drawings/drawing-comparator-pane";
+import { MarkupToolbar, type MarkupTool } from "@/components/drawings/markup-toolbar";
+import { MarkupOverlay } from "@/components/drawings/markup-overlay";
+import { MarkupListPanel } from "@/components/drawings/markup-list-panel";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface DrawingPin {
@@ -36,16 +43,30 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
   const { data, isLoading } = trpc.document.getDrawing.useQuery({ drawingId });
   const drawing = data?.drawing;
 
+  const deleteMut = trpc.document.deleteDrawing.useMutation({
+    onSuccess: () => { toast.success("Drawing deleted"); onClose(); onChanged(); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const [selectedRevId, setSelectedRevId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [showRevDialog, setShowRevDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRfiDialog, setShowRfiDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // New interactive tools: Pinning and Split Comparator
+  // New interactive tools: Pinning, Markup, and Split Comparator
   const [pinningMode, setPinningMode] = useState(false);
   const [splitComparator, setSplitComparator] = useState(false);
   const [pins, setPins] = useState<DrawingPin[]>([]);
+  const [lastPin, setLastPin] = useState<{ x: number; y: number } | null>(null);
+  const [activeMarkupTool, setActiveMarkupTool] = useState<MarkupTool>("select");
+  const [activeMarkupColor, setActiveMarkupColor] = useState("#ef4444");
+  const [selectedMarkupId, setSelectedMarkupId] = useState<string | null>(null);
+  const [showMarkupList, setShowMarkupList] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,7 +85,7 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
     : revFileData;
 
   const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!pinningMode) return;
+    if (!pinningMode || activeMarkupTool !== "select") return;
     const rect = e.currentTarget.getBoundingClientRect();
     const xPct = ((e.clientX - rect.left) / rect.width) * 100;
     const yPct = ((e.clientY - rect.top) / rect.height) * 100;
@@ -80,6 +101,7 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
     };
 
     setPins((prev) => [...prev, newPin]);
+    setLastPin({ x: xPct / 100, y: yPct / 100 });
     toast.success("Coordinate pin added to drawing sheet");
     setPinningMode(false);
   };
@@ -162,6 +184,12 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
               <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={() => setShowRfiDialog(true)}>
                 <FileQuestion className="h-3 w-3" /> Create RFI
               </Button>
+              <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="h-3 w-3" /> Edit Drawing
+              </Button>
+              <Button size="sm" variant="outline" className="w-full h-7 text-xs gap-1 text-destructive hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="h-3 w-3" /> Delete
+              </Button>
             </div>
           </div>
 
@@ -205,6 +233,30 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
                 </Button>
               </div>
 
+              {/* Markup Toolbar */}
+              <MarkupToolbar
+                activeTool={activeMarkupTool}
+                onToolChange={(t) => { setActiveMarkupTool(t); setPinningMode(false); }}
+                activeColor={activeMarkupColor}
+                onColorChange={setActiveMarkupColor}
+                onDeleteSelected={() => { (globalThis as any).__markupDelete?.(); setSelectedMarkupId(null); }}
+                selectedMarkupId={selectedMarkupId}
+                onUndo={() => (globalThis as any).__markupUndo?.()}
+                onRedo={() => (globalThis as any).__markupRedo?.()}
+                canUndo={canUndo}
+                canRedo={canRedo}
+              />
+
+              <Button
+                size="sm"
+                variant={showMarkupList ? "default" : "outline"}
+                className="h-7 text-xs gap-1 font-mono"
+                onClick={() => setShowMarkupList(!showMarkupList)}
+                title="Toggle markup list panel"
+              >
+                <List className="h-3.5 w-3.5" />
+              </Button>
+
               <span className="text-xs text-muted-foreground truncate ml-2">
                 {currentFile?.fileName ?? "No file"}
               </span>
@@ -228,6 +280,20 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
                       src={`data:${currentFile.fileType};base64,${currentFile.fileData}`}
                       alt={currentFile.fileName ?? "drawing"}
                       className="max-w-full max-h-full object-contain pointer-events-none"
+                    />
+
+                    {/* Markup Overlay — always visible for existing markups, interactive when tool is active */}
+                    <MarkupOverlay
+                      drawingId={drawingId}
+                      revisionId={selectedRevId !== drawing?.id ? selectedRevId ?? undefined : undefined}
+                      activeTool={activeMarkupTool}
+                      activeColor={activeMarkupColor}
+                      onMarkupCreated={() => {}}
+                      onMarkupDeleted={() => {}}
+                      onSelectionChange={setSelectedMarkupId}
+                      onHistoryChange={(u, r) => { setCanUndo(u); setCanRedo(r); }}
+                      scaleValue={drawing?.scaleValue}
+                      scaleUnit={drawing?.scaleUnit}
                     />
 
                     {/* Coordinate Pins Overlay */}
@@ -278,6 +344,18 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
               <DrawingComparatorPane projectId={projectId} />
             </div>
           )}
+
+          {/* Right Markup List Panel */}
+          {showMarkupList && (
+            <MarkupListPanel
+              drawingId={drawingId}
+              revisionId={selectedRevId !== drawing?.id ? selectedRevId ?? undefined : undefined}
+              selectedMarkupId={selectedMarkupId}
+              onSelectMarkup={setSelectedMarkupId}
+              onDeleteMarkup={(id) => (globalThis as any).__markupDelete?.()}
+              onClose={() => setShowMarkupList(false)}
+            />
+          )}
         </div>
       </DialogContent>
 
@@ -307,10 +385,38 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
           drawingId={drawing.id}
           drawingNumber={drawing.number}
           projectId={projectId}
+          pinX={lastPin?.x}
+          pinY={lastPin?.y}
           onClose={() => setShowRfiDialog(false)}
           onDone={() => { setShowRfiDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
         />
       )}
+
+      {showEditDialog && drawing && (
+        <EditDrawingDialog
+          drawing={{ id: drawing.id, title: drawing.title, discipline: drawing.discipline, status: drawing.status, scaleValue: drawing.scaleValue, scaleUnit: drawing.scaleUnit }}
+          projectId={projectId}
+          onClose={() => setShowEditDialog(false)}
+          onDone={() => { setShowEditDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
+        />
+      )}
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Drawing</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{drawing?.number}</strong>? This will also delete all revisions and markups. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteMut.mutate({ itemId: drawingId })} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -13,8 +13,8 @@ import {
 import { Loader2, FileQuestion } from "lucide-react";
 import { toast } from "sonner";
 
-export function CreateRfiFromDrawingDialog({ drawingId, drawingNumber, projectId, onClose, onDone }: {
-  drawingId: string; drawingNumber: string; projectId: string; onClose: () => void; onDone: () => void;
+export function CreateRfiFromDrawingDialog({ drawingId, drawingNumber, projectId, pinX, pinY, onClose, onDone }: {
+  drawingId: string; drawingNumber: string; projectId: string; pinX?: number; pinY?: number; onClose: () => void; onDone: () => void;
 }) {
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
@@ -33,7 +33,7 @@ export function CreateRfiFromDrawingDialog({ drawingId, drawingNumber, projectId
             </SelectContent></Select>
           </div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => mut.mutate({ projectId, drawingId, subject, description: description || undefined, priority })} disabled={mut.isPending || !subject}>{mut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create RFI</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => mut.mutate({ projectId, drawingId, subject, description: description || undefined, priority, pinX: pinX ?? undefined, pinY: pinY ?? undefined })} disabled={mut.isPending || !subject}>{mut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create RFI</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

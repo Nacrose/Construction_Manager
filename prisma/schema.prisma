@@ -2153,6 +2153,9 @@ model Drawing {
   createdById    String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
+  // Drawing scale for real-world measurements
+  scaleValue     Float?            // e.g. 100 for 1:100
+  scaleUnit      String?           @default("m") // m | mm | ft | in
 
   project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   ganttTask      GanttTask?        @relation("DrawingGanttTask", fields: [ganttTaskId], references: [id], onDelete: SetNull)
@@ -2733,14 +2736,20 @@ model DrawingMarkup {
   id            String   @id @default(cuid())
   drawingId     String
   revisionId    String?  // specific revision (null = applies to all)
-  type          String   // cloud | arrow | text | pin | highlight | measurement
+  type          String   // cloud | arrow | text | pin | highlight | measurement | freehand | callout | stamp | area
   x             Float    // 0-1 percentage of width
   y             Float    // 0-1 percentage of height
   w             Float?   // width (for rectangles/clouds, 0-1)
   h             Float?   // height
+  x2            Float?   // end point x for lines/arrows/callouts (0-1)
+  y2            Float?   // end point y
   rotation      Float?   // degrees
   color         String   @default("#ef4444")
-  text          String?  // for text annotations
+  strokeWidth   Float?   @default(2)
+  opacity       Float?   @default(1)
+  text          String?  // for text annotations, callout text, stamp text
+  points        String?  // JSON array of {x,y} for freehand/area polygons
+  stampType     String?  // approved | rejected | revision | draft | final | caution
   linkedItemId  String?  // link to RFI, punch item, etc.
   linkedItemType String? // rfi | punch | observation
   createdById   String?

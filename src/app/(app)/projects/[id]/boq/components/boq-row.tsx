@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   ChevronDown,
   ChevronUp,
-  Calculator,
   Lock,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -104,28 +103,6 @@ export function BoqRow({
               title="Select item"
             />
           )}
-        </td>
-        <td className={cn("text-center", isCompact ? "py-0.5 px-1" : "p-1")}>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onOpenAnalysis) onOpenAnalysis(item);
-              else onToggle();
-            }}
-            className={cn(
-              "rounded px-1.5 py-0.5 text-[10px] font-mono transition-all border",
-              isInspected
-                ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                : "bg-muted/40 text-primary hover:bg-primary/20 border-primary/30"
-            )}
-            title="Open Rate Analysis Inspector (Space)"
-          >
-            <span className="flex items-center gap-1">
-              <Calculator className="h-3 w-3" />
-              <span>RA</span>
-            </span>
-          </button>
         </td>
         <td
           className={cn(

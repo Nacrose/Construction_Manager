@@ -156,12 +156,6 @@ export function BoqTable({
               </th>
               <th
                 className={cn(
-                  "w-8 px-1 text-center",
-                  tableDensity === "compact" ? "py-1.5" : "py-2"
-                )}
-              ></th>
-              <th
-                className={cn(
                   "w-20 px-2 font-semibold text-primary sticky left-0 bg-muted/95 backdrop-blur-md z-20",
                   tableDensity === "compact" ? "py-1.5" : "py-2"
                 )}

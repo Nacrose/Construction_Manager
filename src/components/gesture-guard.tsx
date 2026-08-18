@@ -9,11 +9,9 @@ import { useEffect } from "react";
  */
 export function GestureGuard() {
   useEffect(() => {
-    // 1. Enforce overscroll-behavior none on document elements
+    // 1. Enforce overscroll-behavior-x none on document elements (vertical stays normal)
     document.documentElement.style.overscrollBehaviorX = "none";
-    document.documentElement.style.overscrollBehavior = "none";
     document.body.style.overscrollBehaviorX = "none";
-    document.body.style.overscrollBehavior = "none";
 
     // 2. Native non-passive wheel interceptor at scroll boundaries
     const handleWheel = (e: WheelEvent) => {
@@ -45,8 +43,10 @@ export function GestureGuard() {
         target = target.parentElement;
       }
 
-      // If at boundary or over a non-scrollable surface, prevent browser history swipe
-      if (!hasHorizontalScrollSpace) {
+      // If at boundary or over a non-scrollable surface AND gesture is horizontally
+      // dominant, prevent browser history swipe. Diagonal gestures (vertical >= horizontal)
+      // pass through so normal scrolling works on macOS trackpads.
+      if (!hasHorizontalScrollSpace && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
       }
     };

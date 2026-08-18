@@ -260,8 +260,9 @@ export function RateAnalysisInspector({
 
   return (
     <aside
-      className="w-full lg:w-[480px] shrink-0 border-l border-emerald-500/25 bg-[#080d0a]/95 flex flex-col h-[calc(100vh-140px)] sticky top-14 z-20 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md overflow-hidden rounded-r-lg"
+      className="w-full lg:w-[480px] shrink-0 border-l border-emerald-500/25 bg-[#080d0a]/95 flex flex-col h-[calc(100vh-140px)] z-20 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md overflow-hidden rounded-r-lg"
       aria-label="Rate Analysis Inspector"
+      onWheel={(e) => e.stopPropagation()}
     >
       {/* 1. Header: Item Identity & BoQ Contract Information */}
       <div className="p-3 border-b border-emerald-500/20 bg-emerald-950/20 shrink-0">

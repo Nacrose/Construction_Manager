@@ -3,14 +3,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Disable macOS / trackpad horizontal swipe to navigate back/forward across entire app */
+/* Disable macOS / trackpad horizontal swipe to navigate back/forward across entire app.
+   overscroll-behavior-x only — vertical scrolling / pull-to-refresh stays normal. */
 :root,
 html,
 body,
 main,
 #__next {
   overscroll-behavior-x: none !important;
-  overscroll-behavior: none !important;
 }
 
 @theme inline {
