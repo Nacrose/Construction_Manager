@@ -25,6 +25,7 @@ import { getToken, clearAuth, fetchWithAuth } from "@/lib/client-auth";
  */
 import { SiteTelemetryTicker } from "@/components/site-telemetry-ticker";
 import { CommandPalette } from "@/components/command-palette";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -112,6 +113,9 @@ export function AppGuard({ children }: { children: ReactNode }) {
     <div className="h-screen flex flex-col overflow-hidden bg-transparent relative z-10">
       {/* Top Telemetry & Status Ticker */}
       <SiteTelemetryTicker />
+
+      {/* Impersonation banner (shown only while a superadmin is impersonating) */}
+      <ImpersonationBanner />
 
       {/* Floating command dock */}
       <AppDock />

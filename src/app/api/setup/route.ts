@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { ensureSchema } from "@/lib/ensure-schema";
 import { db } from "@/lib/db";
-import { createSession } from "@/lib/auth";
+import { createAdminSession } from "@/lib/auth";
 
 /**
  * GET /api/setup — applies the baseline Prisma migration to the database.
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const token = await createSession(superadmin.id);
+    const token = await createAdminSession(superadmin.id);
     return NextResponse.json({
       message: "Superadmin created. Log in with these credentials.",
       token,
@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
         organizationId: null,
         orgRole: "member",
         isSuperAdmin: true,
+        sessionKind: "admin",
       },
     });
   } catch (err) {

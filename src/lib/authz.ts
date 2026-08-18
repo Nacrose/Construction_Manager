@@ -22,7 +22,8 @@ export function isOrgAdmin(user: AuthUser | null | undefined): boolean {
 // Returns the user's role on a project, or null if not a member.
 export async function getProjectRole(
   userId: string,
-  projectId: string
+  projectId: string,
+  opts?: { impersonating?: boolean; organizationId?: string | null },
 ): Promise<ProjectRole | null> {
   // Super admins don't get automatic project access.
   // They must be explicitly added as project members.
@@ -30,7 +31,28 @@ export async function getProjectRole(
     where: { projectId_userId: { projectId, userId } },
     select: { role: true },
   });
-  return (membership?.role as ProjectRole) ?? null;
+  if (membership?.role) {
+    return membership.role as ProjectRole;
+  }
+
+  // While a platform admin is impersonating a tenant org, grant access to
+  // every project in that org — but ONLY that org. This is the single choke
+  // point that lets an impersonating admin read/act on a tenant's projects
+  // without ever crossing into another org's data (RLS may be unreliable
+  // under connection pooling, so we scope explicitly and centrally here).
+  // The synthetic "engineer" role permits writes but not project-admin
+  // (pm/coordinator-only) actions.
+  if (opts?.impersonating && opts.organizationId) {
+    const project = await db.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    if (project && project.organizationId === opts.organizationId) {
+      return "engineer";
+    }
+  }
+
+  return null;
 }
 
 // Throws if the user has no access to the project at all.
@@ -38,7 +60,10 @@ export async function assertProjectMember(
   user: AuthUser,
   projectId: string
 ): Promise<ProjectRole> {
-  const role = await getProjectRole(user.id, projectId);
+  const role = await getProjectRole(user.id, projectId, {
+    impersonating: user.impersonating,
+    organizationId: user.organizationId,
+  });
   if (!role) {
     throw new Error("FORBIDDEN");
   }

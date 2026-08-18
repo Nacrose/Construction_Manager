@@ -33,7 +33,7 @@ export async function createTRPCContext(opts: Request | { req: Request }): Promi
 
 // ─── tRPC init ─────────────────────────────────────────────────
 
-const t = initTRPC.context<TRPCContext>().create({
+export const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape }) {
     return shape;
@@ -62,9 +62,12 @@ const enforceAuth = t.middleware(async ({ ctx, next }) => {
   }
 
   // Set RLS context — defense-in-depth at the database level.
-  // If this fails (e.g., pgbouncer mode mismatch), the app-level
-  // filtering in project.list is still active.
-  await setOrgContext(db, ctx.user.organizationId, ctx.user.isSuperAdmin);
+  // `ctx.user.isSuperAdmin` is already the EFFECTIVE flag: it is false while
+  // a superadmin is impersonating a tenant org (so RLS scopes to that org),
+  // and true otherwise. App-level filtering in the routers keys off the same
+  // effective identity, so tenant scoping is reliable even when RLS is not
+  // enforced (e.g. under connection pooling).
+  await setOrgContext(db, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
   return next({ ctx: { ...ctx, user: ctx.user } });
 });

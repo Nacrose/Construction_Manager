@@ -912,6 +912,19 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
       END;
     END $$`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "Project_organizationId_code_key" ON "Project"("organizationId", "code")`,
+
+    // Session — admin-kind sessions + impersonation tracking
+    `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'user'`,
+    `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "impersonatedOrgId" TEXT`,
+    `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "impersonatedAt" TIMESTAMPTZ`,
+    `ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "impersonatedReason" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "Session_kind_idx" ON "Session"("kind")`,
+    `CREATE INDEX IF NOT EXISTS "Session_impersonatedOrgId_idx" ON "Session"("impersonatedOrgId")`,
+
+    // AuditLog — capture impersonation context
+    `ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "impersonatedOrgId" TEXT`,
+    `ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "impersonatedByUserId" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "AuditLog_impersonatedOrgId_idx" ON "AuditLog"("impersonatedOrgId")`,
   ];
 
   for (const stmt of alterStatements) {

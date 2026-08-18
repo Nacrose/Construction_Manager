@@ -10,21 +10,53 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, t } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { ensureSchema } from "@/lib/ensure-schema";
 import { Prisma } from "@prisma/client";
 
 const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspector"] as const;
 
-/** Middleware: only platform superadmins may use these procedures. */
-const superAdminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (!ctx.user?.isSuperAdmin) {
+/** Build impersonation audit metadata for the current admin session. */
+function impersonationMeta(ctx: { user: AuthUser }) {
+  if (ctx.user.impersonating && ctx.user.impersonatedOrgId) {
+    return {
+      impersonatedOrgId: ctx.user.impersonatedOrgId,
+      impersonatedByUserId: ctx.user.id,
+    };
+  }
+  return {};
+}
+
+/**
+ * Platform-admin procedure. Requires the real superadmin status
+ * (`isPlatformAdmin`) AND an admin-kind session (issued only by
+ * /api/auth/admin-login). This enforces the separate admin identity plane —
+ * superadmins cannot reach the console with a normal user session. Note we
+ * check `isPlatformAdmin` (not the effective `isSuperAdmin`) so the console
+ * remains usable while a superadmin is impersonating a tenant (they can stop
+ * impersonation from here). The console always operates with full
+ * cross-tenant (god-view) RLS.
+ */
+const superAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
+  }
+  if (!ctx.user.isPlatformAdmin) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin access required." });
   }
-  return next({ ctx });
+  if (ctx.user.sessionKind !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Use the platform admin login to access this area.",
+    });
+  }
+  // Admin console always has full cross-tenant visibility.
+  await setOrgContext(db, "", true);
+  return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
 /** Derive a unique org code from a display name. */
@@ -115,7 +147,7 @@ export const adminRouter = router({
         adminUser = { id: user.id, email: user.email };
       }
 
-      await audit({ userId: ctx.user.id, action: "admin.org.create", entityType: "organization", entityId: org.id, metadata: { name: org.name, code: org.code } });
+      await audit({ userId: ctx.user.id, action: "admin.org.create", entityType: "organization", entityId: org.id, metadata: { name: org.name, code: org.code }, ...impersonationMeta(ctx) });
       return { org, adminUser };
     }),
 
@@ -211,13 +243,95 @@ export const adminRouter = router({
           isSuperAdmin: input.isSuperAdmin,
         },
       });
-      await audit({ userId: ctx.user.id, action: "admin.user.create", entityType: "user", entityId: user.id, metadata: { email: user.email, orgRole: user.orgRole, isSuperAdmin: user.isSuperAdmin } });
+      await audit({ userId: ctx.user.id, action: "admin.user.create", entityType: "user", entityId: user.id, metadata: { email: user.email, orgRole: user.orgRole, isSuperAdmin: user.isSuperAdmin }, ...impersonationMeta(ctx) });
       return { user: { id: user.id, email: user.email } };
     }),
 
   // Run the baseline schema migration (server-side; no SETUP_SECRET needed).
   runDbSetup: superAdminProcedure.mutation(async () => {
     return ensureSchema();
+  }),
+
+  // ── Impersonation (audited support mode) ──────────────────────
+  // A superadmin temporarily acts *within* a tenant org, scoped exactly to
+  // what that tenant can see. The real admin identity is preserved for audit
+  // attribution. Requires a reason — this is the security boundary.
+  startImpersonation: superAdminProcedure
+    .input(
+      z.object({
+        organizationId: z.string().min(1),
+        reason: z.string().min(1, "A reason is required to impersonate an organization.").max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const org = await db.organization.findUnique({
+        where: { id: input.organizationId },
+        select: { id: true, name: true, code: true },
+      });
+      if (!org) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+      }
+      if (!ctx.user.sessionId) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Session missing." });
+      }
+
+      await setImpersonation(ctx.user.sessionId, {
+        organizationId: org.id,
+        reason: input.reason,
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.impersonation.start",
+        entityType: "organization",
+        entityId: org.id,
+        metadata: { reason: input.reason, orgName: org.name },
+        impersonatedOrgId: org.id,
+        impersonatedByUserId: ctx.user.id,
+      });
+
+      return {
+        ok: true as const,
+        user: sanitizeAuthUser({
+          ...ctx.user,
+          organizationId: org.id,
+          impersonating: true,
+          impersonatedOrgId: org.id,
+          impersonatedOrg: org,
+          impersonatedReason: input.reason,
+        }),
+      };
+    }),
+
+  stopImpersonation: superAdminProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.user.sessionId) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Session missing." });
+    }
+    const orgId = ctx.user.impersonatedOrgId ?? null;
+    await setImpersonation(ctx.user.sessionId, null);
+
+    if (orgId) {
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.impersonation.stop",
+        entityType: "organization",
+        entityId: orgId,
+        impersonatedOrgId: orgId,
+        impersonatedByUserId: ctx.user.id,
+      });
+    }
+
+    return {
+      ok: true as const,
+      user: sanitizeAuthUser({
+        ...ctx.user,
+        organizationId: ctx.user.isSuperAdmin ? null : ctx.user.organizationId,
+        impersonating: false,
+        impersonatedOrgId: null,
+        impersonatedOrg: null,
+        impersonatedReason: null,
+      }),
+    };
   }),
 
   listAuditLogs: superAdminProcedure
@@ -264,7 +378,7 @@ export const adminRouter = router({
       if (user.deactivatedAt) {
         await db.session.deleteMany({ where: { userId: id } });
       }
-      await audit({ userId: ctx.user.id, action: "admin.user.update", entityType: "user", entityId: id, metadata: { ...rest, deactivated: deactivatedAt } });
+      await audit({ userId: ctx.user.id, action: "admin.user.update", entityType: "user", entityId: id, metadata: { ...rest, deactivated: deactivatedAt }, ...impersonationMeta(ctx) });
       return { user: { id: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin, orgRole: user.orgRole } };
     }),
 });

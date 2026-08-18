@@ -60,7 +60,30 @@ const UpdateMemberSchema = z.object({
 export const projectRouter = router({
   /** List all projects the user belongs to. */
   list: protectedProcedure.query(async ({ ctx }) => {
-    // Super admins see all projects across all orgs
+    // Impersonation: a platform admin acting as a tenant sees ONLY the
+    // impersonated org's projects — scoped app-side (RLS is not reliable
+    // per-request under connection pooling).
+    if (ctx.user.impersonating) {
+      const orgProjects = await db.project.findMany({
+        where: { organizationId: ctx.user.organizationId },
+        include: {
+          _count: { select: { rfis: true, members: true } },
+          organization: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return {
+        projects: orgProjects.map((p) => ({
+          ...p,
+          myRole: "engineer",
+          rfiCount: p._count.rfis,
+          memberCount: p._count.members,
+          _count: undefined,
+        })),
+      };
+    }
+
+    // Super admins (non-impersonating) see all projects across orgs
     if (isOrgAdmin(ctx.user)) {
       const allProjects = await db.project.findMany({
         include: {

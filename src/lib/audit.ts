@@ -12,6 +12,8 @@ export function audit({
   entityId,
   metadata,
   ipAddress,
+  impersonatedOrgId,
+  impersonatedByUserId,
 }: {
   userId?: string;
   projectId?: string;
@@ -20,6 +22,8 @@ export function audit({
   entityId: string;
   metadata?: Record<string, unknown>;
   ipAddress?: string;
+  impersonatedOrgId?: string | null;
+  impersonatedByUserId?: string | null;
 }): void {
   try {
     // Schedule the database log insertion to run in the background
@@ -35,6 +39,8 @@ export function audit({
             entityId,
             metadata: metadata ? JSON.stringify(metadata) : null,
             ipAddress: ipAddress ?? null,
+            impersonatedOrgId: impersonatedOrgId ?? null,
+            impersonatedByUserId: impersonatedByUserId ?? null,
           },
         });
       } catch {

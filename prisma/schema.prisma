@@ -534,15 +534,21 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique // JWT id (jti)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token               String    @unique // JWT id (jti)
+  kind                String    @default("user") // "user" | "admin" — admin sessions are short-lived & platform-only
+  impersonatedOrgId   String? // when a superadmin is acting inside a tenant org
+  impersonatedAt      DateTime?
+  impersonatedReason  String?
+  expiresAt           DateTime
+  createdAt           DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([kind])
+  @@index([impersonatedOrgId])
 }
 
 // Push notification subscriptions (one user can have multiple devices)
@@ -2411,21 +2417,24 @@ model DailyProgramTask {
 // ─────────────────────────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  projectId  String?
-  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  action     String // e.g. "project.create", "rfi.submit", "rfi.approve"
-  entityType String
-  entityId   String
-  metadata   String? // JSON string
-  ipAddress  String?
-  createdAt  DateTime @default(now())
+  id                   String   @id @default(cuid())
+  userId               String?
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  projectId            String?
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  action               String // e.g. "project.create", "rfi.submit", "rfi.approve"
+  entityType           String
+  entityId             String
+  metadata             String? // JSON string
+  ipAddress            String?
+  impersonatedOrgId    String? // set when the actor was impersonating a tenant
+  impersonatedByUserId String? // the real superadmin who performed the action while impersonating
+  createdAt            DateTime @default(now())
 
   @@index([projectId, createdAt])
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([impersonatedOrgId])
 }
 
 // ─────────────────────────────────────────────────────────────

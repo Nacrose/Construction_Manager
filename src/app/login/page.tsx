@@ -238,6 +238,18 @@ function LoginCard() {
       >
         Server-side auth · JWT · Audit-logged
       </motion.p>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.4 }}
+        className="mt-2 text-center text-[11px] text-white/40"
+      >
+        Platform administrator?{" "}
+        <Link href="/admin/login" className="text-amber-400 hover:underline">
+          Sign in to the admin console
+        </Link>
+      </motion.p>
     </motion.div>
   );
 }

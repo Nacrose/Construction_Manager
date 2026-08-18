@@ -17,6 +17,12 @@ export type ClientUser = {
   orgRole?: string;
   isSuperAdmin?: boolean;
   organization?: { id: string; name: string; code: string } | null;
+  // Session / impersonation metadata
+  sessionKind?: "user" | "admin";
+  impersonating?: boolean;
+  impersonatedOrgId?: string | null;
+  impersonatedOrg?: { id: string; name: string; code: string } | null;
+  impersonatedReason?: string | null;
 };
 
 export function getToken(): string | null {
@@ -35,16 +41,24 @@ export function getUser(): ClientUser | null {
   }
 }
 
+function notifyAuthChange() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("cf:auth-change"));
+  }
+}
+
 export function setAuth(token: string, user: ClientUser): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  notifyAuthChange();
 }
 
 export function clearAuth(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  notifyAuthChange();
 }
 
 // fetch wrapper that adds the Authorization header if a token exists.

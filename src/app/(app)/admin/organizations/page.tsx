@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,15 +12,19 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogDescription,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Loader2, Pencil } from "lucide-react";
+import { Plus, Loader2, Pencil, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { getToken, setAuth } from "@/lib/client-auth";
 
 export default function AdminOrganizations() {
+  const router = useRouter();
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.admin.listOrganizations.useQuery({});
   const [createOpen, setCreateOpen] = useState(false);
   const [editOrg, setEditOrg] = useState<null | { id: string; name: string; status: string }>(null);
+  const [impersonateOrg, setImpersonateOrg] = useState<null | { id: string; name: string }>(null);
+  const [reason, setReason] = useState("");
 
   const createMut = trpc.admin.createOrganization.useMutation({
     onSuccess: () => { utils.admin.listOrganizations.invalidate(); setCreateOpen(false); toast.success("Organization created"); },
@@ -27,6 +32,17 @@ export default function AdminOrganizations() {
   });
   const updateMut = trpc.admin.updateOrganization.useMutation({
     onSuccess: () => { utils.admin.listOrganizations.invalidate(); setEditOrg(null); toast.success("Organization updated"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const impersonateMut = trpc.admin.startImpersonation.useMutation({
+    onSuccess: (res) => {
+      const token = getToken();
+      if (token && res.user) setAuth(token, res.user);
+      toast.success(`Now impersonating ${impersonateOrg?.name ?? "organization"}`);
+      setImpersonateOrg(null);
+      setReason("");
+      router.push("/dashboard");
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -82,9 +98,19 @@ export default function AdminOrganizations() {
                       {format(new Date(o.createdAt), "dd MMM yy")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setEditOrg({ id: o.id, name: o.name, status: o.status })}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Impersonate this organization"
+                          onClick={() => setImpersonateOrg({ id: o.id, name: o.name })}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditOrg({ id: o.id, name: o.name, status: o.status })}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -100,6 +126,34 @@ export default function AdminOrganizations() {
           {editOrg && (
             <EditOrgForm org={editOrg} mut={updateMut} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!impersonateOrg} onOpenChange={(o) => !o && setImpersonateOrg(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Impersonate {impersonateOrg?.name}</DialogTitle>
+            <DialogDescription>
+              You will act as this organization. All actions are audit-logged. Provide a reason.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label className="text-xs">Reason</Label>
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. investigating a support ticket"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={impersonateMut.isPending || !reason}
+              onClick={() => impersonateOrg && impersonateMut.mutate({ organizationId: impersonateOrg.id, reason })}
+            >
+              {impersonateMut.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              Start impersonation
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
