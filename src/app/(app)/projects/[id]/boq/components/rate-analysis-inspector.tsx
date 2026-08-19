@@ -65,6 +65,7 @@ export function RateAnalysisInspector({
   const [newUnit, setNewUnit] = useState("cum");
   const [newRate, setNewRate] = useState("");
   const [newPctBase, setNewPctBase] = useState("all");
+  const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
 
   const itemId = item?.id ?? "";
 
@@ -106,6 +107,12 @@ export function RateAnalysisInspector({
     { enabled: !!rateCatalogId }
   );
 
+  // Project rate table for auto-fill on ingredient selection
+  const { data: projectRates } = trpc.projectRate.getProjectRates.useQuery(
+    { projectId },
+    { enabled: !!projectId }
+  );
+
   // 4. Presets
   const { data: presetsData } = trpc.globalPreset.listOrg.useQuery({});
 
@@ -120,6 +127,7 @@ export function RateAnalysisInspector({
       setNewQty("");
       setNewRate("");
       setNewPct("");
+      setSelectedCatalogItemId("");
       setAddingMode("none");
     },
     onError: (e) => toast.error(e.message),
@@ -177,14 +185,24 @@ export function RateAnalysisInspector({
   // Handle ingredient catalog auto-fill
   function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
     setNewName(name);
+    setSelectedCatalogItemId(catalogItem?.id ?? "");
     if (catalogItem?.unit) setNewUnit(catalogItem.unit);
+    // Try rate catalog district rate first
     if (catalogItem?.id && catalogDetails?.catalog && rateDistrict) {
       const catItem = catalogDetails.catalog.items.find((i) => i.materialCatalogId === catalogItem.id);
       if (catItem) {
         const distRate = catItem.rates.find((r) => r.district === rateDistrict)?.rate;
         if (distRate && distRate > 0) {
           setNewRate(String(distRate));
+          return;
         }
+      }
+    }
+    // Fallback: project rate table
+    if (catalogItem?.id && projectRates?.rateMap) {
+      const projectRate = projectRates.rateMap[catalogItem.id];
+      if (projectRate && projectRate > 0) {
+        setNewRate(String(projectRate));
       }
     }
   }
@@ -596,7 +614,7 @@ export function RateAnalysisInspector({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setAddingMode("none")}
+                        onClick={() => { setAddingMode("none"); setSelectedCatalogItemId(""); }}
                         className="text-emerald-400/60 hover:text-emerald-200"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -714,7 +732,7 @@ export function RateAnalysisInspector({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setAddingMode("none")}
+                        onClick={() => { setAddingMode("none"); setSelectedCatalogItemId(""); }}
                         className="h-6 px-2 text-xs text-emerald-400/60"
                       >
                         Cancel
@@ -738,6 +756,7 @@ export function RateAnalysisInspector({
                               quantity: parseFloat(newQty) || 0,
                               unit: newUnit,
                               rate: parseFloat(newRate) || 0,
+                              materialCatalogId: selectedCatalogItemId || undefined,
                             });
                           } else {
                             addMutation.mutate({

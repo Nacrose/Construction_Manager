@@ -41,6 +41,7 @@ const CreateIngredientSchema = z.object({
   pctBase: z.string().default(""),
   rate: z.number().min(0).default(0),
   sortOrder: z.number().default(0),
+  materialCatalogId: z.string().optional(),
 });
 
 const UpdateIngredientSchema = z.object({
@@ -258,6 +259,7 @@ export const rateAnalysisRouter = router({
           rate: input.rate,
           amount,
           sortOrder: input.sortOrder,
+          materialCatalogId: input.materialCatalogId ?? null,
         },
       });
 

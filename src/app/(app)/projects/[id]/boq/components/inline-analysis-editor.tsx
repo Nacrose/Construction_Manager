@@ -36,6 +36,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
   const [showAddToLibrary, setShowAddToLibrary] = useState(false);
   const [showCustomNameInput, setShowCustomNameInput] = useState(false);
   const [profileIdForNew, setProfileIdForNew] = useState("");
+  const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
 
   // Rate catalog state
   const [rateCatalogId, setRateCatalogId] = useState("");
@@ -50,15 +51,33 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
     { enabled: !!rateCatalogId },
   );
 
+  // Project rate table for auto-fill on ingredient selection
+  const { data: projectRates } = trpc.projectRate.getProjectRates.useQuery(
+    { projectId },
+    { enabled: !!projectId }
+  );
+
   // Auto-fill rate when ingredient is selected from catalog
   function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
     setNewName(name);
+    setSelectedCatalogItemId(catalogItem?.id ?? "");
     if (catalogItem?.unit) setNewUnit(catalogItem.unit);
+    // Try rate catalog district rate first
     if (catalogItem?.id && catalogData?.catalog) {
       const item = catalogData.catalog.items.find((i) => i.materialCatalogId === catalogItem.id);
       if (item && rateDistrict) {
         const rate = item.rates.find((r) => r.district === rateDistrict)?.rate;
-        if (rate && rate > 0) setNewRate(String(rate));
+        if (rate && rate > 0) {
+          setNewRate(String(rate));
+          return;
+        }
+      }
+    }
+    // Fallback: project rate table
+    if (catalogItem?.id && projectRates?.rateMap) {
+      const projectRate = projectRates.rateMap[catalogItem.id];
+      if (projectRate && projectRate > 0) {
+        setNewRate(String(projectRate));
       }
     }
   }
@@ -127,6 +146,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
         body.percentage = parseFloat(newPct) || 0;
         body.unit = newUnit;
         body.rate = parseFloat(newRate) || 0;
+        body.materialCatalogId = selectedCatalogItemId || undefined;
       } else {
         body.type = "overhead";
         body.calcMode = "percentage";
@@ -149,7 +169,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
         setProfileIdForNew(selectedProfile && selectedProfile !== "__all__" ? selectedProfile : "");
         setShowAddToLibrary(true);
       } else {
-        setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setAdding(false);
+        setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedCatalogItemId(""); setAdding(false);
       }
       toast.success("Added");
     },
@@ -299,7 +319,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
               toast.success(`Added "${newName}" to ${profilesData?.profiles.find((p) => p.id === profileIdForNew)?.name ?? "library"}`);
               setShowAddToLibrary(false);
               setProfileIdForNew("");
-              setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setAdding(false);
+        setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedCatalogItemId(""); setAdding(false);
             }}
           >
             + Add
@@ -479,7 +499,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
                 <td className="py-1">
                   <div className="flex gap-1">
                     <button className="flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white disabled:opacity-40" disabled={!newName || addMutation.isPending} onClick={() => addMutation.mutate()}><Check className="h-3 w-3"/></button>
-                    <button className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted" onClick={() => { setAdding(false); setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); }}><X className="h-3 w-3"/></button>
+                    <button className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted" onClick={() => { setAdding(false); setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedCatalogItemId(""); }}><X className="h-3 w-3"/></button>
                   </div>
                 </td>
               </tr>

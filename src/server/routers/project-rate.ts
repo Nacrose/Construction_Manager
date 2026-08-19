@@ -193,6 +193,23 @@ export const projectRateRouter = router({
       return { count: syncedCount, columnId: column.id, message: `Successfully synced ${syncedCount} project rate(s) to Org Rate Catalog.` };
     }),
 
+  // Get project rates keyed by materialCatalogId for auto-fill on ingredient selection
+  getProjectRates: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const entries = await db.projectRateColumnEntry.findMany({
+        where: { column: { projectId: input.projectId } },
+        include: { rateCatalogItem: { select: { materialCatalogId: true } } },
+      });
+      const rateMap: Record<string, number> = {};
+      for (const e of entries) {
+        if (e.rateCatalogItem?.materialCatalogId && e.rate > 0) {
+          rateMap[e.rateCatalogItem.materialCatalogId] = e.rate;
+        }
+      }
+      return { rateMap };
+    }),
+
   // Get project rate columns for an org catalog (to display side-by-side in org catalog view)
   getOrgProjectColumns: protectedProcedure
     .input(z.object({ rateCatalogId: z.string() }))

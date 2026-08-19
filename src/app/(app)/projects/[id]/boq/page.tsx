@@ -319,7 +319,7 @@ function BoqPageContent({
             bulkMoveSectionMutation={bulkMoveSectionMutation}
           />
 
-          <div className="flex gap-0 items-stretch relative rounded-lg border border-border/60 bg-card h-[calc(100vh-140px)] overflow-hidden">
+          <div className="flex gap-0 items-stretch relative rounded-lg border border-border/60 bg-slate-50 dark:bg-slate-950/30 h-[calc(100vh-140px)] overflow-hidden">
             <div className="flex-1 min-w-0 overflow-auto">
               <BoqTable
                 projectId={id}
