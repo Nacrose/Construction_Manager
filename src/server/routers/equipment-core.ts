@@ -430,6 +430,99 @@ export const equipmentCoreProcedures = {
       return { stats };
     }),
 
+  utilizationReport: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      startDate: z.string(),
+      endDate: z.string(),
+    }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const start = new Date(input.startDate);
+      const end = new Date(input.endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const daysInRange = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+      const availableHoursPerDay = 8;
+
+      const equipment = await db.equipment.findMany({
+        where: { projectId: input.projectId },
+        select: { id: true, name: true, code: true, type: true, unit: true },
+      });
+
+      const logs = await db.equipmentLog.findMany({
+        where: {
+          projectId: input.projectId,
+          date: { gte: start, lte: end },
+        },
+        select: {
+          equipmentId: true,
+          workedHours: true,
+          fuelFilled: true,
+          date: true,
+        },
+      });
+
+      const equipMap = new Map<string, {
+        id: string;
+        name: string;
+        code: string | null;
+        type: string | null;
+        unit: string;
+        totalHours: number;
+        totalFuel: number;
+        daysUsed: Set<string>;
+      }>();
+
+      for (const e of equipment) {
+        equipMap.set(e.id, {
+          id: e.id,
+          name: e.name,
+          code: e.code,
+          type: e.type,
+          unit: e.unit,
+          totalHours: 0,
+          totalFuel: 0,
+          daysUsed: new Set(),
+        });
+      }
+
+      for (const log of logs) {
+        const rec = equipMap.get(log.equipmentId);
+        if (!rec) continue;
+        rec.totalHours += log.workedHours || 0;
+        rec.totalFuel += log.fuelFilled || 0;
+        if (log.date) {
+          rec.daysUsed.add(new Date(log.date).toISOString().slice(0, 10));
+        }
+      }
+
+      const report = Array.from(equipMap.values()).map(e => {
+        const daysUsed = e.daysUsed.size;
+        const availableHours = daysInRange * availableHoursPerDay;
+        const utilizationRate = availableHours > 0 ? Math.round((e.totalHours / availableHours) * 10000) / 100 : 0;
+        return {
+          id: e.id,
+          name: e.name,
+          code: e.code,
+          type: e.type,
+          unit: e.unit,
+          totalHours: Math.round(e.totalHours * 100) / 100,
+          totalFuel: Math.round(e.totalFuel * 100) / 100,
+          daysUsed,
+          avgHoursPerDay: daysUsed > 0 ? Math.round((e.totalHours / daysUsed) * 100) / 100 : 0,
+          utilizationRate,
+          utilizationLevel: utilizationRate > 70 ? "high" : utilizationRate > 40 ? "medium" : "low",
+        };
+      });
+
+      return {
+        report: report.sort((a, b) => b.utilizationRate - a.utilizationRate),
+        dateRange: { start: input.startDate, end: input.endDate, daysInRange },
+      };
+    }),
+
   listMaintenance: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {

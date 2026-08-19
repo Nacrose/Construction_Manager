@@ -38,9 +38,9 @@ export type RfiListItem = {
   number: string;
   subject: string;
   description: string;
-  status: RfiStatus;
-  priority: RfiPriority;
-  discipline: RfiDiscipline | null;
+  status: string;
+  priority: string;
+  discipline: string | null;
   workDate: string | null;
   inspectionStartTime: string | null;
   inspectionEndTime: string | null;
@@ -50,7 +50,29 @@ export type RfiListItem = {
   updatedAt: string;
   createdById: string;
   projectId: string;
+  location: string | null;
+  costImpact: boolean;
+  scheduleImpact: boolean;
   createdBy: { id: string; name: string } | null;
+  assignedTo: { user: { id: string; name: string } } | null;
+  ganttTask: { id: string; code: string | null; name: string } | null;
+  boqItem: { id: string; code: string; description: string } | null;
+  dailyProgramTasks: Array<{
+    id: string;
+    plannedQty: number;
+    actualQty: number | null;
+    carriedOverFromId: string | null;
+    executionStatus: string;
+  }> | null;
+  items: Array<{
+    id: string;
+    boqItemId: string | null;
+    quantity: number | null;
+    unit: string | null;
+    paymentType: string;
+    boqCode: string | null;
+    boqDesc: string | null;
+  }> | null;
   _count: { attachments: number; responses: number };
 };
 
@@ -58,10 +80,12 @@ export type RfiListItem = {
 export type RfiItem = {
   id: string;
   rfiId: string;
+  boqItemId: string | null;
   boqCode: string | null;
   boqDesc: string | null;
   quantity: number | null;
   unit: string | null;
+  paymentType: string;
   remark: string | null;
 };
 
@@ -71,8 +95,10 @@ export type RfiAttachment = {
   fileName: string;
   fileType: string;
   fileSize: number;
-  storagePath: string;
-  createdAt: string;
+  storageUrl: string;
+  data: string;
+  uploadedById?: string | null;
+  createdAt: Date | string;
 };
 
 export type RfiResponseEntry = {
@@ -80,8 +106,8 @@ export type RfiResponseEntry = {
   rfiId: string;
   responderId: string;
   response: string;
-  decision: RfiDecision;
-  createdAt: string;
+  decision: string;
+  createdAt: Date | string;
   responder: { id: string; name: string; role: string } | null;
 };
 
@@ -90,23 +116,42 @@ export type RfiDetail = {
   number: string;
   subject: string;
   description: string;
-  status: RfiStatus;
-  priority: RfiPriority;
-  discipline: RfiDiscipline | null;
-  workDate: string | null;
-  inspectionStartTime: string | null;
-  inspectionEndTime: string | null;
-  submittedAt: string | null;
-  respondedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  status: string;
+  priority: string;
+  discipline: string | null;
+  workDate: Date | string | null;
+  inspectionStartTime: Date | string | null;
+  inspectionEndTime: Date | string | null;
+  submittedAt: Date | string | null;
+  respondedAt: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
   createdById: string;
   projectId: string;
+  ganttTaskId: string | null;
+  boqItemId: string | null;
+  drawingId: string | null;
+  subcontractorId: string | null;
+  location: string | null;
+  costImpact: boolean;
+  scheduleImpact: boolean;
   project: { id: string; name: string; code: string };
   createdBy: { id: string; name: string; role: string } | null;
+  ganttTask: { id: string; code: string | null; name: string } | null;
+  boqItem: { id: string; code: string; description: string; unit: string } | null;
+  drawing: { id: string; number: string; title: string; revision: string } | null;
+  subcontractor: { id: string; name: string; contact: string | null } | null;
+  assignedTo: { id: string; user: { id: string; name: string } } | null;
   items: RfiItem[];
   attachments: RfiAttachment[];
   responses: RfiResponseEntry[];
+  dailyProgramTasks?: Array<{
+    id: string;
+    plannedQty: number;
+    actualQty: number | null;
+    carriedOverFromId: string | null;
+    executionStatus: string;
+  }>;
 };
 
 export const STATUS_LABELS: Record<RfiStatus, string> = {

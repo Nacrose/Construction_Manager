@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -22,7 +21,9 @@ import {
   Loader2, Check, X, Plus, Send, MapPin, FileQuestion,
 } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { NepaliDatePicker } from "@/components/ui/nepali-date-picker";
+import type { RfiDetail } from "@/components/workflow/rfi-types";
 export function EditRfiDialog({
   rfiId,
   projectId,
@@ -31,7 +32,7 @@ export function EditRfiDialog({
 }: {
   rfiId: string;
   projectId: string;
-  rfi: RfiDetail["rfi"];
+  rfi: RfiDetail;
   onDone: () => void;
 }) {
   const utils = trpc.useUtils();

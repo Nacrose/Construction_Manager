@@ -445,4 +445,97 @@ export const materialReconciliationProcedures = {
         },
       };
     }),
+
+  stockAlerts: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const materials = await db.material.findMany({
+        where: {
+          projectId: input.projectId,
+          isActive: true,
+          OR: [
+            { currentStock: { lte: db.material.fields.reorderLevel }, reorderLevel: { gt: 0 } },
+            { currentStock: { lte: db.material.fields.minStock }, minStock: { gt: 0 } },
+            { currentStock: 0 },
+          ],
+        },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          unit: true,
+          currentStock: true,
+          reorderLevel: true,
+          minStock: true,
+        },
+      });
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const materialIds = materials.map(m => m.id);
+
+      const recentTransactions = materialIds.length > 0
+        ? await db.materialTransaction.findMany({
+            where: {
+              materialId: { in: materialIds },
+              type: "issue",
+              date: { gte: thirtyDaysAgo },
+            },
+            select: { materialId: true, quantity: true, date: true },
+          })
+        : [];
+
+      const consumptionByMaterial = new Map<string, { totalIssued: number; days: number }>();
+      for (const txn of recentTransactions) {
+        const existing = consumptionByMaterial.get(txn.materialId) || { totalIssued: 0, days: 0 };
+        existing.totalIssued += txn.quantity;
+        existing.days += 1;
+        consumptionByMaterial.set(txn.materialId, existing);
+      }
+
+      const alerts = materials.map(m => {
+        const consumption = consumptionByMaterial.get(m.id);
+        const avgDailyConsumption = consumption && consumption.days > 0
+          ? Math.round((consumption.totalIssued / 30) * 100) / 100
+          : 0;
+        const daysUntilStockout = avgDailyConsumption > 0
+          ? Math.round(m.currentStock / avgDailyConsumption)
+          : null;
+
+        let urgency: "critical" | "warning" | "adequate" = "adequate";
+        if (m.currentStock <= (m.minStock || 0) && (m.minStock || 0) > 0) {
+          urgency = "critical";
+        } else if (m.currentStock <= (m.reorderLevel || 0) && (m.reorderLevel || 0) > 0) {
+          urgency = "warning";
+        } else if (m.currentStock === 0) {
+          urgency = "critical";
+        }
+
+        return {
+          ...m,
+          avgDailyConsumption,
+          daysUntilStockout,
+          urgency,
+        };
+      });
+
+      const sorted = alerts.sort((a, b) => {
+        const urgencyOrder = { critical: 0, warning: 1, adequate: 2 };
+        return (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2);
+      });
+
+      return {
+        alerts: sorted,
+        summary: {
+          total: sorted.length,
+          critical: sorted.filter(a => a.urgency === "critical").length,
+          warning: sorted.filter(a => a.urgency === "warning").length,
+          adequate: sorted.filter(a => a.urgency === "adequate").length,
+        },
+      };
+    }),
 };

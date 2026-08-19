@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * tRPC router for Project Dashboard — aggregates data for transparency dashboards.
  *
@@ -12,6 +11,13 @@ import { z } from "zod";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember } from "@/lib/authz";
+
+function getWeekKey(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().slice(0, 10);
+}
 
 export const dashboardRouter = router({
   /** Activity Feed — recent audit logs for a project. */
@@ -263,7 +269,12 @@ export const dashboardRouter = router({
         },
         select: {
           reportDate: true,
-          workProgress: true,
+          workProgress: {
+            select: {
+              boqCode: true,
+              actualQty: true,
+            },
+          },
         },
         orderBy: { reportDate: "asc" },
       });
@@ -281,19 +292,14 @@ export const dashboardRouter = router({
 
       for (const report of reports) {
         let dayValue = 0;
-        try {
-          const progress = JSON.parse(report.workProgress || "[]");
-          if (Array.isArray(progress)) {
-            for (const p of progress) {
-              const actualQty = Number(p.actualQty) || 0;
-              if (actualQty <= 0) continue;
-              const boqItem = boqMap.get(p.boqCode);
-              if (!boqItem) continue;
-              // Earned value = actualQty × BOQ rate
-              dayValue += actualQty * boqItem.rate;
-            }
-          }
-        } catch { /* ignore */ }
+        for (const p of report.workProgress) {
+          const actualQty = Number(p.actualQty) || 0;
+          if (actualQty <= 0) continue;
+          const boqItem = boqMap.get(p.boqCode ?? "");
+          if (!boqItem) continue;
+          // Earned value = actualQty × BOQ rate
+          dayValue += actualQty * boqItem.rate;
+        }
 
         cumulativeActual += dayValue;
         actualCurve.push({
@@ -405,33 +411,37 @@ export const dashboardRouter = router({
         select: {
           number: true,
           reportDate: true,
-          materialReceived: true,
+          materialReceived: {
+            select: {
+              name: true,
+              qty: true,
+              unit: true,
+              supplier: true,
+              vehicle: true,
+              testStatus: true,
+            },
+          },
         },
         orderBy: { reportDate: "desc" },
         take: 100,
       });
 
-      const tests: any[] = [];
+      const tests: { reportNumber: string; reportDate: Date; materialName: string; qty: number; unit: string | null; supplier: string | null; vehicleNo: string | null; testStatus: string }[] = [];
       for (const report of reports) {
-        if (!report.materialReceived) continue;
-        try {
-          const materials = JSON.parse(report.materialReceived);
-          if (!Array.isArray(materials)) continue;
-          for (const m of materials) {
-            if (m.testStatus && m.testStatus !== "na") {
-              tests.push({
-                reportNumber: report.number,
-                reportDate: report.reportDate,
-                materialName: m.name,
-                qty: m.qty,
-                unit: m.unit,
-                supplier: m.supplier,
-                vehicleNo: m.vehicleNo,
-                testStatus: m.testStatus,
-              });
-            }
+        for (const m of report.materialReceived) {
+          if (m.testStatus && m.testStatus !== "na") {
+            tests.push({
+              reportNumber: report.number,
+              reportDate: report.reportDate,
+              materialName: m.name,
+              qty: m.qty,
+              unit: m.unit,
+              supplier: m.supplier,
+              vehicleNo: m.vehicle,
+              testStatus: m.testStatus,
+            });
           }
-        } catch { /* ignore */ }
+        }
       }
 
       const stats = {
@@ -593,6 +603,226 @@ export const dashboardRouter = router({
     }),
 
   // ─────────────────────────────────────────────────────────
+  // WEATHER IMPACT ON PRODUCTIVITY
+  // ─────────────────────────────────────────────────────────
+
+  weatherImpact: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const reports = await db.dailyReport.findMany({
+        where: { projectId: input.projectId },
+        select: {
+          id: true,
+          reportDate: true,
+          weatherMorning: true,
+          weatherAfternoon: true,
+          weatherEvening: true,
+          maxTempC: true,
+          minTempC: true,
+          rainfallMm: true,
+        },
+        orderBy: { reportDate: "asc" },
+      });
+
+      if (reports.length === 0) {
+        return { conditions: [], scatter: [], summary: { clearPct: 0, rainPct: 0, productivityDropPct: 0 } };
+      }
+
+      const reportIds = reports.map(r => r.id);
+
+      const [workforceData, progressData, equipmentData] = await Promise.all([
+        db.dailyReportWorkforce.findMany({
+          where: { reportId: { in: reportIds } },
+          select: { reportId: true, headcount: true, regHours: true, otHours: true },
+        }),
+        db.dailyReportProgress.findMany({
+          where: { reportId: { in: reportIds } },
+          select: { reportId: true, executionStatus: true, plannedQty: true, actualQty: true },
+        }),
+        db.dailyReportEquipment.findMany({
+          where: { reportId: { in: reportIds } },
+          select: { reportId: true, workingHours: true, fuel: true },
+        }),
+      ]);
+
+      const workforceByReport = new Map<string, { headcount: number; hours: number }>();
+      for (const w of workforceData) {
+        const existing = workforceByReport.get(w.reportId) || { headcount: 0, hours: 0 };
+        existing.headcount += w.headcount;
+        existing.hours += (w.regHours || 0) + (w.otHours || 0);
+        workforceByReport.set(w.reportId, existing);
+      }
+
+      const progressByReport = new Map<string, { total: number; completed: number }>();
+      for (const p of progressData) {
+        const existing = progressByReport.get(p.reportId) || { total: 0, completed: 0 };
+        existing.total += 1;
+        if (p.executionStatus === "done") existing.completed += 1;
+        progressByReport.set(p.reportId, existing);
+      }
+
+      const equipmentByReport = new Map<string, number>();
+      for (const e of equipmentData) {
+        equipmentByReport.set(e.reportId, (equipmentByReport.get(e.reportId) || 0) + (e.workingHours || 0));
+      }
+
+      function classifyWeather(morning: string | null, afternoon: string | null, evening: string | null): string {
+        const all = [morning, afternoon, evening].filter(Boolean).join(" ").toLowerCase();
+        if (all.includes("heavy") || all.includes("storm") || all.includes("downpour")) return "heavy_rain";
+        if (all.includes("rain") || all.includes("drizzle") || all.includes("shower")) return "rain";
+        if (all.includes("cloud") || all.includes("overcast") || all.includes("partly")) return "cloudy";
+        return "clear";
+      }
+
+      const conditionGroups: Record<string, {
+        days: number;
+        totalTasksCompleted: number;
+        totalHeadcount: number;
+        totalEquipmentHours: number;
+        totalRainfall: number;
+        temps: number[];
+      }> = {};
+
+      const scatter: { rainfall: number; tasksCompleted: number; headcount: number; equipmentHours: number; date: string; condition: string }[] = [];
+
+      for (const report of reports) {
+        const condition = classifyWeather(report.weatherMorning, report.weatherAfternoon, report.weatherEvening);
+        if (!conditionGroups[condition]) {
+          conditionGroups[condition] = { days: 0, totalTasksCompleted: 0, totalHeadcount: 0, totalEquipmentHours: 0, totalRainfall: 0, temps: [] };
+        }
+        const group = conditionGroups[condition];
+        group.days += 1;
+
+        const wf = workforceByReport.get(report.id);
+        const pg = progressByReport.get(report.id);
+        const eq = equipmentByReport.get(report.id) || 0;
+
+        group.totalHeadcount += wf?.headcount || 0;
+        group.totalTasksCompleted += pg?.completed || 0;
+        group.totalEquipmentHours += eq;
+        group.totalRainfall += report.rainfallMm || 0;
+        if (report.maxTempC) group.temps.push(report.maxTempC);
+        if (report.minTempC) group.temps.push(report.minTempC);
+
+        scatter.push({
+          rainfall: report.rainfallMm || 0,
+          tasksCompleted: pg?.completed || 0,
+          headcount: wf?.headcount || 0,
+          equipmentHours: eq,
+          date: report.reportDate.toISOString(),
+          condition,
+        });
+      }
+
+      const conditions = Object.entries(conditionGroups).map(([condition, g]) => ({
+        condition,
+        days: g.days,
+        avgTasksCompleted: g.days > 0 ? Math.round((g.totalTasksCompleted / g.days) * 100) / 100 : 0,
+        avgHeadcount: g.days > 0 ? Math.round((g.totalHeadcount / g.days) * 100) / 100 : 0,
+        avgEquipmentHours: g.days > 0 ? Math.round((g.totalEquipmentHours / g.days) * 100) / 100 : 0,
+        avgRainfall: g.days > 0 ? Math.round((g.totalRainfall / g.days) * 100) / 100 : 0,
+        avgTemp: g.temps.length > 0 ? Math.round(g.temps.reduce((s, t) => s + t, 0) / g.temps.length) : null,
+        totalTasksCompleted: g.totalTasksCompleted,
+      }));
+
+      const clearCondition = conditions.find(c => c.condition === "clear");
+      const rainCondition = conditions.find(c => c.condition === "rain" || c.condition === "heavy_rain");
+      const clearAvg = clearCondition?.avgTasksCompleted || 0;
+      const rainAvg = rainCondition?.avgTasksCompleted || 0;
+      const productivityDropPct = clearAvg > 0 ? Math.round(((clearAvg - rainAvg) / clearAvg) * 100) : 0;
+
+      const totalDays = reports.length;
+      const clearDays = conditionGroups.clear?.days || 0;
+      const rainDays = (conditionGroups.rain?.days || 0) + (conditionGroups.heavy_rain?.days || 0);
+
+      return {
+        conditions,
+        scatter,
+        summary: {
+          totalDays,
+          clearPct: totalDays > 0 ? Math.round((clearDays / totalDays) * 100) : 0,
+          rainPct: totalDays > 0 ? Math.round((rainDays / totalDays) * 100) : 0,
+          productivityDropPct,
+          clearAvgTasks: clearAvg,
+          rainAvgTasks: rainAvg,
+        },
+      };
+    }),
+
+  // ─────────────────────────────────────────────────────────
+  // DELAY ROOT CAUSE ANALYTICS
+  // ─────────────────────────────────────────────────────────
+
+  delayAnalytics: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const tasks = await db.dailyProgramTask.findMany({
+        where: {
+          program: { projectId: input.projectId },
+          executionStatus: { in: ["uncompleted", "postponed"] },
+        },
+        include: {
+          program: { select: { id: true, programDate: true } },
+        },
+        orderBy: { program: { programDate: "desc" } },
+      });
+
+      const now = new Date();
+
+      const byReason: Record<string, { count: number; totalDelayDays: number; tasks: string[] }> = {};
+      const weeklyTrend: Record<string, number> = {};
+
+      for (const task of tasks) {
+        const reason = task.delayReason || "unspecified";
+        if (!byReason[reason]) {
+          byReason[reason] = { count: 0, totalDelayDays: 0, tasks: [] };
+        }
+        const delayDays = task.program?.programDate
+          ? Math.max(0, Math.ceil((now.getTime() - new Date(task.program.programDate).getTime()) / 86400000))
+          : 0;
+        byReason[reason].count += 1;
+        byReason[reason].totalDelayDays += delayDays;
+        byReason[reason].tasks.push(task.taskName);
+
+        if (task.program?.programDate) {
+          const weekKey = getWeekKey(new Date(task.program.programDate));
+          weeklyTrend[weekKey] = (weeklyTrend[weekKey] || 0) + 1;
+        }
+      }
+
+      const reasonStats = Object.entries(byReason)
+        .map(([reason, data]) => ({
+          reason,
+          count: data.count,
+          pctOfTotal: tasks.length > 0 ? Math.round((data.count / tasks.length) * 10000) / 100 : 0,
+          avgDelayDays: data.count > 0 ? Math.round(data.totalDelayDays / data.count) : 0,
+          totalDelayDays: data.totalDelayDays,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const trend = Object.entries(weeklyTrend)
+        .map(([week, count]) => ({ week, count }))
+        .sort((a, b) => a.week.localeCompare(b.week));
+
+      return {
+        total: tasks.length,
+        reasonStats,
+        trend,
+        summary: {
+          totalDelayed: tasks.length,
+          uncompleted: tasks.filter(t => t.executionStatus === "uncompleted").length,
+          postponed: tasks.filter(t => t.executionStatus === "postponed").length,
+          topReason: reasonStats[0]?.reason || null,
+          topReasonCount: reasonStats[0]?.count || 0,
+        },
+      };
+    }),
+
+  // ─────────────────────────────────────────────────────────
   // ENHANCED VISITOR LOG
   // ─────────────────────────────────────────────────────────
 
@@ -607,31 +837,33 @@ export const dashboardRouter = router({
         select: {
           number: true,
           reportDate: true,
-          siteVisits: true,
+          siteVisits: {
+            select: {
+              visitor: true,
+              organization: true,
+              purpose: true,
+              time: true,
+            },
+          },
         },
         orderBy: { reportDate: "desc" },
         take: 200,
       });
 
-      const visitors: any[] = [];
+      const visitors: { reportNumber: string; reportDate: Date; visitor: string; organization: string; purpose: string; timeIn: string; timeOut: string }[] = [];
       for (const report of reports) {
-        if (!report.siteVisits) continue;
-        try {
-          const visits = JSON.parse(report.siteVisits);
-          if (!Array.isArray(visits)) continue;
-          for (const v of visits) {
-            if (!v.visitor && !v.organization) continue;
-            visitors.push({
-              reportNumber: report.number,
-              reportDate: report.reportDate,
-              visitor: v.visitor || "—",
-              organization: v.organization || "—",
-              purpose: v.purpose || "—",
-              timeIn: v.timeIn || "—",
-              timeOut: v.timeOut || "—",
-            });
-          }
-        } catch { /* ignore */ }
+        for (const v of report.siteVisits) {
+          if (!v.visitor && !v.organization) continue;
+          visitors.push({
+            reportNumber: report.number,
+            reportDate: report.reportDate,
+            visitor: v.visitor || "—",
+            organization: v.organization || "—",
+            purpose: v.purpose || "—",
+            timeIn: v.time || "—",
+            timeOut: "—",
+          });
+        }
       }
 
       // Group by organization

@@ -17,6 +17,8 @@ import { CashFlowForecast } from "@/components/dashboard/cash-flow-forecast";
 import { VisitorLog } from "@/components/dashboard/visitor-log";
 import { LowStockAlerts } from "@/components/inventory/low-stock-alerts";
 import { CostSummaryCard } from "@/components/costs/cost-summary-card";
+import { WeatherProductivityChart } from "@/components/dashboard/weather-productivity-chart";
+import { DelayAnalyticsChart } from "@/components/dashboard/delay-analytics-chart";
 
 export default function ProjectDashboardPage({
   params,
@@ -89,6 +91,12 @@ export default function ProjectDashboardPage({
 
       {/* Sixth row: Photo Timeline (full width) */}
       <PhotoTimeline projectId={id} />
+
+      {/* Seventh row: Weather Impact + Delay Analytics */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WeatherProductivityChart projectId={id} />
+        <DelayAnalyticsChart projectId={id} />
+      </div>
     </AnimatedPage>
   );
 }

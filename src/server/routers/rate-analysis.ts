@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * tRPC router for rate analyses and their ingredients.
  * Replaces: boq/[itemId]/rate-analyses/*, boq/[itemId]/ingredients/*
@@ -263,7 +262,7 @@ export const rateAnalysisRouter = router({
       });
 
       // Auto-record unrecognized materials
-      if (ctx.user.organizationId && input.materialCatalogId == null) {
+      if (ctx.user.organizationId) {
         const normalizedName = input.name.toLowerCase().trim().replace(/\s+/g, " ");
         const inCatalog = await db.materialCatalog.findFirst({
           where: { organizationId: ctx.user.organizationId, normalizedName },

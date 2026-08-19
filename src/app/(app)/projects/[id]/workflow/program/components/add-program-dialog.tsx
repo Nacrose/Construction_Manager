@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -38,14 +37,14 @@ type AvailableRfi = {
   id: string;
   number: string;
   subject: string;
-  location?: string;
-  ganttTaskId?: string;
-  ganttTask?: { id: string; code?: string; name: string } | null;
+  location?: string | null;
+  ganttTaskId?: string | null;
+  ganttTask?: { id: string; code?: string | null; name: string } | null;
   items: Array<{
     id: string;
     boqItem?: { id: string; code: string; description: string; unit: string; ingredients: any[] } | null;
-    quantity?: number;
-    unit?: string;
+    quantity?: number | null;
+    unit?: string | null;
     paymentType: string;
   }>;
 };
@@ -53,8 +52,8 @@ type AvailableRfi = {
 type RfiItem = {
   id: string;
   boqItem?: { id: string; code: string; description: string; unit: string; ingredients: any[] } | null;
-  quantity?: number;
-  unit?: string;
+  quantity?: number | null;
+  unit?: string | null;
   paymentType: string;
 };
 

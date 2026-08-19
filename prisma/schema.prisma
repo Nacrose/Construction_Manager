@@ -526,10 +526,15 @@ model User {
   requisitionsApproved  PurchaseRequisition[]   @relation("RequisitionApprovedBy")
   vendorPayments        VendorPayment[]
   materialMergeLogs     MaterialMergeLog[]
-  marketRateRevisions   MarketRateRevisionLog[]
-  ganttTemplates        GanttTaskTemplate[]
+   marketRateRevisions   MarketRateRevisionLog[]
+   ganttTemplates        GanttTaskTemplate[]
+   leaveApprovedBy       LeaveRequest[]       @relation("LeaveApprovedBy")
+   leaveCreatedBy        LeaveRequest[]       @relation("LeaveCreatedBy")
+   expensesApprovedBy    SiteExpense[]        @relation("ExpenseApprovedBy")
+   expensesCreatedBy     SiteExpense[]        @relation("ExpenseCreatedBy")
+   subBillsCreatedBy     SubcontractorBill[]  @relation("SubBillCreatedBy")
 
-  @@index([email])
+   @@index([email])
   @@index([organizationId])
 }
 
@@ -636,12 +641,16 @@ model Project {
   equipmentRentals     EquipmentRental[]
   equipmentVendors     EquipmentVendor[]
   submittals           Submittal[]
-  punchItems           PunchItem[]
-  chatChannels         ChatChannel[]
-  payments             Payment[]
-  safetyIncidents      SafetyIncident[]
-  qualityInspections   QualityInspection[]
-  meetings             Meeting[]
+   punchItems           PunchItem[]
+   chatChannels         ChatChannel[]
+   payments             Payment[]
+   safetyIncidents      SafetyIncident[]
+   qualityInspections   QualityInspection[]
+   meetings             Meeting[]
+   leaveRequests        LeaveRequest[]
+   leaveBalances        LeaveBalance[]
+   siteExpenses         SiteExpense[]
+   subcontractorBills   SubcontractorBill[]
   partners             Partner[]
   requisitions         PurchaseRequisition[]
   storeLocations       StoreLocation[]
@@ -656,8 +665,8 @@ model Project {
   plants               Plant[]
   plantMixDesigns      PlantMixDesign[]
   plantBatchTickets    PlantBatchTicket[]
-  plantDailyLogs       PlantDailyLog[]
-  ganttTemplates       GanttTaskTemplate[]
+   plantDailyLogs       PlantDailyLog[]
+   ganttTemplates       GanttTaskTemplate[]
 
   @@index([status])
   @@index([createdById])
@@ -2271,6 +2280,8 @@ model Staff {
   attendance  StaffAttendance[]
   roleAssignments StaffRoleAssignment[]
   resourceAssignments ResourceAssignment[]
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
 
   @@index([projectId])
 }
@@ -2490,6 +2501,7 @@ model Subcontractor {
   rfis    Rfi[]
   dailyProgramTasks DailyProgramTask[]
   projectCosts ProjectCost[]
+  bills   SubcontractorBill[]
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -3245,6 +3257,144 @@ model VendorPayment {
 
   @@index([projectId])
   @@index([vendorBillId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Leave Management
+// ─────────────────────────────────────────────────────────────
+
+model LeaveRequest {
+  id            String   @id @default(cuid())
+  projectId     String
+  staffId       String
+  leaveType     String   @default("casual") // casual | sick | paid | unpaid | emergency | maternity
+  startDate     DateTime
+  endDate       DateTime
+  totalDays     Float
+  reason        String?
+  status        String   @default("pending") // pending | approved | rejected
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectionReason String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  staff         Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  approvedBy    User?    @relation("LeaveApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy     User?    @relation("LeaveCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, staffId])
+  @@index([status])
+}
+
+model LeaveBalance {
+  id            String   @id @default(cuid())
+  projectId     String
+  staffId       String
+  leaveType     String   @default("casual")
+  year          Int      // e.g. 2026
+  totalAllowed  Float    @default(0)
+  taken         Float    @default(0)
+  remaining     Float    @default(0)
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  staff         Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, staffId, leaveType, year])
+  @@index([projectId, staffId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Site Expenses / Petty Cash
+// ─────────────────────────────────────────────────────────────
+
+model SiteExpense {
+  id            String   @id @default(cuid())
+  projectId     String
+  number        String   // e.g. EXP-001
+  date          DateTime @default(now())
+  category      String   @default("general") // material | transport | labor | food | accommodation | utility | office | travel | other
+  description   String
+  amount        Float
+  vatAmount     Float    @default(0)
+  totalAmount   Float
+  paymentMode   String   @default("cash") // cash | bank_transfer | cheque | mobile
+  referenceNo   String?
+  vendorName    String?
+  receiptData   String?  // base64 receipt photo
+  receiptName   String?
+  approvedById  String?
+  approvedAt    DateTime?
+  status        String   @default("pending") // pending | approved | rejected
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approvedBy    User?    @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy     User?    @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, number])
+  @@index([projectId, date])
+  @@index([projectId, category])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Subcontractor Billing
+// ─────────────────────────────────────────────────────────────
+
+model SubcontractorBill {
+  id              String   @id @default(cuid())
+  projectId       String
+  subcontractorId String
+  number          String   // e.g. SUB-BILL-001
+  billDate        DateTime @default(now())
+  period          String?  // e.g. "Aug 2026"
+  grossAmount     Float    @default(0)
+  retentionPercent Float   @default(0)
+  retentionAmount Float    @default(0)
+  vatPercent      Float    @default(13)
+  vatAmount       Float    @default(0)
+  tdsPercent      Float    @default(0)
+  tdsAmount       Float    @default(0)
+  materialDeduction Float  @default(0)
+  advanceRecovery Float    @default(0)
+  netPayable      Float    @default(0)
+  paidAmount      Float    @default(0)
+  status          String   @default("draft") // draft | submitted | certified | paid | disputed
+  notes           String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor   Subcontractor @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  createdBy       User?         @relation("SubBillCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items           SubcontractorBillItem[]
+
+  @@unique([projectId, number])
+  @@index([projectId, subcontractorId])
+  @@index([status])
+}
+
+model SubcontractorBillItem {
+  id              String   @id @default(cuid())
+  billId          String
+  boqCode         String?
+  description     String
+  unit            String?
+  contractQty     Float    @default(0)
+  previousQty     Float    @default(0)
+  thisQty         Float    @default(0)
+  cumQty          Float    @default(0)
+  rate            Float    @default(0)
+  amount          Float    @default(0)
+
+  bill            SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
 }
 
 

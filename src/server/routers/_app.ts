@@ -49,6 +49,10 @@ import { vendorBillRouter } from "./vendor-bill";
 import { procurementLookaheadRouter } from "./procurement-lookahead";
 import { plantProductionRouter } from "./plant-production";
 import { adminRouter } from "./admin";
+import { subcontractorBillRouter } from "./subcontractor-bill";
+import { leaveRouter } from "./leave";
+import { payrollRouter } from "./payroll";
+import { siteExpenseRouter } from "./site-expense";
 
 import { projectRateRouter } from "./project-rate";
 
@@ -97,9 +101,13 @@ export const appRouter = router({
   requisition: requisitionRouter,
   storeLocation: storeLocationRouter,
   vendorBill: vendorBillRouter,
+  subcontractorBill: subcontractorBillRouter,
   procurementLookahead: procurementLookaheadRouter,
   plantProduction: plantProductionRouter,
   admin: adminRouter,
+  leave: leaveRouter,
+  payroll: payrollRouter,
+  siteExpense: siteExpenseRouter,
 });
 
 export type AppRouter = typeof appRouter;

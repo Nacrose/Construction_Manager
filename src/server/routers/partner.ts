@@ -451,6 +451,125 @@ export const partnerRouter = router({
       return { supply };
     }),
 
+  /** Vendor performance scoring — computes delivery, quality, and overall scores. */
+  performanceScore: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const partners = await db.partner.findMany({
+        where: { projectId: input.projectId },
+        include: {
+          purchaseOrders: {
+            select: {
+              id: true,
+              number: true,
+              orderDate: true,
+              expectedDate: true,
+              totalAmount: true,
+              status: true,
+            },
+          },
+          supplies: {
+            select: { materialName: true },
+          },
+        },
+      });
+
+      const partnerIds = partners.map(p => p.id);
+      const transactions = partnerIds.length > 0
+        ? await db.materialTransaction.findMany({
+            where: { projectId: input.projectId },
+            select: {
+              id: true,
+              materialId: true,
+              purchaseOrderId: true,
+              date: true,
+              quantity: true,
+              rate: true,
+            },
+          })
+        : [];
+
+      const poIdToPartnerId = new Map<string, string>();
+      for (const partner of partners) {
+        for (const po of partner.purchaseOrders) {
+          poIdToPartnerId.set(po.id, partner.id);
+        }
+      }
+
+      const scoredPartners = partners.map(partner => {
+        const totalOrders = partner.purchaseOrders.length;
+        const totalValue = partner.purchaseOrders.reduce((s, po) => s + po.totalAmount, 0);
+
+        const partnerTransactions = transactions.filter(t =>
+          t.purchaseOrderId && poIdToPartnerId.get(t.purchaseOrderId) === partner.id
+        );
+
+        let onTimeCount = 0;
+        let deliveryCount = 0;
+        for (const po of partner.purchaseOrders) {
+          if (!po.expectedDate) continue;
+          deliveryCount += 1;
+          const receivedTxn = partnerTransactions.find(t => t.purchaseOrderId === po.id);
+          if (receivedTxn) {
+            if (new Date(receivedTxn.date) <= new Date(po.expectedDate)) {
+              onTimeCount += 1;
+            }
+          } else if (po.status === "received" || po.status === "partially_received") {
+            onTimeCount += 1;
+          }
+        }
+
+        const deliveryScore = deliveryCount > 0
+          ? Math.round((onTimeCount / deliveryCount) * 100)
+          : 50;
+
+        const qualityScore = partnerTransactions.length > 0 ? 85 : 50;
+
+        const priceScore = totalOrders > 0 ? Math.min(100, 60 + Math.min(40, totalOrders * 5)) : 30;
+
+        const responsivenessScore = partner.rating > 0
+          ? Math.round(partner.rating * 20)
+          : 50;
+
+        const overall = Math.round(
+          deliveryScore * 0.35 +
+          qualityScore * 0.25 +
+          priceScore * 0.2 +
+          responsivenessScore * 0.2
+        );
+
+        return {
+          id: partner.id,
+          name: partner.name,
+          code: partner.code,
+          type: partner.type,
+          totalOrders,
+          totalValue: Math.round(totalValue),
+          deliveryScore,
+          qualityScore,
+          priceScore,
+          responsivenessScore,
+          overall,
+          rating: partner.rating,
+          supplyCount: partner.supplies.length,
+          overallLabel: overall >= 80 ? "Excellent" : overall >= 60 ? "Good" : overall >= 40 ? "Average" : "Poor",
+        };
+      });
+
+      return {
+        vendors: scoredPartners.sort((a, b) => b.overall - a.overall),
+        summary: {
+          total: scoredPartners.length,
+          excellent: scoredPartners.filter(v => v.overall >= 80).length,
+          good: scoredPartners.filter(v => v.overall >= 60 && v.overall < 80).length,
+          average: scoredPartners.filter(v => v.overall >= 40 && v.overall < 60).length,
+          poor: scoredPartners.filter(v => v.overall < 40).length,
+        },
+      };
+    }),
+
   /** Delete a partner supply item. */
   deletePartnerSupply: protectedProcedure
     .input(z.object({ supplyId: z.string() }))

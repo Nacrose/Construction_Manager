@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * tRPC router for Daily Programs.
  * Extracted from daily-report.ts for maintainability.
@@ -979,6 +978,7 @@ export const dailyProgramRouter = router({
     .input(z.object({
       taskId: z.string(),
       projectId: z.string(),
+      reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

@@ -34,6 +34,9 @@ export const dailyReportAttachmentsRouter = router({
         fileType: z.string().min(1),
         fileSize: z.number().int().positive().max(10 * 1024 * 1024),
         data: z.string().min(1).max(14 * 1024 * 1024), // base64
+        latitude: z.number().optional(),
+        longitude: z.number().optional(),
+        takenAt: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -55,6 +58,9 @@ export const dailyReportAttachmentsRouter = router({
           data: input.data,
           storageUrl: stored.url,
           uploadedById: ctx.user.id,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          takenAt: input.takenAt ? new Date(input.takenAt) : null,
         },
       });
       return { attachment };

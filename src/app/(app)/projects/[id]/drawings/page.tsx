@@ -32,6 +32,7 @@ import { toast } from "sonner";
 
 const DOCS_TABS = [
   { label: "Drawings", href: "/drawings" },
+  { label: "Photo Progress", href: "/drawings/progress" },
   { label: "Submittals", href: "/submittals" },
   { label: "Doc Center", href: "/document-center" },
 ];

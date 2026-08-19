@@ -974,6 +974,112 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
 
     // DrawingMarkup — completed/staged work percentage
     `DO $$ BEGIN ALTER TABLE "DrawingMarkup" ADD COLUMN IF NOT EXISTS "percentComplete" DOUBLE PRECISION; EXCEPTION WHEN duplicate_column THEN NULL; END $$`,
+
+    // LeaveRequest
+    `CREATE TABLE IF NOT EXISTS "LeaveRequest" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "staffId" TEXT NOT NULL,
+      "leaveType" TEXT NOT NULL DEFAULT 'casual',
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "totalDays" DOUBLE PRECISION NOT NULL,
+      "reason" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "approvedById" TEXT,
+      "approvedAt" TIMESTAMP(3),
+      "rejectionReason" TEXT,
+      "createdById" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS "LeaveRequest_projectId_staffId_idx" ON "LeaveRequest"("projectId", "staffId")`,
+    `CREATE INDEX IF NOT EXISTS "LeaveRequest_status_idx" ON "LeaveRequest"("status")`,
+
+    // LeaveBalance
+    `CREATE TABLE IF NOT EXISTS "LeaveBalance" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "staffId" TEXT NOT NULL,
+      "leaveType" TEXT NOT NULL DEFAULT 'casual',
+      "year" INTEGER NOT NULL,
+      "totalAllowed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "taken" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "remaining" DOUBLE PRECISION NOT NULL DEFAULT 0
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "LeaveBalance_projectId_staffId_leaveType_year_key" ON "LeaveBalance"("projectId", "staffId", "leaveType", "year")`,
+
+    // SiteExpense
+    `CREATE TABLE IF NOT EXISTS "SiteExpense" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "number" TEXT NOT NULL,
+      "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "category" TEXT NOT NULL DEFAULT 'general',
+      "description" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL,
+      "vatAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalAmount" DOUBLE PRECISION NOT NULL,
+      "paymentMode" TEXT NOT NULL DEFAULT 'cash',
+      "referenceNo" TEXT,
+      "vendorName" TEXT,
+      "receiptData" TEXT,
+      "receiptName" TEXT,
+      "approvedById" TEXT,
+      "approvedAt" TIMESTAMP(3),
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "createdById" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "SiteExpense_projectId_number_key" ON "SiteExpense"("projectId", "number")`,
+    `CREATE INDEX IF NOT EXISTS "SiteExpense_projectId_date_idx" ON "SiteExpense"("projectId", "date")`,
+    `CREATE INDEX IF NOT EXISTS "SiteExpense_projectId_category_idx" ON "SiteExpense"("projectId", "category")`,
+
+    // SubcontractorBill
+    `CREATE TABLE IF NOT EXISTS "SubcontractorBill" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "projectId" TEXT NOT NULL,
+      "subcontractorId" TEXT NOT NULL,
+      "number" TEXT NOT NULL,
+      "billDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "period" TEXT,
+      "grossAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "retentionPercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "retentionAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "vatPercent" DOUBLE PRECISION NOT NULL DEFAULT 13,
+      "vatAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "tdsPercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "tdsAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "materialDeduction" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "advanceRecovery" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "netPayable" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "paidAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "status" TEXT NOT NULL DEFAULT 'draft',
+      "notes" TEXT,
+      "createdById" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "SubcontractorBill_projectId_number_key" ON "SubcontractorBill"("projectId", "number")`,
+    `CREATE INDEX IF NOT EXISTS "SubcontractorBill_projectId_subcontractorId_idx" ON "SubcontractorBill"("projectId", "subcontractorId")`,
+    `CREATE INDEX IF NOT EXISTS "SubcontractorBill_status_idx" ON "SubcontractorBill"("status")`,
+
+    // SubcontractorBillItem
+    `CREATE TABLE IF NOT EXISTS "SubcontractorBillItem" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "billId" TEXT NOT NULL,
+      "boqCode" TEXT,
+      "description" TEXT NOT NULL,
+      "unit" TEXT,
+      "contractQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "previousQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "thisQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "cumQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "rate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "amount" DOUBLE PRECISION NOT NULL DEFAULT 0
+    )`,
+    `CREATE INDEX IF NOT EXISTS "SubcontractorBillItem_billId_idx" ON "SubcontractorBillItem"("billId")`,
   ];
 
   for (const stmt of alterStatements) {

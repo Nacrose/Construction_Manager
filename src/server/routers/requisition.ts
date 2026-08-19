@@ -696,6 +696,170 @@ export const requisitionRouter = router({
       return { results };
     }),
 
+  /** Approve a purchase requisition (alias for updateStatus with cleaner semantics). */
+  approvePr: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        requisitionId: z.string(),
+        notes: z.string().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectAdmin(ctx.user, input.projectId);
+
+      const pr = await db.purchaseRequisition.findFirst({
+        where: { id: input.requisitionId, projectId: input.projectId },
+      });
+      if (!pr) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Requisition not found." });
+
+      if (pr.status !== "pending_approval" && pr.status !== "submitted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot approve a requisition with status "${pr.status}". Must be pending approval.`,
+        });
+      }
+
+      const updated = await db.purchaseRequisition.update({
+        where: { id: input.requisitionId },
+        data: {
+          status: "approved",
+          approvedById: ctx.user.id,
+          rejectionReason: null,
+        },
+      });
+
+      return { requisition: updated };
+    }),
+
+  /** Reject a purchase requisition with mandatory reason. */
+  rejectPr: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        requisitionId: z.string(),
+        rejectionReason: z.string().min(1, "Rejection reason is required."),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectAdmin(ctx.user, input.projectId);
+
+      const pr = await db.purchaseRequisition.findFirst({
+        where: { id: input.requisitionId, projectId: input.projectId },
+      });
+      if (!pr) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Requisition not found." });
+
+      if (pr.status === "ordered") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot reject an already ordered requisition.",
+        });
+      }
+
+      const updated = await db.purchaseRequisition.update({
+        where: { id: input.requisitionId },
+        data: {
+          status: "rejected",
+          approvedById: ctx.user.id,
+          rejectionReason: input.rejectionReason.trim(),
+        },
+      });
+
+      return { requisition: updated };
+    }),
+
+  /** Get budget variance for a specific requisition's items against BOQ planned demand. */
+  getBudgetVariance: protectedProcedure
+    .input(z.object({ projectId: z.string(), requisitionId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const pr = await db.purchaseRequisition.findFirst({
+        where: { id: input.requisitionId, projectId: input.projectId },
+        include: {
+          items: { select: { materialId: true, quantity: true } },
+        },
+      });
+      if (!pr) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Requisition not found." });
+
+      // Get BOQ planned demands
+      const boqItems = await db.boqItem.findMany({
+        where: { projectId: input.projectId },
+        include: { ingredients: { where: { type: "material" } } },
+      });
+
+      const plannedDemandMap = new Map<string, number>();
+      for (const item of boqItems) {
+        for (const ing of item.ingredients) {
+          const key = ing.name.toLowerCase().trim();
+          const planned = item.quantity * ing.quantity;
+          plannedDemandMap.set(key, (plannedDemandMap.get(key) ?? 0) + planned);
+        }
+      }
+
+      // Get already ordered/requisitioned quantities
+      const existingReqItems = await db.purchaseRequisitionItem.findMany({
+        where: {
+          materialId: { in: pr.items.map((i) => i.materialId) },
+          requisition: {
+            projectId: input.projectId,
+            status: { in: ["approved", "ordered", "pending_approval"] },
+            id: { not: input.requisitionId },
+          },
+        },
+        select: { materialId: true, quantity: true },
+      });
+
+      const alreadyProcuredMap = new Map<string, number>();
+      for (const req of existingReqItems) {
+        alreadyProcuredMap.set(req.materialId, (alreadyProcuredMap.get(req.materialId) ?? 0) + req.quantity);
+      }
+
+      // Get material names for display
+      const materials = await db.material.findMany({
+        where: { id: { in: pr.items.map((i) => i.materialId) } },
+        select: { id: true, name: true, unit: true },
+      });
+
+      const results = pr.items.map((reqItem) => {
+        const mat = materials.find((m) => m.id === reqItem.materialId);
+        if (!mat) return null;
+
+        const matNameKey = mat.name.toLowerCase().trim();
+        let plannedQty = plannedDemandMap.get(matNameKey) ?? 0;
+
+        // Substring matching
+        if (plannedQty === 0) {
+          for (const [key, val] of plannedDemandMap.entries()) {
+            if (matNameKey.includes(key) || key.includes(matNameKey)) {
+              plannedQty += val;
+            }
+          }
+        }
+
+        const alreadyProcured = alreadyProcuredMap.get(mat.id) ?? 0;
+        const totalAfterThis = alreadyProcured + reqItem.quantity;
+        const remainingAllowance = Math.max(0, plannedQty - alreadyProcured);
+        const isOverBudget = plannedQty > 0 && totalAfterThis > plannedQty;
+        const variancePercent = plannedQty > 0 ? ((totalAfterThis - plannedQty) / plannedQty) * 100 : 0;
+
+        return {
+          materialId: mat.id,
+          materialName: mat.name,
+          unit: mat.unit,
+          plannedQty,
+          alreadyProcured,
+          requestedQty: reqItem.quantity,
+          remainingAllowance,
+          totalAfterThis,
+          isOverBudget,
+          variancePercent: Math.round(variancePercent * 10) / 10,
+        };
+      }).filter(Boolean);
+
+      return { results, requisitionNumber: pr.number, requisitionStatus: pr.status };
+    }),
+
   /** Generate Vendor-Isolated Purchase Orders (supporting 3-way entry: Requisition-First, Material-First, Vendor-First). */
   generatePOs: protectedProcedure.input(GeneratePOsSchema).mutation(async ({ ctx, input }) => {
     return await executeGeneratePOs(ctx.user, input);

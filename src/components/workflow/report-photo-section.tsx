@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 import { useState } from "react";
@@ -14,6 +13,7 @@ type Attachment = {
   fileType: string;
   fileSize: number;
   data: string;
+  storageUrl?: string;
   latitude: number | null;
   longitude: number | null;
   takenAt: Date | null;

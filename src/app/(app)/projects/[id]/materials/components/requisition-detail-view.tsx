@@ -15,6 +15,8 @@ import {
   PackageCheck,
   Clock,
   ExternalLink,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -52,9 +54,20 @@ export function RequisitionDetailView({
 
   const { data, isLoading } = trpc.requisition.getDetails.useQuery({ projectId, requisitionId });
 
-  const updateStatusMut = trpc.requisition.updateStatus.useMutation({
+  const req = data?.requisition;
+
+  const approveMut = trpc.requisition.approvePr.useMutation({
     onSuccess: (res) => {
-      toast.success(`Requisition status updated to ${res.requisition.status}`);
+      toast.success(`Requisition approved successfully`);
+      utils.requisition.getDetails.invalidate({ projectId, requisitionId });
+      utils.requisition.list.invalidate({ projectId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const rejectMut = trpc.requisition.rejectPr.useMutation({
+    onSuccess: () => {
+      toast.success("Requisition rejected");
       setRejectDialogOpen(false);
       setRejectReason("");
       utils.requisition.getDetails.invalidate({ projectId, requisitionId });
@@ -63,7 +76,11 @@ export function RequisitionDetailView({
     onError: (e) => toast.error(e.message),
   });
 
-  const req = data?.requisition;
+  // Budget variance data
+  const { data: budgetVariance } = trpc.requisition.getBudgetVariance.useQuery(
+    { projectId, requisitionId },
+    { enabled: !!req && (req.status === "pending_approval" || req.status === "approved" || req.status === "partially_ordered") }
+  );
 
   // Prepare pending items for GeneratePODialog
   const pendingItemsForPO: PendingItemForPO[] = useMemo(() => {
@@ -333,6 +350,58 @@ export function RequisitionDetailView({
         </div>
       )}
 
+      {/* Budget Variance Display */}
+      {budgetVariance && budgetVariance.results.length > 0 && (
+        <div className="border rounded-xl p-4 bg-card space-y-3">
+          <h3 className="text-xs font-semibold flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            Budget Variance Analysis
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead className="bg-muted/30">
+                <tr className="text-muted-foreground">
+                  <th className="text-left p-2 font-medium">Material</th>
+                  <th className="text-right p-2 font-medium">BOQ Planned</th>
+                  <th className="text-right p-2 font-medium">Already Ordered</th>
+                  <th className="text-right p-2 font-medium">This Request</th>
+                  <th className="text-right p-2 font-medium">Total After</th>
+                  <th className="text-right p-2 font-medium">Remaining Allowance</th>
+                  <th className="text-center p-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {budgetVariance.results.map((vr: any) => (
+                  <tr key={vr.materialId} className="border-t hover:bg-muted/10">
+                    <td className="p-2 font-medium">{vr.materialName}</td>
+                    <td className="p-2 text-right font-mono">{vr.plannedQty > 0 ? `${vr.plannedQty} ${vr.unit}` : "—"}</td>
+                    <td className="p-2 text-right font-mono">{vr.alreadyProcured} {vr.unit}</td>
+                    <td className="p-2 text-right font-mono font-semibold">{vr.requestedQty} {vr.unit}</td>
+                    <td className="p-2 text-right font-mono">{vr.totalAfterThis} {vr.unit}</td>
+                    <td className="p-2 text-right font-mono">{vr.remainingAllowance} {vr.unit}</td>
+                    <td className="p-2 text-center">
+                      {vr.isOverBudget ? (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-400">
+                          <TrendingUp className="h-2.5 w-2.5" /> +{vr.variancePercent}% Over
+                        </span>
+                      ) : vr.plannedQty > 0 ? (
+                        <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                          <TrendingDown className="h-2.5 w-2.5" /> Within Budget
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          No BOQ Match
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Rejection Reason Notice if Rejected */}
       {req.status === "rejected" && req.rejectionReason && (
         <div className="border border-red-200 bg-red-50/40 dark:border-red-900/50 dark:bg-red-950/20 rounded-xl p-4 text-xs space-y-1">
@@ -351,21 +420,21 @@ export function RequisitionDetailView({
             <Button
               variant="outline"
               className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/20"
-              disabled={updateStatusMut.isPending}
+              disabled={rejectMut.isPending}
               onClick={() => setRejectDialogOpen(true)}
               size="sm"
             >
-              {updateStatusMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <XCircle className="h-4 w-4 mr-1.5" />}
+              {rejectMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <XCircle className="h-4 w-4 mr-1.5" />}
               Reject Requisition
             </Button>
             <Button
               variant="default"
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={updateStatusMut.isPending}
-              onClick={() => updateStatusMut.mutate({ projectId, requisitionId: req.id, status: "approved" })}
+              disabled={approveMut.isPending}
+              onClick={() => approveMut.mutate({ projectId, requisitionId: req.id })}
               size="sm"
             >
-              {updateStatusMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Check className="h-4 w-4 mr-1.5" />}
+              {approveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Check className="h-4 w-4 mr-1.5" />}
               Approve Requisition
             </Button>
           </>
@@ -420,24 +489,23 @@ export function RequisitionDetailView({
               variant="outline"
               size="sm"
               onClick={() => setRejectDialogOpen(false)}
-              disabled={updateStatusMut.isPending}
+              disabled={rejectMut.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               size="sm"
-              disabled={updateStatusMut.isPending || !rejectReason.trim()}
+              disabled={rejectMut.isPending || !rejectReason.trim()}
               onClick={() =>
-                updateStatusMut.mutate({
+                rejectMut.mutate({
                   projectId,
                   requisitionId: req.id,
-                  status: "rejected",
                   rejectionReason: rejectReason.trim(),
                 })
               }
             >
-              {updateStatusMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <XCircle className="h-4 w-4 mr-1.5" />}
+              {rejectMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <XCircle className="h-4 w-4 mr-1.5" />}
               Confirm Rejection
             </Button>
           </DialogFooter>
