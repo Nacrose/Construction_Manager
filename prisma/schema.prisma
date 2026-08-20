@@ -183,6 +183,7 @@ model RateCatalog {
   organization       Organization?       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project            Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   items              RateCatalogItem[]
+  catalogRates       CatalogRate[]
   projectRateColumns ProjectRateColumn[]
   orgRateCatalogs    OrgRateCatalog[]
 
@@ -3395,6 +3396,77 @@ model SubcontractorBillItem {
   bill            SubcontractorBill @relation(fields: [billId], references: [id], onDelete: Cascade)
 
   @@index([billId])
+}
+
+// ─── Unified Catalog System (v2) ──────────────────────────────────────────────
+// Replaces: GlobalMaterialCatalog, MaterialCatalog, OrgMaterialEntry
+//           RateCatalogItem, RateCatalogItemRate, OrgRateOverride, ProjectRateOverride
+
+model CatalogMaterial {
+  id                String   @id @default(cuid())
+  scope             String   // "global" | "org" | "project"
+  organizationId    String?  // null for global
+  projectId         String?  // null for global/org
+  sourceMaterialId  String?  // tracks import origin (CatalogMaterial.id)
+
+  name              String
+  normalizedName    String
+  code              String?
+  category          String?
+  subCategory       String?
+  defaultUnit       String   @default("")
+  defaultRate       Float    @default(0)
+  aliases           String[] // search aliases
+  isActive          Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  rateEntries       CatalogRate[]
+  substitutes       MaterialSubstitute[] @relation("MaterialSubstitutes")
+  substitutedBy     MaterialSubstitute[] @relation("SubstituteFor")
+  sourceMaterial    CatalogMaterial? @relation("CatalogMaterialImport", fields: [sourceMaterialId], references: [id], onDelete: SetNull)
+  importedBy        CatalogMaterial[] @relation("CatalogMaterialImport")
+
+  @@unique([normalizedName, organizationId, projectId])
+  @@index([scope, organizationId])
+  @@index([scope, projectId])
+  @@index([normalizedName])
+}
+
+model CatalogRate {
+  id                String   @id @default(cuid())
+  materialId        String
+  rateCatalogId     String
+  district          String
+  rate              Float    @default(0)
+  sourceRateEntryId String?  // tracks import origin (CatalogRate.id)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  material          CatalogMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  rateCatalog       RateCatalog     @relation(fields: [rateCatalogId], references: [id], onDelete: Cascade)
+  sourceRateEntry   CatalogRate?    @relation("CatalogRateImport", fields: [sourceRateEntryId], references: [id], onDelete: SetNull)
+  importedBy        CatalogRate[]   @relation("CatalogRateImport")
+
+  @@unique([materialId, rateCatalogId, district])
+  @@index([rateCatalogId])
+  @@index([district])
+}
+
+model MaterialSubstitute {
+  id                String   @id @default(cuid())
+  materialId        String
+  substituteId      String   // another CatalogMaterial.id
+  priority          Int      @default(0) // 1 = preferred substitute
+  reason            String?  // e.g., "not available in district"
+
+  material          CatalogMaterial @relation("MaterialSubstitutes", fields: [materialId], references: [id], onDelete: Cascade)
+  substitute        CatalogMaterial @relation("SubstituteFor", fields: [substituteId], references: [id], onDelete: Cascade)
+
+  @@unique([materialId, substituteId])
 }
 
 
