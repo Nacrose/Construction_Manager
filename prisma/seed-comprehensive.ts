@@ -1595,6 +1595,57 @@ async function main() {
     console.log(`  ✓ ${totalIngredients} total ingredients`);
   }
 
+  // ── Part 3: Populate v2 CatalogMaterial + CatalogRate ──
+  console.log("\n─ Part 3: v2 Catalog (CatalogMaterial + CatalogRate) ──");
+
+  const existingV2Count = await db.catalogMaterial.count({ where: { scope: "global" } });
+  if (existingV2Count > 0) {
+    console.log(`  ↳ ${existingV2Count} v2 global materials already exist, skipping`);
+  } else {
+    // Seed CatalogMaterial from CATALOG_ITEMS
+    let v2MaterialCount = 0;
+    for (const entry of CATALOG_ITEMS) {
+      const norm = entry.materialName.toLowerCase().trim();
+      await db.catalogMaterial.create({
+        data: {
+          scope: "global",
+          organizationId: null,
+          projectId: null,
+          name: entry.materialName,
+          normalizedName: norm,
+          category: entry.category,
+          defaultUnit: entry.unit,
+          defaultRate: entry.rate,
+        },
+      });
+      v2MaterialCount++;
+    }
+    console.log(`  ✓ ${v2MaterialCount} CatalogMaterial (global) created`);
+
+    // Seed CatalogRate from the rate catalog
+    const v2Catalog = await db.rateCatalog.findFirst({ where: { scope: "global", organizationId: null } });
+    if (v2Catalog) {
+      let v2RateCount = 0;
+      const v2Materials = await db.catalogMaterial.findMany({ where: { scope: "global" } });
+      const v2MaterialMap = new Map(v2Materials.map((m) => [m.normalizedName, m.id]));
+
+      for (const entry of CATALOG_ITEMS) {
+        const matId = v2MaterialMap.get(entry.materialName.toLowerCase().trim());
+        if (!matId) continue;
+        await db.catalogRate.create({
+          data: {
+            materialId: matId,
+            rateCatalogId: v2Catalog.id,
+            district: DISTRICT,
+            rate: entry.rate,
+          },
+        });
+        v2RateCount++;
+      }
+      console.log(`  ✓ ${v2RateCount} CatalogRate entries created`);
+    }
+  }
+
   console.log("\n═══ Seed complete ═══");
 }
 

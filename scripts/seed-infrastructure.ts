@@ -135,6 +135,35 @@ async function seed() {
   }
 
   console.log(`Successfully seeded ${createdCount} Global Infrastructure Material Catalog items!`);
+
+  // Also seed v2 CatalogMaterial
+  console.log("Seeding v2 CatalogMaterial (global)...");
+  let v2Count = 0;
+  for (const item of INFRASTRUCTURE_MATERIALS) {
+    const fullName = item.subCategory ? `${item.name} ${item.subCategory}` : item.name;
+    const normalizedName = normalize(fullName);
+
+    const existing = await db.catalogMaterial.findFirst({
+      where: { normalizedName, scope: "global", organizationId: null },
+    });
+    if (existing) continue;
+
+    await db.catalogMaterial.create({
+      data: {
+        scope: "global",
+        organizationId: null,
+        projectId: null,
+        name: item.name,
+        normalizedName,
+        category: item.category,
+        subCategory: item.subCategory,
+        defaultUnit: item.defaultUnit,
+        defaultRate: item.defaultRate,
+      },
+    });
+    v2Count++;
+  }
+  console.log(`Successfully seeded ${v2Count} v2 CatalogMaterial items!`);
 }
 
 seed()
