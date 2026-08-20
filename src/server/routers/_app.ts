@@ -55,6 +55,7 @@ import { payrollRouter } from "./payroll";
 import { siteExpenseRouter } from "./site-expense";
 
 import { projectRateRouter } from "./project-rate";
+import { catalogV2Router } from "./catalog-v2";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -108,6 +109,7 @@ export const appRouter = router({
   leave: leaveRouter,
   payroll: payrollRouter,
   siteExpense: siteExpenseRouter,
+  catalogV2: catalogV2Router,
 });
 
 export type AppRouter = typeof appRouter;
