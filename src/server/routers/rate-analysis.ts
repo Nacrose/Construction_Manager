@@ -264,12 +264,21 @@ export const rateAnalysisRouter = router({
       });
 
       // Auto-record unrecognized materials
-      if (ctx.user.organizationId) {
+      // Skip if materialCatalogId is set (user picked from catalog) or if material exists in v2 catalog
+      if (ctx.user.organizationId && !input.materialCatalogId) {
         const normalizedName = input.name.toLowerCase().trim().replace(/\s+/g, " ");
-        const inCatalog = await db.materialCatalog.findFirst({
+        // Check v2 catalog first, then legacy
+        const inCatalogV2 = await db.catalogMaterial.findFirst({
+          where: {
+            organizationId: ctx.user.organizationId,
+            normalizedName,
+            scope: "org",
+          },
+        });
+        const inCatalogLegacy = await db.materialCatalog.findFirst({
           where: { organizationId: ctx.user.organizationId, normalizedName },
         });
-        if (!inCatalog) {
+        if (!inCatalogV2 && !inCatalogLegacy) {
           const existing = await db.unrecognizedMaterial.findFirst({
             where: { organizationId: ctx.user.organizationId, normalizedName },
           });

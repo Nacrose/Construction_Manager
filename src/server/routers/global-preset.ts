@@ -236,16 +236,30 @@ export const globalPresetRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Rate analysis not found." });
       }
 
-      // Pre-fetch catalog item rates for rate auto-pull
+      // Pre-fetch catalog item rates for rate auto-pull (v2 CatalogRate with legacy fallback)
       let catalogRates = new Map<string, number>();
       if (input.rateCatalogId && input.district) {
-        const items = await db.rateCatalogItem.findMany({
-          where: { catalogId: input.rateCatalogId },
-          include: { rates: { where: { district: input.district } } },
+        // Try v2: CatalogRate
+        const v2Rates = await db.catalogRate.findMany({
+          where: { rateCatalogId: input.rateCatalogId, district: input.district },
+          include: { material: { select: { id: true } } },
         });
-        for (const item of items) {
-          if (item.materialCatalogId && item.rates.length > 0) {
-            catalogRates.set(item.materialCatalogId, item.rates[0].rate);
+        for (const r of v2Rates) {
+          if (r.rate > 0) {
+            catalogRates.set(r.materialId, r.rate);
+          }
+        }
+
+        // Fallback: legacy RateCatalogItem
+        if (catalogRates.size === 0) {
+          const items = await db.rateCatalogItem.findMany({
+            where: { catalogId: input.rateCatalogId },
+            include: { rates: { where: { district: input.district } } },
+          });
+          for (const item of items) {
+            if (item.materialCatalogId && item.rates.length > 0) {
+              catalogRates.set(item.materialCatalogId, item.rates[0].rate);
+            }
           }
         }
       }

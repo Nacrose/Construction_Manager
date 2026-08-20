@@ -194,19 +194,44 @@ export const projectRateRouter = router({
     }),
 
   // Get project rates keyed by materialCatalogId for auto-fill on ingredient selection
+  // Now uses CatalogRate (v2) with fallback to legacy ProjectRateColumnEntry
   getProjectRates: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
-      const entries = await db.projectRateColumnEntry.findMany({
-        where: { column: { projectId: input.projectId } },
-        include: { rateCatalogItem: { select: { materialCatalogId: true } } },
-      });
       const rateMap: Record<string, number> = {};
-      for (const e of entries) {
-        if (e.rateCatalogItem?.materialCatalogId && e.rate > 0) {
-          rateMap[e.rateCatalogItem.materialCatalogId] = e.rate;
+
+      // Try v2: look up CatalogRate entries for project-scoped rate catalogs
+      const projectCatalogs = await db.rateCatalog.findMany({
+        where: { projectId: input.projectId, scope: "project" },
+        select: { id: true },
+      });
+
+      if (projectCatalogs.length > 0) {
+        const catalogIds = projectCatalogs.map((c) => c.id);
+        const rates = await db.catalogRate.findMany({
+          where: { rateCatalogId: { in: catalogIds } },
+          include: { material: { select: { id: true } } },
+        });
+        for (const r of rates) {
+          if (r.rate > 0) {
+            rateMap[r.materialId] = r.rate;
+          }
         }
       }
+
+      // Fallback: legacy ProjectRateColumnEntry
+      if (Object.keys(rateMap).length === 0) {
+        const entries = await db.projectRateColumnEntry.findMany({
+          where: { column: { projectId: input.projectId } },
+          include: { rateCatalogItem: { select: { materialCatalogId: true } } },
+        });
+        for (const e of entries) {
+          if (e.rateCatalogItem?.materialCatalogId && e.rate > 0) {
+            rateMap[e.rateCatalogItem.materialCatalogId] = e.rate;
+          }
+        }
+      }
+
       return { rateMap };
     }),
 
