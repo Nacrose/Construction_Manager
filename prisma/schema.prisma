@@ -63,6 +63,10 @@ model Organization {
 // ─────────────────────────────────────────────────────────────
 // Global Material Catalog — canonical material registry (SuperAdmin)
 // ─────────────────────────────────────────────────────────────
+// DEPRECATED: Use CatalogMaterial (v2) instead. These models are kept
+// for backwards compatibility with legacy routers during migration.
+// Remove once all consumers are migrated to catalogV2 router.
+// ─────────────────────────────────────────────────────────────
 
 model GlobalMaterialCatalog {
   id             String   @id @default(cuid())
@@ -191,6 +195,8 @@ model RateCatalog {
   @@index([projectId])
 }
 
+// DEPRECATED: Use CatalogRate (v2) instead. RateCatalogItem + RateCatalogItemRate
+// are kept for backwards compatibility during migration.
 model RateCatalogItem {
   id                String   @id @default(cuid())
   catalogId         String
@@ -224,6 +230,7 @@ model RateCatalogItemRate {
   @@index([itemId])
 }
 
+// DEPRECATED: Use CatalogRate (v2) instead. ProjectRateColumn/Entry kept for backwards compat.
 model ProjectRateColumn {
   id            String   @id @default(cuid())
   rateCatalogId String
@@ -257,6 +264,7 @@ model ProjectRateColumnEntry {
 
 // ─────────────────────────────────────────────────────────────
 // Org Rate Catalog & Overrides (Inheritance model)
+// DEPRECATED: Org rate catalog inheritance. Use CatalogRate (v2) with scope="org" instead.
 // ─────────────────────────────────────────────────────────────
 
 model OrgRateCatalog {
