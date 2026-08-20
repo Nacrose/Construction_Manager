@@ -163,11 +163,24 @@ export const rateCatalogSyncRouter = router({
         pruneAllSafe: z.boolean().default(false),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const catalog = await db.rateCatalog.findUnique({
         where: { id: input.catalogId },
       });
       if (!catalog) throw new TRPCError({ code: "NOT_FOUND", message: "Rate catalog not found." });
+
+      // Auth: verify catalog ownership
+      if (catalog.organizationId && catalog.organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Cannot modify another organization's rate catalog." });
+      }
+      if (catalog.projectId) {
+        const membership = await db.projectMember.findFirst({
+          where: { projectId: catalog.projectId, userId: ctx.user.id },
+        });
+        if (!membership && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this project." });
+        }
+      }
 
       const normalizeStr = (s: string) => s.toLowerCase().trim().replace(/\s+/g, " ");
       let targetIds: string[] = [];

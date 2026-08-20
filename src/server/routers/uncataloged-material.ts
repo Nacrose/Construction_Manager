@@ -174,6 +174,17 @@ export const uncatalogedMaterialRouter = router({
 
       const norm = input.canonicalName.toLowerCase().trim().replace(/[,.()\-]/g, " ").replace(/\s+/g, " ").split(" ").sort().join(" ");
 
+      // Check for duplicate by normalizedName
+      const existing = await db.globalMaterialCatalog.findFirst({
+        where: { normalizedName: norm },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A global material with name "${existing.name}" already exists.`,
+        });
+      }
+
       // Create Global Material
       const globalItem = await db.globalMaterialCatalog.create({
         data: {

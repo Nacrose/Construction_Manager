@@ -203,6 +203,14 @@ const rateCatalogBaseRouter = router({
       const orgId = input.organizationId ?? ctx.user.organizationId;
       if (!orgId) throw new TRPCError({ code: "BAD_REQUEST" });
 
+      // Idempotency: check if an org catalog already imported from this global catalog
+      const existingImport = await db.rateCatalog.findFirst({
+        where: { organizationId: orgId, sourceCatalogId: globalCat.id, scope: "org" },
+      });
+      if (existingImport) {
+        return { catalog: existingImport, alreadyImported: true };
+      }
+
       const catalog = await db.rateCatalog.create({
         data: {
           organizationId: orgId,

@@ -164,6 +164,18 @@ export const rateCatalogOrgRouter = router({
         });
       }
 
+      // Verify the org catalog belongs to the caller's organization
+      const orgCatalog = await db.orgRateCatalog.findUnique({
+        where: { id: input.orgCatalogId },
+        select: { organizationId: true },
+      });
+      if (!orgCatalog) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Org rate catalog not found." });
+      }
+      if (orgCatalog.organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Cannot modify another organization's rate catalog." });
+      }
+
       const override = await db.orgRateOverride.upsert({
         where: {
           orgCatalogId_orgMaterialEntryId_district: {
@@ -196,6 +208,19 @@ export const rateCatalogOrgRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Auth: verify project membership
+      const membership = await db.projectMember.findFirst({
+        where: { projectId: input.projectId, userId: ctx.user.id },
+      });
+      if (!membership && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this project." });
+      }
+      // Only managers+ can set rate overrides
+      const canWrite = ["owner", "admin", "manager"].includes(membership?.role ?? "") || ctx.user.isSuperAdmin;
+      if (!canWrite) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permissions to set rate overrides." });
+      }
+
       const override = await db.projectRateOverride.upsert({
         where: {
           projectId_materialId: {
@@ -226,7 +251,22 @@ export const rateCatalogOrgRouter = router({
         projectId: z.string().optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // Auth: verify membership if scoped to org or project
+      if (input.projectId) {
+        const membership = await db.projectMember.findFirst({
+          where: { projectId: input.projectId, userId: ctx.user.id },
+        });
+        if (!membership && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this project." });
+        }
+      } else if (input.orgCatalogId || input.globalCatalogId) {
+        const orgId = ctx.user.organizationId;
+        if (!orgId && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Organization membership required." });
+        }
+      }
+
       let globalCatalogId = input.globalCatalogId;
       let orgCatalog: any = null;
 
@@ -250,6 +290,7 @@ export const rateCatalogOrgRouter = router({
           })
         : [];
 
+      // Key by materialCatalogId (the link between RateCatalogItem and MaterialCatalog)
       const rateMap = new Map<
         string,
         {
@@ -258,23 +299,31 @@ export const rateCatalogOrgRouter = router({
           rate: number;
           source: "global" | "org_override" | "project_override";
           globalMaterialId: string | null;
+          materialCatalogId: string | null;
         }
       >();
 
       for (const item of globalRates) {
-        const rateVal = item.rates[0]?.rate || 0;
-        rateMap.set(item.globalMaterialId || item.id, {
+        const rateVal = item.rates[0]?.rate ?? 0;
+        const key = item.materialCatalogId || item.globalMaterialId || item.id;
+        rateMap.set(key, {
           materialName: item.materialName,
           unit: item.unit,
           rate: rateVal,
           source: "global",
           globalMaterialId: item.globalMaterialId,
+          materialCatalogId: item.materialCatalogId,
         });
       }
 
+      // Apply org overrides — match by orgMaterialEntry's globalMaterialId
       if (orgCatalog?.overrides) {
         for (const ov of orgCatalog.overrides) {
-          const key = ov.orgMaterialEntryId;
+          const orgEntry = await db.orgMaterialEntry.findUnique({
+            where: { id: ov.orgMaterialEntryId },
+            select: { globalMaterialId: true },
+          });
+          const key = orgEntry?.globalMaterialId || ov.orgMaterialEntryId;
           const existing = rateMap.get(key);
           if (existing) {
             existing.rate = ov.rate;
@@ -283,15 +332,15 @@ export const rateCatalogOrgRouter = router({
         }
       }
 
+      // Apply project overrides — match by material's catalog link
       if (input.projectId) {
         const projOverrides = await db.projectRateOverride.findMany({
           where: { projectId: input.projectId },
-          include: { material: true },
+          include: { material: { select: { materialCatalogId: true, orgMaterialEntryId: true } } },
         });
         for (const pov of projOverrides) {
-          const entry = rateMap.get(
-            pov.material.orgMaterialEntryId || pov.materialId
-          );
+          const key = pov.material?.materialCatalogId || pov.materialId;
+          const entry = rateMap.get(key);
           if (entry) {
             entry.rate = pov.rate;
             entry.source = "project_override";

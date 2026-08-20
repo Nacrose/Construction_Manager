@@ -167,7 +167,7 @@ export const materialCatalogCleanupRouter = router({
       const where: any = {
         isActive: true,
         category: input.category,
-        ...(input.subCategory && { name: input.subCategory }),
+        ...(input.subCategory && { subCategory: input.subCategory }),
         ...(orgId
           ? { OR: [{ organizationId: null }, { organizationId: orgId }] }
           : {}),

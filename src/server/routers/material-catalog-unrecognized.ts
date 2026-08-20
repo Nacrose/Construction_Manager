@@ -69,7 +69,13 @@ export const materialCatalogUnrecognizedRouter = router({
 
   unrecognizedDelete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const item = await db.unrecognizedMaterial.findUnique({ where: { id: input.id } });
+      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found." });
+      // Auth: verify org membership
+      if (item.organizationId && item.organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Cannot delete another organization's unrecognized material." });
+      }
       await db.unrecognizedMaterial.delete({ where: { id: input.id } });
       return { ok: true };
     }),
