@@ -26,12 +26,17 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: searchData, isLoading } = trpc.materialCatalog.search.useQuery(
+  const { data: searchData, isLoading } = trpc.catalogV2.search.useQuery(
     { q: query, organizationId, limit: 8 },
     { enabled: query.length >= 1 && open },
   );
 
-  const items = searchData?.items ?? [];
+  const items = (searchData?.materials ?? []).map((m) => ({
+    id: m.id,
+    name: m.name,
+    category: m.category ?? null,
+    defaultUnit: m.defaultUnit ?? "",
+  }));
   const isExactMatch = items.some(
     (i) => i.name.toLowerCase() === query.toLowerCase().trim(),
   );
@@ -55,34 +60,28 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
     setShowCreate(false);
   }
 
+  const createMaterialMutation = trpc.catalogV2.createMaterial.useMutation({
+    onSuccess: (data) => {
+      const created = data.material;
+      setQuery(created.name);
+      onChange(created.name, { id: created.id, name: created.name, unit: created.defaultUnit ?? "" });
+      toast.success(`Added "${created.name}" to catalog`);
+      setOpen(false);
+      setShowCreate(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   async function handleCreate() {
     if (!query.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/trpc/materialCatalog.create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          json: {
-            name: query.trim(),
-            category: newCategory || undefined,
-            defaultUnit: newUnit || undefined,
-            organizationId,
-          },
-        }),
+      await createMaterialMutation.mutateAsync({
+        scope: "org",
+        name: query.trim(),
+        category: newCategory || undefined,
+        defaultUnit: newUnit || undefined,
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      const created = data.result?.data?.item;
-      if (created) {
-        setQuery(created.name);
-        onChange(created.name, { id: created.id, name: created.name, unit: created.defaultUnit ?? "" });
-        toast.success(`Added "${created.name}" to catalog`);
-      }
-      setOpen(false);
-      setShowCreate(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create");
     } finally {
       setCreating(false);
     }
