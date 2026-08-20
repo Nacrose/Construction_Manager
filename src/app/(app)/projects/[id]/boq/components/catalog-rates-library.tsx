@@ -39,7 +39,7 @@ export function CatalogRatesLibrary({
   initialCatalogId?: string;
 }) {
   const utils = trpc.useUtils();
-  const { data: catalogsData } = trpc.rateCatalog.list.useQuery({ activeOnly: false });
+  const { data: catalogsData } = trpc.catalogV2.listRateCatalogs.useQuery({});
   const [selectedCatalogId, setSelectedCatalogId] = useState<string>(initialCatalogId || "");
   const [showCopyFrom, setShowCopyFrom] = useState(false);
   const [showManageDistricts, setShowManageDistricts] = useState(false);
@@ -80,7 +80,7 @@ export function CatalogRatesLibrary({
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
-  const { data: catalogData, isLoading: catalogLoading } = trpc.rateCatalog.get.useQuery(
+  const { data: catalogData, isLoading: catalogLoading } = trpc.catalogV2.getRateCatalog.useQuery(
     { id: selectedCatalogId },
     { enabled: !!selectedCatalogId }
   );
@@ -147,7 +147,25 @@ export function CatalogRatesLibrary({
     return allDistricts.filter((d) => visibleDistricts.includes(d));
   }, [allDistricts, visibleDistricts]);
 
-  const rawItems = (catalog?.items || []) as CatalogItem[];
+  // Transform v2 catalogRates to match CatalogItem shape for backwards compatibility
+  const rawItems = useMemo(() => {
+    const rates = (catalog?.catalogRates || []) as any[];
+    return rates.map((r: any, idx: number) => ({
+      id: r.id,
+      code: idx + 1,
+      materialName: r.material?.name || "",
+      unit: r.material?.defaultUnit || "",
+      materialCatalogId: r.materialId,
+      materialCatalog: r.material ? {
+        category: r.material.category || null,
+        subCategory: r.material.subCategory || null,
+        name: r.material.name || null,
+        organizationId: null,
+        isGlobal: true,
+      } : null,
+      rates: [{ district: r.district, rate: r.rate }],
+    }));
+  }, [catalog?.catalogRates]) as CatalogItem[];
 
   const availableCategories = useMemo(() => {
     const set = new Set<string>();

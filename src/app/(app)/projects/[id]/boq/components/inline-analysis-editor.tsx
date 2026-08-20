@@ -42,11 +42,11 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
   const [rateCatalogId, setRateCatalogId] = useState("");
   const [rateDistrict, setRateDistrict] = useState("");
 
-  const { data: catalogsData } = trpc.rateCatalog.list.useQuery({ activeOnly: false });
+  const { data: catalogsData } = trpc.catalogV2.listRateCatalogs.useQuery({});
   const activeCatalog = catalogsData?.catalogs?.find((c) => c.id === rateCatalogId);
   const districts = activeCatalog?.districts ?? [];
 
-  const { data: catalogData } = trpc.rateCatalog.get.useQuery(
+  const { data: catalogData } = trpc.catalogV2.getRateCatalog.useQuery(
     { id: rateCatalogId },
     { enabled: !!rateCatalogId },
   );
@@ -57,20 +57,19 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
     { enabled: !!projectId }
   );
 
-  // Auto-fill rate when ingredient is selected from catalog
+  // Auto-fill rate when ingredient is selected from catalog (v2)
   function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
     setNewName(name);
     setSelectedCatalogItemId(catalogItem?.id ?? "");
     if (catalogItem?.unit) setNewUnit(catalogItem.unit);
-    // Try rate catalog district rate first
+    // Try rate catalog district rate first (v2: catalogRates with material relation)
     if (catalogItem?.id && catalogData?.catalog) {
-      const item = catalogData.catalog.items.find((i) => i.materialCatalogId === catalogItem.id);
-      if (item && rateDistrict) {
-        const rate = item.rates.find((r) => r.district === rateDistrict)?.rate;
-        if (rate && rate > 0) {
-          setNewRate(String(rate));
-          return;
-        }
+      const rateEntry = catalogData.catalog.catalogRates?.find(
+        (r: any) => r.materialId === catalogItem.id && r.district === rateDistrict
+      );
+      if (rateEntry && rateEntry.rate > 0) {
+        setNewRate(String(rateEntry.rate));
+        return;
       }
     }
     // Fallback: project rate table

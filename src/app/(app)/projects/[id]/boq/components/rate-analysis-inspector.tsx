@@ -97,12 +97,12 @@ export function RateAnalysisInspector({
     { enabled: !!itemId && !!analysisId }
   );
 
-  // 3. Fetch rate catalogs for district lookup
-  const { data: catalogsData } = trpc.rateCatalog.list.useQuery({ activeOnly: false });
+  // 3. Fetch rate catalogs for district lookup (v2)
+  const { data: catalogsData } = trpc.catalogV2.listRateCatalogs.useQuery({});
   const activeCatalog = catalogsData?.catalogs?.find((c) => c.id === rateCatalogId);
   const districts = activeCatalog?.districts ?? [];
 
-  const { data: catalogDetails } = trpc.rateCatalog.get.useQuery(
+  const { data: catalogDetails } = trpc.catalogV2.getRateCatalog.useQuery(
     { id: rateCatalogId },
     { enabled: !!rateCatalogId }
   );
@@ -182,20 +182,19 @@ export function RateAnalysisInspector({
     onError: (e) => toast.error(e.message),
   });
 
-  // Handle ingredient catalog auto-fill
+  // Handle ingredient catalog auto-fill (v2)
   function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
     setNewName(name);
     setSelectedCatalogItemId(catalogItem?.id ?? "");
     if (catalogItem?.unit) setNewUnit(catalogItem.unit);
-    // Try rate catalog district rate first
+    // Try rate catalog district rate first (v2: catalogRates with material relation)
     if (catalogItem?.id && catalogDetails?.catalog && rateDistrict) {
-      const catItem = catalogDetails.catalog.items.find((i) => i.materialCatalogId === catalogItem.id);
-      if (catItem) {
-        const distRate = catItem.rates.find((r) => r.district === rateDistrict)?.rate;
-        if (distRate && distRate > 0) {
-          setNewRate(String(distRate));
-          return;
-        }
+      const rateEntry = catalogDetails.catalog.catalogRates?.find(
+        (r: any) => r.materialId === catalogItem.id && r.district === rateDistrict
+      );
+      if (rateEntry && rateEntry.rate > 0) {
+        setNewRate(String(rateEntry.rate));
+        return;
       }
     }
     // Fallback: project rate table
