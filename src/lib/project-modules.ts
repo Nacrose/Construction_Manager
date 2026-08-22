@@ -30,7 +30,8 @@ export type ModuleKey =
   | "production"
   | "drawings"
   | "documents"
-  | "accounting";
+  | "accounting"
+  | "guarantees";
 
 export interface ModuleDefinition {
   key: ModuleKey;
@@ -57,6 +58,7 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   { key: "payments",        label: "Payments",                 core: true,  group: "Core",                description: "Payment ledger, categories & outstanding balances" },
 
   // ── Contract Management ───────────────────────────────────────
+  { key: "guarantees",      label: "Bank Guarantees & Insurance", core: false, group: "Contract Management", description: "Performance Bonds, APG, CAR Insurance & Expiry alerts" },
   { key: "ipc",             label: "IPC Certificates",         core: false, group: "Contract Management", description: "Interim Payment Certificates (Nepal Don Bosco format)" },
   { key: "variations",      label: "Variation Orders",         core: false, group: "Contract Management", description: "Contract changes & extras" },
   { key: "rfi",             label: "RFI",                      core: false, group: "Contract Management", description: "Requests for Information & formal responses" },

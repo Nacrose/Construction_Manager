@@ -37,6 +37,8 @@ const AUTO_MODULE_MAP: Record<string, ModuleKey> = {
   "/workflow/program": "dailyProgramme",
   "/daily-program": "dailyProgramme",
   "/look-ahead": "dailyProgramme",
+  "/accounting": "accounting",
+  "/guarantees": "guarantees",
 };
 
 /**

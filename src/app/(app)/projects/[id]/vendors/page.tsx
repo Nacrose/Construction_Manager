@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { trpc } from "@/lib/trpc-client";
@@ -17,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Building2, MoreVertical } from "lucide-react";
+import { Plus, Building2, MoreVertical, AlertCircle, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { VendorDetailFullPage } from "./components/vendor-detail-view";
@@ -164,6 +165,31 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
       },
     },
     {
+      id: "balance_due",
+      header: "Outstanding Due",
+      cell: ({ row }) => {
+        const fin = row.original.financialSummary;
+        const due = fin?.balanceDue || 0;
+        if (due > 0) {
+          return (
+            <div className="flex items-center gap-2 font-mono">
+              <span className="font-bold text-red-600 dark:text-red-400 text-xs">
+                NPR {due.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <Link
+                href={`/projects/${id}/payments`}
+                className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-sans font-bold px-1.5 py-0.5 rounded hover:bg-emerald-200 transition"
+              >
+                <CreditCard className="h-2.5 w-2.5" />
+                Pay
+              </Link>
+            </div>
+          );
+        }
+        return <span className="text-xs text-muted-foreground font-mono">✓ Settled</span>;
+      },
+    },
+    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
@@ -216,6 +242,10 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
     },
   ];
 
+  const totalVendors = partners.length;
+  const totalBilled = partners.reduce((s, p) => s + (p.financialSummary?.totalBilled || 0), 0);
+  const totalDue = partners.reduce((s, p) => s + (p.financialSummary?.balanceDue || 0), 0);
+
   return (
     <>
       <ModuleTabs projectId={id} tabs={RES_TABS} />
@@ -230,6 +260,34 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
           />
         ) : (
           <>
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="text-xs font-mono text-muted-foreground uppercase">Registered Vendors</div>
+                <div className="mt-1 text-2xl font-bold font-mono text-foreground">{totalVendors}</div>
+                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Suppliers & service providers</div>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="text-xs font-mono text-muted-foreground uppercase">Total Invoiced (Net)</div>
+                <div className="mt-1 text-2xl font-bold font-mono text-foreground">
+                  NPR {totalBilled.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Cumulative vendor billings</div>
+              </div>
+              <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20 p-4">
+                <div className="flex items-center justify-between text-xs font-mono text-red-700 dark:text-red-300 uppercase font-bold">
+                  <span className="flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Total Due (तिर्न बाँकी)</span>
+                  <Link href={`/projects/${id}/payments`} className="text-xs text-red-600 dark:text-red-400 hover:underline">
+                    View Payables →
+                  </Link>
+                </div>
+                <div className="mt-1 text-2xl font-bold font-mono text-red-900 dark:text-red-100">
+                  NPR {totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Unsettled vendor balances</div>
+              </div>
+            </div>
+
             {/* Page Actions */}
             <div className="flex justify-between items-center gap-4 mb-2">
               <div className="flex gap-1 rounded-md bg-muted/60 p-0.5 w-fit">

@@ -773,4 +773,240 @@ export const projectRouter = router({
 
       return { ok: true };
     }),
+
+  // ─────────────────────────────────────────────────────────────
+  // Cross-Project Financial Overview & Portfolio P&L
+  // ─────────────────────────────────────────────────────────────
+
+  /** Consolidated Cross-Project Financial Overview & P&L Analysis */
+  crossProjectFinancials: protectedProcedure.query(async ({ ctx }) => {
+    // 1. Get all accessible projects
+    const memberships = await db.projectMember.findMany({
+      where: { userId: ctx.user.id },
+      select: { projectId: true },
+    });
+    const projectIds = memberships.map((m) => m.projectId);
+
+    if (projectIds.length === 0) {
+      return {
+        projects: [],
+        totals: {
+          totalContractValue: 0,
+          totalRevenueCertified: 0,
+          totalRevenueCollected: 0,
+          totalClientReceivables: 0,
+          totalCostIncurred: 0,
+          totalGrossProfit: 0,
+          overallMargin: 0,
+          totalVendorPayables: 0,
+          totalSubcontractorPayables: 0,
+          totalPayables: 0,
+        },
+      };
+    }
+
+    const [
+      projects,
+      allIpcs,
+      allVendorBills,
+      allSubBills,
+      allPayments,
+      allExpenses,
+      allSpotHires,
+    ] = await Promise.all([
+      db.project.findMany({
+        where: { id: { in: projectIds }, status: { not: "archived" } },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          client: true,
+          status: true,
+          contractValue: true,
+          startDate: true,
+          endDate: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+      db.ipc.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          grossAmount: true,
+          netPayable: true,
+          status: true,
+        },
+      }),
+      db.vendorBill.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          grossAmount: true,
+          netPayable: true,
+          paidAmount: true,
+          status: true,
+        },
+      }),
+      db.subcontractorBill.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          grossAmount: true,
+          netPayable: true,
+          paidAmount: true,
+          status: true,
+        },
+      }),
+      db.payment.findMany({
+        where: { projectId: { in: projectIds }, status: "paid" },
+        select: {
+          projectId: true,
+          amount: true,
+          tdsDeducted: true,
+          netPaid: true,
+          category: true,
+          payeeType: true,
+        },
+      }),
+      db.siteExpense.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          amount: true,
+          category: true,
+        },
+      }),
+      db.equipmentSpotHire.findMany({
+        where: { projectId: { in: projectIds } },
+        select: {
+          projectId: true,
+          totalGross: true,
+          paymentStatus: true,
+        },
+      }),
+    ]);
+
+    const projectFinancials = projects.map((p) => {
+      const contractVal = p.contractValue ?? 0;
+
+      // 1. Revenue
+      const pIpcs = allIpcs.filter((i) => i.projectId === p.id);
+      const revenueCertified = pIpcs.reduce((s, i) => s + (i.grossAmount || 0), 0);
+      const revenueCollected = pIpcs
+        .filter((i) => i.status === "paid")
+        .reduce((s, i) => s + (i.netPayable || 0), 0);
+      const clientReceivables = Math.max(0, revenueCertified - revenueCollected);
+
+      // 2. Costs Breakdown
+      // Material costs from Vendor Bills & Material Payments
+      const pVBills = allVendorBills.filter((b) => b.projectId === p.id);
+      const pSBills = allSubBills.filter((b) => b.projectId === p.id);
+      const pPayments = allPayments.filter((pm) => pm.projectId === p.id);
+      const pExpenses = allExpenses.filter((e) => e.projectId === p.id);
+      const pSpotHires = allSpotHires.filter((h) => h.projectId === p.id);
+
+      const vendorBilledGross = pVBills.reduce((s, b) => s + b.grossAmount, 0);
+      const subBilledGross = pSBills
+        .filter((b) => ["certified", "approved", "paid"].includes(b.status))
+        .reduce((s, b) => s + b.grossAmount, 0);
+
+      const laborPayments = pPayments
+        .filter((pm) => pm.payeeType === "staff" || pm.category?.toLowerCase().includes("labor") || pm.category?.toLowerCase().includes("wage"))
+        .reduce((s, pm) => s + pm.amount, 0);
+
+      const equipmentCosts = pSpotHires.reduce((s, h) => s + (h.totalGross || 0), 0) +
+        pPayments
+          .filter((pm) => pm.category?.toLowerCase().includes("equipment") || pm.category?.toLowerCase().includes("plant"))
+          .reduce((s, pm) => s + pm.amount, 0);
+
+      const overheadCosts = pExpenses.reduce((s, e) => s + e.amount, 0) +
+        pPayments
+          .filter((pm) => pm.category?.toLowerCase().includes("overhead") || pm.category?.toLowerCase().includes("site expense"))
+          .reduce((s, pm) => s + pm.amount, 0);
+
+      // Total Cost Incurred (Committed + Paid)
+      const totalCost = vendorBilledGross + subBilledGross + laborPayments + equipmentCosts + overheadCosts;
+
+      // 3. Profitability
+      const grossProfit = revenueCertified - totalCost;
+      const marginPercent = revenueCertified > 0 ? (grossProfit / revenueCertified) * 100 : 0;
+
+      // 4. Payables Due
+      const vendorPayables = pVBills
+        .filter((b) => b.status === "unpaid" || b.status === "partially_paid")
+        .reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0);
+
+      const subPayables = pSBills
+        .filter((b) => ["submitted", "verified", "certified", "approved"].includes(b.status))
+        .reduce((s, b) => s + Math.max(0, b.netPayable - (b.paidAmount || 0)), 0);
+
+      const totalPayables = vendorPayables + subPayables;
+
+      return {
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        client: p.client || "—",
+        status: p.status,
+        contractValue: contractVal,
+        revenueCertified,
+        revenueCollected,
+        clientReceivables,
+        costs: {
+          materials: vendorBilledGross,
+          subcontractors: subBilledGross,
+          labor: laborPayments,
+          equipment: equipmentCosts,
+          overhead: overheadCosts,
+          total: totalCost,
+        },
+        grossProfit,
+        marginPercent,
+        payables: {
+          vendorPayables,
+          subPayables,
+          totalPayables,
+        },
+      };
+    });
+
+    // Compute portfolio totals
+    const totals = projectFinancials.reduce(
+      (acc, p) => {
+        acc.totalContractValue += p.contractValue;
+        acc.totalRevenueCertified += p.revenueCertified;
+        acc.totalRevenueCollected += p.revenueCollected;
+        acc.totalClientReceivables += p.clientReceivables;
+        acc.totalCostIncurred += p.costs.total;
+        acc.totalGrossProfit += p.grossProfit;
+        acc.totalVendorPayables += p.payables.vendorPayables;
+        acc.totalSubcontractorPayables += p.payables.subPayables;
+        acc.totalPayables += p.payables.totalPayables;
+        return acc;
+      },
+      {
+        totalContractValue: 0,
+        totalRevenueCertified: 0,
+        totalRevenueCollected: 0,
+        totalClientReceivables: 0,
+        totalCostIncurred: 0,
+        totalGrossProfit: 0,
+        overallMargin: 0,
+        totalVendorPayables: 0,
+        totalSubcontractorPayables: 0,
+        totalPayables: 0,
+      }
+    );
+
+    totals.overallMargin =
+      totals.totalRevenueCertified > 0
+        ? (totals.totalGrossProfit / totals.totalRevenueCertified) * 100
+        : 0;
+
+    return {
+      projects: projectFinancials,
+      totals,
+    };
+  }),
 });
+

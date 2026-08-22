@@ -125,6 +125,37 @@ const paymentRouter = router({
         },
       });
 
+      // If linked to a Vendor Bill, update bill's paidAmount and status
+      if (data.invoiceNumber && data.payeeType === "vendor") {
+        const vBill = await db.vendorBill.findFirst({
+          where: { projectId, billNumber: data.invoiceNumber },
+        });
+        if (vBill) {
+          const newPaid = (vBill.paidAmount || 0) + data.amount;
+          const isFullyPaid = newPaid >= vBill.netPayable - 0.01;
+          await db.vendorBill.update({
+            where: { id: vBill.id },
+            data: {
+              paidAmount: newPaid,
+              status: isFullyPaid ? "paid" : "partially_paid",
+            },
+          });
+          // Also record VendorPayment audit link
+          await db.vendorPayment.create({
+            data: {
+              projectId,
+              vendorBillId: vBill.id,
+              amount: data.amount,
+              paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
+              paymentMethod: data.paymentMode || "bank_transfer",
+              referenceNumber: data.chequeNo || data.accountingVoucherNo || null,
+              remarks: data.notes || `Payment Voucher settlement`,
+              createdById: ctx.user.id,
+            },
+          });
+        }
+      }
+
       // If linked to a Subcontractor Bill, update bill's paidAmount
       if (data.invoiceNumber && data.payeeType === "subcontractor") {
         const subBill = await db.subcontractorBill.findFirst({
@@ -132,11 +163,12 @@ const paymentRouter = router({
         });
         if (subBill) {
           const newPaid = (subBill.paidAmount || 0) + data.amount;
+          const isFullyPaid = newPaid >= subBill.netPayable - 0.01;
           await db.subcontractorBill.update({
             where: { id: subBill.id },
             data: {
               paidAmount: newPaid,
-              status: newPaid >= subBill.netPayable ? "paid" : "approved",
+              status: isFullyPaid ? "paid" : "certified",
             },
           });
         }
@@ -342,6 +374,105 @@ const paymentRouter = router({
         byCategory[cat] = (byCategory[cat] ?? 0) + p.amount;
       });
       return { totalPaid, totalTds, totalRetentionReleased, count: payments.length, byPayeeType, byCategory };
+    }),
+
+  /**
+   * Outstanding Payables Query — Consolidated view of all unpaid/partially paid Vendor Bills
+   * and certified Subcontractor Bills with outstanding balances.
+   */
+  outstandingPayables: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      // 1. Unpaid / Partially Paid Vendor Bills
+      const vendorBills = await db.vendorBill.findMany({
+        where: {
+          projectId: input.projectId,
+          status: { in: ["unpaid", "partially_paid"] },
+        },
+        include: {
+          partner: { select: { id: true, name: true, pan: true, phone: true } },
+          purchaseOrder: { select: { id: true, number: true } },
+        },
+        orderBy: { billDate: "desc" },
+      });
+
+      // 2. Certified / Submitted Subcontractor Bills with unpaid balances
+      const subBills = await db.subcontractorBill.findMany({
+        where: {
+          projectId: input.projectId,
+          status: { in: ["submitted", "verified", "certified", "approved"] },
+        },
+        include: {
+          subcontractor: { select: { id: true, name: true, pan: true, phone: true } },
+        },
+        orderBy: { billDate: "desc" },
+      });
+
+      const activeSubBills = subBills.filter((b) => b.netPayable > (b.paidAmount || 0) + 0.01);
+
+      // 3. Format unified payables list
+      const payables = [
+        ...vendorBills.map((b) => ({
+          id: b.id,
+          entityType: "vendor" as const,
+          entityId: b.partnerId,
+          entityName: b.partner?.name || "Unknown Supplier",
+          entityPan: b.partner?.pan || null,
+          entityPhone: b.partner?.phone || null,
+          billNumber: b.billNumber,
+          billDate: b.billDate.toISOString(),
+          dueDate: b.dueDate ? b.dueDate.toISOString() : null,
+          grossAmount: b.grossAmount,
+          vatAmount: b.vatAmount,
+          tdsAmount: b.tdsAmount,
+          tdsPercent: 1.5,
+          netPayable: b.netPayable,
+          paidAmount: b.paidAmount,
+          balanceDue: Math.max(0, b.netPayable - b.paidAmount),
+          status: b.status,
+          poNumber: b.purchaseOrder?.number || null,
+          category: "Materials",
+        })),
+        ...activeSubBills.map((b) => ({
+          id: b.id,
+          entityType: "subcontractor" as const,
+          entityId: b.subcontractorId,
+          entityName: b.subcontractor?.name || "Unknown Subcontractor",
+          entityPan: b.subcontractor?.pan || null,
+          entityPhone: b.subcontractor?.phone || null,
+          billNumber: b.number,
+          billDate: b.billDate.toISOString(),
+          dueDate: null,
+          grossAmount: b.grossAmount,
+          vatAmount: b.vatAmount,
+          tdsAmount: b.tdsAmount,
+          tdsPercent: b.tdsPercent || 1.5,
+          netPayable: b.netPayable,
+          paidAmount: b.paidAmount,
+          balanceDue: Math.max(0, b.netPayable - b.paidAmount),
+          status: b.status,
+          poNumber: null,
+          category: "Subcontractor",
+        })),
+      ];
+
+      const totalVendorDue = vendorBills.reduce((sum, b) => sum + Math.max(0, b.netPayable - b.paidAmount), 0);
+      const totalSubcontractorDue = activeSubBills.reduce((sum, b) => sum + Math.max(0, b.netPayable - (b.paidAmount || 0)), 0);
+      const totalDue = totalVendorDue + totalSubcontractorDue;
+
+      return {
+        payables,
+        summary: {
+          totalVendorDue,
+          totalSubcontractorDue,
+          totalDue,
+          vendorBillsCount: vendorBills.length,
+          subBillsCount: activeSubBills.length,
+          totalCount: payables.length,
+        },
+      };
     }),
 
   /**

@@ -17,6 +17,7 @@ import { ModuleTabs } from "@/components/module-tabs";
 
 const FIN_TABS = [
   { label: "Payments", href: "/payments" },
+  { label: "Accounting & Day Book", href: "/accounting" },
   { label: "IPC Certificates", href: "/ipc" },
   { label: "Tax Summary", href: "/tax-summary" },
   { label: "Cash Flow", href: "/cash-flow" },

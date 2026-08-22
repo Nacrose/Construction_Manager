@@ -23,6 +23,7 @@ import { LogVatBillDialog } from "./dialogs/log-vat-bill-dialog";
 
 const FIN_TABS = [
   { label: "Payments", href: "/payments" },
+  { label: "Accounting & Day Book", href: "/accounting" },
   { label: "IPC Certificates", href: "/ipc" },
   { label: "Tax Summary & VAT Registers", href: "/tax-summary" },
   { label: "Cash Flow", href: "/cash-flow" },

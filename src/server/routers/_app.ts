@@ -50,6 +50,8 @@ import { siteExpenseRouter } from "./site-expense";
 import { catalogV2Router } from "./catalog-v2";
 import { vatRegisterRouter } from "./vat-register";
 import { paymentCategoryRouter } from "./payment-category";
+import { accountingRouter } from "./accounting";
+import { bankGuaranteeRouter } from "./bank-guarantee";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -99,6 +101,8 @@ export const appRouter = router({
   catalogV2: catalogV2Router,
   vatRegister: vatRegisterRouter,
   paymentCategory: paymentCategoryRouter,
+  accounting: accountingRouter,
+  bankGuarantee: bankGuaranteeRouter,
 });
 
 export type AppRouter = typeof appRouter;

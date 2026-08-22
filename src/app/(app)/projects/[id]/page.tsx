@@ -33,6 +33,8 @@ import {
   Send,
   Mail,
   Settings,
+  BookOpen,
+  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -237,12 +239,28 @@ export default function ProjectDetailPage({
                 desc="Gantt chart & dependencies"
               />
             )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "guarantees") && (
+              <ModuleLink
+                href={`/projects/${id}/guarantees`}
+                icon={ShieldCheck}
+                label="Bank Guarantees & Insurance"
+                desc="Performance Bonds, APGs & CAR Policies"
+              />
+            )}
             {isModuleEnabled(parseEnabledModules(project.enabledModules), "variations") && (
               <ModuleLink
                 href={`/projects/${id}/variations`}
                 icon={FileSignature}
                 label="Variation Orders"
                 desc="Contract changes & extras"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "accounting") && (
+              <ModuleLink
+                href={`/projects/${id}/accounting`}
+                icon={BookOpen}
+                label="Accounting & Day Book"
+                desc="Tally Day Book & Ledger Statements"
               />
             )}
             {isModuleEnabled(parseEnabledModules(project.enabledModules), "materials") && (

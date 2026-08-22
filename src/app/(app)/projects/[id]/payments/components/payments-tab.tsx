@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
   Trash2,
   Receipt,
   RotateCcw,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -54,9 +55,22 @@ function fmt(n: number) {
 export function PaymentsTab({
   projectId,
   canWrite = true,
+  initialPayable,
+  onClearInitialPayable,
 }: {
   projectId: string;
   canWrite?: boolean;
+  initialPayable?: {
+    entityType: "vendor" | "subcontractor";
+    entityId: string;
+    entityName: string;
+    entityPan?: string | null;
+    billNumber: string;
+    balanceDue: number;
+    tdsAmount: number;
+    category: string;
+  } | null;
+  onClearInitialPayable?: () => void;
 }) {
   const utils = trpc.useUtils();
 
@@ -86,6 +100,8 @@ export function PaymentsTab({
 
   const { data: stats } = trpc.projectOps.payment.stats.useQuery({ projectId });
   const { data: catSummary } = trpc.projectOps.payment.categorySummary.useQuery({ projectId });
+  const { data: payablesData } = trpc.projectOps.payment.outstandingPayables.useQuery({ projectId });
+  const pendingPayables = payablesData?.payables || [];
   const payments = listData?.payments ?? [];
 
   // Form states for Record Payment
@@ -93,6 +109,7 @@ export function PaymentsTab({
   const [payeeType, setPayeeType] = useState("vendor");
   const [payeeName, setPayeeName] = useState("");
   const [partyPan, setPartyPan] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [tds, setTds] = useState("0");
   const [mode, setMode] = useState<"cash" | "bank_transfer" | "cheque" | "mobile_pay" | "connectips">("bank_transfer");
@@ -107,6 +124,28 @@ export function PaymentsTab({
       return "";
     }
   });
+
+  // Handle incoming initialPayable trigger (e.g. from Outstanding Payables tab)
+  useEffect(() => {
+    if (initialPayable) {
+      setAllocationType("specific_payee");
+      setPayeeType(initialPayable.entityType);
+      setPayeeName(initialPayable.entityName);
+      setPartyPan(initialPayable.entityPan || "");
+      setInvoiceNumber(initialPayable.billNumber);
+      setAmount(initialPayable.balanceDue.toString());
+      setTds(initialPayable.tdsAmount.toString());
+
+      // Match category
+      const matchedCat = categories.find((c) =>
+        c.name.toLowerCase().includes(initialPayable.category.toLowerCase())
+      );
+      if (matchedCat) setSelectedCatId(matchedCat.id);
+
+      setAddOpen(true);
+      if (onClearInitialPayable) onClearInitialPayable();
+    }
+  }, [initialPayable, categories, onClearInitialPayable]);
 
   // Category & Subcategory selection
   const [selectedCatId, setSelectedCatId] = useState<string>("");
@@ -162,6 +201,9 @@ export function PaymentsTab({
       utils.projectOps.payment.list.invalidate({ projectId });
       utils.projectOps.payment.stats.invalidate({ projectId });
       utils.projectOps.payment.categorySummary.invalidate({ projectId });
+      utils.projectOps.payment.outstandingPayables.invalidate({ projectId });
+      utils.vendorBill.list.invalidate({ projectId });
+      utils.subcontractorBill.list.invalidate({ projectId });
       setAddOpen(false);
       resetForm();
       toast.success("Payment recorded successfully into project ledger");
@@ -174,6 +216,7 @@ export function PaymentsTab({
       utils.projectOps.payment.list.invalidate({ projectId });
       utils.projectOps.payment.stats.invalidate({ projectId });
       utils.projectOps.payment.categorySummary.invalidate({ projectId });
+      utils.projectOps.payment.outstandingPayables.invalidate({ projectId });
       toast.success("Payment record deleted");
     },
     onError: (e) => toast.error(e.message),
@@ -182,6 +225,7 @@ export function PaymentsTab({
   const resetForm = () => {
     setPayeeName("");
     setPartyPan("");
+    setInvoiceNumber("");
     setAmount("");
     setTds("0");
     setChequeNo("");
@@ -211,6 +255,7 @@ export function PaymentsTab({
       payeeType,
       payeeName: payeeName.trim() || `${resolvedCategoryName} (${resolvedSubCategoryName || "Disbursement"})`,
       partyPan: partyPan.trim() || undefined,
+      invoiceNumber: invoiceNumber.trim() || undefined,
       amount: numAmount,
       tdsDeducted: numTds,
       netPaid: numAmount - numTds,
@@ -588,8 +633,48 @@ export function PaymentsTab({
                       </div>
                     </div>
 
-                    {/* Date (Dual BS & AD), Payee Name & PAN */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Quick Settle from Outstanding Bill helper */}
+                    {allocationType === "specific_payee" && pendingPayables.length > 0 && (
+                      <div className="p-2.5 rounded bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
+                            Quick Settle Outstanding Bill ({pendingPayables.length} Unpaid)
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">Select to auto-fill</span>
+                        </div>
+                        <Select
+                          onValueChange={(val) => {
+                            const item = pendingPayables.find((p) => p.id === val);
+                            if (!item) return;
+                            setPayeeType(item.entityType);
+                            setPayeeName(item.entityName);
+                            setPartyPan(item.entityPan || "");
+                            setInvoiceNumber(item.billNumber);
+                            setAmount(item.balanceDue.toString());
+                            setTds(((item.balanceDue * (item.tdsPercent || 1.5)) / 100).toFixed(2));
+                            const matchedCat = categories.find((c) =>
+                              c.name.toLowerCase().includes(item.category.toLowerCase())
+                            );
+                            if (matchedCat) setSelectedCatId(matchedCat.id);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-medium bg-background">
+                            <SelectValue placeholder="-- Select an Outstanding Bill to Pay --" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pendingPayables.map((p) => (
+                              <SelectItem key={p.id} value={p.id} className="text-xs">
+                                {p.entityName} — Bill #{p.billNumber} (Due: NPR {fmt(p.balanceDue)})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Date (Dual BS & AD), Payee Type & Name, PAN, Bill # */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-muted-foreground">Date (AD / BS)</Label>
                         <Input
@@ -614,6 +699,16 @@ export function PaymentsTab({
                               : "e.g. ABC Suppliers / Subcontractor"
                           }
                           className="h-8 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">Bill / Invoice # (Optional)</Label>
+                        <Input
+                          value={invoiceNumber}
+                          onChange={(e) => setInvoiceNumber(e.target.value)}
+                          placeholder="e.g. SC-042 or SUB-001"
+                          className="h-8 text-xs font-mono"
                         />
                       </div>
 

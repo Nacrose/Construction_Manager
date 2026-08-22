@@ -264,7 +264,7 @@ export const partnerRouter = router({
   // UNIFIED PARTNER — supersedes Supplier & EquipmentVendor
   // ─────────────────────────────────────────────────────────
 
-  /** List partners by type. */
+  /** List partners by type with financial payable summary. */
   listPartners: protectedProcedure
     .input(z.object({
       projectId: z.string(),
@@ -274,16 +274,39 @@ export const partnerRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
       const where: any = { projectId: input.projectId };
       if (input.type) where.type = input.type;
-      const partners = await db.partner.findMany({
+      const rawPartners = await db.partner.findMany({
         where,
         orderBy: { name: "asc" },
         include: {
-          _count: { select: { purchaseOrders: true, rentals: true } },
+          _count: { select: { purchaseOrders: true, rentals: true, bills: true } },
+          bills: {
+            select: { grossAmount: true, netPayable: true, paidAmount: true, status: true },
+          },
           supplies: {
             orderBy: { materialName: "asc" },
           },
         },
       });
+
+      const partners = rawPartners.map((p) => {
+        const totalBilled = p.bills.reduce((s, b) => s + b.netPayable, 0);
+        const totalPaid = p.bills.reduce((s, b) => s + b.paidAmount, 0);
+        const balanceDue = Math.max(0, totalBilled - totalPaid);
+        const unpaidBillsCount = p.bills.filter(
+          (b) => b.status === "unpaid" || b.status === "partially_paid"
+        ).length;
+
+        return {
+          ...p,
+          financialSummary: {
+            totalBilled,
+            totalPaid,
+            balanceDue,
+            unpaidBillsCount,
+          },
+        };
+      });
+
       return { partners };
     }),
 

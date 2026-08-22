@@ -425,6 +425,7 @@ model Project {
   plantBatchTickets    PlantBatchTicket[]
   plantDailyLogs       PlantDailyLog[]
   ganttTemplates       GanttTaskTemplate[]
+  bankGuarantees       BankGuarantee[]
 
   @@unique([organizationId, code])
   @@index([status])
@@ -3537,3 +3538,41 @@ model MaterialSubstitute {
 
   @@unique([materialId, substituteId])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Bank Guarantees & Insurance Policies Module
+// ─────────────────────────────────────────────────────────────
+
+model BankGuarantee {
+  id               String    @id @default(cuid())
+  projectId        String
+  type             String    // performance_bond | advance_payment | car_insurance | retention_bond | bid_bond | other
+  guaranteeNumber  String    // BG Number or Policy Number (e.g. BG/NABIL/2081/042)
+  issuingBank      String    // e.g. Nabil Bank, Global IME Bank, Shikhar Insurance
+  branch           String?   // e.g. Hetauda Branch, New Road
+  beneficiary      String    // e.g. Division Road Office, DUDBC Chitwan, Bharatpur Municipality
+  amount           Float     // Guarantee value in NPR
+  currency         String    @default("NPR")
+  issuedDate       DateTime
+  issuedMiti       String?   // BS Miti e.g. 2081-02-15
+  expiryDate       DateTime
+  expiryMiti       String?   // BS Miti e.g. 2082-02-14
+  claimPeriodDays  Int       @default(30) // standard 30 days under PPA
+  claimExpiryDate  DateTime?
+  status           String    @default("active") // active | extended | released | claimed | expired
+  purpose          String?   // e.g. "5% Performance Security for Package DOR-01"
+  marginAmount     Float     @default(0) // Cash margin held by bank
+  commissionRate   Float     @default(0) // % p.a.
+  commissionPaid   Float     @default(0) // Total commission cost
+  documentUrl      String?   // Scanned copy PDF / JPG
+  documentName     String?
+  amendments       Json      @default("[]") // Array of { date, oldExpiryDate, newExpiryDate, letterNo, remarks }
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, expiryDate])
+}
+

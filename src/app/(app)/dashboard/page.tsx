@@ -23,6 +23,8 @@ import {
 import {
   AnimatedPage, StaggerContainer, StaggerItem, SpringCard, AnimatedCounter, FadeInOnScroll, GlowOrb,
 } from "@/components/ui/motion";
+import { CrossProjectFinancialsCard } from "@/components/dashboard/cross-project-financials-card";
+import { GuaranteesAlertCard } from "@/components/dashboard/guarantees-alert-card";
 
 type DashboardData = {
   stats: {
@@ -243,6 +245,14 @@ export default function DashboardPage() {
           );
         })}
       </StaggerContainer>
+
+      {/* Cross-Project Bank Guarantees Expiry Alert */}
+      <GuaranteesAlertCard />
+
+      {/* Cross-Project Financials & Portfolio P&L */}
+      <FadeInOnScroll>
+        <CrossProjectFinancialsCard />
+      </FadeInOnScroll>
 
       {/* Charts row — fade in on scroll */}
       <div className="grid gap-5 lg:grid-cols-2">
