@@ -83,7 +83,27 @@ export const projectRouter = router({
       };
     }
 
-    // Super admins (non-impersonating) see all projects across orgs
+    // Platform super admins (non-impersonating) see all projects across orgs
+    if (ctx.user.isSuperAdmin) {
+      const allProjects = await db.project.findMany({
+        include: {
+          _count: { select: { rfis: true, members: true } },
+          organization: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return {
+        projects: allProjects.map((p) => ({
+          ...p,
+          myRole: "project_manager",
+          rfiCount: p._count.rfis,
+          memberCount: p._count.members,
+          _count: undefined,
+        })),
+      };
+    }
+
+    // Org admins see all projects in their org
     if (isOrgAdmin(ctx.user)) {
       const allProjects = await db.project.findMany({
         include: {

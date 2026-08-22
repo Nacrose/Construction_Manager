@@ -421,6 +421,7 @@ export const partnerRouter = router({
   createPartnerSupply: protectedProcedure
     .input(z.object({
       partnerId: z.string(),
+      catalogMaterialId: z.string().optional().nullable(),
       materialCatalogId: z.string().optional().nullable(),
       materialName: z.string().min(1),
       brand: z.string().optional().nullable(),
@@ -435,10 +436,12 @@ export const partnerRouter = router({
       if (!partner) throw new TRPCError({ code: "NOT_FOUND", message: "Partner not found." });
       await assertCanWrite(ctx.user, partner.projectId);
 
+      const finalCatalogId = input.catalogMaterialId || input.materialCatalogId || null;
+
       const supply = await db.partnerSupply.create({
         data: {
           partnerId: input.partnerId,
-          materialCatalogId: input.materialCatalogId || null,
+          catalogMaterialId: finalCatalogId,
           materialName: input.materialName,
           brand: input.brand || null,
           specType: input.specType || null,

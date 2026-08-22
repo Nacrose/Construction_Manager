@@ -55,93 +55,96 @@ export default function AdminMaterialCatalogPage({
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
-  const catalogQuery = trpc.materialCatalog.list.useQuery(
-    { includeGlobal: !isOrgScoped && !isProjectScoped, search: search.trim() || undefined, limit: 1000, showArchived },
-    { enabled: !isProjectScoped }
+  const activeScope = isProjectScoped ? "project" : isOrgScoped ? "org" : "global";
+  const catalogQuery: any = trpc.catalogV2.listMaterials.useQuery(
+    {
+      scope: activeScope as any,
+      ...(projectId ? { projectId } : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
+      limit: 500,
+      activeOnly: !showArchived,
+    },
+    { enabled: true }
   );
 
-  const archivedQuery = trpc.materialCatalog.listArchived.useQuery(
-    { search: search.trim() || undefined },
+  const archivedQuery: any = trpc.catalogV2.listMaterials.useQuery(
+    {
+      scope: activeScope as any,
+      ...(projectId ? { projectId } : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
+      limit: 500,
+      activeOnly: false,
+    },
     { enabled: showArchived && !isProjectScoped }
   );
 
-  const projectMaterialsQuery = trpc.material.list.useQuery(
-    { projectId: projectId || "" },
-    { enabled: !!projectId }
-  );
-
   const projectCatalogIdSet = useMemo(() => {
+    // Only relevant for project scope — admin/org should not show Project badge
+    if (!isProjectScoped) return new Set<string>();
     const set = new Set<string>();
-    if (projectMaterialsQuery.data?.materials) {
-      for (const m of projectMaterialsQuery.data.materials) {
-        if (m.materialCatalogId) set.add(m.materialCatalogId);
-      }
+    const items = (catalogQuery.data as any)?.materials || [];
+    for (const m of items) {
+      if (m.sourceMaterialId) set.add(m.sourceMaterialId);
     }
     return set;
-  }, [projectMaterialsQuery.data]);
+  }, [catalogQuery.data, isProjectScoped]);
 
-  const isLoading = isProjectScoped ? projectMaterialsQuery.isLoading : catalogQuery.isLoading;
+  const isLoading = catalogQuery.isLoading;
 
   const rawItems = useMemo(() => {
-    if (isProjectScoped) {
-      return (projectMaterialsQuery.data?.materials || []).map((m: any) => ({
+    const mats = (catalogQuery.data as any)?.materials || [];
+    return mats
+      .filter((m: any) => !showArchived || m.isActive === false)
+      .map((m: any) => ({
         id: m.id,
         name: m.name,
         category: m.category || "General",
         subCategory: m.subCategory || null,
-        defaultUnit: m.unit || "unit",
-        defaultRate: m.rate || 0,
-        rateSource: m.reference || null,
-        isGlobal: false,
-        organizationId: null,
-        projectId: m.projectId,
+        defaultUnit: m.defaultUnit || "unit",
+        defaultRate: m.defaultRate || 0,
+        rateSource: null,
+        isGlobal: m.scope === "global",
+        organizationId: m.organizationId || null,
+        projectId: m.projectId || null,
+        sourceMaterialId: m.sourceMaterialId || null,
+        isActive: m.isActive,
+        aliases: m.aliases || [],
       }));
-    }
-    return catalogQuery.data?.items || [];
-  }, [isProjectScoped, projectMaterialsQuery.data, catalogQuery.data]);
+  }, [catalogQuery.data, showArchived]);
 
   const items = rawItems;
-  const createCatalogMut = trpc.materialCatalog.create.useMutation();
+  const createCatalogMut = trpc.catalogV2.createMaterial.useMutation();
 
-  const restoreCatalogMut = trpc.materialCatalog.restore.useMutation({
-    onSuccess: (res) => {
-      utils.materialCatalog.list.invalidate();
-      utils.materialCatalog.listArchived.invalidate();
-      toast.success(`Restored "${res.item.name}" to catalog`);
+  const restoreCatalogMut = trpc.catalogV2.updateMaterial.useMutation({
+    onSuccess: (_res, vars) => {
+      utils.catalogV2.listMaterials.invalidate();
+      toast.success(`Restored item`);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const deleteByCategoryMut = trpc.materialCatalog.deleteByCategory.useMutation({
-    onSuccess: (res, vars) => {
-      utils.materialCatalog.list.invalidate();
-      utils.materialCatalog.listArchived.invalidate();
-      const msg = res.hardDeleted
-        ? `Archived ${res.archived} item(s), permanently deleted ${res.hardDeleted} unused item(s) in "${vars.category}"`
-        : `Archived ${res.archived} item(s) in "${vars.category}". Restore from Archived view if needed.`;
-      toast.success(msg);
+  // Legacy category deletes kept until v2 deleteByCategory is added; for now use bulkDelete via ids
+  const deleteByCategoryMut = trpc.catalogV2.bulkDeleteMaterials.useMutation({
+    onSuccess: (res) => {
+      utils.catalogV2.listMaterials.invalidate();
+      toast.success(`Archived ${res.archived} / deleted ${res.hardDeleted} item(s)`);
       setCategoryDeleteTarget(null);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const deleteBySubCategoryMut = trpc.materialCatalog.deleteBySubCategory.useMutation({
-    onSuccess: (res, vars) => {
-      utils.materialCatalog.list.invalidate();
-      utils.materialCatalog.listArchived.invalidate();
-      const msg = res.hardDeleted
-        ? `Archived ${res.archived} item(s), permanently deleted ${res.hardDeleted} unused item(s) in "${vars.groupName}"`
-        : `Archived ${res.archived} item(s) in "${vars.groupName}". Restore from Archived view if needed.`;
-      toast.success(msg);
+  const deleteBySubCategoryMut = trpc.catalogV2.bulkDeleteMaterials.useMutation({
+    onSuccess: (res) => {
+      utils.catalogV2.listMaterials.invalidate();
+      toast.success(`Archived ${res.archived} / deleted ${res.hardDeleted} item(s)`);
       setCategoryDeleteTarget(null);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const purgeArchivedMut = trpc.materialCatalog.purgeArchived.useMutation({
+  const purgeArchivedMut = trpc.catalogV2.purgeArchived.useMutation({
     onSuccess: (res) => {
-      utils.materialCatalog.list.invalidate();
-      utils.materialCatalog.listArchived.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
       const skippedMsg = res.skipped > 0 ? ` (${res.skipped} kept — still referenced)` : "";
       toast.success(`Permanently purged ${res.purged} archived item(s)${skippedMsg}`);
       setPurgeDialogOpen(false);
@@ -159,12 +162,11 @@ export default function AdminMaterialCatalogPage({
     });
   };
 
-  const deleteManyCatalogMut = trpc.materialCatalog.deleteMany.useMutation({
+  const deleteManyCatalogMut = trpc.catalogV2.bulkDeleteMaterials.useMutation({
     onSuccess: (res) => {
       setSelectedIds(new Set());
       setDeleteConfirmIds([]);
-      utils.materialCatalog.list.invalidate();
-      utils.materialCatalog.listArchived.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
       if (res.mode === "archived") {
         toast.success(`Archived ${res.count} item(s). Restore from the Archived view if needed.`);
       } else if (res.mode === "mixed") {
@@ -182,7 +184,7 @@ export default function AdminMaterialCatalogPage({
       setDeleteConfirmIds([]);
       if (projectId) {
         utils.material.list.invalidate({ projectId });
-        utils.materialCatalog.previewSyncToProject.invalidate({ projectId });
+        utils.catalogV2.previewImport.invalidate();
       }
       toast.success(`Successfully deleted ${res.count} item(s) from project catalog`);
     },
@@ -197,17 +199,16 @@ export default function AdminMaterialCatalogPage({
   const handleUndoDelete = async (oldItem: any) => {
     try {
       await createCatalogMut.mutateAsync({
+        scope: activeScope as any,
+        projectId: projectId || undefined,
         name: oldItem.name,
         category: oldItem.category ?? undefined,
         subCategory: oldItem.subCategory ?? undefined,
         defaultUnit: oldItem.defaultUnit ?? undefined,
         defaultRate: oldItem.defaultRate ?? undefined,
-        rateSource: oldItem.rateSource ?? undefined,
-        organizationId: oldItem.organizationId ?? undefined,
-        isGlobal: oldItem.isGlobal ?? !isOrgScoped,
       });
       setDeletedHistoryStack((prev) => prev.filter((h) => h.id !== oldItem.id));
-      utils.materialCatalog.list.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
       toast.success(`Restored "${oldItem.name}" to catalog`);
     } catch (e: any) {
       toast.error(e.message || "Failed to restore item");
@@ -249,6 +250,18 @@ export default function AdminMaterialCatalogPage({
 
   const allCategories = Array.from(new Set(items.map((i) => i.category || "General"))) as string[];
 
+  const materialsByCategory = useMemo(() => {
+    const map: Record<string, Array<{ name: string; defaultUnit?: string; defaultRate?: number }>> = {};
+    for (const item of items) {
+      const cat = item.category || "General";
+      if (!map[cat]) map[cat] = [];
+      if (!map[cat].some((m) => m.name.toLowerCase() === item.name.toLowerCase())) {
+        map[cat].push({ name: item.name, defaultUnit: item.defaultUnit, defaultRate: item.defaultRate });
+      }
+    }
+    return map;
+  }, [items]);
+
   const handleExpandAll = () => {
     setCollapsedCategories({});
     setCollapsedGroups({});
@@ -269,47 +282,14 @@ export default function AdminMaterialCatalogPage({
 
   return (
     <div className="space-y-3">
-      {/* Top Tab Bar & Actions */}
+      {/* Top Header & Fast Actions */}
       {!isProjectScoped && (
-        <div className="flex items-center justify-between border-b border-border/80 pb-2">
+        <div className="flex items-center justify-between pb-1">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab("catalog")}
-              className={cn(
-                "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                activeTab === "catalog"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              )}
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              {isOrgScoped ? "Organization Catalog" : "Global Master Catalog"}
-            </button>
-            <button
-              onClick={() => setActiveTab("uncataloged")}
-              className={cn(
-                "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all relative",
-                activeTab === "uncataloged"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-              )}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              Uncataloged Review
-              {pendingCount > 0 && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "text-[10px] px-1.5 py-0 h-4 font-mono",
-                    activeTab === "uncataloged"
-                      ? "bg-primary-foreground text-primary font-bold"
-                      : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                  )}
-                >
-                  {pendingCount}
-                </Badge>
-              )}
-            </button>
+            <h2 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+              <BookOpen className="h-4 w-4 text-amber-500" />
+              {isOrgScoped ? "Organization Resource Catalog" : "Global Master Catalog"}
+            </h2>
           </div>
 
           <div className="flex items-center gap-2">
@@ -333,31 +313,27 @@ export default function AdminMaterialCatalogPage({
         </div>
       )}
 
-      {/* View 1: Uncataloged Review Moderation Tab */}
-      {activeTab === "uncataloged" && !isProjectScoped ? (
-        <UncatalogedReviewTab />
-      ) : (
-        <>
-          <CatalogToolbar
-            search={search}
-            setSearch={setSearch}
-            categoryFilter={categoryFilter}
-            setCategoryFilter={setCategoryFilter}
-            allCategories={allCategories}
-            handleExpandAll={handleExpandAll}
-            handleCollapseAll={handleCollapseAll}
-            selectedIds={selectedIds}
-            handleBulkDelete={handleBulkDelete}
-            deletedHistoryStack={deletedHistoryStack}
-            handleUndoDelete={handleUndoDelete}
-            isOrgScoped={isOrgScoped}
-            isProjectScoped={isProjectScoped}
-            setSyncDialogOpen={setSyncDialogOpen}
-            showArchived={showArchived}
-            setShowArchived={setShowArchived}
-            archivedQuery={archivedQuery}
-            setCreateDialogOpen={setCreateDialogOpen}
-          />
+      <CatalogToolbar
+        search={search}
+        setSearch={setSearch}
+        categoryFilter={categoryFilter}
+        setCategoryFilter={setCategoryFilter}
+        allCategories={allCategories}
+        handleExpandAll={handleExpandAll}
+        handleCollapseAll={handleCollapseAll}
+        selectedIds={selectedIds}
+        handleBulkDelete={handleBulkDelete}
+        deletedHistoryStack={deletedHistoryStack}
+        handleUndoDelete={handleUndoDelete}
+        isOrgScoped={isOrgScoped}
+        isProjectScoped={isProjectScoped}
+        setSyncDialogOpen={setSyncDialogOpen}
+        setMergeDialogOpen={setMergeDialogOpen}
+        showArchived={showArchived}
+        setShowArchived={setShowArchived}
+        archivedQuery={archivedQuery}
+        setCreateDialogOpen={setCreateDialogOpen}
+      />
 
           {showArchived && !isProjectScoped ? (
             <ArchivedCatalogTable
@@ -388,13 +364,12 @@ export default function AdminMaterialCatalogPage({
               projectCatalogIdSet={projectCatalogIdSet}
             />
           )}
-        </>
-      )}
 
       {/* Modals & Dialogs */}
       <SyncCatalogDialog
         open={syncDialogOpen}
         onOpenChange={setSyncDialogOpen}
+        isOrgScoped={isOrgScoped}
         isProjectScoped={isProjectScoped}
         projectId={projectId}
       />
@@ -402,12 +377,14 @@ export default function AdminMaterialCatalogPage({
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSuccess={() => {
-          utils.materialCatalog.list.invalidate();
-          if (projectId) utils.material.list.invalidate({ projectId });
+          utils.catalogV2.listMaterials.invalidate();
+          if (projectId) utils.catalogV2.listMaterials.invalidate();
         }}
         isOrgScoped={isOrgScoped}
         isProjectScoped={isProjectScoped}
         projectId={projectId}
+        availableCategories={allCategories}
+        existingMaterials={items}
       />
       {editingItem && (
         <EditGlobalCatalogItemDialog
@@ -415,8 +392,8 @@ export default function AdminMaterialCatalogPage({
           open={!!editingItem}
           onOpenChange={(open) => !open && setEditingItem(null)}
           onSuccess={() => {
-            utils.materialCatalog.list.invalidate();
-            if (projectId) utils.material.list.invalidate({ projectId });
+            utils.catalogV2.listMaterials.invalidate();
+            if (projectId) utils.catalogV2.listMaterials.invalidate();
           }}
         />
       )}
@@ -425,11 +402,7 @@ export default function AdminMaterialCatalogPage({
         open={deleteConfirmIds.length > 0}
         onOpenChange={(open) => !open && setDeleteConfirmIds([])}
         onConfirm={() => {
-          if (isProjectScoped && projectId) {
-            deleteManyProjectMaterialMut.mutate({ itemIds: deleteConfirmIds });
-          } else {
-            deleteManyCatalogMut.mutate({ ids: deleteConfirmIds, force: true });
-          }
+          deleteManyCatalogMut.mutate({ ids: deleteConfirmIds, force: true });
         }}
         onArchive={() => {
           deleteManyCatalogMut.mutate({ ids: deleteConfirmIds, force: false });
@@ -443,32 +416,16 @@ export default function AdminMaterialCatalogPage({
           groupName={categoryDeleteTarget.groupName}
           isAdmin={!isOrgScoped && !isProjectScoped}
           onArchiveAll={() => {
-            if (categoryDeleteTarget.groupName) {
-              deleteBySubCategoryMut.mutate({
-                category: categoryDeleteTarget.category,
-                groupName: categoryDeleteTarget.groupName,
-                mode: "archive_all",
-              });
-            } else {
-              deleteByCategoryMut.mutate({
-                category: categoryDeleteTarget.category,
-                mode: "archive_all",
-              });
-            }
+            const ids = categoryDeleteTarget.groupName
+              ? (treeData[categoryDeleteTarget.category]?.[categoryDeleteTarget.groupName] || []).map((i: any) => i.id)
+              : Object.values(treeData[categoryDeleteTarget.category] || {}).flat().map((i: any) => i.id);
+            deleteByCategoryMut.mutate({ ids, force: false });
           }}
           onDeleteSafeArchiveRest={() => {
-            if (categoryDeleteTarget.groupName) {
-              deleteBySubCategoryMut.mutate({
-                category: categoryDeleteTarget.category,
-                groupName: categoryDeleteTarget.groupName,
-                mode: "delete_safe_archive_rest",
-              });
-            } else {
-              deleteByCategoryMut.mutate({
-                category: categoryDeleteTarget.category,
-                mode: "delete_safe_archive_rest",
-              });
-            }
+            const ids = categoryDeleteTarget.groupName
+              ? (treeData[categoryDeleteTarget.category]?.[categoryDeleteTarget.groupName] || []).map((i: any) => i.id)
+              : Object.values(treeData[categoryDeleteTarget.category] || {}).flat().map((i: any) => i.id);
+            deleteByCategoryMut.mutate({ ids, force: true });
           }}
           isLoading={deleteByCategoryMut.isPending || deleteBySubCategoryMut.isPending}
         />
@@ -480,7 +437,11 @@ export default function AdminMaterialCatalogPage({
         setPurgeConfirmText={setPurgeConfirmText}
         purgeArchivedMut={purgeArchivedMut}
       />
-      <MaterialMergeDialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen} />
+      <MaterialMergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        level={isProjectScoped ? "project" : isOrgScoped ? "org" : "global"}
+      />
       <ExcelMaterialImporter open={importDialogOpen} onOpenChange={setImportDialogOpen} />
     </div>
   );

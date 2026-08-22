@@ -23,6 +23,7 @@ import {
   Loader2,
   Download,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -46,53 +47,54 @@ export function SyncCatalogDialog({
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
-  // 1. Data queries
-  const orgPreview = trpc.materialCatalog.previewSyncFromGlobal.useQuery(
-    {},
+  const targetScope = isProjectScoped ? "project" : "org";
+  const sourceScope = isProjectScoped ? "org" : "global";
+
+  // 1. Data query
+  const previewQuery = trpc.catalogV2.previewImport.useQuery(
     {
-      enabled: open && isOrgScoped,
+      targetScope,
+      targetProjectId: projectId,
+      sourceScope,
+    },
+    {
+      enabled: open,
+      staleTime: 0,
+      refetchOnMount: "always",
     }
   );
 
-  const projectPreview = trpc.materialCatalog.previewSyncToProject.useQuery(
-    { projectId: projectId || "" },
-    { enabled: open && isProjectScoped && !!projectId }
-  );
-
-  // 2. Mutations
-  const syncFromGlobalMut = trpc.materialCatalog.syncFromGlobal.useMutation({
+  // 2. Mutation
+  const importMut = trpc.catalogV2.importFromParent.useMutation({
     onSuccess: (res) => {
-      utils.materialCatalog.previewSyncFromGlobal.invalidate({});
-      utils.materialCatalog.list.invalidate();
-      toast.success(res.message || `Successfully synced ${res.synced} items!`);
-      onOpenChange(false);
-      setSelectedIds(new Set());
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const bulkImportToProjectMut = trpc.materialCatalog.bulkImportToProject.useMutation({
-    onSuccess: (res) => {
+      utils.catalogV2.listMaterials.invalidate();
+      utils.catalogV2.previewImport.invalidate();
       if (projectId) {
         utils.material.list.invalidate({ projectId });
-        utils.materialCatalog.previewSyncToProject.invalidate({ projectId });
       }
-      utils.materialCatalog.list.invalidate();
-      toast.success(res.message || `Successfully added ${res.count} items to project catalog!`);
+      toast.success(
+        `Successfully imported ${res.importedMaterials} materials${res.importedRates ? ` and ${res.importedRates} rates` : ""}!`
+      );
       onOpenChange(false);
       setSelectedIds(new Set());
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const previewData = isOrgScoped ? orgPreview.data : projectPreview.data;
-  const isLoading = isOrgScoped ? orgPreview.isLoading : projectPreview.isLoading;
+  const previewData = previewQuery.data;
+  const isLoading = previewQuery.isLoading;
 
   const allItems = useMemo(() => {
-    return (previewData?.items || []).map((i: any) => ({
-      ...i,
-      alreadySynced: !!i.alreadySynced,
+    if (!previewData) return [];
+    const newItems = (previewData.newMaterials || []).map((m: any) => ({
+      ...m,
+      alreadySynced: false,
     }));
+    const existing = (previewData.existingMaterials || []).map((e: any) => ({
+      ...e.source,
+      alreadySynced: true,
+    }));
+    return [...newItems, ...existing];
   }, [previewData]);
 
   const filteredItems = useMemo(() => {
@@ -162,15 +164,16 @@ export function SyncCatalogDialog({
   const handleSync = () => {
     if (selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
-    if (isOrgScoped) {
-      syncFromGlobalMut.mutate({ catalogItemIds: ids });
-    } else if (isProjectScoped && projectId) {
-      bulkImportToProjectMut.mutate({ projectId, catalogItemIds: ids });
-    }
+    importMut.mutate({
+      targetScope,
+      targetProjectId: projectId,
+      sourceScope,
+      materialIds: ids,
+    });
   };
 
   const newItemCount = allItems.filter((i: any) => !i.alreadySynced).length;
-  const isPending = syncFromGlobalMut.isPending || bulkImportToProjectMut.isPending;
+  const isPending = importMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,6 +194,15 @@ export function SyncCatalogDialog({
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+          </div>
+        ) : previewQuery.isError ? (
+          <div className="text-center py-12 space-y-2 text-destructive">
+            <AlertTriangle className="h-8 w-8 mx-auto text-amber-500" />
+            <p className="font-semibold text-sm">Failed to load sync items</p>
+            <p className="text-xs text-muted-foreground">{previewQuery.error?.message || "An unexpected error occurred."}</p>
+            <Button size="sm" variant="outline" onClick={() => previewQuery.refetch()} className="text-xs mt-2">
+              Retry
+            </Button>
           </div>
         ) : allItems.length === 0 ? (
           <div className="text-center py-16 text-sm text-muted-foreground">
@@ -218,215 +230,218 @@ export function SyncCatalogDialog({
               <div className="flex items-center gap-1.5">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-7 text-[11px]"
+                  variant="outline"
+                  className="h-7 text-xs"
                   onClick={selectAllNew}
                   disabled={newItemCount === 0}
                 >
-                  Select All Available ({newItemCount})
+                  Select All New ({newItemCount})
                 </Button>
                 {selectedIds.size > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-[11px] text-muted-foreground"
-                    onClick={clearAll}
-                  >
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearAll}>
                     Clear
                   </Button>
                 )}
               </div>
             </div>
 
-            <div className="relative my-1">
-              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
+                placeholder="Search items to sync..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by material name or specification..."
                 className="pl-8 h-8 text-xs"
               />
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 my-1 max-h-[50vh]">
+            <div className="flex-1 overflow-y-auto max-h-[45vh] border rounded-md divide-y divide-border/60 text-xs">
               {Object.entries(treeData).map(([category, groups]: [string, any]) => {
                 const catItems = Object.values(groups).flat() as any[];
-                const newInCat = catItems.filter((i) => !i.alreadySynced);
-                const selectedInCat = newInCat.filter((i) => selectedIds.has(i.id));
-                const allCatSelected =
-                  newInCat.length > 0 && selectedInCat.length === newInCat.length;
-                const isCatCollapsed = collapsedCats[category];
+                const isCatCollapsed = !!collapsedCats[category];
+                const catNew = catItems.filter((i) => !i.alreadySynced);
+                const allCatSelected = catNew.length > 0 && catNew.every((i) => selectedIds.has(i.id));
 
                 return (
-                  <div
-                    key={category}
-                    className="rounded-lg border border-border/50 overflow-hidden"
-                  >
-                    <div
-                      className="flex items-center gap-2 px-3 py-1.5 bg-muted/60 dark:bg-zinc-900 cursor-pointer select-none"
-                      onClick={() =>
-                        setCollapsedCats((prev) => ({
-                          ...prev,
-                          [category]: !prev[category],
-                        }))
-                      }
-                    >
-                      {isCatCollapsed ? (
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <div key={category} className="bg-card">
+                    {/* Category Header */}
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 hover:bg-muted/60 font-semibold select-none cursor-pointer">
+                      <div
+                        className="flex items-center gap-1.5 flex-1"
+                        onClick={() =>
+                          setCollapsedCats((p) => ({ ...p, [category]: !p[category] }))
+                        }
+                      >
+                        {isCatCollapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <Folder className="h-3.5 w-3.5 text-amber-500" />
+                        <span>{category}</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">
+                          ({catItems.length})
+                        </span>
+                      </div>
+                      {catNew.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleCategory(catItems);
+                          }}
+                          className={cn(
+                            "text-[10px] px-2 py-0.5 rounded border transition-colors",
+                            allCatSelected
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-muted-foreground border-border hover:border-primary"
+                          )}
+                        >
+                          {allCatSelected ? "Deselect" : "Select Category"}
+                        </button>
                       )}
-                      <input
-                        type="checkbox"
-                        checked={allCatSelected}
-                        onChange={() => toggleCategory(catItems)}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={newInCat.length === 0}
-                        className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer"
-                      />
-                      <span className="font-semibold text-xs text-foreground flex-1 truncate">
-                        {category}
-                      </span>
-                      <Badge variant="outline" className="text-[10px] font-mono shrink-0">
-                        {catItems.length} items
-                      </Badge>
                     </div>
 
-                    {!isCatCollapsed && (
-                      <div className="p-1.5 space-y-1.5 bg-background">
-                        {Object.entries(groups).map(([grpName, grpItems]: [string, any]) => {
-                          const grpKey = `${category}::${grpName}`;
-                          const isGrpCollapsed = collapsedGroups[grpKey];
-                          const newInGrp = grpItems.filter((i: any) => !i.alreadySynced);
-                          const selectedInGrp = newInGrp.filter((i: any) =>
-                            selectedIds.has(i.id)
-                          );
-                          const allGrpSelected =
-                            newInGrp.length > 0 &&
-                            selectedInGrp.length === newInGrp.length;
+                    {/* Groups */}
+                    {!isCatCollapsed &&
+                      Object.entries(groups).map(([grpName, items]: [string, any]) => {
+                        const grpKey = `${category}::${grpName}`;
+                        const isGrpCollapsed = !!collapsedGroups[grpKey];
+                        const grpNew = items.filter((i: any) => !i.alreadySynced);
+                        const allGrpSelected =
+                          grpNew.length > 0 && grpNew.every((i: any) => selectedIds.has(i.id));
 
-                          return (
-                            <div
-                              key={grpKey}
-                              className="rounded-md border border-border/30 overflow-hidden ml-3"
-                            >
+                        return (
+                          <div key={grpName} className="pl-4 border-t border-border/30">
+                            <div className="flex items-center justify-between px-3 py-1 bg-muted/20 hover:bg-muted/30 select-none cursor-pointer">
                               <div
-                                className="flex items-center gap-2 px-2.5 py-1 bg-slate-700/10 dark:bg-zinc-800/40 cursor-pointer select-none"
+                                className="flex items-center gap-1.5 flex-1"
                                 onClick={() =>
-                                  setCollapsedGroups((prev) => ({
-                                    ...prev,
-                                    [grpKey]: !prev[grpKey],
+                                  setCollapsedGroups((p) => ({
+                                    ...p,
+                                    [grpKey]: !p[grpKey],
                                   }))
                                 }
                               >
                                 {isGrpCollapsed ? (
-                                  <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
                                 ) : (
-                                  <ChevronDown className="h-3 w-3 text-amber-500 shrink-0" />
+                                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
                                 )}
-                                <input
-                                  type="checkbox"
-                                  checked={allGrpSelected}
-                                  onChange={() => toggleGroup(grpItems)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  disabled={newInGrp.length === 0}
-                                  className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer"
-                                />
-                                <Folder className="h-3 w-3 text-amber-500/80 shrink-0" />
-                                <span className="font-medium text-xs text-foreground flex-1 truncate">
-                                  {grpName}
+                                <span className="font-medium text-foreground">{grpName}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  ({items.length})
                                 </span>
-                                <Badge
-                                  variant="outline"
-                                  className="text-[9px] font-mono shrink-0 bg-transparent text-muted-foreground"
-                                >
-                                  {grpItems.length} specs
-                                </Badge>
                               </div>
-
-                              {!isGrpCollapsed && (
-                                <div className="divide-y divide-border/30 bg-background/50 pl-3">
-                                  {grpItems.map((item: any) => {
-                                    const specText = item.subCategory || item.name;
-                                    const isSelected =
-                                      item.alreadySynced || selectedIds.has(item.id);
-
-                                    return (
-                                      <div
-                                        key={item.id}
-                                        className={cn(
-                                          "flex items-center gap-2.5 px-3 py-1 text-xs transition-colors",
-                                          item.alreadySynced
-                                            ? "bg-emerald-500/5 text-muted-foreground"
-                                            : selectedIds.has(item.id)
-                                              ? "bg-amber-500/8 dark:bg-amber-950/20"
-                                              : "hover:bg-muted/30 cursor-pointer"
-                                        )}
-                                        onClick={() =>
-                                          !item.alreadySynced && toggleItem(item.id)
-                                        }
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={() =>
-                                            !item.alreadySynced && toggleItem(item.id)
-                                          }
-                                          onClick={(e) => e.stopPropagation()}
-                                          disabled={item.alreadySynced}
-                                          className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                                        />
-                                        <span className="flex-1 font-mono text-xs text-foreground truncate">
-                                          {specText}
-                                        </span>
-                                        <span className="text-muted-foreground font-mono text-[10px] shrink-0 w-16 text-right">
-                                          {item.defaultUnit || "unit"}
-                                        </span>
-                                        {item.alreadySynced && (
-                                          <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 text-[9px] border-0 px-1.5 shrink-0">
-                                            <CheckCircle2 className="h-3 w-3 mr-0.5" /> Synced
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                              {grpNew.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleGroup(items);
+                                  }}
+                                  className={cn(
+                                    "text-[10px] px-1.5 py-0.5 rounded border transition-colors",
+                                    allGrpSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background text-muted-foreground border-border hover:border-primary"
+                                  )}
+                                >
+                                  {allGrpSelected ? "Deselect" : "Select Group"}
+                                </button>
                               )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+
+                            {!isGrpCollapsed &&
+                              items.map((item: any) => {
+                                const isSelected = selectedIds.has(item.id);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => !item.alreadySynced && toggleItem(item.id)}
+                                    className={cn(
+                                      "flex items-center justify-between px-4 py-1.5 pl-8 transition-colors select-none",
+                                      item.alreadySynced
+                                        ? "opacity-60 cursor-default bg-emerald-50/40 dark:bg-emerald-950/10"
+                                        : isSelected
+                                        ? "bg-primary/10 cursor-pointer"
+                                        : "hover:bg-muted/40 cursor-pointer"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={item.alreadySynced || isSelected}
+                                        disabled={item.alreadySynced}
+                                        onChange={() => {}}
+                                        className="h-3.5 w-3.5 rounded border-muted-foreground text-primary focus:ring-0"
+                                      />
+                                      <span
+                                        className={cn(
+                                          item.alreadySynced &&
+                                            "text-muted-foreground line-through decoration-emerald-500/50"
+                                        )}
+                                      >
+                                        {item.subCategory ? (
+                                          <>
+                                            <span className="font-medium">{item.name}</span>{" "}
+                                            <span className="text-muted-foreground">
+                                              ({item.subCategory})
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="font-medium">{item.name}</span>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-mono text-muted-foreground">
+                                        {item.defaultUnit || "unit"}
+                                      </span>
+                                      {item.alreadySynced ? (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[9px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-300"
+                                        >
+                                          Synced
+                                        </Badge>
+                                      ) : item.defaultRate > 0 ? (
+                                        <span className="text-[10px] font-mono text-foreground font-semibold">
+                                          NPR {item.defaultRate.toLocaleString()}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        );
+                      })}
                   </div>
                 );
               })}
             </div>
-
-            <DialogFooter className="pt-2 gap-2 border-t">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSync}
-                disabled={selectedIds.size === 0 || isPending}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-medium gap-1.5"
-              >
-                {isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-                Sync {selectedIds.size > 0 ? `${selectedIds.size} Selected` : "Items"}
-              </Button>
-            </DialogFooter>
           </>
         )}
+
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSync}
+            disabled={selectedIds.size === 0 || isPending}
+            className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+          >
+            {isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+            Import Selected ({selectedIds.size})
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

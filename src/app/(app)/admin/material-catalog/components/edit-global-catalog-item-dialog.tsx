@@ -38,12 +38,12 @@ export function EditGlobalCatalogItemDialog({
     item.defaultRate ? String(item.defaultRate) : ""
   );
 
-  const updateMut = trpc.materialCatalog.update.useMutation();
+  const updateMutV2 = trpc.catalogV2.updateMaterial.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await updateMut.mutateAsync({
+      await updateMutV2.mutateAsync({
         id: item.id,
         name: name.trim(),
         category: category.trim() || undefined,
@@ -52,7 +52,7 @@ export function EditGlobalCatalogItemDialog({
         defaultRate: parseFloat(defaultRate) || 0,
       });
 
-      const isGlobalItem = item.isGlobal || !item.organizationId;
+      const isGlobalItem = item.scope === "global" || item.isGlobal || !item.organizationId;
       toast.success(
         `${isGlobalItem ? "Global Master" : "Organization Custom"} item updated!`
       );
@@ -63,7 +63,7 @@ export function EditGlobalCatalogItemDialog({
     }
   };
 
-  const isGlobalItem = item.isGlobal || !item.organizationId;
+  const isGlobalItem = item.scope === "global" || item.isGlobal || !item.organizationId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -99,7 +99,8 @@ export function EditGlobalCatalogItemDialog({
             <MaterialNameInput
               value={name}
               onChange={setName}
-              scope={isGlobalItem ? "global" : "org"}
+              scope={(item.scope as any) || (isGlobalItem ? "global" : "org")}
+              projectId={item.projectId}
               required
             />
           </div>
@@ -122,7 +123,7 @@ export function EditGlobalCatalogItemDialog({
             <Button
               size="sm"
               type="submit"
-              disabled={updateMut.isPending || !name}
+              disabled={updateMutV2.isPending || !name}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >
               {isGlobalItem ? "Save Global Master Changes" : "Save Changes"}

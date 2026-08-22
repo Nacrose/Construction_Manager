@@ -34,14 +34,8 @@ import { chatRouter } from "./chat";
 import { projectOpsRouter } from "./project-ops";
 import { financeRouter } from "./finance";
 import { executionRouter } from "./execution";
-import { materialCatalogRouter } from "./material-catalog";
-import { globalMaterialCatalogRouter } from "./global-material-catalog";
-import { orgMaterialEntryRouter } from "./org-material-entry";
 import { uncatalogedMaterialRouter } from "./uncataloged-material";
-import { materialMergeRouter } from "./material-merge";
-import { materialImportRouter } from "./material-import";
 import { fiscalYearRouter } from "./fiscal-year";
-import { rateCatalogRouter } from "./rate-catalog";
 import { userPreferencesRouter } from "./user-preferences";
 import { requisitionRouter } from "./requisition";
 import { storeLocationRouter } from "./store-location";
@@ -53,8 +47,6 @@ import { subcontractorBillRouter } from "./subcontractor-bill";
 import { leaveRouter } from "./leave";
 import { payrollRouter } from "./payroll";
 import { siteExpenseRouter } from "./site-expense";
-
-import { projectRateRouter } from "./project-rate";
 import { catalogV2Router } from "./catalog-v2";
 
 export const appRouter = router({
@@ -89,15 +81,8 @@ export const appRouter = router({
   projectOps: projectOpsRouter,
   finance: financeRouter,
   execution: executionRouter,
-  materialCatalog: materialCatalogRouter,
-  globalMaterialCatalog: globalMaterialCatalogRouter,
-  orgMaterialEntry: orgMaterialEntryRouter,
   uncatalogedMaterial: uncatalogedMaterialRouter,
-  materialMerge: materialMergeRouter,
-  materialImport: materialImportRouter,
   fiscalYear: fiscalYearRouter,
-  rateCatalog: rateCatalogRouter,
-  projectRate: projectRateRouter,
   userPreferences: userPreferencesRouter,
   requisition: requisitionRouter,
   storeLocation: storeLocationRouter,
@@ -113,4 +98,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-

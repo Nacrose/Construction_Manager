@@ -26,6 +26,7 @@ import { EditVendorDialog } from "./components/edit-vendor-dialog";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
+  { label: "Resource & Rate Library", href: "/rate-library" },
   { label: "Equipment & Fleet", href: "/equipment" },
   { label: "Plant & Production", href: "/production" },
   { label: "Subcontractors", href: "/subcontractors" },

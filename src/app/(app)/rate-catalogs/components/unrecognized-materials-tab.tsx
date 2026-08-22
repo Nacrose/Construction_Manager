@@ -1,69 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Search, Loader2, Check, AlertTriangle, Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Layers,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  Plus,
+  Ban,
+  Building2,
+  Globe,
+  RefreshCw,
+  Search,
+  Check,
+  X,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  PromoteUncatalogedDialog,
+  type UncatalogedReviewItem,
+} from "./promote-uncataloged-dialog";
 
-export function UnrecognizedBadge() {
-  const { data } = trpc.materialCatalog.unrecognizedCount.useQuery({});
-  if (!data?.count) return null;
+export function UnrecognizedBadge({ organizationId }: { organizationId?: string }) {
+  const { data } = trpc.uncatalogedMaterial.stats.useQuery({
+    level: "org",
+    organizationId,
+  });
+  if (!data?.pending) return null;
   return (
-    <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-bold text-white">
-      {data.count > 99 ? "99+" : data.count}
-    </span>
+    <Badge variant="destructive" className="ml-1.5 px-1.5 py-0 text-[10px] leading-none">
+      {data.pending}
+    </Badge>
   );
 }
 
-export function UnrecognizedMaterialsTab() {
+export function UnrecognizedMaterialsTab({
+  level = "org",
+  organizationId,
+}: {
+  level?: "global" | "org";
+  organizationId?: string;
+}) {
   const utils = trpc.useUtils();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<"pending" | "mapped" | "ignored" | "all">("pending");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [itemToPromote, setItemToPromote] = useState<UncatalogedReviewItem | null>(null);
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false);
 
-  const { data, isLoading } = trpc.materialCatalog.unrecognizedList.useQuery({});
-  const { data: catalogData } = trpc.materialCatalog.list.useQuery({ limit: 1000 });
+  const statsQuery = trpc.uncatalogedMaterial.stats.useQuery({
+    level,
+    organizationId,
+  });
 
-  const promote = trpc.materialCatalog.unrecognizedPromote.useMutation({
+  const listQuery = trpc.uncatalogedMaterial.list.useQuery({
+    level,
+    organizationId,
+    status: statusFilter,
+  });
+
+  const promoteToOrgMutation = trpc.uncatalogedMaterial.promoteToOrg.useMutation({
     onSuccess: () => {
-      utils.materialCatalog.unrecognizedList.invalidate();
-      utils.materialCatalog.unrecognizedCount.invalidate();
-      utils.materialCatalog.list.invalidate();
+      utils.uncatalogedMaterial.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const deleteEntry = trpc.materialCatalog.unrecognizedDelete.useMutation({
+  const mapMutation = trpc.uncatalogedMaterial.mapToExisting.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Successfully mapped to catalog (${data.remappedCount} project records linked)`);
+      utils.uncatalogedMaterial.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const ignoreMutation = trpc.uncatalogedMaterial.ignore.useMutation({
     onSuccess: () => {
-      utils.materialCatalog.unrecognizedList.invalidate();
-      utils.materialCatalog.unrecognizedCount.invalidate();
+      toast.success("Item marked as ignored");
+      utils.uncatalogedMaterial.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const scanMutation = trpc.uncatalogedMaterial.scanProjects.useMutation({
+    onSuccess: (res) => {
+      utils.uncatalogedMaterial.invalidate();
+      if (res.addedCount > 0) {
+        toast.success(`Discovered ${res.addedCount} uncataloged project material(s) for review.`);
+      } else {
+        toast.info("All project materials are already mapped or reviewed.");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const items = data?.items ?? [];
-  const catalogItems = catalogData?.items ?? [];
+  const stats = statsQuery.data || { pending: 0, mapped: 0, promoted: 0, ignored: 0, total: 0 };
+  const rawItems = listQuery.data?.items || [];
 
-  const getFuzzyMatch = (name: string) => {
-    const norm = name.toLowerCase().trim();
-    if (!norm) return null;
-    return catalogItems.find((item) => {
-      const matchNorm = item.name.toLowerCase().trim();
-      return (
-        matchNorm.includes(norm) ||
-        norm.includes(matchNorm) ||
-        (item.subCategory && matchNorm.includes(norm.split(" ")[0]))
-      );
-    });
-  };
-
-  const filteredItems = items.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return rawItems;
+    return rawItems.filter(
+      (item) =>
+        item.rawName.toLowerCase().includes(q) ||
+        (item.unit && item.unit.toLowerCase().includes(q)) ||
+        (item.category && item.category.toLowerCase().includes(q))
+    );
+  }, [rawItems, searchQuery]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -87,28 +140,44 @@ export function UnrecognizedMaterialsTab() {
     if (idsToPromote.length === 0) return;
 
     let successCount = 0;
+    let forbidden = false;
+
     toast.info(`Promoting ${idsToPromote.length} items to organization catalog...`);
 
     for (const id of idsToPromote) {
-      const item = items.find((i) => i.id === id);
+      const item = rawItems.find((i) => i.id === id);
       if (!item) continue;
+
+      const raw = item.rawName.trim();
+      const parenMatch = raw.match(/^(.*?)\s*\((.*?)\)$/);
+      const parsedName = parenMatch ? parenMatch[1].trim() : raw;
+      const parsedSpec = parenMatch ? parenMatch[2].trim() : undefined;
+
       try {
-        await promote.mutateAsync({
+        await promoteToOrgMutation.mutateAsync({
           id: item.id,
+          name: parsedName,
+          subCategory: parsedSpec,
           category: item.category ?? undefined,
-          defaultUnit: item.unit ?? undefined,
+          defaultUnit: item.unit || "unit",
         });
         successCount++;
-      } catch {
-        // continue
+      } catch (err: any) {
+        if (err?.message?.toLowerCase().includes("admin") || err?.message?.toLowerCase().includes("forbidden")) {
+          forbidden = true;
+        }
       }
     }
 
     setSelectedIds(new Set());
-    utils.materialCatalog.unrecognizedList.invalidate();
-    utils.materialCatalog.unrecognizedCount.invalidate();
-    utils.materialCatalog.list.invalidate();
-    toast.success(`Successfully promoted ${successCount} items.`);
+    utils.uncatalogedMaterial.invalidate();
+    utils.catalogV2.listMaterials.invalidate();
+
+    if (forbidden && successCount === 0) {
+      toast.error("Organization Admin permissions required to promote materials to the Organization Catalog.");
+    } else if (successCount > 0) {
+      toast.success(`Successfully promoted ${successCount} items to Organization Catalog.`);
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -119,73 +188,102 @@ export function UnrecognizedMaterialsTab() {
       return;
     }
 
-    let successCount = 0;
     for (const id of idsToDelete) {
       try {
-        await deleteEntry.mutateAsync({ id });
-        successCount++;
-      } catch {
-        // continue
-      }
+        await ignoreMutation.mutateAsync({ id });
+      } catch {}
     }
 
     setSelectedIds(new Set());
-    utils.materialCatalog.unrecognizedList.invalidate();
-    utils.materialCatalog.unrecognizedCount.invalidate();
-    toast.success(`Dismissed ${successCount} items.`);
+    utils.uncatalogedMaterial.invalidate();
+    toast.success(`Ignored ${idsToDelete.length} items.`);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
-  if (items.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          <Check className="mx-auto h-8 w-8 mb-2 opacity-40 text-emerald-500" />
-          No unrecognized materials. All materials used in projects are in the catalog.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
-
   return (
-    <div className="space-y-[3px]">
-      <p className="text-[11px] text-muted-foreground">
-        These materials were added at the project level but do not exist in the Master Catalog yet.
-        Promote them to sync them.
-      </p>
+    <div className="space-y-4">
+      {/* Header & Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            <Layers className="h-4 w-4 text-amber-500" />
+            Uncataloged Materials Governance
+          </div>
+          <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200">
+            {stats.pending} Needs Review
+          </Badge>
+        </div>
 
-      {/* Toolbars and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+        {/* Status Filter Tabs */}
+        <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border/50 text-xs">
+          <button
+            onClick={() => setStatusFilter("pending")}
+            className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+              statusFilter === "pending"
+                ? "bg-background text-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Pending ({stats.pending})
+          </button>
+          <button
+            onClick={() => setStatusFilter("mapped")}
+            className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+              statusFilter === "mapped"
+                ? "bg-background text-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Mapped ({stats.mapped})
+          </button>
+          <button
+            onClick={() => setStatusFilter("ignored")}
+            className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+              statusFilter === "ignored"
+                ? "bg-background text-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Ignored ({stats.ignored})
+          </button>
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-2.5 py-1 rounded-md transition-all font-medium ${
+              statusFilter === "all"
+                ? "bg-background text-foreground shadow-sm font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            All ({stats.total})
+          </button>
+        </div>
+      </div>
+
+      {/* Toolbar: Search, Select All, Scan */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-md">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search unrecognized items..."
-              className="pl-8 h-8 text-xs"
+              placeholder="Search unrecognized materials..."
+              className="h-8 text-xs pl-8"
             />
           </div>
+          {statusFilter === "pending" && filteredItems.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleAll}
+              className="h-8 text-xs shrink-0"
+            >
+              {selectedIds.size === filteredItems.length ? "Deselect All" : "Select All"}
+            </Button>
+          )}
+        </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={toggleAll}
-            className="h-8 text-xs px-2.5"
-          >
-            {allSelected ? "Deselect All" : "Select All"}
-          </Button>
-
-          {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && statusFilter === "pending" && (
             <div className="flex items-center gap-1.5 animate-fade-in">
               <Button
                 size="sm"
@@ -204,103 +302,217 @@ export function UnrecognizedMaterialsTab() {
               </Button>
             </div>
           )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => scanMutation.mutate({ level, organizationId })}
+            disabled={scanMutation.isPending}
+            className="h-8 text-xs gap-1.5 shrink-0"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", scanMutation.isPending && "animate-spin text-amber-500")} />
+            {scanMutation.isPending ? "Scanning Projects..." : "Scan Projects"}
+          </Button>
         </div>
       </div>
 
-      {/* List of items */}
-      <div className="space-y-[3px]">
-        {filteredItems.map((item) => {
-          const isSelected = selectedIds.has(item.id);
-          const fuzzyMatch = getFuzzyMatch(item.name);
-
-          return (
-            <Card
-              key={item.id}
-              className={cn(
-                "p-[6px] border border-border/40 bg-card/40 backdrop-blur-xs transition-colors",
-                isSelected && "bg-amber-500/5 border-amber-500/30"
-              )}
+      {/* Items List */}
+      {listQuery.isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <Card className="p-8 text-center border-dashed border-border/70 bg-muted/10">
+          <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+          <h3 className="text-sm font-semibold text-foreground">
+            {searchQuery ? "No matching uncataloged materials" : "No uncataloged materials in this queue"}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+            {searchQuery
+              ? "Try clearing your search query."
+              : "All materials used in projects are recognized in the catalog, or have already been reviewed."}
+          </p>
+          {!searchQuery && statusFilter === "pending" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => scanMutation.mutate({ level, organizationId })}
+              disabled={scanMutation.isPending}
+              className="mt-4 h-8 text-xs gap-1.5"
             >
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelect(item.id)}
-                  className="rounded border-gray-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer"
-                />
+              <RefreshCw className={cn("h-3.5 w-3.5", scanMutation.isPending && "animate-spin text-amber-500")} />
+              Scan Projects for Custom Materials
+            </Button>
+          )}
+        </Card>
+      ) : (
+        <div className="space-y-2.5">
+          {filteredItems.map((item) => {
+            const isSelected = selectedIds.has(item.id);
+            const suggestions = item.suggestions || [];
+            const isPendingStatus = item.status === "pending";
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-foreground font-mono">
-                      {item.name}
-                    </span>
-                    {item.unit && (
-                      <span className="text-[10px] text-muted-foreground font-mono bg-zinc-100 dark:bg-zinc-800 px-1 py-0.2 rounded">
-                        {item.unit}
-                      </span>
+            return (
+              <Card
+                key={item.id}
+                className={cn(
+                  "p-3 border border-border/70 shadow-xs bg-card hover:border-border transition-all",
+                  isSelected && "bg-amber-500/5 border-amber-500/30"
+                )}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  {/* Left: Material Info & Suggestions */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {isPendingStatus && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(item.id)}
+                        className="mt-1 rounded border-gray-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer shrink-0"
+                      />
                     )}
-                    {item.count > 1 && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] py-0 leading-none h-4 border-amber-200/50 bg-amber-500/5 text-amber-600"
-                      >
-                        Used {item.count}x
+
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-foreground font-mono">
+                          {item.rawName}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted/60">
+                          {item.sourceType || "project_material"}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          Used {item.occurrenceCount}×
+                        </Badge>
+                        {item.unit && (
+                          <span className="text-[11px] text-muted-foreground font-mono bg-muted/80 px-1.5 py-0.5 rounded">
+                            {item.unit}
+                          </span>
+                        )}
+                        {item.category && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-border/80">
+                            {item.category}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Smart Fuzzy Suggestions Box */}
+                      {isPendingStatus && suggestions.length > 0 && (
+                        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-2 space-y-1.5 max-w-xl">
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                            <Sparkles className="h-3 w-3" />
+                            <span>Catalog Match Suggestions:</span>
+                          </div>
+                          <div className="space-y-1">
+                            {suggestions.slice(0, 2).map((sugg) => {
+                              const scorePct = Math.round((sugg.score || 0) * 100);
+                              return (
+                                <div
+                                  key={sugg.id}
+                                  className="flex items-center justify-between bg-background/90 border border-border/40 rounded px-2 py-1 text-xs"
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <span className="font-semibold text-foreground">{sugg.name}</span>
+                                    {sugg.subCategory && (
+                                      <span className="text-muted-foreground ml-1">({sugg.subCategory})</span>
+                                    )}
+                                    <span className="text-[10px] text-muted-foreground ml-2">
+                                      {scorePct}% match • {sugg.category || "General"}
+                                    </span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={mapMutation.isPending}
+                                    onClick={() =>
+                                      mapMutation.mutate({
+                                        id: item.id,
+                                        targetType: level,
+                                        targetId: sugg.id,
+                                      })
+                                    }
+                                    className="h-6 text-[11px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 shrink-0 gap-1"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                    Map to this
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2 shrink-0 justify-end self-end lg:self-center">
+                    {isPendingStatus ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium px-2.5 gap-1 shadow-xs"
+                          onClick={() => {
+                            setItemToPromote({
+                              id: item.id,
+                              name: item.rawName,
+                              rawName: item.rawName,
+                              category: item.category,
+                              unit: item.unit,
+                              count: item.occurrenceCount,
+                              suggestions: item.suggestions,
+                            });
+                            setShowPromoteDialog(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Promote to {level === "global" ? "Global" : "Org"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-2"
+                          disabled={ignoreMutation.isPending}
+                          onClick={() => {
+                            if (confirm(`Ignore "${item.rawName}"?`)) {
+                              ignoreMutation.mutate({ id: item.id });
+                            }
+                          }}
+                        >
+                          <Ban className="h-3 w-3 mr-1" />
+                          Ignore
+                        </Button>
+                      </>
+                    ) : item.status === "mapped" ? (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-1 px-2 py-1 text-xs">
+                        <CheckCircle2 className="h-3 w-3" /> Mapped
                       </Badge>
-                    )}
-
-                    {fuzzyMatch && (
-                      <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3 shrink-0" />
-                        Similar to existing: &quot;{fuzzyMatch.name} {fuzzyMatch.subCategory || ""}&quot;
-                      </span>
+                    ) : item.status === "promoted" ? (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-1 px-2 py-1 text-xs">
+                        <CheckCircle2 className="h-3 w-3" /> Promoted
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-muted text-muted-foreground gap-1 px-2 py-1 text-xs">
+                        <Ban className="h-3 w-3" /> Ignored
+                      </Badge>
                     )}
                   </div>
                 </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium px-2.5"
-                    disabled={promote.isPending}
-                    onClick={() =>
-                      promote.mutate({
-                        id: item.id,
-                        category: item.category ?? undefined,
-                        defaultUnit: item.unit ?? undefined,
-                      })
-                    }
-                  >
-                    {promote.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                    ) : (
-                      <Plus className="h-3 w-3 mr-1" />
-                    )}
-                    Promote
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 shrink-0"
-                    onClick={() => {
-                      if (confirm(`Ignore "${item.name}"?`)) {
-                        deleteEntry.mutate({ id: item.id });
-                      }
-                    }}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-
-        {filteredItems.length === 0 && (
-          <div className="text-center py-6 text-xs text-muted-foreground">
-            No unrecognized items match your search.
-          </div>
-        )}
-      </div>
+      {/* Interactive Review & Promote Dialog */}
+      <PromoteUncatalogedDialog
+        open={showPromoteDialog}
+        onOpenChange={setShowPromoteDialog}
+        item={itemToPromote}
+        level={level}
+      />
     </div>
   );
 }

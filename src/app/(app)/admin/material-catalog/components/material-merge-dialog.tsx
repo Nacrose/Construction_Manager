@@ -55,7 +55,7 @@ export function MaterialMergeDialog({
   const [loserName, setLoserName] = useState<string>(initialLoserName);
   const [notes, setNotes] = useState<string>("");
 
-  const previewQuery = trpc.materialMerge.previewMerge.useQuery(
+  const previewQuery = trpc.catalogV2.previewMerge.useQuery(
     {
       level,
       winnerId: winnerId || "",
@@ -66,11 +66,10 @@ export function MaterialMergeDialog({
     }
   );
 
-  const mergeMutation = trpc.materialMerge.executeMerge.useMutation({
+  const mergeMutation = trpc.catalogV2.executeMerge.useMutation({
     onSuccess: (data) => {
       toast.success(`Successfully merged materials! (${data.totalRowsRemapped} rows safely remapped across ${data.affectedTables.join(", ")})`);
-      utils.orgMaterialEntry.invalidate();
-      utils.globalMaterialCatalog.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
       utils.material.invalidate();
       utils.uncatalogedMaterial.invalidate();
       onOpenChange(false);

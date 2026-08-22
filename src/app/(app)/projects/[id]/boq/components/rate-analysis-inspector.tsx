@@ -18,6 +18,7 @@ import {
   Calculator,
   Loader2,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,7 @@ export function RateAnalysisInspector({
   const [newUnit, setNewUnit] = useState("cum");
   const [newRate, setNewRate] = useState("");
   const [newPctBase, setNewPctBase] = useState("all");
+  const [selectedResourceId, setSelectedResourceId] = useState("");
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
 
   const itemId = item?.id ?? "";
@@ -107,12 +109,6 @@ export function RateAnalysisInspector({
     { enabled: !!rateCatalogId }
   );
 
-  // Project rate table for auto-fill on ingredient selection
-  const { data: projectRates } = trpc.projectRate.getProjectRates.useQuery(
-    { projectId },
-    { enabled: !!projectId }
-  );
-
   // 4. Presets
   const { data: presetsData } = trpc.globalPreset.listOrg.useQuery({});
 
@@ -127,6 +123,7 @@ export function RateAnalysisInspector({
       setNewQty("");
       setNewRate("");
       setNewPct("");
+      setSelectedResourceId("");
       setSelectedCatalogItemId("");
       setAddingMode("none");
     },
@@ -182,26 +179,21 @@ export function RateAnalysisInspector({
     onError: (e) => toast.error(e.message),
   });
 
-  // Handle ingredient catalog auto-fill (v2)
-  function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
+  // Handle ingredient catalog / resource library selection
+  function handleIngredientSelect(name: string, resource?: { id: string; name: string; unit: string; catalogMaterialId?: string | null }) {
     setNewName(name);
-    setSelectedCatalogItemId(catalogItem?.id ?? "");
-    if (catalogItem?.unit) setNewUnit(catalogItem.unit);
+    setSelectedResourceId(resource?.id ?? "");
+    setSelectedCatalogItemId(resource?.catalogMaterialId ?? "");
+    if (resource?.unit) setNewUnit(resource.unit);
     // Try rate catalog district rate first (v2: catalogRates with material relation)
-    if (catalogItem?.id && catalogDetails?.catalog && rateDistrict) {
+    const catId = resource?.catalogMaterialId;
+    if (catId && catalogDetails?.catalog && rateDistrict) {
       const rateEntry = catalogDetails.catalog.catalogRates?.find(
-        (r: any) => r.materialId === catalogItem.id && r.district === rateDistrict
+        (r: any) => r.materialId === catId && r.district === rateDistrict
       );
       if (rateEntry && rateEntry.rate > 0) {
         setNewRate(String(rateEntry.rate));
         return;
-      }
-    }
-    // Fallback: project rate table
-    if (catalogItem?.id && projectRates?.rateMap) {
-      const projectRate = projectRates.rateMap[catalogItem.id];
-      if (projectRate && projectRate > 0) {
-        setNewRate(String(projectRate));
       }
     }
   }
@@ -275,6 +267,8 @@ export function RateAnalysisInspector({
   const ratePerUnit = batch > 0 ? totalBatchCost / batch : 0;
   const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const missingRateCount = fixed.filter((i) => !i.rate || i.rate <= 0).length;
+
   return (
     <aside
       className="w-full lg:w-[480px] shrink-0 border-l border-emerald-500/25 bg-[#080d0a]/95 flex flex-col h-[calc(100vh-140px)] z-20 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md overflow-hidden rounded-r-lg"
@@ -332,6 +326,16 @@ export function RateAnalysisInspector({
           })}
         </div>
       </div>
+
+      {/* Warning banner if rates are missing */}
+      {missingRateCount > 0 && (
+        <div className="px-3 py-1.5 bg-amber-950/40 border-b border-amber-500/30 text-[10.5px] text-amber-300 font-mono flex items-center gap-1.5 shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <span>
+            {missingRateCount} resource(s) missing rate. Analysis unit rate may be underestimated.
+          </span>
+        </div>
+      )}
 
       {/* 3. Norms Presets & District Catalog Toolbar */}
       <div className="px-3 py-1.5 border-b border-emerald-500/15 bg-[#050a07] flex flex-wrap items-center justify-between gap-1.5 shrink-0 text-xs">
@@ -655,8 +659,10 @@ export function RateAnalysisInspector({
                           <IngredientPicker
                             value={newName}
                             onChange={handleIngredientSelect}
+                            projectId={projectId}
+                            resourceType={newType as any}
                             className="w-full"
-                            placeholder="Search catalog (e.g. Cement, Mason, Excavator)..."
+                            placeholder="Search Resource Library..."
                           />
                         </div>
 
@@ -731,7 +737,7 @@ export function RateAnalysisInspector({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { setAddingMode("none"); setSelectedCatalogItemId(""); }}
+                        onClick={() => { setAddingMode("none"); setSelectedResourceId(""); setSelectedCatalogItemId(""); }}
                         className="h-6 px-2 text-xs text-emerald-400/60"
                       >
                         Cancel
@@ -755,7 +761,8 @@ export function RateAnalysisInspector({
                               quantity: parseFloat(newQty) || 0,
                               unit: newUnit,
                               rate: parseFloat(newRate) || 0,
-                              materialCatalogId: selectedCatalogItemId || undefined,
+                              materialId: selectedResourceId || undefined,
+                              catalogMaterialId: selectedCatalogItemId || undefined,
                             });
                           } else {
                             addMutation.mutate({
@@ -831,14 +838,25 @@ function IngredientRow({
   onUpdate: (data: any) => void;
   onDelete: () => void;
 }) {
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const amount = ing.quantity * ing.rate;
+  const isRateMissing = !ing.rate || ing.rate <= 0;
+  const fmt = (n: number) => (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const amount = (ing.quantity || 0) * (ing.rate || 0);
 
   return (
-    <div className="flex items-center justify-between gap-1.5 p-1.5 rounded bg-emerald-950/15 hover:bg-emerald-950/30 border border-emerald-500/15 text-xs font-mono group transition-colors">
+    <div
+      className={cn(
+        "flex items-center justify-between gap-1.5 p-1.5 rounded bg-emerald-950/15 hover:bg-emerald-950/30 border border-emerald-500/15 text-xs font-mono group transition-colors",
+        isRateMissing && "border-amber-500/35 bg-amber-500/5"
+      )}
+    >
       <div className="flex-1 min-w-0 pr-1">
-        <div className="text-emerald-100 font-medium truncate text-[11px]" title={ing.name}>
-          {ing.name}
+        <div className="text-emerald-100 font-medium truncate text-[11px] flex items-center gap-1.5" title={ing.name}>
+          <span>{ing.name}</span>
+          {isRateMissing && (
+            <span className="px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">
+              ⚠️ Missing Rate
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 text-[9.5px] text-emerald-400/60 mt-0.5">
           {canWrite ? (
@@ -865,7 +883,12 @@ function IngredientRow({
                   const val = parseFloat(e.target.value) || 0;
                   if (val !== ing.rate) onUpdate({ rate: val });
                 }}
-                className="w-14 px-1 py-0.2 rounded bg-[#020503] border border-emerald-500/30 text-emerald-200 text-right text-[10px]"
+                className={cn(
+                  "w-14 px-1 py-0.2 rounded bg-[#020503] border text-right text-[10px]",
+                  isRateMissing
+                    ? "border-amber-500/60 text-amber-300 bg-amber-950/30"
+                    : "border-emerald-500/30 text-emerald-200"
+                )}
               />
             </div>
           ) : (

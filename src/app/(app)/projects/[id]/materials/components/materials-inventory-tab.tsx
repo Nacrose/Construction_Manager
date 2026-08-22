@@ -23,6 +23,7 @@ export type Material = {
   code: string | null;
   category: string | null;
   subCategory?: string | null;
+  resourceType?: string;
   unit: string;
   minStock: number;
   currentStock: number;
@@ -128,11 +129,27 @@ export function MaterialsInventoryTab({
           Name <ArrowUpDown className="ml-1.5 h-3.5 w-3.5" />
         </Button>
       ),
-      cell: ({ row }) => (
-        <div className="font-semibold text-foreground break-words whitespace-normal leading-snug py-0.5">
-          {row.original.name}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const type = row.original.resourceType || "material";
+        return (
+          <div className="flex items-center gap-1.5 font-semibold text-foreground break-words whitespace-normal leading-snug py-0.5">
+            <span>{row.original.name}</span>
+            {type !== "material" && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[9px] px-1 py-0 font-mono capitalize",
+                  type === "labor"
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                )}
+              >
+                {type}
+              </Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "category",

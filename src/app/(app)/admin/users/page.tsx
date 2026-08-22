@@ -26,10 +26,14 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function AdminUsers() {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.admin.listUsers.useQuery({});
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const { data, isLoading } = trpc.admin.listUsers.useQuery({ search: search || undefined, take: PAGE_SIZE, skip: (page - 1) * PAGE_SIZE });
   const orgs = trpc.admin.listOrganizations.useQuery({ take: 200 });
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<null | any>(null);
+  const [confirmAction, setConfirmAction] = useState<{ userId: string; userName: string; action: "superadmin" | "deactivate" } | null>(null);
 
   const createMut = trpc.admin.createUser.useMutation({
     onSuccess: () => { utils.admin.listUsers.invalidate(); setCreateOpen(false); toast.success("User created"); },
@@ -47,15 +51,23 @@ export default function AdminUsers() {
           <h1 className="text-2xl font-bold tracking-tight">Users</h1>
           <p className="text-sm text-muted-foreground">All users across every organization.</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> New User</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>Create User</DialogTitle></DialogHeader>
-            <CreateUserForm orgs={orgs.data?.orgs ?? []} mut={createMut} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-3">
+          <Input
+            placeholder="Search users…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-64"
+          />
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="mr-2 h-4 w-4" /> New User</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle>Create User</DialogTitle></DialogHeader>
+              <CreateUserForm orgs={orgs.data?.orgs ?? []} mut={createMut} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -98,7 +110,7 @@ export default function AdminUsers() {
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => updateMut.mutate({ id: u.id, isSuperAdmin: !u.isSuperAdmin })}
+                          onClick={() => setConfirmAction({ userId: u.id, userName: u.name, action: "superadmin" })}
                           className="rounded p-1 text-muted-foreground hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-950"
                           title={u.isSuperAdmin ? "Revoke superadmin" : "Make superadmin"}
                         >
@@ -106,7 +118,7 @@ export default function AdminUsers() {
                         </button>
                         {!u.deactivatedAt && (
                           <button
-                            onClick={() => { if (confirm(`Deactivate ${u.name}?`)) updateMut.mutate({ id: u.id, deactivatedAt: true }); }}
+                            onClick={() => setConfirmAction({ userId: u.id, userName: u.name, action: "deactivate" })}
                             className="rounded p-1 text-muted-foreground hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950"
                             title="Deactivate"
                           >
@@ -132,6 +144,33 @@ export default function AdminUsers() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {data?.total && data.total > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, data.total)} of {data.total}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page * PAGE_SIZE >= data.total}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
@@ -139,6 +178,40 @@ export default function AdminUsers() {
             <EditUserForm user={editUser} orgs={orgs.data?.orgs ?? []} mut={updateMut}
               onClose={() => setEditUser(null)} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={!!confirmAction} onOpenChange={(o) => !o && setConfirmAction(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmAction?.action === "superadmin" ? "Toggle Superadmin" : "Deactivate User"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmAction?.action === "superadmin"
+                ? `This will revoke full platform access for ${confirmAction?.userName}. They will lose the ability to manage organizations and view all data.`
+                : `This will deactivate ${confirmAction?.userName}'s account. They will be unable to log in.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+            <Button
+              variant={confirmAction?.action === "superadmin" ? "outline" : "destructive"}
+              onClick={() => {
+                if (!confirmAction) return;
+                if (confirmAction.action === "superadmin") {
+                  const user = data?.users?.find((u: any) => u.id === confirmAction.userId);
+                  updateMut.mutate({ id: confirmAction.userId, isSuperAdmin: !user?.isSuperAdmin });
+                } else {
+                  updateMut.mutate({ id: confirmAction.userId, deactivatedAt: true });
+                }
+                setConfirmAction(null);
+              }}
+            >
+              {confirmAction?.action === "superadmin" ? "Confirm" : "Deactivate"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -166,7 +239,7 @@ function CreateUserForm({ orgs, mut }: { orgs: any[]; mut: any }) {
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Temporary Password</Label>
-        <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 chars" />
+        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 8 chars" />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Organization</Label>

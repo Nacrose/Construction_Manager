@@ -78,12 +78,13 @@ async function generateOrgCode(name: string): Promise<string> {
 export const adminRouter = router({
   // ── Dashboard stats ───────────────────────────────────────────
   stats: superAdminProcedure.query(async () => {
-    const [orgCount, userCount, activeUsers] = await Promise.all([
+    const [orgCount, userCount, activeUsers, projectCount] = await Promise.all([
       db.organization.count(),
       db.user.count(),
       db.user.count({ where: { deactivatedAt: null } }),
+      db.project.count(),
     ]);
-    return { orgCount, userCount, activeUsers };
+    return { orgCount, userCount, activeUsers, projectCount };
   }),
 
   // ── Organizations ─────────────────────────────────────────────

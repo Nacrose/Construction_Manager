@@ -10,11 +10,11 @@ const globalForPrisma = globalThis as unknown as {
 // the dev server is running). Detect stale clients by checking for recently-added model
 // fields and discard them so a fresh one is created below.
 function isClientFresh(client: unknown): boolean {
-  const c = client as { boqItem?: unknown; materialCatalog?: unknown };
-  // Must know about boqItem (added in a prior migration)
+  const c = client as { boqItem?: unknown; catalogMaterial?: unknown };
+  // Must know about boqItem
   if (typeof c.boqItem === 'undefined') return false;
-  // Must know about materialCatalog (added later — includes subCategory field)
-  if (typeof c.materialCatalog === 'undefined') return false;
+  // Must know about catalogMaterial
+  if (typeof c.catalogMaterial === 'undefined') return false;
   return true;
 }
 

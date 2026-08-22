@@ -41,7 +41,9 @@ const CreateIngredientSchema = z.object({
   pctBase: z.string().default(""),
   rate: z.number().min(0).default(0),
   sortOrder: z.number().default(0),
-  materialCatalogId: z.string().optional(),
+  materialId: z.string().optional().nullable(),
+  catalogMaterialId: z.string().optional().nullable(),
+  materialCatalogId: z.string().optional().nullable(),
 });
 
 const UpdateIngredientSchema = z.object({
@@ -56,21 +58,13 @@ const UpdateIngredientSchema = z.object({
   percentage: z.number().min(0).max(100).optional(),
   pctBase: z.string().optional(),
   rate: z.number().min(0).optional(),
+  materialId: z.string().optional().nullable(),
+  catalogMaterialId: z.string().optional().nullable(),
+  materialCatalogId: z.string().optional().nullable(),
 });
 
 // ─── Helper: resolve item + assert access ──────────────────────
 
-/**
- * Load a BOQ item by ID and assert the user's access to its project.
- *
- * @param user         The authenticated user (from tRPC context)
- * @param itemId       The BOQ item ID to load
- * @param requireWrite If true, requires write access (excludes client/inspector)
- * @returns            The BOQ item with id, projectId, and code
- * @throws             TRPCError NOT_FOUND if item doesn't exist
- * @throws             TRPCError FORBIDDEN if user is not a project member
- * @throws             TRPCError FORBIDDEN if user is read-only and requireWrite=true
- */
 async function resolveItemAndAssert(
   user: AuthUser,
   itemId: string,
@@ -127,11 +121,51 @@ export const rateAnalysisRouter = router({
 
       const analyses = await db.rateAnalysis.findMany({
         where: { boqItemId: input.itemId, libraryId: { not: null } },
-        include: { ingredients: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          ingredients: {
+            orderBy: { sortOrder: "asc" },
+            include: {
+              material: { select: { id: true, name: true, unit: true, resourceType: true, code: true } },
+              catalogMaterial: { select: { id: true, name: true, defaultUnit: true, resourceType: true } },
+            },
+          },
+        },
         orderBy: { createdAt: "asc" },
       });
 
       return { item, analyses };
+    }),
+
+  /** List ingredients for an item (and optional analysisId) */
+  listIngredients: protectedProcedure
+    .input(z.object({ itemId: z.string(), analysisId: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const item = await resolveItemAndAssert(ctx.user, input.itemId, false);
+      const [ingredients, analysis] = await Promise.all([
+        db.boqIngredient.findMany({
+          where: {
+            boqItemId: item.id,
+            ...(input.analysisId ? { rateAnalysisId: input.analysisId } : {}),
+          },
+          orderBy: { sortOrder: "asc" },
+          include: {
+            material: { select: { id: true, name: true, unit: true, resourceType: true, code: true } },
+            catalogMaterial: { select: { id: true, name: true, defaultUnit: true, resourceType: true } },
+          },
+        }),
+        input.analysisId
+          ? db.rateAnalysis.findUnique({
+              where: { id: input.analysisId },
+              select: { id: true, name: true, batchSize: true, isDefault: true },
+            })
+          : null,
+      ]);
+      return {
+        ingredients,
+        analysis: analysis
+          ? { ...analysis, ingredients }
+          : { id: "", name: "Default", batchSize: 1, isDefault: true, ingredients },
+      };
     }),
 
   /** Create a new rate analysis. */
@@ -198,43 +232,30 @@ export const rateAnalysisRouter = router({
   deleteAnalysis: protectedProcedure
     .input(z.object({ itemId: z.string(), analysisId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await resolveItemAndAssert(ctx.user, input.itemId, true);
-
+      const item = await resolveItemAndAssert(ctx.user, input.itemId, true);
       const analysis = await db.rateAnalysis.findUnique({
         where: { id: input.analysisId },
-        select: { boqItemId: true },
+        select: { boqItemId: true, name: true },
       });
       if (!analysis || analysis.boqItemId !== input.itemId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found." });
       }
 
       await db.rateAnalysis.delete({ where: { id: input.analysisId } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: item.projectId,
+        action: "boq.analysis.delete",
+        entityType: "boq_item",
+        entityId: input.itemId,
+        metadata: { code: item.code, analysisName: analysis.name },
+      });
+
       return { ok: true };
     }),
 
-  /** List ingredients for a specific analysis. */
-  listIngredients: protectedProcedure
-    .input(z.object({ itemId: z.string(), analysisId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const item = await db.boqItem.findUnique({
-        where: { id: input.itemId },
-        select: { projectId: true, unit: true, quantity: true },
-      });
-      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
-      await assertProjectMember(ctx.user, item.projectId);
-
-      const analysis = await db.rateAnalysis.findUnique({
-        where: { id: input.analysisId },
-        include: { ingredients: { orderBy: { sortOrder: "asc" } } },
-      });
-      if (!analysis || analysis.boqItemId !== input.itemId) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Analysis not found." });
-      }
-
-      return { analysis, itemUnit: item.unit, itemQty: item.quantity };
-    }),
-
-  /** Add an ingredient (to item directly, or to a rate analysis). */
+  /** Add an ingredient to a BOQ item (or to a specific rate analysis). */
   addIngredient: protectedProcedure
     .input(CreateIngredientSchema)
     .mutation(async ({ ctx, input }) => {
@@ -245,61 +266,43 @@ export const rateAnalysisRouter = router({
         amount = (input.quantity + (input.quantity * input.percentage) / 100) * input.rate;
       }
 
+      let finalName = input.name;
+      let finalUnit = input.unit;
+      let linkedCatalogMaterialId = input.catalogMaterialId || input.materialCatalogId || null;
+
+      // If materialId is provided (from project Resource Library), auto-fill details
+      if (input.materialId) {
+        const resource = await db.material.findUnique({
+          where: { id: input.materialId },
+          select: { id: true, name: true, unit: true, catalogMaterialId: true },
+        });
+        if (resource) {
+          finalName = resource.name;
+          finalUnit = resource.unit || finalUnit;
+          if (!linkedCatalogMaterialId && resource.catalogMaterialId) {
+            linkedCatalogMaterialId = resource.catalogMaterialId;
+          }
+        }
+      }
+
       const ingredient = await db.boqIngredient.create({
         data: {
           boqItemId: input.itemId,
           rateAnalysisId: input.rateAnalysisId || null,
-          name: input.name,
+          name: finalName,
           type: input.type,
           calcMode: input.calcMode,
           quantity: input.quantity,
-          unit: input.unit,
+          unit: finalUnit,
           percentage: input.percentage,
           pctBase: input.pctBase,
           rate: input.rate,
           amount,
           sortOrder: input.sortOrder,
-          materialCatalogId: input.materialCatalogId ?? null,
+          materialId: input.materialId || null,
+          catalogMaterialId: linkedCatalogMaterialId,
         },
       });
-
-      // Auto-record unrecognized materials
-      // Skip if materialCatalogId is set (user picked from catalog) or if material exists in v2 catalog
-      if (ctx.user.organizationId && !input.materialCatalogId) {
-        const normalizedName = input.name.toLowerCase().trim().replace(/\s+/g, " ");
-        // Check v2 catalog first, then legacy
-        const inCatalogV2 = await db.catalogMaterial.findFirst({
-          where: {
-            organizationId: ctx.user.organizationId,
-            normalizedName,
-            scope: "org",
-          },
-        });
-        const inCatalogLegacy = await db.materialCatalog.findFirst({
-          where: { organizationId: ctx.user.organizationId, normalizedName },
-        });
-        if (!inCatalogV2 && !inCatalogLegacy) {
-          const existing = await db.unrecognizedMaterial.findFirst({
-            where: { organizationId: ctx.user.organizationId, normalizedName },
-          });
-          if (existing) {
-            await db.unrecognizedMaterial.update({
-              where: { id: existing.id },
-              data: { count: existing.count + 1, unit: input.unit || existing.unit, lastUsedAt: new Date() },
-            });
-          } else {
-            await db.unrecognizedMaterial.create({
-              data: {
-                organizationId: ctx.user.organizationId,
-                name: input.name,
-                normalizedName,
-                unit: input.unit || null,
-                firstProjectId: item.projectId,
-              },
-            });
-          }
-        }
-      }
 
       // Recalculate
       if (input.rateAnalysisId) {
@@ -314,7 +317,7 @@ export const rateAnalysisRouter = router({
         action: "boq.ingredient.add",
         entityType: "boq_item",
         entityId: input.itemId,
-        metadata: { code: item.code, ingredient: input.name },
+        metadata: { code: item.code, ingredient: finalName },
       });
 
       return { ingredient };
@@ -324,7 +327,7 @@ export const rateAnalysisRouter = router({
   updateIngredient: protectedProcedure
     .input(UpdateIngredientSchema)
     .mutation(async ({ ctx, input }) => {
-      const { itemId, ingredientId, rateAnalysisId, ...data } = input;
+      const { itemId, ingredientId, rateAnalysisId, materialId, catalogMaterialId, materialCatalogId, ...data } = input;
       const item = await resolveItemAndAssert(ctx.user, itemId, true);
 
       const ingredient = await db.boqIngredient.findUnique({ where: { id: ingredientId } });
@@ -342,6 +345,13 @@ export const rateAnalysisRouter = router({
         amount = (quantity + (quantity * percentage) / 100) * rate;
       }
 
+      const finalCatalogId =
+        catalogMaterialId !== undefined
+          ? catalogMaterialId
+          : materialCatalogId !== undefined
+          ? materialCatalogId
+          : undefined;
+
       const updated = await db.boqIngredient.update({
         where: { id: ingredientId },
         data: {
@@ -353,6 +363,8 @@ export const rateAnalysisRouter = router({
           ...(data.percentage !== undefined && { percentage: data.percentage }),
           ...(data.pctBase !== undefined && { pctBase: data.pctBase }),
           ...(data.rate !== undefined && { rate: data.rate }),
+          ...(materialId !== undefined && { materialId }),
+          ...(finalCatalogId !== undefined && { catalogMaterialId: finalCatalogId }),
           amount,
         },
       });
@@ -433,72 +445,74 @@ export const rateAnalysisRouter = router({
 
   /**
    * Get aggregated resource requirements from the project's default library (or a specific purpose if provided).
-   * Returns materials, labor, equipment grouped by type with total quantities
-   * and estimated costs — live data source for procurement & planning.
-   *
-   * Resource calculation:
-   *   Ingredients in a RateAnalysis are per-batch (of size analysis.batchSize).
-   *   To get per-BOQ-unit quantities: ingQty / batchSize
-   *   To get total quantities for the BOQ line: ingQty / batchSize * boqItem.quantity
-   *   To get total cost: totalQty * ing.rate
    */
   getResources: protectedProcedure
-    .input(z.object({ projectId: z.string(), purpose: z.enum(["client_estimate", "contractor_bid", "contractor_actual"]).optional() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        purpose: z.enum(["client_estimate", "contractor_bid", "contractor_actual"]).optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // If caller specifies a purpose (e.g. "contractor_bid"), filter by it.
-      // Otherwise, fall back to the project's default library — keeps the
-      // app consistent with whatever the PM chose as the default.
       const defaultLibId = await getDefaultLibraryId(input.projectId);
       const ingredientFilter = input.purpose
         ? { rateAnalysis: { library: { purpose: input.purpose } } }
         : defaultLibId
-          ? { rateAnalysis: { libraryId: defaultLibId } }
-          : { rateAnalysis: { library: { purpose: "client_estimate" as const } } };
+        ? { rateAnalysis: { libraryId: defaultLibId } }
+        : { rateAnalysis: { library: { purpose: "client_estimate" as const } } };
 
       const boqItems = await db.boqItem.findMany({
         where: { projectId: input.projectId },
         include: {
           ingredients: {
             where: ingredientFilter as any,
-            include: { rateAnalysis: { select: { batchSize: true } } },
+            include: {
+              rateAnalysis: { select: { batchSize: true } },
+              material: { select: { id: true, name: true, unit: true, code: true, resourceType: true } },
+            },
           },
         },
       });
 
-      // Aggregate: type -> name -> { totalQty, totalCost }
-      const materials = new Map<string, { qty: number; cost: number; unit: string }>();
-      const labor = new Map<string, { qty: number; cost: number; unit: string }>();
-      const equipment = new Map<string, { qty: number; cost: number; unit: string }>();
+      const materials = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
+      const labor = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
+      const equipment = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
 
       for (const item of boqItems) {
         for (const ing of item.ingredients) {
-          // Ingredient quantity is per-batch; divide by batchSize to get per-BOQ-unit qty,
-          // then multiply by boqItem.quantity to get the total qty needed for this BOQ line.
-          const batch = ing.rateAnalysis?.batchSize && ing.rateAnalysis.batchSize > 0
-            ? ing.rateAnalysis.batchSize
-            : 1;
+          const batch =
+            ing.rateAnalysis?.batchSize && ing.rateAnalysis.batchSize > 0
+              ? ing.rateAnalysis.batchSize
+              : 1;
           const perUnitQty = ing.quantity / batch;
           const totalQty = item.quantity * perUnitQty;
           const totalCost = ing.rate * totalQty;
-          const key = `${ing.name}|${ing.unit}`;
+          
+          // Use materialId as key when available for 100% exact deduplication, fallback to name|unit
+          const key = ing.materialId ? `id:${ing.materialId}` : `name:${(ing.material?.name || ing.name).toLowerCase().trim()}|${ing.unit}`;
+          const displayName = ing.material?.name || ing.name;
+          const displayUnit = ing.material?.unit || ing.unit;
+
           const map = ing.type === "labor" ? labor : ing.type === "equipment" ? equipment : materials;
           const existing = map.get(key);
           if (existing) {
             existing.qty += totalQty;
             existing.cost += totalCost;
           } else {
-            map.set(key, { qty: totalQty, cost: totalCost, unit: ing.unit });
+            map.set(key, { qty: totalQty, cost: totalCost, unit: displayUnit, resourceId: ing.materialId });
           }
         }
       }
 
-      const toArray = (m: Map<string, { qty: number; cost: number; unit: string }>) =>
-        Array.from(m.entries()).map(([key, val]) => {
-          const [name] = key.split("|");
-          return { name, unit: val.unit, totalQty: val.qty, totalCost: val.cost };
-        }).sort((a, b) => b.totalCost - a.totalCost);
+      const toArray = (m: Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>) =>
+        Array.from(m.entries())
+          .map(([key, val]) => {
+            const name = key.startsWith("id:") ? (val as any).name || key.replace("id:", "") : key.replace("name:", "").split("|")[0];
+            return { name, unit: val.unit, totalQty: val.qty, totalCost: val.cost, resourceId: val.resourceId };
+          })
+          .sort((a, b) => b.totalCost - a.totalCost);
 
       return {
         materials: toArray(materials),

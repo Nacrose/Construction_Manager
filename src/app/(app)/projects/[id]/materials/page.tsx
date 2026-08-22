@@ -6,7 +6,6 @@ import { trpc } from "@/lib/trpc-client";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { LowStockAlerts } from "@/components/inventory/low-stock-alerts";
 import { ReconciliationReport } from "@/components/inventory/reconciliation-report";
-import { IngredientMaterialLinker } from "@/components/inventory/ingredient-material-linker";
 import { ModuleTabs } from "@/components/module-tabs";
 import { StoreLocationsTab } from "./components/store-locations-tab";
 import { VendorBillsTab } from "./components/vendor-bills-tab";
@@ -27,6 +26,7 @@ import { MaterialsDialogs } from "./components/materials-dialogs";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
+  { label: "Resource & Rate Library", href: "/rate-library" },
   { label: "Equipment & Fleet", href: "/equipment" },
   { label: "Plant & Production", href: "/production" },
   { label: "Subcontractors", href: "/subcontractors" },
@@ -283,7 +283,6 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
           {/* 9. RECONCILIATION */}
           {activeTab === "reconciliation" && (
             <div className="space-y-4">
-              <IngredientMaterialLinker projectId={id} />
               <ReconciliationReport projectId={id} />
             </div>
           )}

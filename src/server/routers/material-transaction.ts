@@ -14,6 +14,7 @@ export const TxnSchema = z.object({
   remarks: z.string().optional().nullable(),
   gateEntryId: z.string().optional().nullable(),
   purchaseOrderId: z.string().optional().nullable(),
+  catalogMaterialId: z.string().optional().nullable(),
   materialCatalogId: z.string().optional().nullable(),
   storeLocationId: z.string().optional().nullable(),
   targetStoreLocationId: z.string().optional().nullable(),
@@ -66,7 +67,7 @@ export const materialTransactionProcedures = {
               partner: { select: { name: true } },
             },
           },
-          materialCatalog: { select: { id: true, name: true, category: true } },
+          catalogMaterial: { select: { id: true, name: true, category: true } },
         },
         orderBy: { date: "desc" },
       });
@@ -97,7 +98,9 @@ export const materialTransactionProcedures = {
         });
         let projectPlannedQty = 0;
         for (const item of boqItems) {
-          const ing = item.ingredients.find(ig => ig.type === "material" && ig.name.toLowerCase() === material.name.toLowerCase());
+          const ing = item.ingredients.find(
+            (ig) => ig.type === "material" && ig.name.toLowerCase() === material.name.toLowerCase()
+          );
           if (ing) {
             projectPlannedQty += item.quantity * ing.quantity;
           }
@@ -109,7 +112,7 @@ export const materialTransactionProcedures = {
         });
         const totalIssued = totalIssuedAgg._sum.quantity || 0;
 
-        if (projectPlannedQty > 0 && (totalIssued + input.quantity) > (projectPlannedQty * 1.05)) {
+        if (projectPlannedQty > 0 && totalIssued + input.quantity > projectPlannedQty * 1.05) {
           if (!input.override) {
             throw new TRPCError({
               code: "BAD_REQUEST",
@@ -122,16 +125,21 @@ export const materialTransactionProcedures = {
 
         if (input.subcontractorId && material.name.toLowerCase().includes("wire")) {
           const subTxns = await db.materialTransaction.findMany({
-            where: { projectId: input.projectId, subcontractorId: input.subcontractorId, type: { in: ["issue", "transfer"] } },
+            where: {
+              projectId: input.projectId,
+              subcontractorId: input.subcontractorId,
+              type: { in: ["issue", "transfer"] },
+            },
             include: { material: { select: { name: true } } },
           });
 
-          const totalWire = subTxns
-            .filter(t => t.materialId === input.materialId)
-            .reduce((sum, curr) => sum + curr.quantity, 0) + input.quantity;
+          const totalWire =
+            subTxns
+              .filter((t) => t.materialId === input.materialId)
+              .reduce((sum, curr) => sum + curr.quantity, 0) + input.quantity;
 
           const totalGabions = subTxns
-            .filter(t => t.material.name.toLowerCase().includes("gabion"))
+            .filter((t) => t.material.name.toLowerCase().includes("gabion"))
             .reduce((sum, curr) => sum + curr.quantity, 0);
 
           if (totalGabions > 0) {
@@ -144,11 +152,13 @@ export const materialTransactionProcedures = {
         }
       }
 
+      const finalCatalogId = input.catalogMaterialId || input.materialCatalogId || null;
+
       const result = await db.$transaction(async (tx) => {
         const baseAmount = input.quantity * input.rate;
         const isReceive = input.type === "receive";
-        const vatPercent = isReceive ? (input.vatPercent ?? 0) : 0;
-        const tdsPercent = isReceive ? (input.tdsPercent ?? 0) : 0;
+        const vatPercent = isReceive ? input.vatPercent ?? 0 : 0;
+        const tdsPercent = isReceive ? input.tdsPercent ?? 0 : 0;
         const vatAmount = (baseAmount * vatPercent) / 100;
         const tdsAmount = (baseAmount * tdsPercent) / 100;
         const totalWithVat = baseAmount + vatAmount;
@@ -167,7 +177,7 @@ export const materialTransactionProcedures = {
             createdById: ctx.user.id,
             gateEntryId: input.gateEntryId || null,
             purchaseOrderId: input.purchaseOrderId || null,
-            materialCatalogId: input.materialCatalogId || null,
+            catalogMaterialId: finalCatalogId,
             isDebitable: input.isDebitable,
             subcontractorId: input.subcontractorId || null,
             recoveryRate: input.recoveryRate || null,
@@ -178,25 +188,20 @@ export const materialTransactionProcedures = {
             tdsAmount,
             totalWithVat,
             netPayable,
-            supplierInvoiceNo: isReceive ? (input.supplierInvoiceNo || null) : null,
-            supplierPan: isReceive ? (input.supplierPan || null) : null,
+            supplierInvoiceNo: isReceive ? input.supplierInvoiceNo || null : null,
+            supplierPan: isReceive ? input.supplierPan || null : null,
             storeLocationId: input.storeLocationId || null,
             targetStoreLocationId: input.targetStoreLocationId || null,
-            weighbridgeGross: input.weighbridgeGross ?? null,
-            weighbridgeTare: input.weighbridgeTare ?? null,
-            densityFactor: input.densityFactor ?? null,
-          },
-          include: {
-            material: { select: { name: true, code: true, unit: true } },
-            createdBy: { select: { name: true } },
-            storeLocation: true,
-            targetStoreLocation: true,
+            weighbridgeGross: input.weighbridgeGross || null,
+            weighbridgeTare: input.weighbridgeTare || null,
+            densityFactor: input.densityFactor || null,
           },
         });
 
-        // Update StoreLocation stock if storeLocationId is present
+        // If a source store is specified, update stock at that location
         if (input.storeLocationId) {
-          const storeDelta = (input.type === "receive" || input.type === "adjustment") ? input.quantity : -input.quantity;
+          const storeDelta =
+            input.type === "receive" || input.type === "adjustment" ? input.quantity : -input.quantity;
           await tx.materialStoreStock.upsert({
             where: {
               materialId_storeLocationId: {
@@ -337,13 +342,15 @@ export const materialTransactionProcedures = {
     }),
 
   updateTransaction: protectedProcedure
-    .input(z.object({
-      projectId: z.string(),
-      transactionId: z.string(),
-      isDebitable: z.boolean().optional(),
-      subcontractorId: z.string().nullable().optional(),
-      recoveryRate: z.number().nullable().optional(),
-    }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        transactionId: z.string(),
+        isDebitable: z.boolean().optional(),
+        subcontractorId: z.string().nullable().optional(),
+        recoveryRate: z.number().nullable().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
       const { transactionId, projectId, ...data } = input;
@@ -366,11 +373,13 @@ export const materialTransactionProcedures = {
     }),
 
   taxSummary: protectedProcedure
-    .input(z.object({
-      projectId: z.string(),
-      fromDate: z.string().datetime().optional(),
-      toDate: z.string().datetime().optional(),
-    }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        fromDate: z.string().datetime().optional(),
+        toDate: z.string().datetime().optional(),
+      })
+    )
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
@@ -398,15 +407,18 @@ export const materialTransactionProcedures = {
       const totalWithVat = txns.reduce((s, t) => s + (t.totalWithVat ?? 0), 0);
       const totalNetPayable = txns.reduce((s, t) => s + (t.netPayable ?? 0), 0);
 
-      const bySupplierMap = new Map<string, {
-        supplierPan: string | null;
-        supplierInvoiceNo: string | null;
-        count: number;
-        baseAmount: number;
-        vatAmount: number;
-        tdsAmount: number;
-        netPayable: number;
-      }>();
+      const bySupplierMap = new Map<
+        string,
+        {
+          supplierPan: string | null;
+          supplierInvoiceNo: string | null;
+          count: number;
+          baseAmount: number;
+          vatAmount: number;
+          tdsAmount: number;
+          netPayable: number;
+        }
+      >();
 
       for (const t of txns) {
         const key = `${t.supplierPan ?? "unknown"}|${t.supplierInvoiceNo ?? "no-invoice"}`;
@@ -427,13 +439,16 @@ export const materialTransactionProcedures = {
         bySupplierMap.set(key, existing);
       }
 
-      const byMonthMap = new Map<string, {
-        month: string;
-        baseAmount: number;
-        vatAmount: number;
-        tdsAmount: number;
-        netPayable: number;
-      }>();
+      const byMonthMap = new Map<
+        string,
+        {
+          month: string;
+          baseAmount: number;
+          vatAmount: number;
+          tdsAmount: number;
+          netPayable: number;
+        }
+      >();
 
       for (const t of txns) {
         const d = new Date(t.date);

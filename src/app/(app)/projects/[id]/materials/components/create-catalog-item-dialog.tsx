@@ -183,7 +183,7 @@ export function CreateCatalogItemDialog({
   const user = getUser();
   const isAdmin = Boolean(user?.orgRole === "org_admin");
 
-  const createCatalogMut = trpc.materialCatalog.create.useMutation();
+  const createCatalogMut = trpc.catalogV2.createMaterial.useMutation();
   const createMaterialMut = trpc.material.create.useMutation();
 
   const isPending = createCatalogMut.isPending || createMaterialMut.isPending;
@@ -192,33 +192,34 @@ export function CreateCatalogItemDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const scope = isAdmin && isGlobal ? "global" : "org";
       const res = await createCatalogMut.mutateAsync({
+        scope: scope as any,
         name: name.trim(),
         category: activeCategory.trim() || undefined,
         subCategory: subCategory.trim() || undefined,
         defaultUnit: defaultUnit.trim() || "unit",
         defaultRate: parseFloat(defaultRate) || 0,
-        rateSource: rateSource.trim() || undefined,
-        isGlobal: isAdmin ? isGlobal : false,
       });
 
-      if (addToProject && res.item) {
+      if (addToProject && (res as any).material) {
+        const mat = (res as any).material;
         const catPrefix = (activeCategory || "MAT").substring(0, 3).toUpperCase();
         const specSuffix = subCategory
           ? `-${subCategory.replace(/\s+/g, "").toUpperCase()}`
           : "";
         await createMaterialMut.mutateAsync({
           projectId,
-          name: res.item.name,
+          name: mat.name,
           code: `${catPrefix}${specSuffix}`,
-          category: res.item.category || undefined,
-          subCategory: res.item.subCategory || undefined,
-          materialCatalogId: res.item.id,
-          unit: res.item.defaultUnit || "unit",
+          category: mat.category || undefined,
+          subCategory: mat.subCategory || undefined,
+          catalogMaterialId: mat.id,
+          unit: mat.defaultUnit || "unit",
           minStock: 0,
           currentStock: 0,
           reorderLevel: 0,
-        });
+        } as any);
       }
 
       toast.success(`"${name}" successfully added to Master Catalog!`);

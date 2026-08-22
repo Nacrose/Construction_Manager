@@ -25,17 +25,8 @@ export type Catalog = {
   districts: string[];
   isActive: boolean;
   scope: string;
-  sourceCatalogId: string | null;
-  _count: { items: number };
-};
-
-export type CatalogItem = {
-  id: string;
-  code: number;
-  materialName: string;
-  unit: string;
-  materialCatalogId: string | null;
-  rates: { district: string; rate: number }[];
+  sourceCatalogId?: string | null;
+  _count?: { catalogRates: number };
 };
 
 export function CatalogDetail({
@@ -46,84 +37,143 @@ export function CatalogDetail({
   onBack: () => void;
 }) {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.rateCatalog.get.useQuery({ id: catalog.id });
+  const { data, isLoading } = trpc.catalogV2.getRateCatalog.useQuery({ id: catalog.id });
   const [search, setSearch] = useState("");
   const [editRates, setEditRates] = useState<Record<string, Record<string, string>>>({});
   const [showCopyFrom, setShowCopyFrom] = useState(false);
 
+  // Group catalogRates by materialId
   const items = useMemo(() => {
-    if (!data?.catalog?.items) return [];
+    const rawRates = data?.catalog?.catalogRates || [];
+    const matMap = new Map<
+      string,
+      {
+        id: string;
+        materialId: string;
+        materialName: string;
+        category: string | null;
+        subCategory: string | null;
+        unit: string;
+        rates: Record<string, number>;
+      }
+    >();
+
+    for (const r of rawRates) {
+      const mat = r.material;
+      if (!mat) continue;
+      if (!matMap.has(mat.id)) {
+        matMap.set(mat.id, {
+          id: mat.id,
+          materialId: mat.id,
+          materialName: mat.name,
+          category: mat.category,
+          subCategory: mat.subCategory,
+          unit: mat.defaultUnit || "unit",
+          rates: {},
+        });
+      }
+      matMap.get(mat.id)!.rates[r.district] = r.rate;
+    }
+
+    const allGrouped = Array.from(matMap.values());
+    if (!search.trim()) return allGrouped;
     const q = search.toLowerCase();
-    return data.catalog.items.filter(
-      (i) => i.materialName.toLowerCase().includes(q) || String(i.code).includes(q)
+    return allGrouped.filter(
+      (i) =>
+        i.materialName.toLowerCase().includes(q) ||
+        (i.category && i.category.toLowerCase().includes(q)) ||
+        (i.subCategory && i.subCategory.toLowerCase().includes(q))
     );
   }, [data, search]);
 
-  const setActive = trpc.rateCatalog.setActive.useMutation({
+  const updateCatalog = trpc.catalogV2.updateRateCatalog.useMutation({
     onSuccess: () => {
-      utils.rateCatalog.list.invalidate();
-      utils.rateCatalog.get.invalidate({ id: catalog.id });
-      toast.success("Set as active");
+      utils.catalogV2.listRateCatalogs.invalidate();
+      utils.catalogV2.getRateCatalog.invalidate({ id: catalog.id });
+      toast.success("Catalog updated");
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const addItem = trpc.rateCatalog.addItem.useMutation({
+  const setRateMut = trpc.catalogV2.setRate.useMutation({
     onSuccess: () => {
-      utils.rateCatalog.get.invalidate({ id: catalog.id });
-      toast.success("Item added");
+      utils.catalogV2.getRateCatalog.invalidate({ id: catalog.id });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const setItemRates = trpc.rateCatalog.setItemRates.useMutation({
-    onSuccess: () => {
-      utils.rateCatalog.get.invalidate({ id: catalog.id });
+  const syncMaterialsMut = trpc.catalogV2.syncRateCatalog.useMutation({
+    onSuccess: (res) => {
+      utils.catalogV2.getRateCatalog.invalidate({ id: catalog.id });
+      toast.success(`Synced ${res.addedRates} district rates across ${res.addedMaterials} materials.`);
     },
+    onError: (e) => toast.error(e.message),
   });
 
-  const copyInflate = trpc.rateCatalog.copyWithInflation.useMutation({
-    onSuccess: () => {
-      utils.rateCatalog.list.invalidate();
-      toast.success("Copied with inflation");
+  const createMaterialMut = trpc.catalogV2.createMaterial.useMutation({
+    onSuccess: async (res) => {
+      // Also add initial rate for all catalog districts
+      for (const d of catalog.districts) {
+        await setRateMut.mutateAsync({
+          rateCatalogId: catalog.id,
+          materialId: res.material.id,
+          district: d,
+          rate: res.material.defaultRate || 0,
+        });
+      }
+      utils.catalogV2.getRateCatalog.invalidate({ id: catalog.id });
+      toast.success("Material item added to catalog");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const copyInflate = trpc.catalogV2.copyWithInflation.useMutation({
+    onSuccess: (res) => {
+      utils.catalogV2.listRateCatalogs.invalidate();
+      toast.success(`Copied ${res.copiedRatesCount} rates to new catalog`);
     },
     onError: (e) => toast.error(e.message),
   });
 
   const [inflatePct, setInflatePct] = useState("8");
-  const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
-  const [newUnit, setNewUnit] = useState("");
+  const [newUnit, setNewUnit] = useState("cum");
+  const [newCategory, setNewCategory] = useState("Roads & Highways");
 
-  function handleRateChange(itemId: string, district: string, val: string) {
+  function handleRateChange(materialId: string, district: string, val: string) {
     setEditRates((prev) => ({
       ...prev,
-      [itemId]: { ...prev[itemId], [district]: val },
+      [materialId]: { ...prev[materialId], [district]: val },
     }));
   }
 
-  function saveRate(itemId: string, district: string) {
-    const rate = parseFloat(editRates[itemId]?.[district] ?? "");
+  function saveRate(materialId: string, district: string) {
+    const rate = parseFloat(editRates[materialId]?.[district] ?? "");
     if (isNaN(rate)) return;
-    setItemRates.mutate({ itemId, rates: { [district]: rate } });
+    setRateMut.mutate({
+      rateCatalogId: catalog.id,
+      materialId,
+      district,
+      rate,
+    });
     setEditRates((prev) => {
       const next = { ...prev };
-      if (next[itemId]) delete next[itemId][district];
+      if (next[materialId]) delete next[materialId][district];
       return next;
     });
   }
 
-  function displayRate(item: CatalogItem, district: string) {
-    const edit = editRates[item.id]?.[district];
+  function displayRate(item: { materialId: string; rates: Record<string, number> }, district: string) {
+    const edit = editRates[item.materialId]?.[district];
     if (edit !== undefined) return edit;
-    const rate = item.rates?.find((r) => r.district === district)?.rate;
-    return rate ?? 0;
+    const rate = item.rates[district];
+    return rate !== undefined ? String(rate) : "";
   }
 
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
+        <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
       </div>
     );
   }
@@ -156,11 +206,19 @@ export function CatalogDetail({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setActive.mutate({ id: catalog.id })}
+              onClick={() => updateCatalog.mutate({ id: catalog.id, isActive: true })}
             >
               <Check className="h-3 w-3 mr-1" /> Set Active
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={syncMaterialsMut.isPending}
+            onClick={() => syncMaterialsMut.mutate({ rateCatalogId: catalog.id })}
+          >
+            <Plus className="h-3 w-3 mr-1" /> Sync Materials
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setShowCopyFrom(true)}>
             <Copy className="h-3 w-3 mr-1" /> Copy From
           </Button>
@@ -181,8 +239,8 @@ export function CatalogDetail({
                 if (fy)
                   copyInflate.mutate({
                     sourceCatalogId: catalog.id,
-                    name: catalog.name,
-                    fiscalYear: fy,
+                    name: `${catalog.name} (${fy})`,
+                    newFiscalYear: fy,
                     inflationPct: parseFloat(inflatePct) || 0,
                   });
               }}
@@ -205,10 +263,10 @@ export function CatalogDetail({
         </div>
         <div className="flex items-center gap-2 ml-auto">
           <Input
-            placeholder="SN"
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            className="h-8 w-16 text-xs"
+            placeholder="Category"
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            className="h-8 w-36 text-xs"
           />
           <Input
             placeholder="Material name"
@@ -225,17 +283,15 @@ export function CatalogDetail({
           <Button
             size="sm"
             className="h-8"
-            disabled={!newName || addItem.isPending}
+            disabled={!newName.trim() || createMaterialMut.isPending}
             onClick={() => {
-              addItem.mutate({
-                catalogId: catalog.id,
-                code: parseInt(newCode) || items.length + 1,
-                materialName: newName,
-                unit: newUnit,
+              createMaterialMut.mutate({
+                scope: (catalog.scope as any) || "org",
+                name: newName.trim(),
+                category: newCategory.trim() || undefined,
+                defaultUnit: newUnit.trim() || "unit",
               });
-              setNewCode("");
               setNewName("");
-              setNewUnit("");
             }}
           >
             <Plus className="h-3 w-3 mr-1" /> Add
@@ -248,32 +304,40 @@ export function CatalogDetail({
           <Table>
             <TableHeader className="sticky top-0 bg-card z-10">
               <TableRow>
-                <TableHead className="w-12 text-xs">SN</TableHead>
+                <TableHead className="w-12 text-xs">#</TableHead>
                 <TableHead className="text-xs min-w-[200px]">Material</TableHead>
                 <TableHead className="w-16 text-xs">Unit</TableHead>
                 {catalog.districts.map((d) => (
-                  <TableHead key={d} className="w-24 text-xs text-right">
+                  <TableHead key={d} className="w-28 text-xs text-right">
                     {d}
                   </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item: CatalogItem) => (
+              {items.map((item, idx) => (
                 <TableRow key={item.id}>
-                  <TableCell className="text-xs text-muted-foreground">{item.code}</TableCell>
-                  <TableCell className="text-sm font-medium">{item.materialName}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
+                  <TableCell className="text-sm font-medium">
+                    {item.materialName}
+                    {item.subCategory && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({item.subCategory})
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs">{item.unit}</TableCell>
                   {catalog.districts.map((d) => (
                     <TableCell key={d} className="p-1">
                       <input
                         type="number"
                         value={displayRate(item, d)}
-                        onChange={(e) => handleRateChange(item.id, d, e.target.value)}
-                        onBlur={() => saveRate(item.id, d)}
+                        onChange={(e) => handleRateChange(item.materialId, d, e.target.value)}
+                        onBlur={() => saveRate(item.materialId, d)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") saveRate(item.id, d);
+                          if (e.key === "Enter") saveRate(item.materialId, d);
                         }}
+                        placeholder="0"
                         className="h-7 w-full rounded border border-transparent bg-transparent px-1.5 text-xs text-right tabular-nums hover:border-border focus:border-primary focus:outline-none"
                       />
                     </TableCell>
@@ -286,7 +350,7 @@ export function CatalogDetail({
                     colSpan={3 + catalog.districts.length}
                     className="py-12 text-center text-sm text-muted-foreground"
                   >
-                    No items yet. Add one or import from global catalog.
+                    No rate items yet. Click &quot;Sync Materials&quot; to populate from the material catalog.
                   </TableCell>
                 </TableRow>
               )}
@@ -299,13 +363,20 @@ export function CatalogDetail({
         open={showCopyFrom}
         onOpenChange={setShowCopyFrom}
         destinationColumns={catalog.districts}
-        onCopy={async (data) => {
-          for (const copyItem of data.items) {
+        onCopy={async (copyData) => {
+          for (const copyItem of copyData.items) {
             if (copyItem.rates) {
-              await setItemRates.mutateAsync({ itemId: copyItem.itemId, rates: copyItem.rates });
+              for (const [dist, rateVal] of Object.entries(copyItem.rates)) {
+                await setRateMut.mutateAsync({
+                  rateCatalogId: catalog.id,
+                  materialId: copyItem.materialId,
+                  district: dist,
+                  rate: Number(rateVal) || 0,
+                });
+              }
             }
           }
-          utils.rateCatalog.get.invalidate({ id: catalog.id });
+          utils.catalogV2.getRateCatalog.invalidate({ id: catalog.id });
         }}
       />
     </div>

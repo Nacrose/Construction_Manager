@@ -21,8 +21,9 @@ export default function AdminDatabase() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Database</h1>
-        <p className="text-sm text-muted-foreground">Schema and row-level-security status.</p>
+        <p className="text-sm text-muted-foreground">Schema, row-level-security, and seeding.</p>
       </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Schema & RLS</CardTitle>
@@ -36,6 +37,21 @@ export default function AdminDatabase() {
             {runSetup.isPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />} Apply / Verify Schema
           </Button>
           {last && <pre className="rounded bg-muted p-2 text-[11px]">{last}</pre>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Seed Catalogs</CardTitle>
+          <CardDescription className="text-xs">
+            Populate reference data (materials, rate presets) from the server. Run on a fresh database.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs text-muted-foreground">
+          <p>From the server shell:</p>
+          <pre className="rounded bg-muted p-2 text-[11px]">npm run seed:all</pre>
+          <p>Material catalog only:</p>
+          <pre className="rounded bg-muted p-2 text-[11px]">npm run seed:catalog</pre>
         </CardContent>
       </Card>
     </div>

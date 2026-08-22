@@ -57,7 +57,7 @@ export function FiscalYearSwitchDialog({
   const [showHistory, setShowHistory] = useState(false);
   const [notes, setNotes] = useState("");
 
-  const catalogsQuery = trpc.rateCatalog.list.useQuery({});
+  const catalogsQuery = trpc.catalogV2.listRateCatalogs.useQuery({});
   const availableFYs = Array.from(
     new Set(catalogsQuery.data?.catalogs?.map((c) => c.fiscalYear).filter(Boolean))
   ) as string[];
@@ -84,7 +84,7 @@ export function FiscalYearSwitchDialog({
         `Active Fiscal Year switched to ${data.toFiscalYear}! Cost revision logged across ${data.totalEntries} materials.`
       );
       utils.project.get.invalidate({ id: projectId });
-      utils.rateCatalog.get.invalidate();
+      utils.catalogV2.getRateCatalog.invalidate();
       utils.boq.list.invalidate({ projectId });
       onOpenChange(false);
       if (onSuccess) onSuccess();

@@ -30,7 +30,7 @@ export function ConfirmCatalogDeleteDialog({
   onArchive?: () => void;
 }) {
   const [confirmText, setConfirmText] = useState("");
-  const { data: impact, isLoading } = trpc.materialCatalog.checkDeleteImpact.useQuery(
+  const { data: impact, isLoading } = trpc.catalogV2.getDeleteImpact.useQuery(
     { ids },
     { enabled: open && ids.length > 0 }
   );
@@ -179,7 +179,7 @@ export function CategoryDeleteDialog({
 }) {
   const scopeLabel = groupName ? `"${groupName}" group` : `"${category}" category`;
   const { data: impact, isLoading: impactLoading } =
-    trpc.materialCatalog.checkCategoryImpact.useQuery(
+    trpc.catalogV2.getCategoryImpact.useQuery(
       { category, subCategory: groupName },
       { enabled: open }
     );

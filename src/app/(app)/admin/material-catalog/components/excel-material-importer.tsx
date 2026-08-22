@@ -50,7 +50,7 @@ export function ExcelMaterialImporter({
   const [step, setStep] = useState<"input" | "tally">("input");
   const [talliedRows, setTalliedRows] = useState<any[]>([]);
 
-  const tallyMutation = trpc.materialImport.tallyImportRows.useMutation({
+  const tallyMutation = trpc.catalogV2.tallyImportRows.useMutation({
     onSuccess: (data) => {
       setTalliedRows(data.tallies);
       setStep("tally");
@@ -58,14 +58,12 @@ export function ExcelMaterialImporter({
     onError: (err) => toast.error(err.message),
   });
 
-  const commitMutation = trpc.materialImport.commitImport.useMutation({
+  const commitMutation = trpc.catalogV2.commitImport.useMutation({
     onSuccess: (data) => {
       toast.success(
         `Import complete! (${data.createdCount} created, ${data.linkedCount} linked to canonical items, ${data.aliasCount} aliases added)`
       );
-      utils.materialCatalog.list.invalidate();
-      utils.orgMaterialEntry.invalidate();
-      utils.globalMaterialCatalog.invalidate();
+      utils.catalogV2.listMaterials.invalidate();
       onOpenChange(false);
       setStep("input");
       setRawText("");

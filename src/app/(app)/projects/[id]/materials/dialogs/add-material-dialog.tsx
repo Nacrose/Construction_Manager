@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BookOpen, Sparkles, Layers } from "lucide-react";
+import { Loader2, BookOpen, Sparkles, Layers, Package, Users, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { cn } from "@/lib/utils";
@@ -22,24 +22,38 @@ const SUB_CATEGORY_PRESETS: Record<string, string[]> = {
   Electrical: ["1.5 sq mm", "2.5 sq mm", "4 sq mm"],
 };
 
-export function AddMaterialDialog({ projectId, onDone }: { projectId: string; onDone: () => void }) {
+export function AddMaterialDialog({
+  projectId,
+  initialType = "material",
+  onDone,
+}: {
+  projectId: string;
+  initialType?: "material" | "labor" | "equipment";
+  onDone: () => void;
+}) {
   const utils = trpc.useUtils();
+  const [resourceType, setResourceType] = useState<"material" | "labor" | "equipment">(initialType);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [materialCatalogId, setMaterialCatalogId] = useState<string | null>(null);
-  const [unit, setUnit] = useState("cum");
+  const [unit, setUnit] = useState(initialType === "labor" ? "day" : initialType === "equipment" ? "hr" : "cum");
   const [minStock, setMinStock] = useState("");
   const [reorderLevel, setReorderLevel] = useState("");
 
-  // Fetch Master Catalog items for quick direct selection
-  const { data: catalogData } = trpc.materialCatalog.list.useQuery({ includeGlobal: true });
+  // Fetch Master Catalog items filtered by resourceType
+  const { data: catalogData } = trpc.catalogV2.listMaterials.useQuery({
+    scope: "org",
+    resourceType,
+    limit: 500,
+  });
 
   const mutation = trpc.material.create.useMutation({
     onSuccess: () => {
       utils.material.list.invalidate({ projectId });
-      toast.success("Material added successfully to project inventory!");
+      utils.material.listByType.invalidate();
+      toast.success("Resource added successfully to project Resource Library!");
       onDone();
     },
     onError: (e) => toast.error(e.message),
@@ -50,7 +64,8 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
       setMaterialCatalogId(null);
       return;
     }
-    const catItem = catalogData?.items.find((i) => i.id === catalogId);
+    const items = catalogData?.materials || [];
+    const catItem = items.find((i: any) => i.id === catalogId);
     if (catItem) {
       setMaterialCatalogId(catItem.id);
       setName(catItem.name);
@@ -59,7 +74,7 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
       if (catItem.defaultUnit) setUnit(catItem.defaultUnit);
 
       // Auto code suggestion
-      const catPrefix = (catItem.category || "MAT").substring(0, 3).toUpperCase();
+      const catPrefix = (catItem.category || resourceType.substring(0, 3)).substring(0, 3).toUpperCase();
       const specSuffix = catItem.subCategory ? `-${catItem.subCategory.replace(/\s+/g, "").toUpperCase()}` : "";
       setCode(`${catPrefix}${specSuffix}`);
     }
@@ -74,19 +89,28 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
     }
   };
 
+  const handleTypeChange = (type: "material" | "labor" | "equipment") => {
+    setResourceType(type);
+    setMaterialCatalogId(null);
+    if (type === "labor") setUnit("day");
+    else if (type === "equipment") setUnit("hr");
+    else setUnit("cum");
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     mutation.mutate({
       projectId,
-      name,
+      resourceType,
+      name: name.trim(),
       code: code.trim() || undefined,
       category: category.trim() || undefined,
       subCategory: subCategory.trim() || undefined,
-      materialCatalogId: materialCatalogId || undefined,
-      unit,
-      minStock: parseFloat(minStock) || 0,
+      catalogMaterialId: materialCatalogId || undefined,
+      unit: unit.trim(),
+      minStock: resourceType === "material" ? parseFloat(minStock) || 0 : 0,
       currentStock: 0,
-      reorderLevel: parseFloat(reorderLevel) || 0,
+      reorderLevel: resourceType === "material" ? parseFloat(reorderLevel) || 0 : 0,
     });
   };
 
@@ -101,27 +125,70 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
       <DialogHeader>
         <DialogTitle className="text-base font-bold flex items-center gap-2">
           <BookOpen className="h-5 w-5 text-amber-500" />
-          Add Material to Inventory & Catalog
+          Add Resource to Project Library
         </DialogTitle>
         <DialogDescription className="text-xs">
-          Select from the Master Item Catalog to auto-link BOQ rate analysis and inventory, or create a custom material.
+          Select from the Master Catalog or create a project-specific resource.
         </DialogDescription>
       </DialogHeader>
 
       <form onSubmit={onSubmit} className="space-y-4">
+        {/* Resource Type Tabs */}
+        <div className="flex rounded-lg bg-muted p-1 gap-1">
+          <button
+            type="button"
+            onClick={() => handleTypeChange("material")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all",
+              resourceType === "material"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Package className="h-3.5 w-3.5" />
+            Material
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange("labor")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all",
+              resourceType === "labor"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="h-3.5 w-3.5" />
+            Labor
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange("equipment")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-md transition-all",
+              resourceType === "equipment"
+                ? "bg-background text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            Equipment
+          </button>
+        </div>
+
         {/* Master Catalog Direct Selector */}
         <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl p-3 space-y-1.5">
           <Label className="text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            Pick from Master Item Catalog (Bypasses Manual Linking)
+            Pick from Master Catalog ({resourceType})
           </Label>
           <select
             value={materialCatalogId || ""}
             onChange={(e) => handleSelectCatalogItem(e.target.value)}
             className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground shadow-sm focus:ring-1 focus:ring-amber-500"
           >
-            <option value="">-- Choose Canonical Item from Catalog --</option>
-            {catalogData?.items.map((item) => (
+            <option value="">-- Choose Canonical {resourceType.toUpperCase()} from Catalog --</option>
+            {(catalogData?.materials || []).map((item: any) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.category ? `(${item.category})` : ""} {item.subCategory ? `— ${item.subCategory}` : ""}
               </option>
@@ -129,14 +196,20 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
           </select>
         </div>
 
-        {/* Material Name & Unit */}
+        {/* Resource Name & Unit */}
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2 space-y-1">
-            <Label className="text-xs font-semibold">Material Name *</Label>
+            <Label className="text-xs font-semibold">Resource Name *</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Aggregate 20mm / Rebar 12mm"
+              placeholder={
+                resourceType === "labor"
+                  ? "e.g. Skilled Mason / Carpenter"
+                  : resourceType === "equipment"
+                  ? "e.g. Excavator 20-Ton / Concrete Mixer"
+                  : "e.g. Aggregate 20mm / Rebar 12mm"
+              }
               className="h-8 text-xs"
               required
             />
@@ -146,8 +219,8 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
             <Input
               value={unit}
               onChange={(e) => setUnit(e.target.value)}
-              placeholder="e.g. cum / ton / bag"
-              className="h-8 text-xs"
+              placeholder={resourceType === "labor" ? "day" : resourceType === "equipment" ? "hr" : "cum"}
+              className="h-8 text-xs font-mono"
               required
             />
           </div>
@@ -160,23 +233,37 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
             <Input
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. Aggregate, Steel, Cement"
+              placeholder={
+                resourceType === "labor"
+                  ? "e.g. Civil, Mechanical, Electrical"
+                  : resourceType === "equipment"
+                  ? "e.g. Earthmoving, Concreting, Hauling"
+                  : "e.g. Aggregate, Steel, Cement"
+              }
               className="h-8 text-xs"
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs font-semibold">Sub-Category / Size / Spec</Label>
+            <Label className="text-xs font-semibold">
+              {resourceType === "labor" ? "Skill Level / Trade" : resourceType === "equipment" ? "Capacity / Spec" : "Sub-Category / Spec"}
+            </Label>
             <Input
               value={subCategory}
               onChange={(e) => setSubCategory(e.target.value)}
-              placeholder="e.g. 20mm, 12mm, 53 Grade"
+              placeholder={
+                resourceType === "labor"
+                  ? "e.g. Grade A, Helper"
+                  : resourceType === "equipment"
+                  ? "e.g. 0.9 cum bucket, 10-Ton"
+                  : "e.g. 20mm, 12mm, 53 Grade"
+              }
               className="h-8 text-xs"
             />
           </div>
         </div>
 
-        {/* Sub-Category Quick Preset Chips */}
-        {currentPresets.length > 0 && (
+        {/* Sub-Category Quick Preset Chips for Materials */}
+        {resourceType === "material" && currentPresets.length > 0 && (
           <div className="space-y-1 bg-muted/20 p-2.5 rounded-lg border text-xs">
             <span className="text-[10px] text-muted-foreground font-semibold block flex items-center gap-1">
               <Layers className="h-3 w-3 text-blue-500" /> Quick Size Presets for {category}:
@@ -201,45 +288,56 @@ export function AddMaterialDialog({ projectId, onDone }: { projectId: string; on
           </div>
         )}
 
-        {/* Code, Min Stock & Reorder Level */}
-        <div className="grid grid-cols-3 gap-3 pt-1 border-t">
+        {/* Code & Inventory Stock Fields (Only for Materials) */}
+        <div className={cn("grid gap-3 pt-1 border-t", resourceType === "material" ? "grid-cols-3" : "grid-cols-1")}>
           <div className="space-y-1">
-            <Label className="text-[11px]">Material Code</Label>
+            <Label className="text-[11px]">Resource Code</Label>
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="e.g. AGG-20MM"
+              placeholder={
+                resourceType === "labor"
+                  ? "e.g. LAB-MASON"
+                  : resourceType === "equipment"
+                  ? "e.g. EQP-EXCAV"
+                  : "e.g. AGG-20MM"
+              }
               className="h-8 text-xs font-mono"
             />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]">Minimum Stock</Label>
-            <Input
-              value={minStock}
-              onChange={(e) => setMinStock(e.target.value)}
-              type="number"
-              step="any"
-              placeholder="0"
-              className="h-8 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[11px]">Reorder Level</Label>
-            <Input
-              value={reorderLevel}
-              onChange={(e) => setReorderLevel(e.target.value)}
-              type="number"
-              step="any"
-              placeholder="0"
-              className="h-8 text-xs"
-            />
-          </div>
+
+          {resourceType === "material" && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Minimum Stock</Label>
+                <Input
+                  value={minStock}
+                  onChange={(e) => setMinStock(e.target.value)}
+                  type="number"
+                  step="any"
+                  placeholder="0"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Reorder Level</Label>
+                <Input
+                  value={reorderLevel}
+                  onChange={(e) => setReorderLevel(e.target.value)}
+                  type="number"
+                  step="any"
+                  placeholder="0"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="pt-2">
           <Button size="sm" type="submit" disabled={mutation.isPending || !name || !unit} className="bg-blue-600 hover:bg-blue-700 text-white">
             {mutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-            Add to Inventory & Catalog
+            Add {resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} to Resource Library
           </Button>
         </DialogFooter>
       </form>

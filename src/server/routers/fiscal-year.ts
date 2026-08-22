@@ -5,20 +5,20 @@ import { db } from "@/lib/db";
 
 export const fiscalYearRouter = router({
   previewFiscalYearSwitch: protectedProcedure
-    .input(z.object({
-      projectId: z.string(),
-      targetFiscalYear: z.string(),
-      district: z.string().optional().default("Morang"),
-    }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        targetFiscalYear: z.string(),
+        district: z.string().optional().default("Morang"),
+      })
+    )
     .query(async ({ input }) => {
       const project = await db.project.findUnique({
         where: { id: input.projectId },
         include: {
           materials: {
             include: {
-              orgMaterialEntry: {
-                include: { globalMaterial: true },
-              },
+              catalogMaterial: true,
             },
           },
           boqItems: {
@@ -35,7 +35,7 @@ export const fiscalYearRouter = router({
       const targetFY = input.targetFiscalYear;
 
       // Find target rate catalog for the target fiscal year
-      const targetCatalog = await db.rateCatalog.findFirst({
+      const targetCatalog = await db.rateBook.findFirst({
         where: {
           fiscalYear: targetFY,
           OR: [
@@ -44,8 +44,9 @@ export const fiscalYearRouter = router({
           ],
         },
         include: {
-          items: {
-            include: { rates: { where: { district: input.district } } },
+          catalogRates: {
+            where: { district: input.district },
+            include: { material: true },
           },
         },
         orderBy: { isActive: "desc" },
@@ -58,12 +59,14 @@ export const fiscalYearRouter = router({
         });
       }
 
-      // Map target rates by material name / globalMaterialId
+      // Map target rates by materialId / normalized material name
       const targetRateMap = new Map<string, number>();
-      for (const item of targetCatalog.items) {
-        const rateVal = item.rates[0]?.rate || 0;
-        if (item.globalMaterialId) targetRateMap.set(item.globalMaterialId, rateVal);
-        targetRateMap.set(item.materialName.toLowerCase().trim(), rateVal);
+      for (const rateEntry of targetCatalog.catalogRates) {
+        targetRateMap.set(rateEntry.materialId, rateEntry.rate);
+        if (rateEntry.material) {
+          targetRateMap.set(rateEntry.material.normalizedName, rateEntry.rate);
+          targetRateMap.set(rateEntry.material.name.toLowerCase().trim(), rateEntry.rate);
+        }
       }
 
       // Compute remaining estimated quantities from BOQ ingredients
@@ -71,7 +74,7 @@ export const fiscalYearRouter = router({
       for (const boqItem of project.boqItems) {
         for (const ing of boqItem.ingredients) {
           if (ing.type === "material" && ing.name) {
-            const key = ing.materialCatalogId || ing.name.toLowerCase().trim();
+            const key = ing.catalogMaterialId || ing.name.toLowerCase().trim();
             const currentQty = qtyMap.get(key) || 0;
             // ingredient quantity * boq item quantity
             qtyMap.set(key, currentQty + (ing.quantity * (boqItem.quantity || 1)));
@@ -84,9 +87,9 @@ export const fiscalYearRouter = router({
       let itemsDecreased = 0;
 
       const rows = project.materials.map((mat) => {
-        const key = mat.orgMaterialEntry?.globalMaterialId || mat.name.toLowerCase().trim();
-        const oldRate = mat.orgMaterialEntry?.defaultRate || 0;
-        const newRate = targetRateMap.get(key) || oldRate;
+        const key = mat.catalogMaterialId || mat.name.toLowerCase().trim();
+        const oldRate = mat.catalogMaterial?.defaultRate || 0;
+        const newRate = targetRateMap.get(key) || (mat.catalogMaterialId ? targetRateMap.get(mat.catalogMaterialId) : undefined) || oldRate;
         const rateDelta = newRate - oldRate;
         const remainingQty = qtyMap.get(key) || 0;
         const costImpact = rateDelta * remainingQty;
@@ -121,19 +124,21 @@ export const fiscalYearRouter = router({
     }),
 
   executeFiscalYearSwitch: protectedProcedure
-    .input(z.object({
-      projectId: z.string(),
-      targetFiscalYear: z.string(),
-      district: z.string().optional().default("Morang"),
-      notes: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        targetFiscalYear: z.string(),
+        district: z.string().optional().default("Morang"),
+        notes: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const project = await db.project.findUnique({
         where: { id: input.projectId },
         include: {
           materials: {
             include: {
-              orgMaterialEntry: true,
+              catalogMaterial: true,
             },
           },
           boqItems: {
@@ -149,7 +154,7 @@ export const fiscalYearRouter = router({
       const fromFY = project.activeFiscalYear || "2080/81";
       const toFY = input.targetFiscalYear;
 
-      const targetCatalog = await db.rateCatalog.findFirst({
+      const targetCatalog = await db.rateBook.findFirst({
         where: {
           fiscalYear: toFY,
           OR: [
@@ -158,8 +163,9 @@ export const fiscalYearRouter = router({
           ],
         },
         include: {
-          items: {
-            include: { rates: { where: { district: input.district } } },
+          catalogRates: {
+            where: { district: input.district },
+            include: { material: true },
           },
         },
       });
@@ -169,17 +175,19 @@ export const fiscalYearRouter = router({
       }
 
       const targetRateMap = new Map<string, number>();
-      for (const item of targetCatalog.items) {
-        const rateVal = item.rates[0]?.rate || 0;
-        if (item.globalMaterialId) targetRateMap.set(item.globalMaterialId, rateVal);
-        targetRateMap.set(item.materialName.toLowerCase().trim(), rateVal);
+      for (const rateEntry of targetCatalog.catalogRates) {
+        targetRateMap.set(rateEntry.materialId, rateEntry.rate);
+        if (rateEntry.material) {
+          targetRateMap.set(rateEntry.material.normalizedName, rateEntry.rate);
+          targetRateMap.set(rateEntry.material.name.toLowerCase().trim(), rateEntry.rate);
+        }
       }
 
       const qtyMap = new Map<string, number>();
       for (const boqItem of project.boqItems) {
         for (const ing of boqItem.ingredients) {
           if (ing.type === "material" && ing.name) {
-            const key = ing.materialCatalogId || ing.name.toLowerCase().trim();
+            const key = ing.catalogMaterialId || ing.name.toLowerCase().trim();
             const currentQty = qtyMap.get(key) || 0;
             qtyMap.set(key, currentQty + (ing.quantity * (boqItem.quantity || 1)));
           }
@@ -190,9 +198,9 @@ export const fiscalYearRouter = router({
       const entriesToCreate: any[] = [];
 
       for (const mat of project.materials) {
-        const key = mat.orgMaterialEntry?.globalMaterialId || mat.name.toLowerCase().trim();
-        const oldRate = mat.orgMaterialEntry?.defaultRate || 0;
-        const newRate = targetRateMap.get(key) || oldRate;
+        const key = mat.catalogMaterialId || mat.name.toLowerCase().trim();
+        const oldRate = mat.catalogMaterial?.defaultRate || 0;
+        const newRate = targetRateMap.get(key) || (mat.catalogMaterialId ? targetRateMap.get(mat.catalogMaterialId) : undefined) || oldRate;
         const rateDelta = newRate - oldRate;
         const remainingQty = qtyMap.get(key) || 0;
         const costImpact = rateDelta * remainingQty;
@@ -211,7 +219,7 @@ export const fiscalYearRouter = router({
 
       // Execute transaction
       await db.$transaction(async (tx) => {
-        const log = await tx.marketRateRevisionLog.create({
+        await tx.marketRateRevisionLog.create({
           data: {
             projectId: input.projectId,
             revisionType: "fiscal_year_switch",
@@ -246,10 +254,12 @@ export const fiscalYearRouter = router({
     }),
 
   listProjectRevisions: protectedProcedure
-    .input(z.object({
-      projectId: z.string(),
-      limit: z.number().min(1).max(100).default(20),
-    }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        limit: z.number().min(1).max(100).default(20),
+      })
+    )
     .query(async ({ input }) => {
       const logs = await db.marketRateRevisionLog.findMany({
         where: { projectId: input.projectId },
@@ -269,22 +279,22 @@ export const fiscalYearRouter = router({
     }),
 
   rollForwardCatalog: protectedProcedure
-    .input(z.object({
-      sourceCatalogId: z.string(),
-      targetFiscalYear: z.string(),
-      inflationMultiplier: z.number().min(0.5).max(3.0).default(1.0),
-    }))
+    .input(
+      z.object({
+        sourceCatalogId: z.string(),
+        targetFiscalYear: z.string(),
+        inflationMultiplier: z.number().min(0.5).max(3.0).default(1.0),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       if (!ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only SuperAdmins can roll forward baseline rate catalogs." });
       }
 
-      const sourceCatalog = await db.rateCatalog.findUnique({
+      const sourceCatalog = await db.rateBook.findUnique({
         where: { id: input.sourceCatalogId },
         include: {
-          items: {
-            include: { rates: true },
-          },
+          catalogRates: true,
         },
       });
 
@@ -294,7 +304,7 @@ export const fiscalYearRouter = router({
 
       await db.$transaction(async (tx) => {
         // Create new catalog
-        const newCatalog = await tx.rateCatalog.create({
+        const newCatalog = await tx.rateBook.create({
           data: {
             name: newCatalogName,
             fiscalYear: input.targetFiscalYear,
@@ -302,48 +312,21 @@ export const fiscalYearRouter = router({
             districts: sourceCatalog.districts,
             isActive: true,
             isBaseline: true,
+            sourceCatalogId: sourceCatalog.id,
           },
         });
 
-        // Copy items and inflate rates
-        for (const item of sourceCatalog.items) {
-          const newItem = await tx.rateCatalogItem.create({
-            data: {
-              catalogId: newCatalog.id,
-              code: item.code,
-              materialName: item.materialName,
-              unit: item.unit,
-              globalMaterialId: item.globalMaterialId,
-              materialCatalogId: item.materialCatalogId,
-              sortOrder: item.sortOrder,
-            },
+        // Copy rates with multiplier
+        if (sourceCatalog.catalogRates.length > 0) {
+          await tx.rateEntry.createMany({
+            data: sourceCatalog.catalogRates.map((r) => ({
+              materialId: r.materialId,
+              rateCatalogId: newCatalog.id,
+              district: r.district,
+              rate: Math.round(r.rate * input.inflationMultiplier * 100) / 100,
+              sourceRateEntryId: r.id,
+            })),
           });
-
-          for (const r of item.rates) {
-            const newRateVal = Math.round(r.rate * input.inflationMultiplier);
-            await tx.rateCatalogItemRate.create({
-              data: {
-                itemId: newItem.id,
-                district: r.district,
-                rate: newRateVal,
-              },
-            });
-
-            // Write audit trail
-            if (item.globalMaterialId) {
-              await tx.rateFiscalYearAudit.create({
-                data: {
-                  globalMaterialId: item.globalMaterialId,
-                  district: r.district,
-                  fromFiscalYear: sourceCatalog.fiscalYear,
-                  toFiscalYear: input.targetFiscalYear,
-                  fromRate: r.rate,
-                  toRate: newRateVal,
-                  changePct: ((newRateVal - r.rate) / r.rate) * 100,
-                },
-              });
-            }
-          }
         }
       });
 

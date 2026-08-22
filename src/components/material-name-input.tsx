@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Globe,
   Building2,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +28,7 @@ export interface MaterialMatchItem {
   score: number;
   matchType: "exact" | "alias" | "token_sort" | "trigram" | "levenshtein";
   confidence: "high" | "medium" | "low";
-  scope: "global" | "org";
+  scope: "global" | "org" | "project";
   isCustom?: boolean;
 }
 
@@ -36,11 +37,13 @@ interface MaterialNameInputProps {
   onChange: (value: string) => void;
   onSelectMatch?: (match: MaterialMatchItem) => void;
   placeholder?: string;
-  scope?: "global" | "org" | "all";
+  scope?: "global" | "org" | "project" | "all";
   organizationId?: string;
+  projectId?: string;
   className?: string;
   disabled?: boolean;
   required?: boolean;
+  autoFocus?: boolean;
   id?: string;
 }
 
@@ -51,9 +54,11 @@ export function MaterialNameInput({
   placeholder = "e.g. Cement OPC 53 Grade",
   scope = "all",
   organizationId,
+  projectId,
   className,
   disabled = false,
   required = false,
+  autoFocus = false,
   id,
 }: MaterialNameInputProps) {
   const [debouncedQuery, setDebouncedQuery] = useState(value);
@@ -68,11 +73,12 @@ export function MaterialNameInput({
     return () => clearTimeout(handler);
   }, [value]);
 
-  const { data, isLoading } = trpc.orgMaterialEntry.findSimilar.useQuery(
+  const { data, isLoading } = trpc.catalogV2.findSimilar.useQuery(
     {
       name: debouncedQuery,
-      scope,
-      organizationId,
+      scope: scope as any,
+      organizationId: organizationId ?? undefined,
+      projectId: projectId ?? undefined,
       threshold: 0.35,
       limit: 6,
     },
@@ -107,8 +113,13 @@ export function MaterialNameInput({
       );
     } else if (topMatch?.matchType === "exact" || topMatch?.score >= 0.98) {
       statusIndicator = (
-        <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border-red-200 text-[10px] gap-1 px-1.5 py-0">
-          <XCircle className="h-2.5 w-2.5 text-red-500" /> Duplicate
+        <Badge
+          variant="outline"
+          className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 text-[10px] gap-1 px-1.5 py-0 cursor-pointer"
+          onClick={() => setIsOpen(true)}
+          title="This base material exists in your catalog. You can add a new specification or select existing."
+        >
+          <Sparkles className="h-2.5 w-2.5 text-blue-500" /> Existing Group
         </Badge>
       );
     } else if (topMatch && topMatch.score >= 0.65) {
@@ -142,6 +153,7 @@ export function MaterialNameInput({
           placeholder={placeholder}
           disabled={disabled}
           required={required}
+          autoFocus={autoFocus}
           className={cn("pr-24 font-medium", className)}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -188,9 +200,13 @@ export function MaterialNameInput({
                         <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 gap-0.5">
                           <Globe className="h-2 w-2" /> Global
                         </Badge>
-                      ) : (
+                      ) : match.scope === "org" ? (
                         <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-0.5">
                           <Building2 className="h-2 w-2" /> Org
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-0.5">
+                          <Shield className="h-2 w-2" /> Project
                         </Badge>
                       )}
                       {match.category && (

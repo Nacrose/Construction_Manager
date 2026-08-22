@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  ChevronRight as ChevronRightIcon,
   X,
   Clock,
   User,
@@ -47,6 +46,8 @@ export default function AdminAudit() {
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const pageSize = 50;
@@ -77,8 +78,19 @@ export default function AdminAudit() {
       filtered = filtered.filter((log) => log.entityType === entityFilter);
     }
 
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      filtered = filtered.filter((log) => new Date(log.createdAt) >= from);
+    }
+
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((log) => new Date(log.createdAt) <= to);
+    }
+
     return filtered;
-  }, [data, search, actionFilter, entityFilter]);
+  }, [data, search, actionFilter, entityFilter, dateFrom, dateTo]);
 
   const paginatedLogs = useMemo(() => {
     const start = page * pageSize;
@@ -132,6 +144,20 @@ export default function AdminAudit() {
                 className="pl-8 h-8 text-xs"
               />
             </div>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(0); }}
+              className="h-8 rounded border border-border bg-card px-2 text-xs"
+              placeholder="From"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(0); }}
+              className="h-8 rounded border border-border bg-card px-2 text-xs"
+              placeholder="To"
+            />
             <select
               value={actionFilter}
               onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
@@ -152,12 +178,41 @@ export default function AdminAudit() {
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
-            {(search || actionFilter || entityFilter) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                const csv = [
+                  ["Timestamp", "User", "Email", "Action", "Entity Type", "Entity ID", "IP Address", "Metadata"].join(","),
+                  ...logs.map((log) => [
+                    new Date(log.createdAt).toISOString(),
+                    log.user?.name ?? "system",
+                    log.user?.email ?? "",
+                    log.action,
+                    log.entityType,
+                    log.entityId,
+                    log.ipAddress ?? "",
+                    log.metadata ? `"${log.metadata.replace(/"/g, '""')}"` : "",
+                  ].join(",")),
+                ].join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Export CSV
+            </Button>
+            {(search || actionFilter || entityFilter || dateFrom || dateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 text-xs text-muted-foreground"
-                onClick={() => { setSearch(""); setActionFilter(""); setEntityFilter(""); setPage(0); }}
+                onClick={() => { setSearch(""); setActionFilter(""); setEntityFilter(""); setDateFrom(""); setDateTo(""); setPage(0); }}
               >
                 <X className="h-3 w-3 mr-1" /> Clear
               </Button>
@@ -234,9 +289,8 @@ export default function AdminAudit() {
                     const isExpanded = expandedId === log.id;
                     const meta = parseMetadata(log.metadata);
                     return (
-                      <>
+                      <Fragment key={log.id}>
                         <TableRow
-                          key={log.id}
                           className="cursor-pointer hover:bg-primary/5"
                           onClick={() => setExpandedId(isExpanded ? null : log.id)}
                         >
@@ -310,7 +364,7 @@ export default function AdminAudit() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </TableBody>
@@ -346,7 +400,7 @@ export default function AdminAudit() {
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
             >
-              <ChevronRightIcon className="h-3.5 w-3.5" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>

@@ -193,7 +193,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Admin Password</Label>
-        <Input type="text" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Min 8 chars" />
+        <Input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Min 8 chars" />
       </div>
       <DialogFooter>
         <Button

@@ -36,6 +36,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
   const [showAddToLibrary, setShowAddToLibrary] = useState(false);
   const [showCustomNameInput, setShowCustomNameInput] = useState(false);
   const [profileIdForNew, setProfileIdForNew] = useState("");
+  const [selectedResourceId, setSelectedResourceId] = useState("");
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
 
   // Rate catalog state
@@ -51,32 +52,21 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
     { enabled: !!rateCatalogId },
   );
 
-  // Project rate table for auto-fill on ingredient selection
-  const { data: projectRates } = trpc.projectRate.getProjectRates.useQuery(
-    { projectId },
-    { enabled: !!projectId }
-  );
-
-  // Auto-fill rate when ingredient is selected from catalog (v2)
-  function handleIngredientSelect(name: string, catalogItem?: { id: string; name: string; unit: string }) {
+  // Auto-fill rate when ingredient is selected from Resource Library / Catalog (v2)
+  function handleIngredientSelect(name: string, resource?: { id: string; name: string; unit: string; catalogMaterialId?: string | null }) {
     setNewName(name);
-    setSelectedCatalogItemId(catalogItem?.id ?? "");
-    if (catalogItem?.unit) setNewUnit(catalogItem.unit);
+    setSelectedResourceId(resource?.id ?? "");
+    setSelectedCatalogItemId(resource?.catalogMaterialId ?? "");
+    if (resource?.unit) setNewUnit(resource.unit);
     // Try rate catalog district rate first (v2: catalogRates with material relation)
-    if (catalogItem?.id && catalogData?.catalog) {
+    const catId = resource?.catalogMaterialId;
+    if (catId && catalogData?.catalog && rateDistrict) {
       const rateEntry = catalogData.catalog.catalogRates?.find(
-        (r: any) => r.materialId === catalogItem.id && r.district === rateDistrict
+        (r: any) => r.materialId === catId && r.district === rateDistrict
       );
       if (rateEntry && rateEntry.rate > 0) {
         setNewRate(String(rateEntry.rate));
         return;
-      }
-    }
-    // Fallback: project rate table
-    if (catalogItem?.id && projectRates?.rateMap) {
-      const projectRate = projectRates.rateMap[catalogItem.id];
-      if (projectRate && projectRate > 0) {
-        setNewRate(String(projectRate));
       }
     }
   }
@@ -145,7 +135,8 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
         body.percentage = parseFloat(newPct) || 0;
         body.unit = newUnit;
         body.rate = parseFloat(newRate) || 0;
-        body.materialCatalogId = selectedCatalogItemId || undefined;
+        body.materialId = selectedResourceId || undefined;
+        body.catalogMaterialId = selectedCatalogItemId || undefined;
       } else {
         body.type = "overhead";
         body.calcMode = "percentage";
@@ -168,7 +159,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
         setProfileIdForNew(selectedProfile && selectedProfile !== "__all__" ? selectedProfile : "");
         setShowAddToLibrary(true);
       } else {
-        setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedCatalogItemId(""); setAdding(false);
+        setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedResourceId(""); setSelectedCatalogItemId(""); setAdding(false);
       }
       toast.success("Added");
     },
@@ -467,7 +458,9 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
                       <IngredientPicker
                         value={newName}
                         onChange={handleIngredientSelect}
-                        placeholder="Type material name..."
+                        projectId={projectId}
+                        resourceType={newType as any}
+                        placeholder="Search Resource Library..."
                         className="w-36"
                       />
                       {showCustomNameInput && (

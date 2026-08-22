@@ -39,7 +39,7 @@ export function EditCatalogItemDialog({
   );
   const [rateSource, setRateSource] = useState(item.rateSource || "");
 
-  const updateMut = trpc.materialCatalog.update.useMutation();
+  const updateMut = trpc.catalogV2.updateMaterial.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +51,6 @@ export function EditCatalogItemDialog({
         subCategory: subCategory.trim() || undefined,
         defaultUnit: defaultUnit.trim() || undefined,
         defaultRate: parseFloat(defaultRate) || 0,
-        rateSource: rateSource.trim() || undefined,
       });
 
       toast.success(`Catalog item updated!`);

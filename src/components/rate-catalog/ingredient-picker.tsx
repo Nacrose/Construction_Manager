@@ -4,19 +4,37 @@ import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, AlertTriangle, Check } from "lucide-react";
+import { Loader2, Plus, AlertTriangle, Check, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+type SelectedResource = {
+  id: string; // material.id (Project Resource Library)
+  name: string;
+  unit: string;
+  catalogMaterialId?: string | null;
+};
+
 type Props = {
   value: string;
-  onChange: (value: string, catalogItem?: { id: string; name: string; unit: string }) => void;
+  onChange: (value: string, resource?: SelectedResource) => void;
+  projectId?: string;
   organizationId?: string;
+  resourceType?: "material" | "labor" | "equipment";
   className?: string;
   placeholder?: string;
 };
 
-export function IngredientPicker({ value, onChange, organizationId, className, placeholder }: Props) {
+export function IngredientPicker({
+  value,
+  onChange,
+  projectId,
+  organizationId,
+  resourceType = "material",
+  className,
+  placeholder,
+}: Props) {
+  const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const [showCreate, setShowCreate] = useState(false);
@@ -26,21 +44,42 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: searchData, isLoading } = trpc.catalogV2.search.useQuery(
-    { q: query, organizationId, limit: 8 },
-    { enabled: query.length >= 1 && open },
+  // Sync internal state with external value if changed from outside
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  // If projectId is provided, search from project Resource Library; otherwise fallback to catalog search
+  const { data: projectResources, isLoading: isProjectLoading } = trpc.material.listByType.useQuery(
+    { projectId: projectId!, resourceType, search: query },
+    { enabled: !!projectId && open }
   );
 
-  const items = (searchData?.materials ?? []).map((m) => ({
-    id: m.id,
-    name: m.name,
-    category: m.category ?? null,
-    defaultUnit: m.defaultUnit ?? "",
-  }));
-  const isExactMatch = items.some(
-    (i) => i.name.toLowerCase() === query.toLowerCase().trim(),
+  const { data: catalogData, isLoading: isCatalogLoading } = trpc.catalogV2.search.useQuery(
+    { q: query, organizationId, limit: 8 },
+    { enabled: !projectId && query.length >= 1 && open }
   );
-  const showSuggestions = open && query.length >= 1;
+
+  const isLoading = projectId ? isProjectLoading : isCatalogLoading;
+
+  const items: SelectedResource[] = projectId
+    ? (projectResources?.items ?? []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        unit: m.unit,
+        catalogMaterialId: m.catalogMaterialId,
+      }))
+    : (catalogData?.materials ?? []).map((m) => ({
+        id: m.id,
+        name: m.name,
+        unit: m.defaultUnit ?? "",
+        catalogMaterialId: m.id,
+      }));
+
+  const isExactMatch = items.some(
+    (i) => i.name.toLowerCase().trim() === query.toLowerCase().trim()
+  );
+  const showSuggestions = open;
   const showFuzzyWarning = !isExactMatch && query.length >= 2 && items.length > 0;
 
   useEffect(() => {
@@ -53,19 +92,42 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function select(item: (typeof items)[0]) {
+  function select(item: SelectedResource) {
     setQuery(item.name);
-    onChange(item.name, { id: item.id, name: item.name, unit: item.defaultUnit ?? "" });
+    onChange(item.name, item);
     setOpen(false);
     setShowCreate(false);
   }
 
-  const createMaterialMutation = trpc.catalogV2.createMaterial.useMutation({
+  const createProjectMaterialMutation = trpc.material.create.useMutation({
+    onSuccess: (data) => {
+      const created = data.material;
+      utils.material.listByType.invalidate();
+      setQuery(created.name);
+      onChange(created.name, {
+        id: created.id,
+        name: created.name,
+        unit: created.unit,
+        catalogMaterialId: created.catalogMaterialId,
+      });
+      toast.success(`Added "${created.name}" to Resource Library`);
+      setOpen(false);
+      setShowCreate(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const createCatalogMaterialMutation = trpc.catalogV2.createMaterial.useMutation({
     onSuccess: (data) => {
       const created = data.material;
       setQuery(created.name);
-      onChange(created.name, { id: created.id, name: created.name, unit: created.defaultUnit ?? "" });
-      toast.success(`Added "${created.name}" to catalog`);
+      onChange(created.name, {
+        id: created.id,
+        name: created.name,
+        unit: created.defaultUnit ?? "",
+        catalogMaterialId: created.id,
+      });
+      toast.success(`Added "${created.name}" to Catalog`);
       setOpen(false);
       setShowCreate(false);
     },
@@ -76,16 +138,35 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
     if (!query.trim()) return;
     setCreating(true);
     try {
-      await createMaterialMutation.mutateAsync({
-        scope: "org",
-        name: query.trim(),
-        category: newCategory || undefined,
-        defaultUnit: newUnit || undefined,
-      });
+      if (projectId) {
+        await createProjectMaterialMutation.mutateAsync({
+          projectId,
+          resourceType,
+          name: query.trim(),
+          category: newCategory || undefined,
+          unit: newUnit || (resourceType === "labor" ? "day" : resourceType === "equipment" ? "hr" : "cum"),
+        });
+      } else {
+        await createCatalogMaterialMutation.mutateAsync({
+          scope: "org",
+          resourceType,
+          name: query.trim(),
+          category: newCategory || undefined,
+          defaultUnit: newUnit || (resourceType === "labor" ? "day" : resourceType === "equipment" ? "hr" : "cum"),
+        });
+      }
     } finally {
       setCreating(false);
     }
   }
+
+  const placeholderText =
+    placeholder ??
+    (resourceType === "labor"
+      ? "Search labor (e.g. Mason, Welder)..."
+      : resourceType === "equipment"
+      ? "Search equipment (e.g. Excavator, Roller)..."
+      : "Search material (e.g. Cement, Rebar)...");
 
   return (
     <div ref={ref} className={cn("relative", className)}>
@@ -100,12 +181,12 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
           }
         }}
         onFocus={() => setOpen(true)}
-        placeholder={placeholder ?? "Search or type material name..."}
-        className="h-8 text-sm"
+        placeholder={placeholderText}
+        className="h-8 text-xs"
       />
 
       {showSuggestions && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border bg-popover shadow-lg overflow-hidden">
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border bg-popover shadow-lg overflow-hidden min-w-[220px]">
           {isLoading && (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -117,7 +198,7 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
               {showFuzzyWarning && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 border-b">
                   <AlertTriangle className="h-3 w-3" />
-                  Did you mean one of these?
+                  Select from Resource Library:
                 </div>
               )}
               <div className="max-h-48 overflow-y-auto">
@@ -125,19 +206,14 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
                   <button
                     key={item.id}
                     type="button"
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors border-b border-border/30 last:border-0"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted transition-colors border-b border-border/30 last:border-0"
                     onClick={() => select(item)}
                   >
                     <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    <span className="flex-1 truncate">{item.name}</span>
-                    {item.category && (
-                      <span className="text-[10px] text-muted-foreground capitalize px-1.5 py-0.5 rounded bg-muted">
-                        {item.category}
-                      </span>
-                    )}
-                    {item.defaultUnit && (
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {item.defaultUnit}
+                    <span className="flex-1 truncate font-medium">{item.name}</span>
+                    {item.unit && (
+                      <span className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">
+                        {item.unit}
                       </span>
                     )}
                   </button>
@@ -149,59 +225,58 @@ export function IngredientPicker({ value, onChange, organizationId, className, p
           {!isLoading && query.trim().length >= 1 && !isExactMatch && (
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted transition-colors border-t border-border/40"
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted transition-colors border-t border-border/40 text-primary"
               onClick={() => setShowCreate(true)}
             >
-              <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
+              <Plus className="h-3.5 w-3.5 shrink-0" />
               <span>
-                Add &ldquo;<span className="font-medium">{query.trim()}</span>
-                &rdquo; to catalog
+                Add &ldquo;<span className="font-semibold">{query.trim()}</span>
+                &rdquo; to {projectId ? "Resource Library" : "Catalog"}
               </span>
             </button>
           )}
 
-          {!isLoading && items.length === 0 && query.trim().length >= 2 && (
-            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-              <p className="mb-2">No materials found for &ldquo;{query.trim()}&rdquo;</p>
+          {!isLoading && items.length === 0 && (
+            <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+              <p className="mb-2">
+                No {resourceType} found in {projectId ? "Project Resource Library" : "Catalog"}.
+              </p>
               <Button
                 variant="outline"
                 size="sm"
+                className="h-7 text-xs"
                 onClick={() => setShowCreate(true)}
               >
-                <Plus className="h-3 w-3 mr-1" /> Add to catalog
+                <Plus className="h-3 w-3 mr-1" /> Add to {projectId ? "Resource Library" : "Catalog"}
               </Button>
             </div>
           )}
 
           {showCreate && (
-            <div className="border-t p-3 space-y-2 bg-muted/30">
-              <p className="text-xs font-medium">
-                Add &ldquo;{query.trim()}&rdquo; to catalog
+            <div className="border-t p-2.5 space-y-2 bg-muted/30">
+              <p className="text-[11px] font-medium text-foreground">
+                Add &ldquo;{query.trim()}&rdquo; as {resourceType}
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <Input
-                  placeholder="Category (e.g. Cement)"
+                  placeholder="Category (optional)"
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  className="h-8 text-xs flex-1"
+                  className="h-7 text-xs flex-1"
                 />
                 <Input
-                  placeholder="Unit"
+                  placeholder="Unit (e.g. day, hr, cum)"
                   value={newUnit}
                   onChange={(e) => setNewUnit(e.target.value)}
-                  className="h-8 text-xs w-24"
+                  className="h-7 text-xs w-20"
                 />
                 <Button
                   size="sm"
-                  className="h-8"
+                  className="h-7 px-2.5"
                   onClick={handleCreate}
                   disabled={creating}
                 >
-                  {creating ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Plus className="h-3 w-3" />
-                  )}
+                  {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
                 </Button>
               </div>
             </div>

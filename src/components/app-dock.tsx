@@ -57,8 +57,7 @@ const PROJECT_MODULES: NavItem[] = [
 ];
 
 const PROJECT_ADMIN_MODULES: NavItem[] = [
-  { label: "Material Library", href: "/material-library", icon: Boxes },
-  { label: "Rate Library", href: "/rate-library", icon: BookOpen },
+  { label: "Resource & Rate Library", href: "/rate-library", icon: BookOpen },
 ];
 
 function useProjectIdFromPath(): string | null {

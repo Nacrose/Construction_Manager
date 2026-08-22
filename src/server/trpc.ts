@@ -36,7 +36,23 @@ export async function createTRPCContext(opts: Request | { req: Request }): Promi
 export const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
   errorFormatter({ shape }) {
-    return shape;
+    let message = shape.message;
+
+    // Sanitize raw Prisma and database errors into human-readable messages
+    if (message.includes("Unique constraint failed") || message.includes("P2002")) {
+      message = "An item with this name and specification already exists in this catalog.";
+    } else if (message.includes("Foreign key constraint failed") || message.includes("P2003")) {
+      message = "This operation could not be completed because related data depends on it.";
+    } else if (message.includes("Record to update not found") || message.includes("Record to delete does not exist") || message.includes("P2025")) {
+      message = "The requested record was not found or has already been deleted.";
+    } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
+      message = "A database error occurred while processing your request. Please try again.";
+    }
+
+    return {
+      ...shape,
+      message,
+    };
   },
 });
 

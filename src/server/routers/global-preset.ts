@@ -1,13 +1,11 @@
-import { isOrgAdmin } from "@/lib/authz";
 /**
- * tRPC router for global presets.
- * Replaces: global-presets/*, global-presets/[presetId]/load, global-presets/save-from-analysis
+ * tRPC router for global and org-level presets.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertCanWrite } from "@/lib/authz";
+import { isOrgAdmin, assertCanWrite } from "@/lib/authz";
 import { recalcAnalysis } from "@/server/utils/boq-calc";
 
 const CreatePresetSchema = z.object({
@@ -30,7 +28,7 @@ const UpdatePresetSchema = z.object({
 const CreateIngredientSchema = z.object({
   presetId: z.string(),
   name: z.string().min(1).max(200),
-  type: z.string(),
+  type: z.string().default("material"),
   calcMode: z.enum(["fixed", "percentage"]).default("fixed"),
   quantity: z.number().default(0),
   unit: z.string().default(""),
@@ -38,6 +36,8 @@ const CreateIngredientSchema = z.object({
   pctBase: z.string().default(""),
   rate: z.number().default(0),
   amount: z.number().default(0),
+  catalogMaterialId: z.string().optional().nullable(),
+  materialCatalogId: z.string().optional().nullable(),
 });
 
 const UpdateIngredientSchema = z.object({
@@ -51,16 +51,20 @@ const UpdateIngredientSchema = z.object({
   percentage: z.number().optional(),
   pctBase: z.string().optional(),
   rate: z.number().optional(),
+  catalogMaterialId: z.string().optional().nullable(),
+  materialCatalogId: z.string().optional().nullable(),
 });
 
 export const globalPresetRouter = router({
   /** List all global presets. */
   list: protectedProcedure
-    .input(z.object({
-      category: z.string().optional(),
-      q: z.string().optional(),
-      limit: z.number().min(1).max(500).default(500),
-    }))
+    .input(
+      z.object({
+        category: z.string().optional(),
+        q: z.string().optional(),
+        limit: z.number().min(1).max(500).default(500),
+      })
+    )
     .query(async ({ input }) => {
       const presets = await db.globalPresetAnalysis.findMany({
         where: {
@@ -71,7 +75,7 @@ export const globalPresetRouter = router({
               { description: { contains: input.q, mode: "insensitive" } },
               { category: { contains: input.q, mode: "insensitive" } },
               { source: { contains: input.q, mode: "insensitive" } },
-            ]
+            ],
           }),
         },
         include: { _count: { select: { ingredients: true } } },
@@ -88,7 +92,12 @@ export const globalPresetRouter = router({
     .query(async ({ input }) => {
       const preset = await db.globalPresetAnalysis.findUnique({
         where: { id: input.presetId },
-        include: { ingredients: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          ingredients: {
+            orderBy: { sortOrder: "asc" },
+            include: { catalogMaterial: { select: { id: true, name: true, defaultUnit: true } } },
+          },
+        },
       });
       if (!preset) throw new TRPCError({ code: "NOT_FOUND", message: "Preset not found." });
       return { preset: { ...preset, ingredients: preset.ingredients ?? [] } };
@@ -98,7 +107,6 @@ export const globalPresetRouter = router({
   create: protectedProcedure
     .input(CreatePresetSchema)
     .mutation(async ({ ctx, input }) => {
-      // Only platform admins / org admins can manage global presets
       if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
       }
@@ -153,7 +161,7 @@ export const globalPresetRouter = router({
       if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
       }
-      const { presetId, ...data } = input;
+      const { presetId, materialCatalogId, catalogMaterialId, ...data } = input;
       const maxOrder = await db.globalPresetIngredient.aggregate({
         where: { presetId },
         _max: { sortOrder: true },
@@ -162,6 +170,7 @@ export const globalPresetRouter = router({
         data: {
           ...data,
           presetId,
+          catalogMaterialId: catalogMaterialId || materialCatalogId || null,
           sortOrder: (maxOrder._max.sortOrder ?? -1) + 1,
         },
       });
@@ -175,7 +184,14 @@ export const globalPresetRouter = router({
       if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
       }
-      const { ingredientId, ...data } = input;
+      const { ingredientId, presetId, materialCatalogId, catalogMaterialId, ...data } = input;
+      const finalCatalogId =
+        catalogMaterialId !== undefined
+          ? catalogMaterialId
+          : materialCatalogId !== undefined
+          ? materialCatalogId
+          : undefined;
+
       const ingredient = await db.globalPresetIngredient.update({
         where: { id: ingredientId },
         data: {
@@ -187,6 +203,7 @@ export const globalPresetRouter = router({
           ...(data.percentage !== undefined && { percentage: data.percentage }),
           ...(data.pctBase !== undefined && { pctBase: data.pctBase }),
           ...(data.rate !== undefined && { rate: data.rate }),
+          ...(finalCatalogId !== undefined && { catalogMaterialId: finalCatalogId }),
         },
       });
       return { ingredient };
@@ -203,28 +220,37 @@ export const globalPresetRouter = router({
       return { ok: true };
     }),
 
-  /** Load a preset's ingredients into a target rate analysis, replacing existing ingredients.
-   *  If rateCatalogId and district are provided, auto-fill rates from the catalog. */
+  /**
+   * Load a global preset into a specific rate analysis of a BOQ item.
+   * Auto-pulls district rates from RateEntry (CatalogRate).
+   */
   load: protectedProcedure
-    .input(z.object({
-      presetId: z.string(),
-      rateAnalysisId: z.string(),
-      boqItemId: z.string(),
-      projectId: z.string(),
-      rateCatalogId: z.string().optional(),
-      district: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        boqItemId: z.string(),
+        presetId: z.string(),
+        rateAnalysisId: z.string(),
+        projectId: z.string().optional(),
+        rateCatalogId: z.string().optional(),
+        district: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
-      const boqItem = await db.boqItem.findUnique({
+      const item = await db.boqItem.findUnique({
         where: { id: input.boqItemId },
         select: { projectId: true },
       });
-      if (!boqItem) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
-      await assertCanWrite(ctx.user, boqItem.projectId);
+      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
+      await assertCanWrite(ctx.user, item.projectId);
 
       const preset = await db.globalPresetAnalysis.findUnique({
         where: { id: input.presetId },
-        include: { ingredients: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          ingredients: {
+            orderBy: { sortOrder: "asc" },
+            include: { catalogMaterial: true },
+          },
+        },
       });
       if (!preset) throw new TRPCError({ code: "NOT_FOUND", message: "Preset not found." });
 
@@ -236,29 +262,19 @@ export const globalPresetRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Rate analysis not found." });
       }
 
-      // Pre-fetch catalog item rates for rate auto-pull (v2 CatalogRate with legacy fallback)
-      let catalogRates = new Map<string, number>();
+      // Pre-fetch catalog item rates for rate auto-pull (v2 CatalogRate)
+      const catalogRates = new Map<string, number>();
       if (input.rateCatalogId && input.district) {
-        // Try v2: CatalogRate
-        const v2Rates = await db.catalogRate.findMany({
+        const v2Rates = await db.rateEntry.findMany({
           where: { rateCatalogId: input.rateCatalogId, district: input.district },
-          include: { material: { select: { id: true } } },
+          include: { material: { select: { id: true, name: true, normalizedName: true } } },
         });
         for (const r of v2Rates) {
           if (r.rate > 0) {
             catalogRates.set(r.materialId, r.rate);
-          }
-        }
-
-        // Fallback: legacy RateCatalogItem
-        if (catalogRates.size === 0) {
-          const items = await db.rateCatalogItem.findMany({
-            where: { catalogId: input.rateCatalogId },
-            include: { rates: { where: { district: input.district } } },
-          });
-          for (const item of items) {
-            if (item.materialCatalogId && item.rates.length > 0) {
-              catalogRates.set(item.materialCatalogId, item.rates[0].rate);
+            if (r.material) {
+              catalogRates.set(r.material.normalizedName, r.rate);
+              catalogRates.set(r.material.name.toLowerCase().trim(), r.rate);
             }
           }
         }
@@ -266,13 +282,20 @@ export const globalPresetRouter = router({
 
       await db.boqIngredient.deleteMany({ where: { rateAnalysisId: input.rateAnalysisId } });
 
+      const projectMaterials = await db.material.findMany({
+        where: { projectId: item.projectId, isActive: true },
+        select: { id: true, name: true, catalogMaterialId: true },
+      });
+
       for (const ing of preset.ingredients) {
         let rate = ing.rate;
-        let unit = ing.unit;
+        const unit = ing.unit;
 
-        // Auto-pull rate from catalog if materialCatalogId is linked
-        if (ing.materialCatalogId && catalogRates.has(ing.materialCatalogId)) {
-          rate = catalogRates.get(ing.materialCatalogId)!;
+        // Auto-pull rate from catalog by catalogMaterialId, normalizedName, or exact name
+        if (ing.catalogMaterialId && catalogRates.has(ing.catalogMaterialId)) {
+          rate = catalogRates.get(ing.catalogMaterialId)!;
+        } else if (catalogRates.has(ing.name.toLowerCase().trim())) {
+          rate = catalogRates.get(ing.name.toLowerCase().trim())!;
         }
 
         let amount = ing.amount;
@@ -280,6 +303,13 @@ export const globalPresetRouter = router({
           const qtyWithPct = ing.quantity + (ing.quantity * ing.percentage) / 100;
           amount = qtyWithPct * rate;
         }
+
+        // Match against project Resource Library
+        const matchedResource = projectMaterials.find(
+          (m) =>
+            (ing.catalogMaterialId && m.catalogMaterialId === ing.catalogMaterialId) ||
+            m.name.toLowerCase().trim() === ing.name.toLowerCase().trim()
+        );
 
         await db.boqIngredient.create({
           data: {
@@ -295,7 +325,9 @@ export const globalPresetRouter = router({
             rate,
             amount,
             sortOrder: ing.sortOrder,
-            materialCatalogId: ing.materialCatalogId,
+            materialId: matchedResource?.id || null,
+            catalogMaterialId: ing.catalogMaterialId,
+            rateDistrict: input.district || null,
           },
         });
       }
@@ -315,32 +347,34 @@ export const globalPresetRouter = router({
       };
     }),
 
-  /** Save a project rate analysis as a new global preset. */
+  /** Save a project rate analysis as a new global/org preset. */
   saveFromAnalysis: protectedProcedure
-    .input(z.object({
-      rateAnalysisId: z.string(),
-      presetName: z.string().min(1).max(200),
-      source: z.string().default("Custom"),
-      category: z.string().default("General"),
-    }))
+    .input(
+      z.object({
+        rateAnalysisId: z.string(),
+        presetName: z.string().min(1).max(200),
+        source: z.string().default("Custom"),
+        category: z.string().default("General"),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
       }
-      // Get the source analysis with ingredients
       const analysis = await db.rateAnalysis.findUnique({
         where: { id: input.rateAnalysisId },
         include: { ingredients: { orderBy: { sortOrder: "asc" } } },
       });
       if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Rate analysis not found." });
 
-      // Create the global preset
       const preset = await db.globalPresetAnalysis.create({
         data: {
+          organizationId: ctx.user.organizationId ?? null,
           name: input.presetName,
           source: input.source,
           category: input.category,
           batchSize: analysis.batchSize,
+          scope: ctx.user.organizationId ? "org" : "global",
           ingredients: {
             create: analysis.ingredients.map((ing) => ({
               name: ing.name,
@@ -353,6 +387,7 @@ export const globalPresetRouter = router({
               rate: ing.rate,
               amount: ing.amount,
               sortOrder: ing.sortOrder,
+              catalogMaterialId: ing.catalogMaterialId,
             })),
           },
         },
@@ -366,22 +401,31 @@ export const globalPresetRouter = router({
 
   /** List presets for an organization (includes global presets). */
   listOrg: protectedProcedure
-    .input(z.object({
-      organizationId: z.string().optional(),
-      category: z.string().optional(),
-      q: z.string().optional(),
-      includeGlobal: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+        category: z.string().optional(),
+        q: z.string().optional(),
+        includeGlobal: z.boolean().default(true),
+      })
+    )
     .query(async ({ ctx, input }) => {
       const orgId = input.organizationId ?? ctx.user.organizationId;
       const where: any = [];
-      if (orgId && input.includeGlobal) where.push({ organizationId: null }, { organizationId: orgId });
-      else if (orgId) where.push({ organizationId: orgId });
-      else if (isOrgAdmin(ctx.user)) where.push({ organizationId: null });
-      if (input.category) where.forEach((w: any) => w.category = input.category);
-      if (input.q) where.forEach((w: any) => w.name = { contains: input.q, mode: "insensitive" });
+      if (orgId && input.includeGlobal) {
+        where.push({ organizationId: null }, { organizationId: orgId });
+      } else if (orgId) {
+        where.push({ organizationId: orgId });
+      } else {
+        where.push({ organizationId: null });
+      }
+
+      const queryWhere: any = where.length > 0 ? { OR: where } : {};
+      if (input.category && input.category !== "all") queryWhere.category = input.category;
+      if (input.q) queryWhere.name = { contains: input.q, mode: "insensitive" };
+
       const presets = await db.globalPresetAnalysis.findMany({
-        where: where.length > 0 ? { OR: where } : undefined,
+        where: queryWhere,
         include: { _count: { select: { ingredients: true } } },
         orderBy: [{ category: "asc" }, { name: "asc" }],
         take: 500,
@@ -391,11 +435,13 @@ export const globalPresetRouter = router({
 
   /** Import a global preset to the organization. */
   importGlobal: protectedProcedure
-    .input(z.object({
-      presetId: z.string(),
-      organizationId: z.string().optional(),
-      name: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        presetId: z.string(),
+        organizationId: z.string().optional(),
+        name: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const globalPreset = await db.globalPresetAnalysis.findUnique({
         where: { id: input.presetId },
@@ -405,7 +451,7 @@ export const globalPresetRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Global preset not found." });
       }
       const orgId = input.organizationId ?? ctx.user.organizationId;
-      if (!orgId) throw new TRPCError({ code: "BAD_REQUEST" });
+      if (!orgId) throw new TRPCError({ code: "BAD_REQUEST", message: "Organization ID required." });
 
       const preset = await db.globalPresetAnalysis.create({
         data: {
@@ -430,7 +476,7 @@ export const globalPresetRouter = router({
               rate: ing.rate,
               amount: ing.amount,
               sortOrder: ing.sortOrder,
-              materialCatalogId: ing.materialCatalogId,
+              catalogMaterialId: ing.catalogMaterialId,
             })),
           },
         },
@@ -440,26 +486,29 @@ export const globalPresetRouter = router({
 
   /** Copy a preset with optional rate inflation (for the active fiscal year). */
   copyWithInflation: protectedProcedure
-    .input(z.object({
-      sourcePresetId: z.string(),
-      name: z.string(),
-      fiscalYear: z.string().optional(),
-      inflationPct: z.number().default(0),
-      organizationId: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        sourcePresetId: z.string(),
+        name: z.string(),
+        fiscalYear: z.string().optional(),
+        inflationPct: z.number().default(0),
+        organizationId: z.string().optional(),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const source = await db.globalPresetAnalysis.findUnique({
         where: { id: input.sourcePresetId },
         include: { ingredients: true },
       });
-      if (!source) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "Source preset not found." });
 
       const orgId = input.organizationId ?? ctx.user.organizationId;
       const factor = 1 + input.inflationPct / 100;
 
       const preset = await db.globalPresetAnalysis.create({
         data: {
-          organizationId: source.organizationId === null && !isOrgAdmin(ctx.user) ? orgId : source.organizationId,
+          organizationId:
+            source.organizationId === null && !isOrgAdmin(ctx.user) ? orgId : source.organizationId,
           name: input.name,
           source: source.source,
           category: source.category,
@@ -479,7 +528,7 @@ export const globalPresetRouter = router({
               rate: ing.calcMode === "fixed" ? Math.round(ing.rate * factor) : ing.rate,
               amount: ing.calcMode === "fixed" ? Math.round(ing.amount * factor) : ing.amount,
               sortOrder: ing.sortOrder,
-              materialCatalogId: ing.materialCatalogId,
+              catalogMaterialId: ing.catalogMaterialId,
             })),
           },
         },
