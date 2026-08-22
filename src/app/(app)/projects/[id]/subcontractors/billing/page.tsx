@@ -46,6 +46,16 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ReconciliationMatrixTab } from "./components/reconciliation-matrix-tab";
+import { MaterialReconciliationTab } from "./components/material-reconciliation-tab";
+import { VerifyBillDialog } from "./dialogs/verify-bill-dialog";
+import {
+  ShieldCheck,
+  Layers,
+  Package,
+} from "lucide-react";
+
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
   { label: "Resource & Rate Library", href: "/rate-library" },
@@ -70,10 +80,12 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   const { id } = use(params);
   const utils = trpc.useUtils();
 
+  const [activeMainTab, setActiveMainTab] = useState<"bills" | "matrix" | "materials">("bills");
   const [subFilter, setSubFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  const [verifyBillId, setVerifyBillId] = useState<string | null>(null);
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
@@ -87,6 +99,11 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   const { data: billDetail, isLoading: isDetailLoading } = trpc.subcontractorBill.get.useQuery(
     { projectId: id, billId: selectedBillId || "" },
     { enabled: !!selectedBillId }
+  );
+
+  const { data: verifyBillDetail } = trpc.subcontractorBill.get.useQuery(
+    { projectId: id, billId: verifyBillId || "" },
+    { enabled: !!verifyBillId }
   );
 
   const canWrite = Boolean(projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector");
@@ -132,6 +149,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
     switch (status) {
       case "draft": return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
       case "submitted": return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+      case "verified": return "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300";
       case "certified": return "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
       case "paid": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
       case "disputed": return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
@@ -142,85 +160,101 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   return (
     <>
       <ModuleTabs projectId={id} tabs={RES_TABS} />
-      <AnimatedPage className="space-y-5 pb-8">
+      <AnimatedPage className="space-y-4 pb-8">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
           <div>
             <h1 className="text-lg font-bold flex items-center gap-2">
               <ReceiptText className="h-5 w-5 text-violet-500" />
-              Subcontractor Billing
+              Subcontractor Billing & Multi-Package Reconciliation
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Track subcontractor bills, retention, and payment status.
+              Verify claims, reconcile quantities across packages vs. BOQ &amp; IPC, and track material deductions.
             </p>
           </div>
           {canWrite && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> New Bill
+            <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
+              <Plus className="h-3.5 w-3.5" /> New Bill
             </Button>
           )}
         </div>
 
-        {/* Stats Cards */}
-        {billsData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="shadow-sm">
-              <CardContent className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Bills</p>
-                <p className="text-2xl font-bold">{billsData.bills.length}</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Billed</p>
-                <p className="text-2xl font-bold text-foreground">NPR {billsData.summary.totalBilled.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
-                <p className="text-2xl font-bold text-amber-600">NPR {billsData.summary.outstanding.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm">
-              <CardContent className="p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p>
-                <p className="text-2xl font-bold text-emerald-600">NPR {billsData.summary.totalPaid.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* Primary Subcontractor Tabs */}
+        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as any)} className="w-full">
+          <TabsList className="grid grid-cols-3 w-full sm:w-[540px] mb-4">
+            <TabsTrigger value="bills" className="text-xs gap-1.5">
+              <ReceiptText className="h-3.5 w-3.5" /> Bills Register
+            </TabsTrigger>
+            <TabsTrigger value="matrix" className="text-xs gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Reconciliation Matrix
+            </TabsTrigger>
+            <TabsTrigger value="materials" className="text-xs gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Material Statement
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={subFilter} onValueChange={setSubFilter}>
-            <SelectTrigger className="w-full sm:w-48 h-8 text-xs">
-              <SelectValue placeholder="All Subcontractors" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subcontractors</SelectItem>
-              {subsData?.subcontractors?.map((sub: any) => (
-                <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg text-xs">
-            {["all", "draft", "submitted", "certified", "paid"].map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={cn(
-                  "px-2.5 py-1 rounded-md capitalize transition-colors font-medium",
-                  statusFilter === st
-                    ? "bg-card text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* TAB 1: BILLS REGISTER */}
+          <TabsContent value="bills" className="space-y-4 m-0">
+            {/* Stats Cards */}
+            {billsData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="shadow-xs">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Bills</p>
+                    <p className="text-2xl font-bold">{billsData.bills.length}</p>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-xs">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Billed</p>
+                    <p className="text-2xl font-bold text-foreground">NPR {billsData.summary.totalBilled.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-xs">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
+                    <p className="text-2xl font-bold text-amber-600">NPR {billsData.summary.outstanding.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+                <Card className="shadow-xs">
+                  <CardContent className="p-3">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p>
+                    <p className="text-2xl font-bold text-emerald-600">NPR {billsData.summary.totalPaid.toLocaleString()}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select value={subFilter} onValueChange={setSubFilter}>
+                <SelectTrigger className="w-full sm:w-48 h-8 text-xs">
+                  <SelectValue placeholder="All Subcontractors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Subcontractors</SelectItem>
+                  {subsData?.subcontractors?.map((sub: any) => (
+                    <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg text-xs">
+                {["all", "draft", "submitted", "verified", "certified", "paid"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md capitalize transition-colors font-medium",
+                      statusFilter === st
+                        ? "bg-card text-foreground shadow-2xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
 
         {/* Bills Table */}
         {isLoading ? (
@@ -313,15 +347,14 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                                   </Button>
                                 </>
                               )}
-                              {bill.status === "submitted" && isAdmin && (
+                              {(bill.status === "submitted" || bill.status === "verified") && isAdmin && (
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
-                                  className="h-6 text-[10px] text-emerald-600"
-                                  onClick={() => certifyMut.mutate({ projectId: id, billId: bill.id })}
-                                  disabled={certifyMut.isPending}
+                                  className="h-6 text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
+                                  onClick={() => setVerifyBillId(bill.id)}
                                 >
-                                  <Award className="h-3 w-3 mr-1" /> Certify
+                                  <ShieldCheck className="h-3 w-3" /> Verify
                                 </Button>
                               )}
                               {bill.status === "certified" && isAdmin && (
@@ -421,6 +454,19 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
           </Card>
         )}
 
+            </TabsContent>
+
+          {/* TAB 2: RECONCILIATION MATRIX */}
+          <TabsContent value="matrix" className="space-y-4 m-0">
+            <ReconciliationMatrixTab projectId={id} />
+          </TabsContent>
+
+          {/* TAB 3: MATERIAL ISSUE & RETURN RECONCILIATION */}
+          <TabsContent value="materials" className="space-y-4 m-0">
+            <MaterialReconciliationTab projectId={id} subcontractors={subsData?.subcontractors || []} />
+          </TabsContent>
+        </Tabs>
+
         {/* Detail View Dialog */}
         {selectedBillId && (
           <Dialog open={!!selectedBillId} onOpenChange={(open) => !open && setSelectedBillId(null)}>
@@ -435,6 +481,10 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                   canWrite={canWrite}
                   isAdmin={isAdmin}
                   projectId={id}
+                  onVerify={() => {
+                    setVerifyBillId(selectedBillId);
+                    setSelectedBillId(null);
+                  }}
                   onRefresh={() => {
                     utils.subcontractorBill.get.invalidate({ projectId: id, billId: selectedBillId });
                     utils.subcontractorBill.list.invalidate({ projectId: id });
@@ -447,6 +497,24 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
           </Dialog>
         )}
 
+        {/* Line-Item Verification & Certification Dialog */}
+        {verifyBillId && (
+          <VerifyBillDialog
+            projectId={id}
+            bill={verifyBillDetail?.bill}
+            open={!!verifyBillId}
+            onOpenChange={(open) => !open && setVerifyBillId(null)}
+            onSuccess={() => {
+              utils.subcontractorBill.list.invalidate({ projectId: id });
+              utils.subcontractorBill.getReconciliationMatrix.invalidate({ projectId: id });
+              if (verifyBillId) {
+                utils.subcontractorBill.get.invalidate({ projectId: id, billId: verifyBillId });
+              }
+              setVerifyBillId(null);
+            }}
+          />
+        )}
+
         {/* Create Bill Dialog */}
         <CreateBillDialog
           projectId={id}
@@ -455,6 +523,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
           subcontractors={subsData?.subcontractors || []}
           onSuccess={() => {
             utils.subcontractorBill.list.invalidate({ projectId: id });
+            utils.subcontractorBill.getReconciliationMatrix.invalidate({ projectId: id });
             setCreateOpen(false);
           }}
         />
@@ -468,22 +537,20 @@ function BillDetailView({
   canWrite,
   isAdmin,
   projectId,
+  onVerify,
   onRefresh,
 }: {
   bill: any;
   canWrite: boolean;
   isAdmin: boolean;
   projectId: string;
+  onVerify?: () => void;
   onRefresh: () => void;
 }) {
   const utils = trpc.useUtils();
 
   const submitMut = trpc.subcontractorBill.submit.useMutation({
     onSuccess: () => { toast.success("Bill submitted"); onRefresh(); },
-    onError: (e) => toast.error(e.message),
-  });
-  const certifyMut = trpc.subcontractorBill.certify.useMutation({
-    onSuccess: () => { toast.success("Bill certified"); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
   const markPaidMut = trpc.subcontractorBill.markPaid.useMutation({
@@ -500,8 +567,10 @@ function BillDetailView({
           <Badge variant="secondary" className={cn("capitalize text-[10px] ml-2", {
             "bg-slate-100 text-slate-700": bill.status === "draft",
             "bg-amber-100 text-amber-700": bill.status === "submitted",
+            "bg-teal-100 text-teal-800": bill.status === "verified",
             "bg-blue-100 text-blue-700": bill.status === "certified",
             "bg-emerald-100 text-emerald-700": bill.status === "paid",
+            "bg-red-100 text-red-700": bill.status === "disputed",
           })}>
             {bill.status}
           </Badge>
@@ -567,7 +636,14 @@ function BillDetailView({
 
       {/* Line Items */}
       <div>
-        <h3 className="text-sm font-semibold mb-2">Line Items</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold">Line Items &amp; Measurement Breakdown</h3>
+          {onVerify && (bill.status === "submitted" || bill.status === "verified" || bill.status === "draft") && isAdmin && (
+            <Button size="sm" variant="outline" onClick={onVerify} className="h-7 text-xs gap-1 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+              <ShieldCheck className="h-3.5 w-3.5" /> Engineer Line-Item Verification
+            </Button>
+          )}
+        </div>
         {bill.items?.length > 0 ? (
           <div className="rounded-lg border overflow-hidden">
             <table className="w-full text-xs">
@@ -575,31 +651,43 @@ function BillDetailView({
                 <tr className="text-muted-foreground">
                   <th className="text-left p-2 font-medium">BOQ Code</th>
                   <th className="text-left p-2 font-medium">Description</th>
-                  <th className="text-right p-2 font-medium">Contract Qty</th>
-                  <th className="text-right p-2 font-medium">Prev Qty</th>
-                  <th className="text-right p-2 font-medium">This Qty</th>
-                  <th className="text-right p-2 font-medium">Cum Qty</th>
+                  <th className="text-right p-2 font-medium">Claimed Qty</th>
+                  <th className="text-right p-2 font-medium text-emerald-600">Verified Qty</th>
+                  <th className="text-right p-2 font-medium text-red-600">Disallowed</th>
                   <th className="text-right p-2 font-medium">Rate</th>
                   <th className="text-right p-2 font-medium">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {bill.items.map((item: any) => (
-                  <tr key={item.id} className="border-t hover:bg-muted/10">
-                    <td className="p-2 font-mono text-muted-foreground">{item.boqCode || "—"}</td>
-                    <td className="p-2 font-medium">{item.description}</td>
-                    <td className="p-2 text-right font-mono">{item.contractQty}</td>
-                    <td className="p-2 text-right font-mono">{item.previousQty}</td>
-                    <td className="p-2 text-right font-mono font-semibold">{item.thisQty} {item.unit}</td>
-                    <td className="p-2 text-right font-mono">{item.cumQty}</td>
-                    <td className="p-2 text-right font-mono">NPR {item.rate.toLocaleString()}</td>
-                    <td className="p-2 text-right font-mono font-bold">NPR {item.amount.toLocaleString()}</td>
-                  </tr>
-                ))}
+                {bill.items.map((item: any) => {
+                  const verifiedQty = item.verifiedQty !== null && item.verifiedQty !== undefined ? item.verifiedQty : item.thisQty;
+                  const disallowed = item.disallowedQty || Math.max(0, item.thisQty - verifiedQty);
+
+                  return (
+                    <tr key={item.id} className="border-t hover:bg-muted/10">
+                      <td className="p-2 font-mono text-muted-foreground">{item.boqCode || "—"}</td>
+                      <td className="p-2 font-medium">
+                        {item.description}
+                        {item.disallowedReason && (
+                          <span className="block text-[9px] text-red-600 italic">
+                            Deduction: {item.disallowedReason}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 text-right font-mono text-muted-foreground">{item.thisQty} {item.unit}</td>
+                      <td className="p-2 text-right font-mono font-bold text-emerald-600">{verifiedQty} {item.unit}</td>
+                      <td className={cn("p-2 text-right font-mono", disallowed > 0 ? "text-red-600 font-bold" : "text-muted-foreground")}>
+                        {disallowed > 0 ? `-${disallowed}` : "0"}
+                      </td>
+                      <td className="p-2 text-right font-mono">NPR {item.rate.toLocaleString()}</td>
+                      <td className="p-2 text-right font-mono font-bold">NPR {(verifiedQty * item.rate).toLocaleString()}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 bg-muted/20 font-semibold">
-                  <td colSpan={7} className="p-2 text-right">Gross Amount</td>
+                  <td colSpan={6} className="p-2 text-right">Gross Certified Amount</td>
                   <td className="p-2 text-right font-mono">NPR {bill.grossAmount.toLocaleString()}</td>
                 </tr>
               </tfoot>
@@ -630,15 +718,14 @@ function BillDetailView({
             Submit for Certification
           </Button>
         )}
-        {bill.status === "submitted" && isAdmin && (
+        {onVerify && (bill.status === "submitted" || bill.status === "verified") && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => certifyMut.mutate({ projectId, billId: bill.id })}
-            disabled={certifyMut.isPending}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold"
+            onClick={onVerify}
           >
-            {certifyMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Award className="h-3.5 w-3.5 mr-1.5" />}
-            Certify Bill
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Verify &amp; Certify Measurements
           </Button>
         )}
         {bill.status === "certified" && isAdmin && (

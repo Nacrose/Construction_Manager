@@ -685,4 +685,92 @@ export const projectRouter = router({
 
       return { ok: true };
     }),
+
+  // ─────────────────────────────────────────────────────────────
+  // Module Toggle System
+  // ─────────────────────────────────────────────────────────────
+
+  /** Get the enabled-modules map for a project. */
+  getModules: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      const project = await db.project.findUniqueOrThrow({
+        where: { id: input.projectId },
+        select: { enabledModules: true },
+      });
+      const raw = project.enabledModules;
+      const modules: Record<string, boolean> =
+        raw && typeof raw === "object" && !Array.isArray(raw)
+          ? (raw as Record<string, boolean>)
+          : {};
+      return { modules };
+    }),
+
+  /** Update the enabled-modules map for a project. Project manager only. */
+  updateModules: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        modules: z.record(z.string(), z.boolean()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectManager(ctx.user, input.projectId);
+      await db.project.update({
+        where: { id: input.projectId },
+        data: { enabledModules: input.modules },
+      });
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "project.modules.update",
+        entityType: "project",
+        entityId: input.projectId,
+        metadata: { modules: input.modules },
+      });
+      return { ok: true };
+    }),
+
+  /** Copy the enabled-modules map from another project in the same org. */
+  copyModulesFrom: protectedProcedure
+    .input(
+      z.object({
+        targetProjectId: z.string(),
+        sourceProjectId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectManager(ctx.user, input.targetProjectId);
+      await assertProjectMember(ctx.user, input.sourceProjectId);
+
+      const source = await db.project.findUniqueOrThrow({
+        where: { id: input.sourceProjectId },
+        select: { enabledModules: true, organizationId: true },
+      });
+      const target = await db.project.findUniqueOrThrow({
+        where: { id: input.targetProjectId },
+        select: { organizationId: true },
+      });
+
+      if (source.organizationId !== target.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Projects must be in the same organisation." });
+      }
+
+      await db.project.update({
+        where: { id: input.targetProjectId },
+        data: { enabledModules: source.enabledModules ?? {} },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.targetProjectId,
+        action: "project.modules.copy",
+        entityType: "project",
+        entityId: input.targetProjectId,
+        metadata: { sourceProjectId: input.sourceProjectId },
+      });
+
+      return { ok: true };
+    }),
 });

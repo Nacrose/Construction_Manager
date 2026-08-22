@@ -1,47 +1,26 @@
 "use client";
 
-import { trpc } from "@/lib/trpc-client";
 import { use, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/data-table";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import {Plus, Users, Phone, ArrowUpDown, UserCog} from "lucide-react";
-import { format } from "date-fns";
-import { StaffRolesTab } from "./staff-roles-tab";
-import { AddStaffDialog } from "./dialogs/add-staff-dialog";
-
-type Staff = {
-  id: string; name: string; designation: string | null; category: string | null;
-  phone: string | null; dailyWage: number; status: string; joinedDate: Date | null;
-};
-
-type Attendance = {
-  id: string; date: Date; status: string; hours: number; overtime: number;
-  staff: { name: string; designation: string | null };
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  skilled: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  unskilled: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  supervisor: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  staff: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-};
-
-const ATTENDANCE_COLORS: Record<string, string> = {
-  present: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  absent: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  half_day: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  leave: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-  overtime: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-};
-
+import { trpc } from "@/lib/trpc-client";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { ModuleTabs } from "@/components/module-tabs";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Users,
+  CalendarCheck,
+  FileSpreadsheet,
+  Banknote,
+  Calculator,
+  Calendar,
+  Layers,
+} from "lucide-react";
+import { StaffDirectoryTab } from "./components/staff-directory-tab";
+import { DailyAttendanceTab } from "./components/daily-attendance-tab";
+import { MusterRollTab } from "./components/muster-roll-tab";
+import { AdvancesLedgerTab } from "./components/advances-ledger-tab";
+import { PayrollManagementTab } from "./components/payroll-management-tab";
+import { LeavesTab } from "./components/leaves-tab";
+import { StaffRolesTab } from "./staff-roles-tab";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -55,195 +34,109 @@ const RES_TABS = [
 
 export default function HrPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [tab, setTab] = useState("staff");
-  const [addOpen, setAddOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("directory");
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.hr.list.useQuery({
+  const { data: staffData } = trpc.hr.list.useQuery({
     projectId: id,
-    tab: tab as "staff" | "attendance",
+    tab: "staff",
+    status: "active",
   });
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = Boolean(
+    projectInfo?.myRole &&
+      projectInfo.myRole !== "client" &&
+      projectInfo.myRole !== "inspector"
+  );
+  const isAdmin =
+    projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 
-  const staffColumns: ColumnDef<Staff>[] = [
-    {
-      accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="-ml-4 hover:bg-transparent"
-        >
-          Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    },
-    {
-      accessorKey: "designation",
-      header: "Designation",
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.designation || "—"}</span>,
-    },
-    {
-      accessorKey: "category",
-      header: "Category",
-      cell: ({ row }) => {
-        const cat = row.original.category;
-        return cat ? (
-          <Badge variant="secondary" className={`capitalize ${CATEGORY_COLORS[cat] ?? ""}`}>
-            {cat}
-          </Badge>
-        ) : "—";
-      },
-    },
-    {
-      accessorKey: "phone",
-      header: "Phone",
-      cell: ({ row }) => {
-        const phone = row.original.phone;
-        return phone ? (
-          <span className="flex items-center gap-1 text-muted-foreground">
-            <Phone className="h-3 w-3" />
-            {phone}
-          </span>
-        ) : "—";
-      },
-    },
-    {
-      accessorKey: "dailyWage",
-      header: () => <div className="text-right">Daily wage</div>,
-      cell: ({ row }) => <div className="text-right">NPR {row.original.dailyWage.toLocaleString()}</div>,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => <Badge variant="outline" className="capitalize">{row.original.status}</Badge>,
-    },
-  ];
-
-  const attendanceColumns: ColumnDef<Attendance>[] = [
-    {
-      accessorKey: "date",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="-ml-4 hover:bg-transparent"
-        >
-          Date
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span>{format(new Date(row.original.date), "dd MMM yyyy")}</span>,
-    },
-    {
-      accessorKey: "staff.name",
-      header: "Staff",
-      cell: ({ row }) => <span className="font-medium">{row.original.staff.name}</span>,
-    },
-    {
-      accessorKey: "staff.designation",
-      header: "Designation",
-      cell: ({ row }) => <span className="text-muted-foreground">{row.original.staff.designation || "—"}</span>,
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.original.status;
-        return (
-          <Badge variant="secondary" className={`capitalize ${ATTENDANCE_COLORS[status] ?? ""}`}>
-            {status.replace("_", " ")}
-          </Badge>
-        );
-      },
-    },
-    {
-      accessorKey: "hours",
-      header: () => <div className="text-right">Hours</div>,
-      cell: ({ row }) => <div className="text-right">{row.original.hours}</div>,
-    },
-    {
-      accessorKey: "overtime",
-      header: () => <div className="text-right">Overtime</div>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.overtime > 0 ? `${row.original.overtime} hr` : "—"}
-        </div>
-      ),
-    },
-  ];
+  const staffList = staffData?.staff || [];
 
   return (
     <>
-    <ModuleTabs projectId={id} tabs={RES_TABS} />
-    <AnimatedPage className="space-y-5 pb-8">
+      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <AnimatedPage className="space-y-4 pb-8">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div>
+            <h1 className="text-lg font-bold flex items-center gap-2">
+              <Users className="h-5 w-5 text-sky-500" />
+              Workforce &amp; HR Management
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manage site labor gangs, high-speed daily attendance, 31-day muster rolls, advances, and payroll.
+            </p>
+          </div>
+        </div>
 
-      {/* ── Page Actions ─────────────────────────────────────── */}
-      <div className="flex justify-end gap-2 mb-5">
-        {canWrite && tab === "staff" && (
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" />Add Staff</Button>
-            </DialogTrigger>
-            <AddStaffDialog projectId={id} onDone={() => setAddOpen(false)} />
-          </Dialog>
-        )}
-      </div>
+        {/* Unified Tab Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full mb-4">
+            <TabsTrigger value="directory" className="text-xs gap-1.5">
+              <Users className="h-3.5 w-3.5" /> Roster
+            </TabsTrigger>
+            <TabsTrigger value="daily_attendance" className="text-xs gap-1.5">
+              <CalendarCheck className="h-3.5 w-3.5" /> Daily Muster
+            </TabsTrigger>
+            <TabsTrigger value="muster_roll" className="text-xs gap-1.5">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> 31-Day Grid
+            </TabsTrigger>
+            <TabsTrigger value="advances" className="text-xs gap-1.5">
+              <Banknote className="h-3.5 w-3.5" /> Advances
+            </TabsTrigger>
+            <TabsTrigger value="payroll" className="text-xs gap-1.5">
+              <Calculator className="h-3.5 w-3.5" /> Payroll
+            </TabsTrigger>
+            <TabsTrigger value="leaves" className="text-xs gap-1.5">
+              <Calendar className="h-3.5 w-3.5" /> Leaves
+            </TabsTrigger>
+            <TabsTrigger value="roles" className="text-xs gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Chainage Roles
+            </TabsTrigger>
+          </TabsList>
 
-      {/* ── Inner Tab Navigation ──────────────────────────────── */}
-      <div className="flex gap-0 border-b border-border">
-        {([
-          { id: "staff",      label: "Staff",      Icon: Users },
-          { id: "attendance", label: "Attendance", Icon: ArrowUpDown },
-          { id: "roles",      label: "Roles",      Icon: UserCog },
-        ] as const).map(({ id: tabId, label, Icon }) => (
-          <button
-            key={tabId}
-            onClick={() => setTab(tabId)}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-              tab === tabId
-                ? "border-sky-500 text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
-      </div>
+          {/* TAB 1: WORKFORCE ROSTER & GANGS */}
+          <TabsContent value="directory" className="space-y-4 m-0">
+            <StaffDirectoryTab projectId={id} canWrite={canWrite} />
+          </TabsContent>
 
-      {/* ── STAFF ─────────────────────────────────────────── */}
-      {tab === "staff" && (
-        isLoading ? <Skeleton className="h-64" /> : (
-          <DataTable tableId="hr-table-1"
-            columns={staffColumns}
-            data={data?.staff || []}
-            searchPlaceholder="Search staff..."
-            searchColumn="name"
-          />
-        )
-      )}
+          {/* TAB 2: DAILY SITE ATTENDANCE */}
+          <TabsContent value="daily_attendance" className="space-y-4 m-0">
+            <DailyAttendanceTab projectId={id} />
+          </TabsContent>
 
-      {/* ── ATTENDANCE ────────────────────────────────────── */}
-      {tab === "attendance" && (
-        isLoading ? <Skeleton className="h-64" /> : (
-          <DataTable tableId="hr-table-2"
-            columns={attendanceColumns}
-            data={data?.attendance || []}
-            searchPlaceholder="Search attendance..."
-            searchColumn="staff_name"
-          />
-        )
-      )}
+          {/* TAB 3: 31-DAY MUSTER ROLL MATRIX */}
+          <TabsContent value="muster_roll" className="space-y-4 m-0">
+            <MusterRollTab projectId={id} />
+          </TabsContent>
 
-      {/* ── ROLES ─────────────────────────────────────────── */}
-      {tab === "roles" && <StaffRolesTab projectId={id} canWrite={!!canWrite} />}
+          {/* TAB 4: ADVANCES & MESS DEDUCTIONS */}
+          <TabsContent value="advances" className="space-y-4 m-0">
+            <AdvancesLedgerTab projectId={id} staffList={staffList} />
+          </TabsContent>
 
-    </AnimatedPage>
+          {/* TAB 5: PAYROLL & PAYSLIPS */}
+          <TabsContent value="payroll" className="space-y-4 m-0">
+            <PayrollManagementTab projectId={id} isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* TAB 6: LEAVE MANAGEMENT */}
+          <TabsContent value="leaves" className="space-y-4 m-0">
+            <LeavesTab
+              projectId={id}
+              staffList={staffList}
+              isAdmin={isAdmin}
+              canWrite={canWrite}
+            />
+          </TabsContent>
+
+          {/* TAB 7: LINEAR CHAINAGE ROLES */}
+          <TabsContent value="roles" className="space-y-4 m-0">
+            <StaffRolesTab projectId={id} canWrite={canWrite} />
+          </TabsContent>
+        </Tabs>
+      </AnimatedPage>
     </>
   );
 }

@@ -4,14 +4,44 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
+import { trpc } from "@/lib/trpc-client";
+import { isModuleEnabled, type ModuleKey } from "@/lib/project-modules";
 
 export type ModuleTab = {
   label: string;
   href: string;
+  moduleKey?: ModuleKey;
+};
+
+const AUTO_MODULE_MAP: Record<string, ModuleKey> = {
+  "/ipc": "ipc",
+  "/tax-summary": "vat",
+  "/vendors": "purchaseOrders",
+  "/workflow/rfi": "rfi",
+  "/rfis": "rfi",
+  "/submittals": "submittals",
+  "/correspondence": "correspondence",
+  "/punch-list": "punchList",
+  "/quality": "qualitySafety",
+  "/safety": "qualitySafety",
+  "/production": "production",
+  "/drawings": "drawings",
+  "/document-center": "documents",
+  "/hr": "hr",
+  "/hr/payroll": "hr",
+  "/hr/leaves": "hr",
+  "/equipment": "equipment",
+  "/subcontractors": "subcontractors",
+  "/subcontractors/billing": "subcontractors",
+  "/variations": "variations",
+  "/workflow/program": "dailyProgramme",
+  "/daily-program": "dailyProgramme",
+  "/look-ahead": "dailyProgramme",
 };
 
 /**
  * Technical Matrix Sub-Navigation Bar for merged sidebar modules.
+ * Automatically filters out tabs for modules that are disabled for the project.
  */
 export function ModuleTabs({
   projectId,
@@ -25,9 +55,21 @@ export function ModuleTabs({
   const pathname = usePathname();
   const basePath = `/projects/${projectId}`;
 
+  const { data } = trpc.project.getModules.useQuery(
+    { projectId },
+    { staleTime: 300_000, enabled: !!projectId }
+  );
+  const enabledModules = data?.modules;
+
+  const visibleTabs = tabs.filter((tab) => {
+    const key = tab.moduleKey ?? AUTO_MODULE_MAP[tab.href];
+    if (!key) return true; // not a toggleable module or core
+    return isModuleEnabled(enabledModules, key);
+  });
+
   return (
     <div className="flex flex-wrap items-center gap-1 rounded border border-border bg-card/90 p-1 w-fit max-w-full mb-4 shadow-sm">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const href = basePath + tab.href;
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
@@ -53,3 +95,4 @@ export function ModuleTabs({
     </div>
   );
 }
+

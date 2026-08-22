@@ -9,6 +9,7 @@ import {
   Building2,
   Zap,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
@@ -27,9 +28,11 @@ import { AnimatedPage } from "@/components/ui/animated-page";
 import { ModuleTabs } from "@/components/module-tabs";
 import { EquipmentFleetTab } from "./components/equipment-fleet-tab";
 import { EquipmentLogsTab } from "./components/equipment-logs-tab";
+import { SpotHireTab } from "./components/spot-hire-tab";
 import { EquipmentMaintenanceTab } from "./components/equipment-maintenance-tab";
 import { EquipmentFuelTab } from "./components/equipment-fuel-tab";
 import { EquipmentDialogs } from "./components/equipment-dialogs";
+import { LogSpotHireDialog } from "./dialogs/log-spot-hire-dialog";
 import { Equipment, EquipmentLog, Maintenance } from "./components/types";
 
 const RES_TABS = [
@@ -51,10 +54,11 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   const [logOpen, setLogOpen] = useState(false);
   const [maintOpen, setMaintOpen] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
+  const [spotHireOpen, setSpotHireOpen] = useState(false);
   const [activeMaintId, setActiveMaintId] = useState<string | null>(null);
 
   // View state
-  const [activeTab, setActiveTab] = useState<"fleet" | "logs" | "maintenance" | "fuel" | "rentals">(
+  const [activeTab, setActiveTab] = useState<"fleet" | "logs" | "spot" | "maintenance" | "fuel" | "rentals">(
     "fleet"
   );
 
@@ -63,6 +67,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   const { data: logsData, isLoading: isLogsLoading } = trpc.equipment.listLogs.useQuery({
     projectId: id,
   });
+  const { data: spotHiresData } = trpc.equipment.listSpotHires.useQuery({ projectId: id });
   const { data: maintData, isLoading: isMaintLoading } = trpc.equipment.listMaintenance.useQuery({
     projectId: id,
   });
@@ -70,6 +75,9 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   const { data: rentalsData } = trpc.equipment.listRentals.useQuery({ projectId: id });
   const { data: taskStatsData, isLoading: isTaskStatsLoading } =
     trpc.equipment.getTaskEquipmentStats.useQuery({ projectId: id });
+
+  const { data: vendorList } = trpc.equipment.listVendors.useQuery({ projectId: id });
+  const { data: boqData } = trpc.boq.list.useQuery({ projectId: id });
 
   const updateStatusMutation = trpc.equipment.updateStatus.useMutation({
     onSuccess: () => {
@@ -100,6 +108,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   const activeRentalsCount = (rentalsData?.rentals || []).filter(
     (r) => r.status === "active"
   ).length;
+  const spotTicketsCount = spotHiresData?.tickets.length || 0;
 
   const fuelReconciliation = allEquipment.map((e: any) => {
     const stat = efficiencyData?.stats.find((s) => s.equipmentId === e.id);
@@ -125,9 +134,16 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
     { id: "fleet" as const, label: "Fleet", Icon: Truck, badge: allEquipment.length },
     {
       id: "logs" as const,
-      label: "Logbook & Activity",
+      label: "Logbook",
       Icon: CalendarClock,
       badge: logsData?.logs.length,
+    },
+    {
+      id: "spot" as const,
+      label: "Spot Hire",
+      Icon: Zap,
+      badge: spotTicketsCount > 0 ? spotTicketsCount : undefined,
+      badgeColor: "bg-amber-500 text-white",
     },
     {
       id: "maintenance" as const,
@@ -206,19 +222,31 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-60 p-1.5 rounded-xl shadow-xl">
                     <DropdownMenuLabel className="text-[11px] text-muted-foreground font-semibold px-2 py-1">
-                      Fleet & Operations Actions
+                      Fleet &amp; Operations Actions
                     </DropdownMenuLabel>
                     <DropdownMenuItem
+                      onClick={() => setSpotHireOpen(true)}
+                      className="cursor-pointer gap-2 text-xs py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold rounded-lg"
+                    >
+                      <Zap className="h-4 w-4 text-amber-600" />
+                      <div>
+                        <div className="font-bold">Log Spot Machine Ticket</div>
+                        <div className="text-[10px] text-muted-foreground font-normal">
+                          On-demand hourly/trip hire + auto vendor
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => setLogOpen(true)}
-                      className="cursor-pointer gap-2 text-xs py-2 bg-blue-500/5 hover:bg-blue-500/10 text-blue-700 dark:text-blue-300 font-medium rounded-lg"
+                      className="cursor-pointer gap-2 text-xs py-2 text-blue-700 dark:text-blue-300 font-medium rounded-lg"
                     >
                       <CalendarClock className="h-4 w-4 text-blue-600" />
                       <div>
                         <div className="font-semibold text-foreground">
-                          Log Run Hours & Activity
+                          Log Run Hours &amp; Activity
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          Daily hour-meter, distance & output
+                          Daily hour-meter, distance &amp; output
                         </div>
                       </div>
                     </DropdownMenuItem>
@@ -243,7 +271,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                     >
                       <Truck className="h-4 w-4 text-emerald-500" />
                       <div>
-                        <div className="font-semibold">Register Equipment</div>
+                        <div className="font-semibold">Register Fleet Asset</div>
                         <div className="text-[10px] text-muted-foreground">
                           Add owned/project machinery
                         </div>
@@ -257,7 +285,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                       <div>
                         <div className="font-semibold">New Rental Contract</div>
                         <div className="text-[10px] text-muted-foreground">
-                          Hire machine from vendor
+                          Long-term hire agreement
                         </div>
                       </div>
                     </DropdownMenuItem>
@@ -289,7 +317,12 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
             />
           )}
 
-          {/* 3. MAINTENANCE TAB */}
+          {/* 3. SPOT & CASUAL HIRE TAB */}
+          {activeTab === "spot" && (
+            <SpotHireTab projectId={id} canWrite={canWrite} />
+          )}
+
+          {/* 4. MAINTENANCE TAB */}
           {activeTab === "maintenance" && (
             <EquipmentMaintenanceTab
               isMaintLoading={isMaintLoading}
@@ -300,7 +333,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
             />
           )}
 
-          {/* 4. FUEL AUDIT TAB */}
+          {/* 5. FUEL AUDIT TAB */}
           {activeTab === "fuel" && (
             <EquipmentFuelTab
               fuelReconciliation={fuelReconciliation}
@@ -308,7 +341,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
             />
           )}
 
-          {/* 5. RENTALS TAB */}
+          {/* 6. RENTALS TAB */}
           {activeTab === "rentals" && <RentalsTab projectId={id} />}
 
           {/* Dialogs and Modals */}
@@ -324,6 +357,21 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
             resolveOpen={resolveOpen}
             setResolveOpen={setResolveOpen}
             activeMaintId={activeMaintId}
+          />
+
+          {/* Spot Hire Modal */}
+          <LogSpotHireDialog
+            projectId={id}
+            open={spotHireOpen}
+            onOpenChange={setSpotHireOpen}
+            existingVendors={vendorList?.vendors || []}
+            boqItems={boqData?.items || []}
+            onSuccess={() => {
+              utils.equipment.listSpotHires.invalidate({ projectId: id });
+              utils.equipment.getVendorHireStatement.invalidate({ projectId: id });
+              utils.equipment.listVendors.invalidate({ projectId: id });
+              setActiveTab("spot");
+            }}
           />
         </div>
       </AnimatedPage>

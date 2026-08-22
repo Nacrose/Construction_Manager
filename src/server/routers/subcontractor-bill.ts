@@ -408,4 +408,426 @@ export const subcontractorBillRouter = router({
 
       return { success: true };
     }),
+
+  /** Master Multi-Package Subcontractor Reconciliation Matrix across BOQ and Client IPCs */
+  getReconciliationMatrix: protectedProcedure
+    .input(z.object({ projectId: z.string(), q: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const [boqItems, subcontractors, billItems, ipcItems] = await Promise.all([
+        db.boqItem.findMany({
+          where: {
+            projectId: input.projectId,
+            ...(input.q ? {
+              OR: [
+                { code: { contains: input.q, mode: "insensitive" } },
+                { description: { contains: input.q, mode: "insensitive" } },
+              ],
+            } : {}),
+          },
+          orderBy: { code: "asc" },
+          select: {
+            id: true,
+            code: true,
+            description: true,
+            unit: true,
+            quantity: true,
+            rate: true,
+            amount: true,
+          },
+        }),
+        db.subcontractor.findMany({
+          where: { projectId: input.projectId, status: "active" },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+        db.subcontractorBillItem.findMany({
+          where: {
+            bill: {
+              projectId: input.projectId,
+              status: { in: ["submitted", "verified", "certified", "paid"] },
+            },
+          },
+          include: {
+            bill: {
+              select: {
+                id: true,
+                number: true,
+                subcontractorId: true,
+                status: true,
+              },
+            },
+          },
+        }),
+        db.ipcItem.findMany({
+          where: {
+            ipc: {
+              projectId: input.projectId,
+              status: { in: ["submitted", "approved", "certified", "paid"] },
+            },
+          },
+          select: {
+            boqCode: true,
+            description: true,
+            thisQty: true,
+            cumQty: true,
+            rate: true,
+            amount: true,
+          },
+        }),
+      ]);
+
+      // Map IPC latest certified cumulative quantities by boqCode / description
+      const ipcMap = new Map<string, { cumQty: number; cumAmount: number }>();
+      for (const item of ipcItems) {
+        const key = (item.boqCode || item.description || "").trim().toLowerCase();
+        if (!key) continue;
+        const prev = ipcMap.get(key) || { cumQty: 0, cumAmount: 0 };
+        const itemCumAmount = (item.cumQty || 0) * (item.rate || 0);
+        ipcMap.set(key, {
+          cumQty: Math.max(prev.cumQty, item.cumQty || 0),
+          cumAmount: Math.max(prev.cumAmount, itemCumAmount),
+        });
+      }
+
+      // Group Subcontractor claims by BOQ Code & SubcontractorId
+      const subClaimsMap = new Map<string, Map<string, { qty: number; amount: number; rate: number; count: number }>>();
+      for (const item of billItems) {
+        const codeKey = (item.boqCode || item.description || "").trim().toLowerCase();
+        if (!codeKey) continue;
+        if (!subClaimsMap.has(codeKey)) {
+          subClaimsMap.set(codeKey, new Map());
+        }
+        const subMap = subClaimsMap.get(codeKey)!;
+        const subId = item.bill.subcontractorId;
+        const prev = subMap.get(subId) || { qty: 0, amount: 0, rate: 0, count: 0 };
+        const verifiedOrClaimedQty = item.verifiedQty !== null && item.verifiedQty !== undefined ? item.verifiedQty : item.thisQty;
+        const verifiedOrClaimedAmount = verifiedOrClaimedQty * item.rate;
+
+        subMap.set(subId, {
+          qty: prev.qty + verifiedOrClaimedQty,
+          amount: prev.amount + verifiedOrClaimedAmount,
+          rate: item.rate,
+          count: prev.count + 1,
+        });
+      }
+
+      // Build the Master Cross-Grid Rows
+      const rows = boqItems.map((boq) => {
+        const codeKey = (boq.code || boq.description).trim().toLowerCase();
+        const subMap = subClaimsMap.get(codeKey) || new Map();
+        const ipc = ipcMap.get(codeKey) || { cumQty: 0, cumAmount: 0 };
+
+        let totalSubQty = 0;
+        let totalSubAmount = 0;
+        const subBreakdown: Record<string, { qty: number; amount: number; rate: number }> = {};
+
+        for (const sub of subcontractors) {
+          const claim = subMap.get(sub.id) || { qty: 0, amount: 0, rate: 0 };
+          subBreakdown[sub.id] = {
+            qty: claim.qty,
+            amount: claim.amount,
+            rate: claim.rate,
+          };
+          totalSubQty += claim.qty;
+          totalSubAmount += claim.amount;
+        }
+
+        const balanceQty = boq.quantity - totalSubQty;
+        const balanceAmount = boq.amount - totalSubAmount;
+        const avgSubRate = totalSubQty > 0 ? totalSubAmount / totalSubQty : 0;
+        const marginGain = totalSubQty > 0 ? (boq.rate - avgSubRate) * totalSubQty : 0;
+
+        let status: "ok" | "exceeds_boq" | "exceeds_ipc" | "not_started" = "ok";
+        if (totalSubQty === 0) {
+          status = "not_started";
+        } else if (totalSubQty > boq.quantity + 0.001) {
+          status = "exceeds_boq"; // Over-scope claim
+        } else if (ipc.cumQty > 0 && totalSubQty > ipc.cumQty + 0.001) {
+          status = "exceeds_ipc"; // Sub billed faster than Client IPC certified
+        }
+
+        return {
+          boqId: boq.id,
+          boqCode: boq.code,
+          description: boq.description,
+          unit: boq.unit,
+          boqQty: boq.quantity,
+          boqRate: boq.rate,
+          boqAmount: boq.amount,
+          ipcQty: ipc.cumQty,
+          ipcAmount: ipc.cumAmount,
+          subBreakdown,
+          totalSubQty,
+          totalSubAmount,
+          balanceQty,
+          balanceAmount,
+          avgSubRate,
+          marginGain,
+          status,
+        };
+      });
+
+      // Overall Summary
+      const totalBoqAmount = boqItems.reduce((sum, b) => sum + b.amount, 0);
+      const totalIpcAmount = rows.reduce((sum, r) => sum + r.ipcAmount, 0);
+      const totalSubcontractorAmount = rows.reduce((sum, r) => sum + r.totalSubAmount, 0);
+      const totalMarginGain = rows.reduce((sum, r) => sum + (r.marginGain > 0 ? r.marginGain : 0), 0);
+      const overClaimCount = rows.filter((r) => r.status === "exceeds_boq").length;
+      const exceedsIpcCount = rows.filter((r) => r.status === "exceeds_ipc").length;
+
+      return {
+        subcontractors,
+        rows,
+        summary: {
+          totalBoqAmount,
+          totalIpcAmount,
+          totalSubcontractorAmount,
+          totalMarginGain,
+          overClaimCount,
+          exceedsIpcCount,
+          totalItems: boqItems.length,
+        },
+      };
+    }),
+
+  /** Engineer Line-Item Verification & Certification */
+  verifyBill: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        billId: z.string(),
+        action: z.enum(["verify", "certify", "dispute"]),
+        notes: z.string().optional(),
+        items: z.array(
+          z.object({
+            id: z.string(),
+            verifiedQty: z.number().nonnegative(),
+            disallowedReason: z.string().optional(),
+            remarks: z.string().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectAdmin(ctx.user, input.projectId);
+
+      const bill = await db.subcontractorBill.findFirst({
+        where: { id: input.billId, projectId: input.projectId },
+        include: { items: true },
+      });
+      if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
+
+      const updated = await db.$transaction(async (tx) => {
+        let verifiedGross = 0;
+
+        for (const itemInput of input.items) {
+          const original = bill.items.find((i) => i.id === itemInput.id);
+          if (!original) continue;
+
+          const verifiedQty = itemInput.verifiedQty;
+          const disallowedQty = Math.max(0, original.thisQty - verifiedQty);
+          const verifiedAmount = verifiedQty * original.rate;
+          verifiedGross += verifiedAmount;
+
+          await tx.subcontractorBillItem.update({
+            where: { id: itemInput.id },
+            data: {
+              verifiedQty,
+              verifiedAmount,
+              disallowedQty,
+              disallowedReason: itemInput.disallowedReason || null,
+              remarks: itemInput.remarks || null,
+            },
+          });
+        }
+
+        // Recalculate financial breakdown based on verified gross
+        const retentionAmount = (verifiedGross * bill.retentionPercent) / 100;
+        const vatAmount = (verifiedGross * bill.vatPercent) / 100;
+        const tdsAmount = (verifiedGross * bill.tdsPercent) / 100;
+        const verifiedNet = Math.max(
+          0,
+          verifiedGross - retentionAmount + vatAmount - tdsAmount - bill.materialDeduction - bill.advanceRecovery
+        );
+
+        let newStatus = bill.status;
+        if (input.action === "verify") newStatus = "verified";
+        if (input.action === "certify") newStatus = "certified";
+        if (input.action === "dispute") newStatus = "disputed";
+
+        return tx.subcontractorBill.update({
+          where: { id: input.billId },
+          data: {
+            verifiedGross,
+            verifiedNet,
+            grossAmount: input.action === "certify" ? verifiedGross : bill.grossAmount,
+            retentionAmount: input.action === "certify" ? retentionAmount : bill.retentionAmount,
+            vatAmount: input.action === "certify" ? vatAmount : bill.vatAmount,
+            tdsAmount: input.action === "certify" ? tdsAmount : bill.tdsAmount,
+            netPayable: input.action === "certify" ? verifiedNet : bill.netPayable,
+            status: newStatus,
+            verifiedById: ctx.user.id,
+            verifiedAt: new Date(),
+            ...(input.action === "certify" ? { certifiedById: ctx.user.id, certifiedAt: new Date() } : {}),
+            notes: input.notes !== undefined ? input.notes : bill.notes,
+          },
+          include: { items: true },
+        });
+      });
+
+      return { bill: updated };
+    }),
+
+  /** Subcontractor Material Issue, Return & Theoretical Reconciliation Statement */
+  getSubcontractorMaterialReconciliation: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        subcontractorId: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      const [transactions, subBills, materials] = await Promise.all([
+        db.materialTransaction.findMany({
+          where: {
+            projectId: input.projectId,
+            subcontractorId: input.subcontractorId,
+          },
+          include: {
+            material: { select: { id: true, name: true, unit: true, currentStock: true } },
+          },
+          orderBy: { date: "asc" },
+        }),
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: input.projectId,
+            subcontractorId: input.subcontractorId,
+            status: { in: ["submitted", "verified", "certified", "paid"] },
+          },
+          include: {
+            items: true,
+          },
+        }),
+        db.material.findMany({
+          where: { projectId: input.projectId },
+          select: { id: true, name: true, unit: true, currentStock: true },
+        }),
+      ]);
+
+      // Aggregate issues and returns per material
+      const materialMap = new Map<string, {
+        materialId: string;
+        name: string;
+        unit: string;
+        issuedQty: number;
+        returnedQty: number;
+        netIssuedQty: number;
+        recoveryRate: number;
+        transactions: Array<{
+          id: string;
+          type: string;
+          quantity: number;
+          rate: number;
+          date: Date;
+          reference: string | null;
+          remarks: string | null;
+        }>;
+      }>();
+
+      for (const t of transactions) {
+        const matId = t.materialId;
+        if (!materialMap.has(matId)) {
+          materialMap.set(matId, {
+            materialId: matId,
+            name: t.material.name,
+            unit: t.material.unit,
+            issuedQty: 0,
+            returnedQty: 0,
+            netIssuedQty: 0,
+            recoveryRate: t.recoveryRate || t.rate || 0,
+            transactions: [],
+          });
+        }
+        const entry = materialMap.get(matId)!;
+        if (t.type === "issue") {
+          entry.issuedQty += t.quantity;
+        } else if (t.type === "receive" || t.type === "return" || t.type === "adjustment") {
+          entry.returnedQty += t.quantity;
+        }
+        entry.netIssuedQty = Math.max(0, entry.issuedQty - entry.returnedQty);
+        if (t.recoveryRate && t.recoveryRate > 0) entry.recoveryRate = t.recoveryRate;
+
+        entry.transactions.push({
+          id: t.id,
+          type: t.type,
+          quantity: t.quantity,
+          rate: t.recoveryRate || t.rate || 0,
+          date: t.date,
+          reference: t.reference,
+          remarks: t.remarks,
+        });
+      }
+
+      // Theoretical material consumption from billed BOQ items & ingredients
+      const allBilledItems = subBills.flatMap((b) => b.items);
+      const boqCodes = [...new Set(allBilledItems.map((i) => i.boqCode).filter(Boolean))];
+
+      const boqIngredients = await db.boqItem.findMany({
+        where: {
+          projectId: input.projectId,
+          code: { in: boqCodes as string[] },
+        },
+        include: {
+          ingredients: {
+            where: { type: "material" },
+          },
+        },
+      });
+
+      const theoreticalMap = new Map<string, number>();
+      for (const billItem of allBilledItems) {
+        if (!billItem.boqCode) continue;
+        const boq = boqIngredients.find((b) => b.code === billItem.boqCode);
+        if (!boq) continue;
+
+        const qty = billItem.verifiedQty !== null && billItem.verifiedQty !== undefined ? billItem.verifiedQty : billItem.thisQty;
+        for (const ing of boq.ingredients) {
+          const key = ing.name.trim().toLowerCase();
+          const req = qty * ing.quantity;
+          theoreticalMap.set(key, (theoreticalMap.get(key) || 0) + req);
+        }
+      }
+
+      // Build statement rows
+      let totalDebitDeduction = 0;
+      const statement = Array.from(materialMap.values()).map((item) => {
+        const normName = item.name.trim().toLowerCase();
+        const theoreticalReq = theoreticalMap.get(normName) || 0;
+        const allowedWastage = theoreticalReq * 0.02; // 2% permissible tolerance
+        const totalAllowed = theoreticalReq + allowedWastage;
+        const excessQty = Math.max(0, item.netIssuedQty - totalAllowed);
+        const debitAmount = excessQty * item.recoveryRate;
+        totalDebitDeduction += debitAmount;
+
+        return {
+          ...item,
+          theoreticalReq: Math.round(theoreticalReq * 100) / 100,
+          allowedWastage: Math.round(allowedWastage * 100) / 100,
+          excessQty: Math.round(excessQty * 100) / 100,
+          debitAmount: Math.round(debitAmount),
+          status: excessQty > 0 ? ("excess_wastage" as const) : ("balanced" as const),
+        };
+      });
+
+      return {
+        statement,
+        totalDebitDeduction: Math.round(totalDebitDeduction),
+        totalMaterialsTracked: statement.length,
+        allProjectMaterials: materials,
+      };
+    }),
 });

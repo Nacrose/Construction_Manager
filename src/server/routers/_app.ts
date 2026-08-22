@@ -48,6 +48,8 @@ import { leaveRouter } from "./leave";
 import { payrollRouter } from "./payroll";
 import { siteExpenseRouter } from "./site-expense";
 import { catalogV2Router } from "./catalog-v2";
+import { vatRegisterRouter } from "./vat-register";
+import { paymentCategoryRouter } from "./payment-category";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -95,6 +97,8 @@ export const appRouter = router({
   payroll: payrollRouter,
   siteExpense: siteExpenseRouter,
   catalogV2: catalogV2Router,
+  vatRegister: vatRegisterRouter,
+  paymentCategory: paymentCategoryRouter,
 });
 
 export type AppRouter = typeof appRouter;

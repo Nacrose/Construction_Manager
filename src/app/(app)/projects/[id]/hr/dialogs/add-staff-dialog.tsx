@@ -32,7 +32,7 @@ export function AddStaffDialog({ projectId, onDone }: { projectId: string; onDon
       projectId,
       name,
       designation: designation || undefined,
-      category: category || undefined,
+      category: (category as any) || "skilled",
       phone: phone || undefined,
       dailyWage: parseFloat(dailyWage) || 0,
     });

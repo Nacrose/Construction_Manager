@@ -16,7 +16,6 @@ import {
   FileQuestion,
   ClipboardList,
   GanttChartSquare,
-  Truck,
   Boxes,
   Wrench,
   FolderArchive,
@@ -33,9 +32,12 @@ import {
   Clock,
   Send,
   Mail,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { isModuleEnabled, parseEnabledModules } from "@/lib/project-modules";
+import { ProjectModulesTab } from "@/components/project-modules-tab";
 
 type _ProjectDetail = {
   project: {
@@ -213,17 +215,12 @@ export default function ProjectDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
+            {/* Core — always visible */}
             <ModuleLink
               href={`/projects/${id}/dashboard`}
               icon={BarChart3}
               label="Dashboard"
-              desc="Costs, progress, RFIs, activity feed"
-            />
-            <ModuleLink
-              href={`/projects/${id}/workflow/rfi`}
-              icon={ListChecks}
-              label="Workflow"
-              desc="RFIs, daily planning & reports"
+              desc="Costs, progress & activity feed"
             />
             <ModuleLink
               href={`/projects/${id}/boq`}
@@ -231,72 +228,111 @@ export default function ProjectDetailPage({
               label="BOQ"
               desc="Bill of Quantities & rate analysis"
             />
-            <ModuleLink
-              href={`/projects/${id}/variations`}
-              icon={FileSignature}
-              label="Variation Orders"
-              desc="Contract changes & extras"
-            />
-            <ModuleLink
-              href={`/projects/${id}/materials`}
-              icon={Boxes}
-              label="Resources"
-              desc="Materials, Equipment, HR & Subcontractors"
-            />
-            <ModuleLink
-              href={`/projects/${id}/production`}
-              icon={Factory}
-              label="Plant & Production"
-              desc="Concrete & asphalt batching, mix JMF & chalan"
-            />
-            <ModuleLink
-              href={`/projects/${id}/equipment`}
-              icon={Wrench}
-              label="Equipment"
-              desc="Equipment logs & maintenance"
-            />
-            <ModuleLink
-              href={`/projects/${id}/boq?tab=schedule`}
-              icon={GanttChartSquare}
-              label="Schedule"
-              desc="Gantt chart & dependencies"
-            />
-            <ModuleLink
-              href={`/projects/${id}/correspondence`}
-              icon={FolderArchive}
-              label="Correspondence"
-              desc="Letter tracking & reply deadlines"
-            />
-            <ModuleLink
-              href={`/projects/${id}/drawings`}
-              icon={FileQuestion}
-              label="Drawings"
-              desc="Drawing register & revisions"
-            />
-            <ModuleLink
-              href={`/projects/${id}/correspondence`}
-              icon={Mail}
-              label="Correspondence"
-              desc="Letter tracking & reply deadlines"
-            />
-            <ModuleLink
-              href={`/projects/${id}/ipc`}
-              icon={ReceiptText}
-              label="IPC Certificates"
-              desc="Interim Payment Certificates"
-            />
-            <ModuleLink
-              href={`/projects/${id}/forms`}
-              icon={BarChart3}
-              label="Ma Le Pa Reports"
-              desc="Standard reporting forms"
-            />
-            <ModuleLink
-              href={`/projects/${id}/hr`}
-              icon={Users}
-              label="HR / Staff"
-              desc="Staff, attendance & wages"
-            />
+            {/* Module-gated links */}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "gantt") && (
+              <ModuleLink
+                href={`/projects/${id}/boq?tab=schedule`}
+                icon={GanttChartSquare}
+                label="Schedule"
+                desc="Gantt chart & dependencies"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "variations") && (
+              <ModuleLink
+                href={`/projects/${id}/variations`}
+                icon={FileSignature}
+                label="Variation Orders"
+                desc="Contract changes & extras"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "materials") && (
+              <ModuleLink
+                href={`/projects/${id}/materials`}
+                icon={Boxes}
+                label="Materials & Inventory"
+                desc="Material catalog, GRN & stock"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "subcontractors") && (
+              <ModuleLink
+                href={`/projects/${id}/subcontractors`}
+                icon={ListChecks}
+                label="Subcontractors"
+                desc="Subcontractor billing & retention"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "ipc") && (
+              <ModuleLink
+                href={`/projects/${id}/ipc`}
+                icon={ReceiptText}
+                label="IPC Certificates"
+                desc="Interim Payment Certificates"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "hr") && (
+              <ModuleLink
+                href={`/projects/${id}/hr`}
+                icon={Users}
+                label="HR & Payroll"
+                desc="Staff, muster roll & wages"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "equipment") && (
+              <ModuleLink
+                href={`/projects/${id}/equipment`}
+                icon={Wrench}
+                label="Equipment"
+                desc="Equipment logs & maintenance"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "rfi") && (
+              <ModuleLink
+                href={`/projects/${id}/workflow/rfi`}
+                icon={ListChecks}
+                label="RFI / Workflow"
+                desc="Requests for information"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "correspondence") && (
+              <ModuleLink
+                href={`/projects/${id}/correspondence`}
+                icon={Mail}
+                label="Correspondence"
+                desc="Letter tracking & reply deadlines"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "drawings") && (
+              <ModuleLink
+                href={`/projects/${id}/drawings`}
+                icon={FileQuestion}
+                label="Drawings"
+                desc="Drawing register & revisions"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "vat") && (
+              <ModuleLink
+                href={`/projects/${id}/tax-summary`}
+                icon={BarChart3}
+                label="VAT & Tax"
+                desc="IRD Schedule 8/9/10 & TDS"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "production") && (
+              <ModuleLink
+                href={`/projects/${id}/production`}
+                icon={Factory}
+                label="Plant & Production"
+                desc="Concrete & asphalt batching"
+              />
+            )}
+            {isModuleEnabled(parseEnabledModules(project.enabledModules), "purchaseOrders") && (
+              <ModuleLink
+                href={`/projects/${id}/vendors`}
+                icon={FolderArchive}
+                label="Purchase Orders"
+                desc="PO issuance & vendor bills"
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -324,6 +360,23 @@ export default function ProjectDetailPage({
           canEdit={data.myRole === "project_manager" || data.myRole === "coordinator"}
         />
       </div>
+
+      {/* Module Settings */}
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2 py-4">
+          <Settings className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium">Module Settings</CardTitle>
+          <CardDescription className="text-xs mt-0">
+            Show or hide modules for this project. Hidden modules are removed from navigation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ProjectModulesTab
+            projectId={project.id}
+            canManage={data.myRole === "project_manager" || data.myRole === "coordinator"}
+          />
+        </CardContent>
+      </Card>
     </AnimatedPage>
   );
 }

@@ -23,6 +23,15 @@ export default function WorkflowLayout({
 }) {
   const { id } = use(params);
   const pathname = usePathname();
+  const isPrintOrDesigner =
+    pathname.includes("/pdf-designer") ||
+    pathname.includes("/pdf-render") ||
+    pathname.includes("/print");
+
+  if (isPrintOrDesigner) {
+    return <>{children}</>;
+  }
+
   const basePath = `/projects/${id}/workflow`;
 
   return (

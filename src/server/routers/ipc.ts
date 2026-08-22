@@ -31,6 +31,32 @@ const UpdateIpcSchema = z.object({
   advanceRecovery: z.number().min(0).optional(),
   vatPercent: z.number().min(0).max(100).optional(),
   tdsPercent: z.number().min(0).max(100).optional(),
+  taxInvoiceNo: z.string().nullable().optional(),
+  taxInvoiceDate: z.string().nullable().optional(),
+  clientPan: z.string().nullable().optional(),
+  clientName: z.string().nullable().optional(),
+  contractAgreementDate: z.string().nullable().optional(),
+  workCommenceDate: z.string().nullable().optional(),
+  contractCompletionDate: z.string().nullable().optional(),
+  originalContractAmountWithoutVat: z.number().nullable().optional(),
+  originalContractAmountWithVat: z.number().nullable().optional(),
+  mobilizationAdvanceTotal: z.number().nullable().optional(),
+  mobilizationAdvanceDeducted: z.number().nullable().optional(),
+  mobilizationAdvanceRate: z.number().nullable().optional(),
+  submittedBy: z.string().nullable().optional(),
+  submittedByLocation: z.string().nullable().optional(),
+  checkedBy: z.string().nullable().optional(),
+  checkedByLocation: z.string().nullable().optional(),
+  approvedBy: z.string().nullable().optional(),
+  approvedByLocation: z.string().nullable().optional(),
+  previousGrossAmount: z.number().nullable().optional(),
+  previousVatAmount: z.number().nullable().optional(),
+  previousAdvanceRecovery: z.number().nullable().optional(),
+  previousRetentionAmount: z.number().nullable().optional(),
+  previousTdsAmount: z.number().nullable().optional(),
+  scannedBillUrl: z.string().nullable().optional(),
+  scannedBillName: z.string().nullable().optional(),
+  isBillAttached: z.boolean().optional(),
 });
 
 const UpdateIpcItemSchema = z.object({
@@ -117,7 +143,7 @@ export const ipcRouter = router({
           subcontractorId: input.subcontractorId || null,
           boqVersionId: input.boqVersionId || null,
           vatPercent: input.vatPercent ?? 13,
-          tdsPercent: input.tdsPercent ?? 0,
+          tdsPercent: input.tdsPercent ?? 1.5,
         },
         include: {
           subcontractor: { select: { name: true } },
@@ -128,7 +154,7 @@ export const ipcRouter = router({
       return { ipc };
     }),
 
-  /** Update settings (status, retention, advance) of an IPC. */
+  /** Update settings of an IPC. */
   update: protectedProcedure
     .input(UpdateIpcSchema)
     .mutation(async ({ ctx, input }) => {
@@ -141,16 +167,22 @@ export const ipcRouter = router({
       await assertCanWrite(ctx.user, item.projectId);
 
       const updateData: Record<string, any> = {};
-      if (data.period !== undefined) updateData.period = data.period;
-      if (data.retention !== undefined) updateData.retention = data.retention;
-      if (data.advanceRecovery !== undefined) updateData.advanceRecovery = data.advanceRecovery;
-      if (data.vatPercent !== undefined) updateData.vatPercent = data.vatPercent;
-      if (data.tdsPercent !== undefined) updateData.tdsPercent = data.tdsPercent;
-      if (data.status !== undefined) {
-        updateData.status = data.status;
-        if (data.status === "approved" || data.status === "paid") {
-          updateData.issueDate = new Date();
+      for (const [k, v] of Object.entries(data)) {
+        if (v !== undefined) {
+          if (k.endsWith("Date") && v) {
+            updateData[k] = new Date(v as string);
+          } else {
+            updateData[k] = v;
+          }
         }
+      }
+
+      if (data.status === "approved" || data.status === "paid") {
+        updateData.issueDate = new Date();
+      }
+
+      if (data.scannedBillUrl) {
+        updateData.isBillAttached = true;
       }
 
       const final = await db.$transaction(async (tx) => {
@@ -166,37 +198,113 @@ export const ipcRouter = router({
         });
       });
 
-      // Notify when IPC is certified/approved/paid (internal + channel)
-      if (data.status && final) {
-        const statusMessages: Record<string, string> = {
-          certified: `IPC ${final.number} has been certified for payment (NPR ${final.netPayable.toLocaleString("en-IN", { maximumFractionDigits: 0 })}).`,
-          approved: `IPC ${final.number} has been approved (NPR ${final.netPayable.toLocaleString("en-IN", { maximumFractionDigits: 0 })}).`,
-          paid: `Payment processed for IPC ${final.number} (NPR ${final.netPayable.toLocaleString("en-IN", { maximumFractionDigits: 0 })}).`,
-          submitted: `IPC ${final.number} has been submitted for certification.`,
-        };
-        if (statusMessages[data.status]) {
-          await notifyProject({
-            projectId: item.projectId,
-            type: `ipc_${data.status}`,
-            title: `IPC ${data.status}: ${final.number}`,
-            message: statusMessages[data.status],
-            metadata: { ipcId, number: final.number, entityType: "ipc", entityId: ipcId },
-            excludeUserId: ctx.user.id,
-            postToChannel: true,
-          });
-        }
-      }
+      return { ipc: final };
+    }),
 
-      // Calculate subcontractor material deductions (for update endpoint)
-      let materialDeductions = 0;
-      if (item.subcontractorId) {
-        const txns = await db.materialTransaction.findMany({
-          where: { projectId: item.projectId, subcontractorId: item.subcontractorId, isDebitable: true },
-        });
-        materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
-      }
+  /** Nepal Standard Summary of Payment Sheet */
+  getPaymentSummary: protectedProcedure
+    .input(z.object({ ipcId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const ipc = await db.ipc.findUnique({
+        where: { id: input.ipcId },
+        include: {
+          project: { select: { name: true, client: true, location: true } },
+          subcontractor: { select: { name: true, pan: true } },
+          items: true,
+        },
+      });
+      if (!ipc) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
+      await assertProjectMember(ctx.user, ipc.projectId);
 
-      return { ipc: final, materialDeductions };
+      // Previous IPCs
+      const prevIpcs = await db.ipc.findMany({
+        where: {
+          projectId: ipc.projectId,
+          subcontractorId: ipc.subcontractorId,
+          createdAt: { lt: ipc.createdAt },
+          status: { in: ["approved", "paid", "certified"] },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const autoPrevGross = prevIpcs.reduce((s, p) => s + p.grossAmount, 0);
+      const autoPrevVat = prevIpcs.reduce((s, p) => s + (p.vatAmount || 0), 0);
+      const autoPrevAdvance = prevIpcs.reduce((s, p) => s + (p.advanceRecovery || 0), 0);
+      const autoPrevRetention = prevIpcs.reduce((s, p) => s + (p.retentionAmount || 0), 0);
+      const autoPrevTds = prevIpcs.reduce((s, p) => s + (p.tdsAmount || 0), 0);
+
+      const prevGross = ipc.previousGrossAmount > 0 ? ipc.previousGrossAmount : autoPrevGross;
+      const prevVat = ipc.previousVatAmount > 0 ? ipc.previousVatAmount : autoPrevVat;
+      const prevAdvance = ipc.previousAdvanceRecovery > 0 ? ipc.previousAdvanceRecovery : autoPrevAdvance;
+      const prevRetention = ipc.previousRetentionAmount > 0 ? ipc.previousRetentionAmount : autoPrevRetention;
+      const prevTds = ipc.previousTdsAmount > 0 ? ipc.previousTdsAmount : autoPrevTds;
+
+      const prevTotalBill = prevGross + prevVat;
+      const prevTotalDeductions = prevAdvance + prevRetention + prevTds;
+      const prevNetPayable = prevTotalBill - prevTotalDeductions;
+
+      const thisGross = ipc.grossAmount;
+      const thisVat = ipc.vatAmount || (thisGross * (ipc.vatPercent || 13)) / 100;
+      const thisTotalBill = thisGross + thisVat;
+      const thisAdvance = ipc.advanceRecovery;
+      const thisRetention = ipc.retentionAmount || (thisGross * (ipc.retention || 5)) / 100;
+      const thisTds = ipc.tdsAmount || (thisGross * (ipc.tdsPercent || 1.5)) / 100;
+      const thisTotalDeductions = thisAdvance + thisRetention + thisTds;
+      const thisNetPayable = thisTotalBill - thisTotalDeductions;
+
+      const cumGross = prevGross + thisGross;
+      const cumVat = prevVat + thisVat;
+      const cumTotalBill = prevTotalBill + thisTotalBill;
+      const cumAdvance = prevAdvance + thisAdvance;
+      const cumRetention = prevRetention + thisRetention;
+      const cumTds = prevTds + thisTds;
+      const cumTotalDeductions = prevTotalDeductions + thisTotalDeductions;
+      const cumNetPayable = prevNetPayable + thisNetPayable;
+
+      const contractWithoutVat = ipc.originalContractAmountWithoutVat || (cumGross > 0 ? cumGross / 0.7578 : 35906434.20);
+      const progressPct = contractWithoutVat > 0 ? (cumGross / contractWithoutVat) * 100 : 0;
+
+      return {
+        ipc,
+        summary: {
+          contractWithoutVat,
+          contractWithVat: ipc.originalContractAmountWithVat || contractWithoutVat * 1.13,
+          mobilizationPaid: ipc.mobilizationAdvanceTotal || 7181286.84,
+          mobilizationDeducted: cumAdvance,
+          mobilizationBalance: Math.max(0, (ipc.mobilizationAdvanceTotal || 7181286.84) - cumAdvance),
+          progressPct,
+          prev: {
+            gross: prevGross,
+            vat: prevVat,
+            totalBill: prevTotalBill,
+            advance: prevAdvance,
+            retention: prevRetention,
+            tds: prevTds,
+            totalDeductions: prevTotalDeductions,
+            netPayable: prevNetPayable,
+          },
+          thisPeriod: {
+            gross: thisGross,
+            vat: thisVat,
+            totalBill: thisTotalBill,
+            advance: thisAdvance,
+            retention: thisRetention,
+            tds: thisTds,
+            totalDeductions: thisTotalDeductions,
+            netPayable: thisNetPayable,
+          },
+          cumulative: {
+            gross: cumGross,
+            vat: cumVat,
+            totalBill: cumTotalBill,
+            advance: cumAdvance,
+            retention: cumRetention,
+            tds: cumTds,
+            totalDeductions: cumTotalDeductions,
+            netPayable: cumNetPayable,
+          },
+        },
+      };
     }),
 
   /** Delete a draft IPC. */

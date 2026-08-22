@@ -48,10 +48,6 @@ export function LogTransactionDialog({
   const [override, setOverride] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
 
-  const [materialCatalogId, setMaterialCatalogId] = useState("");
-  const { data: catalogData } = (trpc.catalogV2.listMaterials as any).useQuery({ scope: "org", limit: 500 }, { enabled: type === "receive" });
-  const catalogItems = (catalogData as any)?.materials || (catalogData as any)?.items || [];
-
   const selectedMaterial = materials.find((m) => m.id === materialId);
 
   const handleGateSelect = (val: string) => {
@@ -113,7 +109,6 @@ export function LogTransactionDialog({
       remarks: finalRemarks || undefined,
       gateEntryId: type === "receive" && gateEntryId ? gateEntryId : undefined,
       purchaseOrderId: type === "receive" && purchaseOrderId ? purchaseOrderId : undefined,
-      catalogMaterialId: type === "receive" && materialCatalogId ? materialCatalogId : undefined,
       isDebitable: (type === "issue" || type === "transfer") && isDebitable,
       subcontractorId: (type === "issue" || type === "transfer") && isDebitable ? subcontractorId : undefined,
       recoveryRate: (type === "issue" || type === "transfer") && isDebitable && recoveryRate ? parseFloat(recoveryRate) : undefined,
@@ -173,7 +168,7 @@ export function LogTransactionDialog({
           <div className="space-y-1.5">
             <Label>Transaction Type *</Label>
             <select value={type} onChange={(e) => setType(e.target.value as any)} required className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm">
-              <option value="receive">Receive (GRN)</option>
+              <option value="receive">Receive (GRN / Inward)</option>
               <option value="issue">Issue (Out)</option>
               <option value="transfer">Transfer (Out)</option>
               <option value="adjustment">Adjustment (In/Out)</option>
@@ -254,24 +249,14 @@ export function LogTransactionDialog({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5"><Label>Rate (NPR per unit)</Label><Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" step="0.01" /></div>
-          <div className="space-y-1.5"><Label>Reference (e.g. Invoice #)</Label><Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="INV-001" /></div>
+          <div className="space-y-1.5"><Label>Reference (e.g. Challan #)</Label><Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="CHALLAN-001" /></div>
         </div>
 
         {type === "receive" && (
-          <div className="border border-amber-500/30 bg-amber-500/5 p-3 rounded-md space-y-2.5">
+          <div className="border border-muted-foreground/20 bg-muted/20 p-3 rounded-md space-y-2.5">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">Tax (VAT / TDS)</p>
-              <span className="text-[10px] text-muted-foreground">Applies to receive (GRN) only</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">VAT %</Label>
-                <Input value={vatPercent} onChange={(e) => setVatPercent(e.target.value)} type="number" step="0.01" min="0" max="100" className="h-8 text-sm" placeholder="13" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">TDS %</Label>
-                <Input value={tdsPercent} onChange={(e) => setTdsPercent(e.target.value)} type="number" step="0.01" min="0" max="100" className="h-8 text-sm" placeholder="0" />
-              </div>
+              <p className="text-xs font-semibold uppercase text-foreground">Invoice &amp; Tax (VAT / TDS)</p>
+              <span className="text-[10px] text-muted-foreground">Inward goods receipt</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -280,40 +265,39 @@ export function LogTransactionDialog({
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Supplier PAN</Label>
-                <Input value={supplierPan} onChange={(e) => setSupplierPan(e.target.value)} className="h-8 text-sm" placeholder="123456789" />
+                <Input value={supplierPan} onChange={(e) => setSupplierPan(e.target.value)} className="h-8 text-sm font-mono" placeholder="123456789" />
               </div>
             </div>
-            <div className="space-y-1 pt-1 border-t border-amber-500/20">
-              <Label className="text-xs font-medium">Link Item Catalog Spec (Optional)</Label>
-              <select
-                value={materialCatalogId}
-                onChange={(e) => setMaterialCatalogId(e.target.value)}
-                className="w-full rounded border border-input bg-background px-2.5 py-1.5 text-xs shadow-xs"
-              >
-                <option value="">-- Optional: Canonical Material Spec --</option>
-                {catalogItems.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name} {cat.category ? `(${cat.category})` : ""}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">VAT %</Label>
+                <Input value={vatPercent} onChange={(e) => setVatPercent(e.target.value)} type="number" step="0.01" min="0" max="100" className="h-8 text-sm" placeholder="13" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">TDS % (Sec 89: 1.5%, Retail: 0%)</Label>
+                <Input value={tdsPercent} onChange={(e) => setTdsPercent(e.target.value)} type="number" step="0.01" min="0" max="100" className="h-8 text-sm" placeholder="0" />
+              </div>
             </div>
             {baseAmount > 0 && (
-              <div className="border-t border-amber-500/30 pt-2 space-y-1 text-xs">
+              <div className="border-t border-border pt-2 space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Base amount:</span>
                   <span className="font-mono">NPR {baseAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">+ VAT ({vatPercent || 0}%):</span>
-                  <span className="font-mono text-amber-700 dark:text-amber-400">NPR {vatAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">− TDS ({tdsPercent || 0}%):</span>
-                  <span className="font-mono text-red-600">NPR {tdsAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
+                {Number(vatPercent) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">+ VAT ({vatPercent}%):</span>
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">NPR {vatAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {Number(tdsPercent) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">− TDS ({tdsPercent}%):</span>
+                    <span className="font-mono text-red-600">NPR {tdsAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t pt-1 font-semibold">
-                  <span>Net payable:</span>
+                  <span>Net amount:</span>
                   <span className="font-mono">NPR {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>

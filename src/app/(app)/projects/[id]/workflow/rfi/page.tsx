@@ -132,6 +132,10 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
   }, [selectedIds, filteredRfis]);
 
   const exportCsv = () => {
+    if (!filteredRfis.length) {
+      toast.info("No RFIs available to export");
+      return;
+    }
     const rows = filteredRfis.map((r) => ({
       "RFI #": r.number,
       Subject: r.subject,

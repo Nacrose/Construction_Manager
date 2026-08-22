@@ -1,0 +1,380 @@
+"use client";
+
+import { useState } from "react";
+import { trpc } from "@/lib/trpc-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { format } from "date-fns";
+
+const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity"];
+
+export function LeavesTab({
+  projectId,
+  staffList = [],
+  isAdmin = false,
+  canWrite = false,
+}: {
+  projectId: string;
+  staffList: Array<{ id: string; name: string; designation: string | null; category: string | null }>;
+  isAdmin?: boolean;
+  canWrite?: boolean;
+}) {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [addOpen, setAddOpen] = useState(false);
+
+  // Form states
+  const [staffId, setStaffId] = useState("");
+  const [leaveType, setLeaveType] = useState("casual");
+  const [startDate, setStartDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [reason, setReason] = useState("");
+
+  const utils = trpc.useUtils();
+
+  const { data, isLoading, refetch, isFetching } = trpc.leave.list.useQuery({
+    projectId,
+    status: statusFilter === "all" ? undefined : (statusFilter as any),
+  });
+
+  const leaves = data?.leaves || [];
+  const pendingCount = leaves.filter((l) => l.status === "pending").length;
+  const approvedCount = leaves.filter((l) => l.status === "approved").length;
+  const rejectedCount = leaves.filter((l) => l.status === "rejected").length;
+
+  const createMut = trpc.leave.create.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request submitted");
+      utils.leave.list.invalidate({ projectId });
+      setAddOpen(false);
+      setReason("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const approveMut = trpc.leave.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Leave approved");
+      utils.leave.list.invalidate({ projectId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const rejectMut = trpc.leave.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Leave rejected");
+      utils.leave.list.invalidate({ projectId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffId) {
+      toast.error("Please select a worker");
+      return;
+    }
+    createMut.mutate({
+      projectId,
+      staffId,
+      leaveType,
+      startDate,
+      endDate,
+      reason: reason || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-2.5">
+      {/* Action Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
+        <div className="flex items-center gap-2">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-7 w-36 text-xs bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Requests</SelectItem>
+              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-7 text-xs gap-1 px-2"
+          >
+            <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+          </Button>
+
+          {canWrite && (
+            <Button
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1 px-3 shadow-xs"
+            >
+              <Plus className="h-3 w-3" />
+              Apply Leave
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Slim 28px High-Density Inline Metrics Ribbon */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 bg-muted/40 rounded border text-[11px] font-mono tabular-nums">
+        <div className="flex items-center gap-3">
+          <span>
+            <strong className="text-foreground">Total Requests:</strong> {leaves.length}
+          </span>
+          <span className="text-muted-foreground/40">│</span>
+          <span className="text-amber-600 dark:text-amber-400 font-bold">
+            Pending Review: {pendingCount}
+          </span>
+          <span className="text-muted-foreground/40">│</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+            Approved: {approvedCount}
+          </span>
+          <span className="text-muted-foreground/40">│</span>
+          <span className="text-red-600 dark:text-red-400">
+            Rejected: {rejectedCount}
+          </span>
+        </div>
+      </div>
+
+      {/* Full-Bleed Requests Table */}
+      <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
+        <table className="w-full text-xs font-mono tabular-nums border-collapse">
+          <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
+            <tr>
+              <th className="py-2 px-3 text-left min-w-[160px] font-semibold text-foreground">Worker Name</th>
+              <th className="py-2 px-2 text-center w-24">Type</th>
+              <th className="py-2 px-3 text-left w-48">Duration</th>
+              <th className="py-2 px-2 text-right w-16">Days</th>
+              <th className="py-2 px-3 text-left min-w-[160px]">Reason</th>
+              <th className="py-2 px-2 text-center w-24">Status</th>
+              <th className="py-2 px-3 text-right w-36">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {isLoading ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
+                  Loading leave requests...
+                </td>
+              </tr>
+            ) : leaves.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  No leave requests found.
+                </td>
+              </tr>
+            ) : (
+              leaves.map((leave) => (
+                <tr key={leave.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-1.5 px-3 font-sans font-medium text-foreground">
+                    {leave.staff.name}
+                    <span className="block text-[10px] text-muted-foreground font-normal">
+                      {leave.staff.designation || leave.staff.category || "Staff"}
+                    </span>
+                  </td>
+
+                  <td className="py-1.5 px-2 text-center">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 capitalize">
+                      {leave.leaveType}
+                    </Badge>
+                  </td>
+
+                  <td className="py-1.5 px-3 text-muted-foreground text-[11px]">
+                    {format(new Date(leave.startDate), "dd MMM")} – {format(new Date(leave.endDate), "dd MMM yyyy")}
+                  </td>
+
+                  <td className="py-1.5 px-2 text-right font-bold text-foreground">
+                    {leave.totalDays}
+                  </td>
+
+                  <td className="py-1.5 px-3 text-muted-foreground text-[11px] font-sans truncate max-w-[180px]">
+                    {leave.reason || "—"}
+                  </td>
+
+                  <td className="py-1.5 px-2 text-center">
+                    <Badge
+                      variant="secondary"
+                      className={cn("text-[9px] px-1.5 py-0 capitalize font-bold", {
+                        "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": leave.status === "pending",
+                        "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300": leave.status === "approved",
+                        "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300": leave.status === "rejected",
+                      })}
+                    >
+                      {leave.status}
+                    </Badge>
+                  </td>
+
+                  <td className="py-1.5 px-3 text-right">
+                    {leave.status === "pending" && isAdmin ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => approveMut.mutate({ id: leave.id })}
+                          disabled={approveMut.isPending}
+                          className="h-5 text-[9px] text-emerald-700 border-emerald-300 gap-1 bg-emerald-50/50 px-1.5"
+                        >
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => rejectMut.mutate({ id: leave.id, rejectionReason: "Rejected by PM" })}
+                          disabled={rejectMut.isPending}
+                          className="h-5 text-[9px] text-red-600 border-red-200 px-1.5"
+                        >
+                          <XCircle className="h-2.5 w-2.5" /> Reject
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">
+                        {leave.approvedBy ? `By ${leave.approvedBy.name}` : "—"}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Leave Application Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Calendar className="h-5 w-5 text-primary" />
+              Apply for Leave
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Submit a site leave request for Project Manager review and attendance linking.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreate} className="space-y-3.5 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Select Worker *</Label>
+              <Select value={staffId} onValueChange={setStaffId} required>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Choose personnel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffList.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name} ({s.designation || s.category || "Staff"})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Leave Type</Label>
+              <Select value={leaveType} onValueChange={setLeaveType}>
+                <SelectTrigger className="h-8 text-xs capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEAVE_TYPES.map((lt) => (
+                    <SelectItem key={lt} value={lt} className="capitalize">
+                      {lt} Leave
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Start Date *</Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">End Date *</Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Reason / Handover Notes</Label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Medical emergency, Family wedding"
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <DialogFooter className="border-t pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAddOpen(false)}
+                disabled={createMut.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={createMut.isPending} className="font-semibold">
+                {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                Submit Leave
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

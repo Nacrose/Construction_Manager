@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { DocumentTrail } from "@/components/documents/document-trail";
 import { fmt, pct, type IpcItem } from "./components/helpers";
 import { SectionGroup } from "./components/section-group";
 import { IpcVersionDiff } from "./components/ipc-version-diff";
+import { IpcPaymentSummarySheet } from "./components/ipc-payment-summary-sheet";
 
 type _DebitItem = {
   id: string;
@@ -42,6 +43,7 @@ export default function IpcDetailPage({
 }) {
   const { id, ipcId } = use(params);
   const utils = trpc.useUtils();
+  const [viewMode, setViewMode] = useState<"summary" | "measurement">("summary");
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
 
@@ -123,145 +125,167 @@ export default function IpcDetailPage({
         <Link href={`/projects/${id}/ipc`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Back to IPCs
         </Link>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <div className="inline-flex rounded-md border bg-card p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("summary")}
+              className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                viewMode === "summary"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Summary of Payment (Anusuchi Sheet)
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("measurement")}
+              className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                viewMode === "measurement"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Line Item Measurement (BOQ Run Bill)
+            </button>
+          </div>
+
           {isDraft && canWrite && items.length === 0 && (
             <Button variant="outline" size="sm" onClick={() => loadBoqMutation.mutate({ ipcId })} disabled={loadBoqMutation.isPending}>
               {loadBoqMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
               Load from BOQ
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" /> Print / PDF
-          </Button>
         </div>
       </div>
 
-      {/* Print-only header */}
-      <div className="hidden print:block print-area mb-6">
-        <div className="flex items-center justify-between border-b-2 border-black pb-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded bg-black text-white">
-              <HardHat className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-lg font-bold">Construction Manager</p>
-              <p className="text-xs">{projectInfo?.project?.code} · {projectInfo?.project?.name}</p>
-            </div>
-          </div>
-          <div className="text-right text-xs">
-            <p className="font-semibold text-base">Interim Payment Certificate</p>
-            <p>{ipc.number} · {ipc.period ?? ""}</p>
-            {ipc.subcontractor && <p className="font-medium text-emerald-700">Subcontractor: {ipc.subcontractor.name}</p>}
-          </div>
-        </div>
-      </div>
-
-      <div className="print-area space-y-6">
-        {/* Screen header */}
-        <div className="no-print flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-muted-foreground">{ipc.number}</span>
-              <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
-              {ipc.period && <span className="text-sm text-muted-foreground">{ipc.period}</span>}
-              {ipc.subcontractor && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 gap-1 text-xs">
-                  <Users className="h-3.5 w-3.5" /> Subcontractor Bill
-                </Badge>
-              )}
-            </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Interim Payment Certificate</h1>
-            <p className="text-sm text-muted-foreground">
-              {projectInfo?.project?.code} · {projectInfo?.project?.name}
-            </p>
-          </div>
-          {ipc.subcontractor && (
-            <Card className="bg-blue-50/50 border-blue-200 dark:bg-slate-900 dark:border-slate-800 p-3 max-w-xs shrink-0">
+      {viewMode === "summary" ? (
+        <IpcPaymentSummarySheet projectId={id} ipcId={ipcId} canWrite={canWrite} />
+      ) : (
+        <>
+          {/* Print-only header */}
+          <div className="hidden print:block print-area mb-6">
+            <div className="flex items-center justify-between border-b-2 border-black pb-3">
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-600" />
+                <div className="flex h-9 w-9 items-center justify-center rounded bg-black text-white">
+                  <HardHat className="h-5 w-5" />
+                </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Assigned Subcontractor</p>
-                  <p className="text-sm font-bold text-blue-950 dark:text-blue-200">{ipc.subcontractor.name}</p>
+                  <p className="text-lg font-bold">Construction Manager</p>
+                  <p className="text-xs">{projectInfo?.project?.code} · {projectInfo?.project?.name}</p>
                 </div>
               </div>
-            </Card>
-          )}
-        </div>
-
-        {items.length === 0 ? (
-          <Card className="p-12 text-center">
-            <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground" />
-            <p className="mt-3 font-medium">No line items in this IPC yet</p>
-            <p className="text-sm text-muted-foreground">
-              {isDraft && canWrite
-                ? "Click \"Load from BOQ\" to populate this IPC with all BOQ items."
-                : "Items will appear here once loaded."}
-            </p>
-          </Card>
-        ) : (
-          <>
-            {/* Running account bill table */}
-            <Card className="print-card">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  {/* Multi-row header matching the sample format */}
-                  <thead className="border-b-2 bg-muted/40">
-                    <tr className="text-left">
-                      <th rowSpan={2} className="border-r p-2 font-medium">Pay Item No.</th>
-                      <th rowSpan={2} className="border-r p-2 font-medium">Description</th>
-                      <th rowSpan={2} className="border-r p-2 font-medium">Unit</th>
-                      <th colSpan={3} className="border-r p-2 text-center font-medium">Bill of Quantities</th>
-                      <th colSpan={2} className="border-r p-2 text-center font-medium">Up to Date of work till now</th>
-                      <th colSpan={2} className="border-r p-2 text-center font-medium">Previous Bill</th>
-                      <th colSpan={2} className="border-r p-2 text-center font-medium">Currently Accomplished work</th>
-                      <th rowSpan={2} className="border-r p-2 font-medium">% Completion</th>
-                      <th rowSpan={2} className="p-2 font-medium">Balance %</th>
-                    </tr>
-                    <tr className="text-left">
-                      <th className="border-r border-t p-2 font-normal">Qty (Contract)</th>
-                      <th className="border-r border-t p-2 font-normal">Rate</th>
-                      <th className="border-r border-t p-2 font-normal">Amount</th>
-                      <th className="border-r border-t p-2 font-normal">Qty</th>
-                      <th className="border-r border-t p-2 font-normal">Amount</th>
-                      <th className="border-r border-t p-2 font-normal">Qty</th>
-                      <th className="border-r border-t p-2 font-normal">Amount</th>
-                      <th className="border-r border-t p-2 font-normal">Qty</th>
-                      <th className="border-r border-t p-2 font-normal">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sections.map((section, si) => {
-                      const sub = sectionTotal(section.items);
-                      return (
-                        <SectionGroup
-                          key={si}
-                          name={section.name}
-                          items={section.items}
-                          canWrite={!!canWrite && isDraft}
-                          sub={sub}
-                          ipcId={ipcId}
-                          projectId={id}
-                        />
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 bg-muted/40 font-bold">
-                      <td colSpan={5} className="p-2 text-right">GRAND TOTAL</td>
-                      <td className="border-r p-2 text-right">{fmt(grandContract)}</td>
-                      <td className="border-r p-2 text-right">{fmt(grandCum)}</td>
-                      <td className="border-r p-2 text-right">{fmt(grandPrev)}</td>
-                      <td className="border-r p-2 text-right">{fmt(grandThis)}</td>
-                      <td className="border-r p-2"></td>
-                      <td className="border-r p-2"></td>
-                      <td colSpan={2} className="p-2"></td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <div className="text-right text-xs">
+                <p className="font-semibold text-base">Interim Payment Certificate</p>
+                <p>{ipc.number} · {ipc.period ?? ""}</p>
+                {ipc.subcontractor && <p className="font-medium text-emerald-700">Subcontractor: {ipc.subcontractor.name}</p>}
               </div>
-            </Card>
+            </div>
+          </div>
 
-            {/* Summary */}
+          <div className="print-area space-y-6">
+            {/* Screen header */}
+            <div className="no-print flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm text-muted-foreground">{ipc.number}</span>
+                  <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
+                  {ipc.period && <span className="text-sm text-muted-foreground">{ipc.period}</span>}
+                  {ipc.subcontractor && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 gap-1 text-xs">
+                      <Users className="h-3.5 w-3.5" /> Subcontractor Bill
+                    </Badge>
+                  )}
+                </div>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight">Interim Payment Certificate</h1>
+                <p className="text-sm text-muted-foreground">
+                  {projectInfo?.project?.code} · {projectInfo?.project?.name}
+                </p>
+              </div>
+              {ipc.subcontractor && (
+                <Card className="bg-blue-50/50 border-blue-200 dark:bg-slate-900 dark:border-slate-800 p-3 max-w-xs shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Assigned Subcontractor</p>
+                      <p className="text-sm font-bold text-blue-950 dark:text-blue-200">{ipc.subcontractor.name}</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+
+            {items.length === 0 ? (
+              <Card className="p-12 text-center">
+                <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-3 font-medium">No line items in this IPC yet</p>
+                <p className="text-sm text-muted-foreground">
+                  {isDraft && canWrite
+                    ? "Click \"Load from BOQ\" to populate this IPC with all BOQ items."
+                    : "Items will appear here once loaded."}
+                </p>
+              </Card>
+            ) : (
+              <Card className="print-card">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    {/* Multi-row header matching the sample format */}
+                    <thead className="border-b-2 bg-muted/40">
+                      <tr className="text-left">
+                        <th rowSpan={2} className="border-r p-2 font-medium">Pay Item No.</th>
+                        <th rowSpan={2} className="border-r p-2 font-medium">Description</th>
+                        <th rowSpan={2} className="border-r p-2 font-medium">Unit</th>
+                        <th colSpan={3} className="border-r p-2 text-center font-medium">Bill of Quantities</th>
+                        <th colSpan={2} className="border-r p-2 text-center font-medium">Up to Date of work till now</th>
+                        <th colSpan={2} className="border-r p-2 text-center font-medium">Previous Bill</th>
+                        <th colSpan={2} className="border-r p-2 text-center font-medium">Currently Accomplished work</th>
+                        <th rowSpan={2} className="border-r p-2 font-medium">% Completion</th>
+                        <th rowSpan={2} className="p-2 font-medium">Balance %</th>
+                      </tr>
+                      <tr className="text-left">
+                        <th className="border-r border-t p-2 font-normal">Qty (Contract)</th>
+                        <th className="border-r border-t p-2 font-normal">Rate</th>
+                        <th className="border-r border-t p-2 font-normal">Amount</th>
+                        <th className="border-r border-t p-2 font-normal">Qty</th>
+                        <th className="border-r border-t p-2 font-normal">Amount</th>
+                        <th className="border-r border-t p-2 font-normal">Qty</th>
+                        <th className="border-r border-t p-2 font-normal">Amount</th>
+                        <th className="border-r border-t p-2 font-normal">Qty</th>
+                        <th className="border-r border-t p-2 font-normal">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sections.map((section, si) => {
+                        const sub = sectionTotal(section.items);
+                        return (
+                          <SectionGroup
+                            key={si}
+                            name={section.name}
+                            items={section.items}
+                            canWrite={!!canWrite && isDraft}
+                            sub={sub}
+                            ipcId={ipcId}
+                            projectId={id}
+                          />
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 bg-muted/40 font-bold">
+                        <td colSpan={5} className="p-2 text-right">GRAND TOTAL</td>
+                        <td className="border-r p-2 text-right">{fmt(grandContract)}</td>
+                        <td className="border-r p-2 text-right">{fmt(grandCum)}</td>
+                        <td colSpan={2} className="p-2"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
+            )}
+
+            {/* Summary Cards */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 no-print">
               <Card className="p-4">
                 <p className="text-xs text-muted-foreground">Gross amount (this bill)</p>
@@ -441,9 +465,9 @@ export default function IpcDetailPage({
                 )}
               </div>
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Document Trail — signed hardcopy archive */}
       <DocumentTrail
