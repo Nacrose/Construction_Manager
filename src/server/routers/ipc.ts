@@ -151,6 +151,15 @@ export const ipcRouter = router({
         },
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "ipc.create",
+        entityType: "ipc",
+        entityId: ipc.id,
+        metadata: { number: ipc.number },
+      });
+
       return { ipc };
     }),
 
@@ -196,6 +205,15 @@ export const ipcRouter = router({
           where: { id: ipcId },
           include: { items: true, subcontractor: { select: { name: true } } },
         });
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: item.projectId,
+        action: "ipc.update",
+        entityType: "ipc",
+        entityId: ipcId,
+        metadata: { status: data.status, grossAmount: final?.grossAmount, netPayable: final?.netPayable },
       });
 
       return { ipc: final };
@@ -322,6 +340,15 @@ export const ipcRouter = router({
       await assertCanWrite(ctx.user, item.projectId);
 
       await db.ipc.delete({ where: { id: input.ipcId } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: item.projectId,
+        action: "ipc.delete",
+        entityType: "ipc",
+        entityId: input.ipcId,
+      });
+
       return { ok: true };
     }),
 

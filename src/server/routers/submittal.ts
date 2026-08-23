@@ -53,8 +53,8 @@ export const submittalRouter = router({
       description: z.string().optional(),
       type: z.enum(["shop_drawing", "material_sample", "product_data", "technical_spec", "other"]).default("shop_drawing"),
       category: z.string().optional(),
-      scheduledDate: z.string().datetime().optional(),
-      dueDate: z.string().datetime().optional(),
+      scheduledDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+      dueDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
       linkedBoqItemId: z.string().optional(),
       linkedGanttTaskId: z.string().optional(),
       linkedDrawingId: z.string().optional(),
@@ -116,6 +116,14 @@ export const submittalRouter = router({
           returnedFileName: input.returnedFileName || null,
           returnedFileType: input.returnedFileType || null,
         },
+      });
+      await audit({
+        userId: ctx.user.id,
+        projectId: s.projectId,
+        action: "submittal.review",
+        entityType: "submittal",
+        entityId: s.id,
+        metadata: { number: s.number, status: input.status, reviewedBy: input.reviewedBy || ctx.user.name },
       });
       return { submittal: updated };
     }),

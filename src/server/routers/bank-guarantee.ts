@@ -159,6 +159,14 @@ export const bankGuaranteeRouter = router({
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);
 
+      if (isNaN(issuedD.getTime()) || isNaN(expiryD.getTime())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid issued or expiry date format." });
+      }
+
+      if (expiryD.getTime() < issuedD.getTime()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Guarantee expiry date cannot be earlier than issued date." });
+      }
+
       let issuedMiti = input.issuedMiti;
       if (!issuedMiti) {
         try {
@@ -236,6 +244,13 @@ export const bankGuaranteeRouter = router({
       await assertProjectManager(ctx.user, existing.projectId);
 
       const newExpiryD = new Date(input.newExpiryDate);
+      if (isNaN(newExpiryD.getTime())) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid new expiry date format." });
+      }
+
+      if (newExpiryD.getTime() <= existing.expiryDate.getTime()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "New expiry date must be strictly after current expiry date." });
+      }
       let newMiti = input.newExpiryMiti;
       if (!newMiti) {
         try {
@@ -354,6 +369,17 @@ export const bankGuaranteeRouter = router({
       const guarantee = await db.bankGuarantee.update({
         where: { id },
         data,
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: existing.projectId,
+        action: "guarantee.update",
+        entityType: "bank_guarantee",
+        entityId: guarantee.id,
+        metadata: {
+          number: guarantee.guaranteeNumber,
+        },
       });
 
       return { guarantee };

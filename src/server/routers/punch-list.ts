@@ -42,7 +42,7 @@ export const punchListRouter = router({
       category: z.string().optional(),
       severity: z.enum(["minor", "major", "critical"]).default("minor"),
       assignedTo: z.string().optional(),
-      dueDate: z.string().datetime().optional(),
+      dueDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
       linkedBoqItemId: z.string().optional(),
       linkedGanttTaskId: z.string().optional(),
       linkedDrawingId: z.string().optional(),
@@ -87,6 +87,14 @@ export const punchListRouter = router({
           verifiedDate: input.status === "verified" ? new Date() : item.verifiedDate,
           verifiedBy: input.status === "verified" ? (input.verifiedBy || ctx.user.name) : item.verifiedBy,
         },
+      });
+      await audit({
+        userId: ctx.user.id,
+        projectId: item.projectId,
+        action: "punch_list.update_status",
+        entityType: "punch_item",
+        entityId: item.id,
+        metadata: { number: item.number, fromStatus: item.status, toStatus: input.status },
       });
       return { item: updated };
     }),

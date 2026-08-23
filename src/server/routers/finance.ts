@@ -104,11 +104,13 @@ export const financeRouter = router({
           if (entry) {
             // Days in this month that the task spans
             const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-            const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+            const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
             const overlapStart = new Date(Math.max(taskStart.getTime(), monthStart.getTime()));
             const overlapEnd = new Date(Math.min(taskEnd.getTime(), monthEnd.getTime()));
-            const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)));
-            entry.month.plannedCost += dailyCost * overlapDays;
+            if (overlapStart <= overlapEnd) {
+              const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)));
+              entry.month.plannedCost += dailyCost * overlapDays;
+            }
           }
           cursor.setMonth(cursor.getMonth() + 1);
         }
