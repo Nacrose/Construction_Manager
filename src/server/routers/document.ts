@@ -36,9 +36,16 @@ const CreateDrawingSchema = z.object({
   discipline: z.string().optional(),
   revision: z.string().default("A"),
   issuedDate: z.string().datetime().optional(),
-  fileData: z.string().optional(),
-  fileName: z.string().optional(),
-  fileType: z.string().optional(),
+  // Base64-encoded file content. Capped at ~15 MB after base64 expansion
+  // (≈ 11 MB raw) to protect DB and request budgets. Drawings/attachments
+  // larger than this should be uploaded to S3/R2 instead of inlined.
+  fileData: z.string().max(20_000_000).optional(),
+  fileName: z.string().max(255).optional(),
+  // MIME type — bounded length (no enum) to keep forward-compat with
+  // future types, but bounded to prevent abuse. Static serving routes
+  // are responsible for setting Content-Disposition: attachment and
+  // X-Content-Type-Options: nosniff.
+  fileType: z.string().max(100).optional(),
   ganttTaskId: z.string().optional(),
 });
 
@@ -261,9 +268,9 @@ export const documentRouter = router({
       drawingId: z.string(),
       revision: z.string().min(1),
       description: z.string().optional(),
-      fileData: z.string().optional(),
-      fileName: z.string().optional(),
-      fileType: z.string().optional(),
+      fileData: z.string().max(20_000_000).optional(),
+      fileName: z.string().max(255).optional(),
+      fileType: z.string().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const drawing = await db.drawing.findUnique({

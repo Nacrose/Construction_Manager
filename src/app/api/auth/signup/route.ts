@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { createSession } from "@/lib/auth";
 
@@ -10,6 +11,18 @@ import { createSession } from "@/lib/auth";
  * SECURITY: Only allowed when there are zero users (first bootstrap)
  * or when an authenticated super admin is creating accounts.
  */
+
+// Single source of truth for signup input validation. Previously this
+// route used a hand-rolled email regex that disagreed with zod's
+// .email() validator used in /api/auth/login — switch to zod everywhere
+// for consistency.
+const SignupSchema = z.object({
+  orgName: z.string().min(1).max(200),
+  name: z.string().min(1).max(200),
+  email: z.string().email().toLowerCase().trim(),
+  password: z.string().min(8).max(200),
+});
+
 export async function POST(req: NextRequest) {
   try {
     // Signup is only allowed for the first user (org bootstrap).
@@ -22,31 +35,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const { orgName, name, email, password } = body;
-
-    // Validate
-    if (!orgName || !name || !email || !password) {
+    const body = await req.json().catch(() => null);
+    const parsed = SignupSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstErr = parsed.error.issues[0];
       return NextResponse.json(
-        { error: "All fields are required (orgName, name, email, password)" },
+        { error: firstErr?.message ?? "Invalid input." },
         { status: 400 }
       );
     }
-    const normalizedEmail = email.toLowerCase().trim();
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Please enter a valid email address." },
-        { status: 400 }
-      );
-    }
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
-    }
+    const { orgName, name, email: normalizedEmail, password } = parsed.data;
 
     // Check if email already exists
     const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
@@ -56,8 +54,6 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
-
-
 
     // Generate org code from org name
     const orgCode = orgName

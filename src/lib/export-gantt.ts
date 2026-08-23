@@ -8,7 +8,7 @@ import type { Task } from "@/app/(app)/projects/[id]/gantt/types";
  * clicks Export.
  */
 export async function exportGanttToXlsx(tasks: Task[], projectName?: string) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const rows: Record<string, unknown>[] = [];
 

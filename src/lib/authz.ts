@@ -19,6 +19,19 @@ export function isOrgAdmin(user: AuthUser | null | undefined): boolean {
   return !!user && (user.orgRole === "org_admin" || user.orgRole === "owner");
 }
 
+// Throws unless the user is an organization administrator of their own org.
+// Cross-tenant actions by super admins are handled separately via the
+// `adminRouter` (which requires a platform-admin session).
+//
+// IMPORTANT: org-admin authority NEVER crosses organization boundaries.
+// Any procedure that mutates a target user/resource MUST additionally
+// verify the target belongs to the same organization as the caller.
+export function assertOrgAdmin(user: AuthUser | null | undefined): void {
+  if (!isOrgAdmin(user)) {
+    throw new Error("REQUIRES_ORG_ADMIN");
+  }
+}
+
 // Returns the user's role on a project, or null if not a member.
 export async function getProjectRole(
   userId: string,
@@ -133,6 +146,11 @@ export function authErrorToResponse(err: unknown): {
       return {
         status: 403,
         message: "This action requires Project Manager role.",
+      };
+    case "REQUIRES_ORG_ADMIN":
+      return {
+        status: 403,
+        message: "This action requires Organization Admin role.",
       };
     default:
       return { status: 500, message: "Internal error." };

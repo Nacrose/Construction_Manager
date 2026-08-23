@@ -47,7 +47,7 @@ export async function exportIpcTaxToXlsx(
   totals: { count: number; totalGross: number; totalVat: number; totalTds: number; totalRetention: number; totalFinalPayable: number },
   projectName: string
 ) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const wb = XLSX.utils.book_new();
 
@@ -116,7 +116,7 @@ export async function exportMaterialTaxToXlsx(
   totals: { count: number; totalBaseAmount: number; totalVatAmount: number; totalTdsAmount: number; totalNetPayable: number },
   projectName: string
 ) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const wb = XLSX.utils.book_new();
 
@@ -203,7 +203,7 @@ export async function exportDailyReportsToXlsx(
   }>,
   projectName: string
 ) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const rows = reports.map((r) => ({
     "Report #": r.number,
@@ -245,7 +245,7 @@ export async function exportProjectCostsToXlsx(
   }>,
   projectName: string
 ) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const rows = costs.map((c) => ({
     "Date": new Date(c.date).toLocaleDateString(),

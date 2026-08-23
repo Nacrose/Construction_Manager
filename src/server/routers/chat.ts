@@ -44,7 +44,11 @@ export const chatRouter = router({
         publicChannelIds = publicChannels.map(c => c.id);
       }
 
-      // Get org_order channels (org-wide)
+      // Get org_order channels (org-wide broadcasts).
+      // ChatChannel has no direct organizationId column or createdBy
+      // relation, so we resolve via the raw createdById → User lookup.
+      // Previously this returned EVERY org_order channel across all
+      // tenants — a multi-tenant data leak.
       const userOrgId = ctx.user.organizationId;
       let orgChannelIds: string[] = [];
       if (userOrgId) {
@@ -53,10 +57,27 @@ export const chatRouter = router({
             type: "org_order",
             projectId: null, // org orders have no project
           },
-          select: { id: true },
+          select: { id: true, createdById: true },
         });
-        // Filter to user's org — we check via project membership
-        orgChannelIds = orgChannels.map(c => c.id);
+        // Filter to channels whose creator belongs to the caller's org.
+        // Channels with null createdById are legacy/orphan — exclude them
+        // from the user's view (they can still be reached explicitly via
+        // membership if appropriate).
+        const creatorIds = Array.from(
+          new Set(orgChannels.map((c) => c.createdById).filter((id): id is string => !!id)),
+        );
+        const creatorOrgs = creatorIds.length
+          ? await db.user.findMany({
+              where: { id: { in: creatorIds } },
+              select: { id: true, organizationId: true },
+            })
+          : [];
+        const sameOrgCreatorIds = new Set(
+          creatorOrgs.filter((u) => u.organizationId === userOrgId).map((u) => u.id),
+        );
+        orgChannelIds = orgChannels
+          .filter((c) => c.createdById && sameOrgCreatorIds.has(c.createdById))
+          .map((c) => c.id);
       }
 
       const allChannelIds = [...new Set([...memberChannelIds, ...publicChannelIds, ...orgChannelIds])];
@@ -111,7 +132,11 @@ export const chatRouter = router({
         }
       }
       if (input.type === "org_order") {
-        if (ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {
+        // Org-wide broadcast — caller must be an org admin of an actual org.
+        if (!ctx.user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
+        }
+        if (ctx.user.orgRole !== "org_admin" && ctx.user.orgRole !== "owner") {
           throw new TRPCError({ code: "FORBIDDEN", message: "Only org admins can issue org orders." });
         }
       }

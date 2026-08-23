@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { authErrorToResponse, type ProjectRole } from "./authz";
+import { authErrorToResponse, assertOrgAdmin, type ProjectRole } from "./authz";
 
 describe("Authorization Status Mapping & Security Guards", () => {
   describe("authErrorToResponse HTTP Mapping", () => {
@@ -9,6 +9,7 @@ describe("Authorization Status Mapping & Security Guards", () => {
       { code: "READ_ONLY", expectedStatus: 403, expectedMsg: "Your role on this project is read-only." },
       { code: "REQUIRES_ADMIN", expectedStatus: 403, expectedMsg: "This action requires Project Manager or Coordinator role." },
       { code: "REQUIRES_PROJECT_MANAGER", expectedStatus: 403, expectedMsg: "This action requires Project Manager role." },
+      { code: "REQUIRES_ORG_ADMIN", expectedStatus: 403, expectedMsg: "This action requires Organization Admin role." },
     ];
 
     it.each(errorCodes)("maps Error('$code') to status $expectedStatus", ({ code, expectedStatus, expectedMsg }) => {
@@ -89,6 +90,29 @@ describe("Authorization Status Mapping & Security Guards", () => {
       } else {
         expect(true).toBe(allowed);
       }
+    });
+  });
+
+  describe("assertOrgAdmin", () => {
+    const mkUser = (orgRole: string | undefined) =>
+      ({ orgRole }) as any;
+
+    it("throws REQUIRES_ORG_ADMIN for non-admin users", () => {
+      expect(() => assertOrgAdmin(mkUser("member"))).toThrow(/REQUIRES_ORG_ADMIN/);
+      expect(() => assertOrgAdmin(mkUser(undefined))).toThrow(/REQUIRES_ORG_ADMIN/);
+    });
+
+    it("does not throw for org_admin", () => {
+      expect(() => assertOrgAdmin(mkUser("org_admin"))).not.toThrow();
+    });
+
+    it("does not throw for owner", () => {
+      expect(() => assertOrgAdmin(mkUser("owner"))).not.toThrow();
+    });
+
+    it("throws for null/undefined user", () => {
+      expect(() => assertOrgAdmin(null)).toThrow(/REQUIRES_ORG_ADMIN/);
+      expect(() => assertOrgAdmin(undefined)).toThrow(/REQUIRES_ORG_ADMIN/);
     });
   });
 });

@@ -49,7 +49,18 @@ export function handleError(err: unknown) {
     if (auth.status !== 500) {
       return NextResponse.json({ error: auth.message }, { status: auth.status });
     }
-    // Show actual error for debugging (temporarily — revert in production)
+    // In production, NEVER leak raw error messages to clients — they
+    // can contain Prisma internals, table names, column names, or
+    // stack-trace fragments that an attacker can use for enumeration.
+    // Log the real error server-side, return a generic message.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[handleError]", err);
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
+    }
+    // Development: surface the actual message for faster debugging.
     return NextResponse.json(
       { error: err.message || "Internal error" },
       { status: 500 }

@@ -23,7 +23,15 @@ const ADMIN_SESSION_MINS = Math.max(
 function getAuthSecret(): Uint8Array {
   const secretValue = process.env.AUTH_SECRET;
   if (!secretValue) {
-    if (process.env.NODE_ENV === "production") {
+    // Treat any non-local-dev environment as production: Vercel preview,
+    // staging, and any environment where VERCEL_ENV is set. Misconfigured
+    // staging envs previously fell through to the dev fallback, which
+    // signed JWTs with a publicly-known secret.
+    const isProdLike =
+      process.env.NODE_ENV === "production" ||
+      process.env.VERCEL_ENV === "preview" ||
+      process.env.VERCEL_ENV === "production";
+    if (isProdLike) {
       throw new Error(
         "FATAL: AUTH_SECRET environment variable is not set. " +
         "Generate one with: openssl rand -base64 32 " +
@@ -165,7 +173,10 @@ export async function setSessionCookie(userId: string): Promise<string> {
     store.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: true,
-      sameSite: "none",
+      // Lax is the safe default — blocks cross-site POST/PUT but allows
+      // top-level navigations. SameSite=None widens CSRF surface and is
+      // only needed if the app is embedded in cross-site iframes.
+      sameSite: "lax",
       path: "/",
       maxAge: SESSION_DAYS * 24 * 60 * 60,
     });

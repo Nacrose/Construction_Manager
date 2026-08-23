@@ -15,7 +15,7 @@ import type { BoqItem } from "./types";
  * clicks Export.
  */
 export async function exportBoq(items: BoqItem[], projectId: string) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import("@e965/xlsx");
 
   const boqRows = items.map((it) => ({
     Section: it.section ?? "",
@@ -98,7 +98,7 @@ export async function importBoq(
   onDone: () => void
 ) {
   try {
-    const XLSX = await import("xlsx");
+    const XLSX = await import("@e965/xlsx");
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array" });
     const ws = wb.Sheets["BOQ"] ?? wb.Sheets[wb.SheetNames[0]];

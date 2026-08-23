@@ -141,9 +141,9 @@ export const equipmentVendorProcedures = {
   uploadAgreement: protectedProcedure
     .input(z.object({
       rentalId: z.string(),
-      fileData: z.string(),
-      fileName: z.string(),
-      fileType: z.string(),
+      fileData: z.string().max(20_000_000),
+      fileName: z.string().max(255),
+      fileType: z.string().max(100),
     }))
     .mutation(async ({ ctx, input }) => {
       const rental = await db.equipmentRental.findUnique({

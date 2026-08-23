@@ -1,4 +1,7 @@
 import { PrismaClient } from '@prisma/client'
+import { createRequire } from 'node:module'
+
+const nativeRequire = createRequire(import.meta.url)
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -85,8 +88,7 @@ export function getFreshDb(): PrismaClient {
   if (isClientFresh(db)) return db
 
   // Stale — bypass the bundler's require cache and read the PrismaClient
-  // class fresh from disk via Node's native require.
-  const nativeRequire = eval('require') as NodeRequire
+  // class fresh from disk via Node's native require (createRequire).
   const prismaIndex = typeof nativeRequire.resolve.paths === 'function'
     ? nativeRequire.resolve('@prisma/client', {
         paths: [process.cwd() + '/node_modules'],

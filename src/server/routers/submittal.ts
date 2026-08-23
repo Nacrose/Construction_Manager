@@ -58,9 +58,9 @@ export const submittalRouter = router({
       linkedBoqItemId: z.string().optional(),
       linkedGanttTaskId: z.string().optional(),
       linkedDrawingId: z.string().optional(),
-      fileData: z.string().optional(),
-      fileName: z.string().optional(),
-      fileType: z.string().optional(),
+      fileData: z.string().max(20_000_000).optional(),
+      fileName: z.string().max(255).optional(),
+      fileType: z.string().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

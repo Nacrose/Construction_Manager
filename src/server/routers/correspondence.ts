@@ -43,9 +43,9 @@ const CreateCorrespondenceSchema = z.object({
   // EOT fields
   eotDaysClaimed: z.number().optional(),
   eotLinkedTaskIds: z.string().optional(), // JSON array string
-  fileData: z.string().optional(),
-  fileName: z.string().optional(),
-  fileType: z.string().optional(),
+  fileData: z.string().max(20_000_000).optional(),
+  fileName: z.string().max(255).optional(),
+  fileType: z.string().max(100).optional(),
   linkedRfiId: z.string().optional(),
   linkedBoqItemId: z.string().optional(),
   linkedGanttTaskId: z.string().optional(),

@@ -47,13 +47,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const u = getUser();
-    if (!u?.isSuperAdmin) {
+    // Require BOTH isSuperAdmin AND an admin-kind session — a regular
+    // user session tagged isSuperAdmin (which admin.updateUser can set)
+    // must NOT see the platform console. Admin mutations are gated
+    // server-side on sessionKind === "admin" as well.
+    if (!u?.isSuperAdmin || u.sessionKind !== "admin") {
       router.replace("/dashboard");
     }
   }, [router]);
 
   const u = getUser();
-  if (!u?.isSuperAdmin) {
+  if (!u?.isSuperAdmin || u.sessionKind !== "admin") {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         Redirecting…

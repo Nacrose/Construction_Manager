@@ -29,7 +29,7 @@ import {
   Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
 import { format } from "date-fns";
 

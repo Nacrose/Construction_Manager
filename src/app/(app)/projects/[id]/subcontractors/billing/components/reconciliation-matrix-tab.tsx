@@ -23,7 +23,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
 
 export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {

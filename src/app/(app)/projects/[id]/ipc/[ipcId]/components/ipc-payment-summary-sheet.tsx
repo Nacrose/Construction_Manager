@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Printer, Download, Edit3, Check, Loader2, Paperclip, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import { IpcScannedBillCard } from "./ipc-scanned-bill-card";
 
 function fmt(n: number) {

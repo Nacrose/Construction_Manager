@@ -1,4 +1,4 @@
-import { isOrgAdmin } from "@/lib/authz";
+import { isOrgAdmin, assertOrgAdmin } from "@/lib/authz";
 /**
  * tRPC router for projects and members.
  */
@@ -380,7 +380,10 @@ export const projectRouter = router({
           });
         }
       } else {
-        const tempPassword = Math.random().toString(36).slice(-12);
+        // Cryptographically secure temp password — Math.random() is not
+        // CSPRNG and is unsafe for credentials.
+        const crypto = await import("node:crypto");
+        const tempPassword = crypto.randomBytes(9).toString("base64url").slice(0, 16);
         member = await db.user.create({
           data: {
             email: input.email,
@@ -391,6 +394,37 @@ export const projectRouter = router({
             orgRole: "member",
           },
         });
+
+        // Email the temp credentials so the new user can actually log in.
+        // Best-effort — failures are logged but don't block the operation.
+        try {
+          const projInfo = await db.project.findUnique({
+            where: { id: input.projectId },
+            select: { name: true },
+          });
+          const projName = projInfo?.name ?? "a project";
+          const { sendEmail } = await import("@/server/utils/email");
+          await sendEmail({
+            to: input.email,
+            subject: `You've been added to ${projName}`,
+            html: `
+              <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                  <h1 style="margin: 0; font-size: 20px;">Welcome to Construction Manager</h1>
+                </div>
+                <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+                  <p style="font-size: 14px; color: #374151;">You've been added to <strong>${projName.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] ?? c))}</strong> as <strong>${input.role}</strong>.</p>
+                  <p style="font-size: 14px; color: #374151;">A temporary password has been created for you:</p>
+                  <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #059669; margin: 15px 0; font-family: monospace; font-size: 16px;">${tempPassword}</div>
+                  <p style="font-size: 13px; color: #6b7280;">Please log in and change your password immediately.</p>
+                </div>
+              </div>
+            `,
+            text: `You've been added to ${projName} as ${input.role}. Your temporary password is: ${tempPassword}`,
+          });
+        } catch (err) {
+          console.error("[project.addMember] Failed to email temp password:", err);
+        }
       }
 
       const existing = await db.projectMember.findUnique({
@@ -546,10 +580,8 @@ export const projectRouter = router({
       if (!ctx.user.organizationId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
       }
-      // Must be org admin or super admin
-      if (ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only organization admins can create users." });
-      }
+      // Must be an org admin of THIS org (no cross-tenant actions).
+      assertOrgAdmin(ctx.user);
 
       // Check email not taken
       const existing = await db.user.findUnique({ where: { email: input.email } });
@@ -588,13 +620,18 @@ export const projectRouter = router({
       role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only organization admins can change roles." });
+      assertOrgAdmin(ctx.user);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
       }
 
-      // Verify target user is in the same org
+      // Verify target user is in the SAME org as the caller. Org admin
+      // authority NEVER crosses organization boundaries — cross-tenant
+      // actions live in `adminRouter` (which requires a platform-admin
+      // session). Previously this allowed `|| isOrgAdmin(ctx.user)` to
+      // bypass the same-org check, enabling cross-tenant mutations.
       const target = await db.user.findUnique({ where: { id: input.userId } });
-      if (!target || (target.organizationId !== ctx.user.organizationId && !isOrgAdmin(ctx.user))) {
+      if (!target || target.organizationId !== ctx.user.organizationId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 
@@ -622,12 +659,14 @@ export const projectRouter = router({
       newPassword: z.string().min(8),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only organization admins can reset passwords." });
+      assertOrgAdmin(ctx.user);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
       }
 
+      // Same-org enforcement — see updateOrgUserRole for rationale.
       const target = await db.user.findUnique({ where: { id: input.userId } });
-      if (!target || (target.organizationId !== ctx.user.organizationId && !isOrgAdmin(ctx.user))) {
+      if (!target || target.organizationId !== ctx.user.organizationId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 
@@ -655,15 +694,17 @@ export const projectRouter = router({
   removeOrgUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.orgRole !== "org_admin" && !isOrgAdmin(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only organization admins can remove users." });
+      assertOrgAdmin(ctx.user);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
       }
       if (input.userId === ctx.user.id) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot remove yourself." });
       }
 
+      // Same-org enforcement — see updateOrgUserRole for rationale.
       const target = await db.user.findUnique({ where: { id: input.userId } });
-      if (!target || (target.organizationId !== ctx.user.organizationId && !isOrgAdmin(ctx.user))) {
+      if (!target || target.organizationId !== ctx.user.organizationId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 

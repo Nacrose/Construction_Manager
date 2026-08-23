@@ -43,7 +43,7 @@ const FROM = process.env.SMTP_FROM || "Construction Manager <noreply@constructio
  * Escape user-controlled values before interpolating them into HTML email
  * templates. Prevents HTML/script injection in email clients.
  */
-function escapeHtml(value: unknown): string {
+export function escapeHtml(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value)
     .replace(/&/g, "&amp;")
