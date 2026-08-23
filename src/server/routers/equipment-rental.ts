@@ -247,10 +247,22 @@ export const equipmentRentalProcedures = {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only stored rentals can be reactivated." });
       }
 
+      // Recalculate the billable days up to the stored date (the period
+      // that was already billed when the rental was marked stored).
+      // Previously the billable days were frozen at markStored time but
+      // the totalRentalCost wasn't recalculated — if the rental rate
+      // changed between markStored and reactivate, the stored cost was
+      // stale.
+      const storedDate = rental.storedFromDate ? new Date(rental.storedFromDate) : new Date();
+      const billableDays = Math.max(0, Math.round((storedDate.getTime() - new Date(rental.startDate).getTime()) / 86400000));
+      const totalCost = billableDays * rental.rentalRate;
+
       const updated = await db.equipmentRental.update({
         where: { id: input.rentalId },
         data: {
           status: "active",
+          totalBillableDays: billableDays,
+          totalRentalCost: totalCost,
           notes: input.notes ? `${rental.notes ?? ""}\n[Reactivated] ${input.notes}`.trim() : rental.notes,
         },
       });

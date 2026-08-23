@@ -152,13 +152,19 @@ export const financeRouter = router({
         }
       }
 
-      // Calculate net cash flow and cumulative totals
+      // Calculate net cash flow and cumulative totals.
+      // Net cash flow = INFLOW - OUTFLOW.
+      //   INFLOW  = ipcPaid (money received from client via IPC payments)
+      //   OUTFLOW = actualCost (money spent on materials, labor, equipment)
+      // Previously this was `actualCost + ipcPaid` which summed both
+      // as outflows — a positive netCashFlow meant you were LOSING money,
+      // which is backwards.
       let cumPlanned = 0;
       let cumActual = 0;
       for (const m of months) {
-        m.netCashFlow = m.actualCost + m.ipcPaid;
+        m.netCashFlow = m.ipcPaid - m.actualCost;
         cumPlanned += m.plannedCost;
-        cumActual += m.netCashFlow;
+        cumActual += m.actualCost;
         m.cumulativePlanned = cumPlanned;
         m.cumulativeActual = cumActual;
       }
@@ -358,7 +364,7 @@ export const financeRouter = router({
         select: { netPayable: true, paidAmount: true },
       }),
       db.ipc.findMany({
-        where: { projectId: { in: projectIds } },
+        where: { projectId: { in: projectIds }, status: { in: ["certified", "approved", "paid"] } },
         select: { grossAmount: true, netPayable: true, status: true },
       }),
       db.payment.findMany({

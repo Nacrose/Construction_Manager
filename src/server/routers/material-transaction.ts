@@ -303,7 +303,19 @@ export const materialTransactionProcedures = {
           });
 
           if (poItem) {
+            // Prevent over-receiving: the total received quantity (existing
+            // + new) must not exceed the ordered quantity. Previously there
+            // was no guard — a user could receive 200 units against a
+            // 100-unit PO, inflating stock and understating the open PO
+            // amount.
             const newReceivedQty = poItem.receivedQty + input.quantity;
+            if (newReceivedQty > poItem.quantity + 0.01) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Over-receiving not allowed. PO item ordered: ${poItem.quantity} ${poItem.unit}, already received: ${poItem.receivedQty} ${poItem.unit}, this delivery: ${input.quantity} ${poItem.unit}. Total would exceed ordered quantity.`,
+              });
+            }
+
             await tx.purchaseOrderItem.update({
               where: { id: poItem.id },
               data: { receivedQty: newReceivedQty },

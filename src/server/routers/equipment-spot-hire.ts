@@ -20,7 +20,7 @@ const SpotHireTicketSchema = z.object({
   mobilizationFee: z.number().nonnegative().default(0),
   fuelMode: z.enum(["wet", "dry"]).default("wet"),
   fuelLitersIssued: z.number().nonnegative().default(0),
-  fuelUnitCost: z.number().nonnegative().default(175), // default diesel rate NPR/L
+  fuelUnitCost: z.number().nonnegative().default(0), // must be set per ticket — no hardcoded default
   date: z.string().optional(),
   startTime: z.string().optional().nullable(),
   endTime: z.string().optional().nullable(),
@@ -94,16 +94,42 @@ export const equipmentSpotHireProcedures = {
       partnerId = existingPartner.id;
 
       // 2. Financial Calculations
+      // Handle all hire types:
+      //   - trip: tripCount * rate + mobilizationFee
+      //   - hourly: max(hoursWorked, minCalloutHours) * rate + mobilizationFee
+      //   - daily: hoursWorked is ignored, rate is per-day; use 1 day if no
+      //            date range. For simplicity we treat 'daily' like 'shift'
+      //            (1 unit of rate per ticket).
+      //   - shift: 1 shift = rate (hoursWorked used for display only)
+      //   - lump_sum: rate IS the total (hoursWorked/tripCount ignored)
       let totalGross = 0;
       if (input.hireType === "trip") {
         totalGross = input.tripCount * input.rate + input.mobilizationFee;
-      } else {
+      } else if (input.hireType === "hourly") {
         const billedHours = Math.max(input.hoursWorked, input.minCalloutHours);
         totalGross = billedHours * input.rate + input.mobilizationFee;
+      } else if (input.hireType === "lump_sum") {
+        // Lump sum: rate is the total. Don't multiply by hours/trips.
+        totalGross = input.rate + input.mobilizationFee;
+      } else {
+        // daily / shift: 1 unit of work per ticket.
+        totalGross = input.rate + input.mobilizationFee;
+      }
+
+      // Look up the project's fuel price for dry-hire fuel deductions.
+      // Previously this defaulted to NPR 175/L hardcoded — wrong for any
+      // project with a different fuel rate.
+      let fuelUnitCost = input.fuelUnitCost;
+      if (fuelUnitCost === 0 && input.fuelMode === "dry" && input.fuelLitersIssued > 0) {
+        const project = await db.project.findUnique({
+          where: { id: input.projectId },
+          select: { fuelPricePerLiter: true },
+        });
+        fuelUnitCost = project?.fuelPricePerLiter ?? 0;
       }
 
       const fuelDeduction =
-        input.fuelMode === "dry" ? input.fuelLitersIssued * (input.fuelUnitCost || 175) : 0;
+        input.fuelMode === "dry" ? input.fuelLitersIssued * fuelUnitCost : 0;
       const netPayable = Math.max(0, totalGross - fuelDeduction);
 
       // 3. Create Ticket
@@ -123,7 +149,7 @@ export const equipmentSpotHireProcedures = {
           mobilizationFee: input.mobilizationFee,
           fuelMode: input.fuelMode,
           fuelLitersIssued: input.fuelLitersIssued,
-          fuelUnitCost: input.fuelUnitCost,
+          fuelUnitCost,
           date: ticketDate,
           startTime: input.startTime || null,
           endTime: input.endTime || null,

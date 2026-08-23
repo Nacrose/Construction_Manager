@@ -52,12 +52,29 @@ export const bankGuaranteeRouter = router({
         };
       });
 
-      const activeGuarantees = items.filter((g) => g.status === "active" || g.status === "extended");
+      // Auto-update expired guarantees: if a guarantee's expiry date has
+      // passed but its status is still "active" or "extended", mark it as
+      // "expired" in the database. Previously the status was never
+      // auto-updated, so expired guarantees continued to show as "active"
+      // in reports and inflated the totalActiveExposure KPI.
+      const expiredIds = items.filter((g) => g.isExpired).map((g) => g.id);
+      if (expiredIds.length > 0) {
+        await db.bankGuarantee.updateMany({
+          where: { id: { in: expiredIds } },
+          data: { status: "expired" },
+        });
+      }
+
+      // Recompute the active set AFTER marking expired ones — otherwise
+      // the just-expired guarantees would still be counted in the KPIs.
+      const activeGuarantees = items.filter(
+        (g) => (g.status === "active" || g.status === "extended") && !g.isExpired,
+      );
       const totalActiveExposure = activeGuarantees.reduce((s, g) => s + g.amount, 0);
       const totalMarginHeld = activeGuarantees.reduce((s, g) => s + g.marginAmount, 0);
       const totalCommissionPaid = items.reduce((s, g) => s + g.commissionPaid, 0);
       const expiringWithin30DaysCount = activeGuarantees.filter((g) => g.daysRemaining <= 30 && g.daysRemaining >= 0).length;
-      const expiredCount = activeGuarantees.filter((g) => g.daysRemaining < 0).length;
+      const expiredCount = items.filter((g) => g.isExpired).length;
 
       return {
         items,
