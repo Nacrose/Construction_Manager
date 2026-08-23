@@ -179,10 +179,42 @@ export const ipcRouter = router({
       const { ipcId, ...data } = input;
       const item = await db.ipc.findUnique({
         where: { id: ipcId },
-        select: { projectId: true, subcontractorId: true },
+        select: { projectId: true, subcontractorId: true, status: true },
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
       await assertCanWrite(ctx.user, item.projectId);
+
+      // Status transition validation: prevent skipping certification.
+      // Valid transitions:
+      //   draft → submitted → certified → approved → paid
+      // (draft → paid is forbidden — must go through certification first)
+      if (data.status && data.status !== item.status) {
+        const validTransitions: Record<string, string[]> = {
+          draft: ["submitted"],
+          submitted: ["certified", "draft"],
+          certified: ["approved", "submitted"],
+          approved: ["paid", "certified"],
+          paid: [],
+        };
+        const allowed = validTransitions[item.status] || [];
+        if (!allowed.includes(data.status)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Cannot transition IPC from "${item.status}" to "${data.status}". Valid transitions: ${allowed.join(", ") || "none (terminal state)"}.`,
+          });
+        }
+
+        // Only project managers/coordinators can certify/approve/pay.
+        if (["certified", "approved", "paid"].includes(data.status)) {
+          const role = await assertProjectMember(ctx.user, item.projectId);
+          if (role !== "project_manager" && role !== "coordinator") {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Only Project Managers or Coordinators can certify/approve/pay IPCs.",
+            });
+          }
+        }
+      }
 
       const updateData: Record<string, any> = {};
       for (const [k, v] of Object.entries(data)) {
@@ -288,13 +320,31 @@ export const ipcRouter = router({
       const prevTotalDeductions = prevAdvance + prevRetention + prevTds;
       const prevNetPayable = prevTotalBill - prevTotalDeductions;
 
+      // Calculate THIS period's material deductions (only unrecovered).
+      // Previously this was missing from the summary entirely — the
+      // summary showed a different net payable than the stored IPC
+      // record (which does include materialDeductions via recalculateIpc).
+      let thisMaterialDeductions = 0;
+      if (ipc.subcontractorId) {
+        const txns = await db.materialTransaction.findMany({
+          where: {
+            projectId: ipc.projectId,
+            subcontractorId: ipc.subcontractorId,
+            isDebitable: true,
+            deductedInIpcId: null,
+          },
+        });
+        thisMaterialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
+      }
+
       const thisGross = ipc.grossAmount;
       const thisVat = ipc.vatAmount || (thisGross * (ipc.vatPercent || 13)) / 100;
       const thisTotalBill = thisGross + thisVat;
       const thisAdvance = ipc.advanceRecovery;
       const thisRetention = ipc.retentionAmount || (thisGross * (ipc.retention || 5)) / 100;
       const thisTds = ipc.tdsAmount || (thisGross * (ipc.tdsPercent || 1.5)) / 100;
-      const thisTotalDeductions = thisAdvance + thisRetention + thisTds;
+      // Include material deductions in the total — previously missing.
+      const thisTotalDeductions = thisAdvance + thisRetention + thisTds + thisMaterialDeductions;
       const thisNetPayable = thisTotalBill - thisTotalDeductions;
 
       const cumGross = prevGross + thisGross;
@@ -341,6 +391,7 @@ export const ipcRouter = router({
             advance: thisAdvance,
             retention: thisRetention,
             tds: thisTds,
+            materialDeductions: thisMaterialDeductions,
             totalDeductions: thisTotalDeductions,
             netPayable: thisNetPayable,
           },

@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { computePayrollLine } from "@/server/utils/payroll-calc";
 
 export const payrollRouter = router({
   /** Calculate on-the-fly preview for a given project and month (YYYY-MM). */
@@ -78,76 +79,35 @@ export const payrollRouter = router({
         else current.otherDeductions += adv.amount;
       }
 
-      // Compute worker lines
+      // Compute worker lines using the shared calculation helper.
+      // This ensures `calculate` (preview) and `createPayrollRun` (commit)
+      // produce identical numbers — previously they could diverge.
       const payrollItems = staffList.map((staff) => {
         const records = attendanceByStaff.get(staff.id) || [];
-        const presentDays = records.filter((r) => r.status === "present" || r.status === "overtime").length;
-        const halfDays = records.filter((r) => r.status === "half_day").length;
-        const absentDays = records.filter((r) => r.status === "absent").length;
-        const leaveDays = records.filter((r) => r.status === "leave").length;
-        const overtimeHours = records.reduce((sum, r) => sum + (r.overtime || 0), 0);
-
-        const effectiveDays = presentDays + halfDays * 0.5;
-
-        let regularPay = 0;
-        let overtimePay = 0;
-        const baseRate = staff.employmentType === "monthly" ? staff.monthlySalary : staff.dailyWage;
-
-        if (staff.employmentType === "monthly") {
-          // Monthly salary with deduction for absent days
-          const perDaySalary = staff.monthlySalary / daysInMonth;
-          const deductedSalary = Math.max(0, staff.monthlySalary - absentDays * perDaySalary);
-          regularPay = Math.round(deductedSalary);
-          const hourlyRate = (staff.monthlySalary / daysInMonth) / 8;
-          overtimePay = Math.round(overtimeHours * hourlyRate * 1.5);
-        } else {
-          // Daily / Piece rate
-          regularPay = Math.round(effectiveDays * staff.dailyWage);
-          const hourlyRate = staff.dailyWage > 0 ? staff.dailyWage / 8 : 0;
-          overtimePay = Math.round(overtimeHours * hourlyRate * 1.5);
-        }
-
         const adv = advancesByStaff.get(staff.id) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
-        const advanceDeduction = adv.cashAdvances;
-        const messDeduction = adv.messDeductions;
-        const otherDeductions = adv.otherDeductions;
-        const allowances = 0;
-        const tdsAmount = Math.round((regularPay + overtimePay) * 0.01); // 1% standard TDS on wages
-
-        const gross = regularPay + overtimePay + allowances;
-        const totalDeductions = advanceDeduction + messDeduction + otherDeductions + tdsAmount;
-        const netPayable = Math.max(0, gross - totalDeductions);
-
-        return {
-          staffId: staff.id,
-          staffName: staff.name,
-          designation: staff.designation,
-          category: staff.category,
-          employmentType: staff.employmentType,
-          gangName: staff.gangName,
-          baseRate,
-          dailyWage: staff.dailyWage,
-          monthlySalary: staff.monthlySalary,
-          presentDays,
-          halfDays,
-          absentDays,
-          leaveDays,
-          effectiveDays,
-          overtimeHours,
-          regularPay,
-          overtimePay,
-          allowances,
-          advanceDeduction,
-          messDeduction,
-          otherDeductions,
-          tdsAmount,
-          gross,
-          totalDeductions,
-          netPayable,
-          bankAccountNo: staff.bankAccountNo,
-          bankName: staff.bankName,
-          pan: staff.pan,
-        };
+        return computePayrollLine(
+          {
+            id: staff.id,
+            name: staff.name,
+            designation: staff.designation,
+            category: staff.category,
+            employmentType: staff.employmentType,
+            gangName: staff.gangName,
+            dailyWage: staff.dailyWage,
+            monthlySalary: staff.monthlySalary,
+            bankAccountNo: staff.bankAccountNo,
+            bankName: staff.bankName,
+            pan: staff.pan,
+          },
+          records.map((r) => ({
+            date: r.date,
+            status: r.status,
+            hours: r.hours,
+            overtime: r.overtime,
+          })),
+          adv,
+          daysInMonth,
+        );
       });
 
       // Summary totals
@@ -178,15 +138,23 @@ export const payrollRouter = router({
         projectId: z.string(),
         month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be YYYY-MM format"),
         notes: z.string().optional().nullable(),
+        // Client sends attendance-based records. The server RECOMPUTES
+        // all pay amounts (regularPay, overtimePay, tdsAmount, netPayable)
+        // from the attendance + staff data — the client's submitted
+        // amounts are IGNORED and only used as a sanity reference.
+        // This prevents a malicious/buggy client from persisting wrong
+        // net payables.
         records: z.array(
           z.object({
             staffId: z.string(),
-            employmentType: z.string().default("daily"),
+            // Attendance summary (used for server-side recomputation)
             presentDays: z.number().nonnegative(),
             halfDays: z.number().nonnegative().default(0),
             absentDays: z.number().nonnegative().default(0),
             leaveDays: z.number().nonnegative().default(0),
             overtimeHours: z.number().nonnegative().default(0),
+            // Client-submitted amounts (for reference only — server recomputes)
+            employmentType: z.string().default("daily"),
             baseRate: z.number().nonnegative(),
             regularPay: z.number().nonnegative(),
             overtimePay: z.number().nonnegative().default(0),
@@ -204,14 +172,106 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const totalGross = input.records.reduce((sum, r) => sum + r.regularPay + r.overtimePay + r.allowances, 0);
-      const totalAllowances = input.records.reduce((sum, r) => sum + r.allowances, 0);
-      const totalAdvancesRecovered = input.records.reduce((sum, r) => sum + r.advanceDeduction, 0);
-      const totalDeductions = input.records.reduce(
-        (sum, r) => sum + r.advanceDeduction + r.messDeduction + r.otherDeductions + r.tdsAmount,
-        0
-      );
-      const totalNetPayable = input.records.reduce((sum, r) => sum + r.netPayable, 0);
+      // ── Server-side recomputation ──────────────────────────────
+      // Fetch fresh staff + attendance + advances data and recompute
+      // all pay amounts. Client-submitted amounts are NOT trusted.
+      const [yearStr, monthStr] = input.month.split("-");
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStr, 10);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
+
+      const staffIds = input.records.map((r) => r.staffId);
+
+      const [staffList, attendanceRecords, unrecoveredAdvances] = await Promise.all([
+        db.staff.findMany({
+          where: { id: { in: staffIds }, projectId: input.projectId, status: "active" },
+        }),
+        db.staffAttendance.findMany({
+          where: {
+            projectId: input.projectId,
+            staffId: { in: staffIds },
+            date: { gte: startDate, lte: endDate },
+          },
+        }),
+        db.staffAdvance.findMany({
+          where: {
+            projectId: input.projectId,
+            staffId: { in: staffIds },
+            isRecovered: false,
+          },
+        }),
+      ]);
+
+      // Verify every submitted staffId exists and belongs to the project.
+      const staffMap = new Map(staffList.map((s) => [s.id, s]));
+      for (const rec of input.records) {
+        if (!staffMap.has(rec.staffId)) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Staff member ${rec.staffId} not found in this project.`,
+          });
+        }
+      }
+
+      // Group attendance by staffId
+      const attendanceByStaff = new Map<string, typeof attendanceRecords>();
+      for (const record of attendanceRecords) {
+        const existing = attendanceByStaff.get(record.staffId) || [];
+        existing.push(record);
+        attendanceByStaff.set(record.staffId, existing);
+      }
+
+      // Group unrecovered advances by staffId & type
+      const advancesByStaff = new Map<string, { cashAdvances: number; messDeductions: number; otherDeductions: number }>();
+      for (const adv of unrecoveredAdvances) {
+        if (!advancesByStaff.has(adv.staffId)) {
+          advancesByStaff.set(adv.staffId, { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 });
+        }
+        const current = advancesByStaff.get(adv.staffId)!;
+        if (adv.type === "cash_advance") current.cashAdvances += adv.amount;
+        else if (adv.type === "mess_deduction") current.messDeductions += adv.amount;
+        else current.otherDeductions += adv.amount;
+      }
+
+      // Recompute each record server-side using the shared helper.
+      const computedRecords = input.records.map((rec) => {
+        const staff = staffMap.get(rec.staffId)!;
+        const attendance = attendanceByStaff.get(rec.staffId) || [];
+        const advances = advancesByStaff.get(rec.staffId) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
+        const computed = computePayrollLine(
+          {
+            id: staff.id,
+            name: staff.name,
+            designation: staff.designation,
+            category: staff.category,
+            employmentType: staff.employmentType,
+            gangName: staff.gangName,
+            dailyWage: staff.dailyWage,
+            monthlySalary: staff.monthlySalary,
+            bankAccountNo: staff.bankAccountNo,
+            bankName: staff.bankName,
+            pan: staff.pan,
+          },
+          attendance.map((r) => ({
+            date: r.date,
+            status: r.status,
+            hours: r.hours,
+            overtime: r.overtime,
+          })),
+          advances,
+          daysInMonth,
+        );
+        return { rec, computed, remarks: rec.remarks };
+      });
+
+      // Use the server-computed values for totals.
+      const totalGross = computedRecords.reduce((sum, { computed }) => sum + computed.gross, 0);
+      const totalAllowances = computedRecords.reduce((sum, { computed }) => sum + computed.allowances, 0);
+      const totalAdvancesRecovered = computedRecords.reduce((sum, { computed }) => sum + computed.advanceDeduction, 0);
+      const totalDeductions = computedRecords.reduce((sum, { computed }) => sum + computed.totalDeductions, 0);
+      const totalNetPayable = computedRecords.reduce((sum, { computed }) => sum + computed.netPayable, 0);
 
       const payrollRun = await db.$transaction(async (tx) => {
         // Upsert the main run
@@ -226,7 +286,7 @@ export const payrollRouter = router({
             projectId: input.projectId,
             month: input.month,
             status: "draft",
-            totalStaffCount: input.records.length,
+            totalStaffCount: computedRecords.length,
             totalGross,
             totalAllowances,
             totalDeductions,
@@ -235,7 +295,7 @@ export const payrollRouter = router({
             notes: input.notes || null,
           },
           update: {
-            totalStaffCount: input.records.length,
+            totalStaffCount: computedRecords.length,
             totalGross,
             totalAllowances,
             totalDeductions,
@@ -248,28 +308,29 @@ export const payrollRouter = router({
         // Delete old records for this run if updating draft
         await tx.payrollStaffRecord.deleteMany({ where: { payrollRunId: run.id } });
 
-        // Insert line item records
-        for (const rec of input.records) {
+        // Insert line item records — use SERVER-COMPUTED values,
+        // NOT the client-submitted ones.
+        for (const { computed, remarks } of computedRecords) {
           await tx.payrollStaffRecord.create({
             data: {
               payrollRunId: run.id,
-              staffId: rec.staffId,
-              employmentType: rec.employmentType,
-              presentDays: rec.presentDays,
-              halfDays: rec.halfDays,
-              absentDays: rec.absentDays,
-              leaveDays: rec.leaveDays,
-              overtimeHours: rec.overtimeHours,
-              baseRate: rec.baseRate,
-              regularPay: rec.regularPay,
-              overtimePay: rec.overtimePay,
-              allowances: rec.allowances,
-              advanceDeduction: rec.advanceDeduction,
-              messDeduction: rec.messDeduction,
-              otherDeductions: rec.otherDeductions,
-              tdsAmount: rec.tdsAmount,
-              netPayable: rec.netPayable,
-              remarks: rec.remarks || null,
+              staffId: computed.staffId,
+              employmentType: computed.employmentType,
+              presentDays: computed.presentDays,
+              halfDays: computed.halfDays,
+              absentDays: computed.absentDays,
+              leaveDays: computed.leaveDays,
+              overtimeHours: computed.overtimeHours,
+              baseRate: computed.baseRate,
+              regularPay: computed.regularPay,
+              overtimePay: computed.overtimePay,
+              allowances: computed.allowances,
+              advanceDeduction: computed.advanceDeduction,
+              messDeduction: computed.messDeduction,
+              otherDeductions: computed.otherDeductions,
+              tdsAmount: computed.tdsAmount,
+              netPayable: computed.netPayable,
+              remarks: remarks || null,
             },
           });
         }
@@ -284,19 +345,23 @@ export const payrollRouter = router({
         // (oldest first) until the deducted amount is consumed. Any advance
         // that is partially recovered gets its remaining balance carried
         // forward (isRecovered stays false).
-        const staffWithAdvanceRecovery = input.records
-          .filter((r) => r.advanceDeduction > 0 || r.messDeduction > 0)
-          .map((r) => r.staffId);
+        // Use server-computed deduction amounts (not client-supplied)
+        // for advance recovery — ensures consistency with the persisted
+        // payroll record values.
+        const staffWithAdvanceRecovery = computedRecords
+          .filter(({ computed }) => computed.advanceDeduction > 0 || computed.messDeduction > 0)
+          .map(({ computed }) => computed.staffId);
 
         if (staffWithAdvanceRecovery.length > 0) {
-          for (const rec of input.records) {
-            if (rec.advanceDeduction <= 0 && rec.messDeduction <= 0) continue;
+          for (const { computed } of computedRecords) {
+            const totalDeduction = computed.advanceDeduction + computed.messDeduction;
+            if (totalDeduction <= 0) continue;
 
             // Fetch this staff's unrecovered advances, oldest first
             const staffAdvances = await tx.staffAdvance.findMany({
               where: {
                 projectId: input.projectId,
-                staffId: rec.staffId,
+                staffId: computed.staffId,
                 isRecovered: false,
               },
               orderBy: { date: "asc" },
@@ -304,7 +369,7 @@ export const payrollRouter = router({
 
             // Apply the deduction in FIFO order, marking advances as
             // recovered only when their full amount is consumed.
-            let remainingDeduction = rec.advanceDeduction + rec.messDeduction;
+            let remainingDeduction = totalDeduction;
             for (const adv of staffAdvances) {
               if (remainingDeduction <= 0) break;
               if (adv.amount <= remainingDeduction + 0.01) {
