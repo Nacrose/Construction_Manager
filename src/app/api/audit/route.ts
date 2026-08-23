@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
-    const limit = parseInt(searchParams.get("limit") ?? "50");
+    // Clamp the limit — previously a caller could request
+    // ?limit=9999999 and pull the entire audit log (DoS + info leak).
+    const rawLimit = parseInt(searchParams.get("limit") ?? "50");
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(500, rawLimit)) : 50;
 
     const memberships = await db.projectMember.findMany({
       where: { userId: user.id },

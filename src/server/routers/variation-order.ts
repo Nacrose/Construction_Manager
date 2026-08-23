@@ -24,8 +24,10 @@ export const variationOrderRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const db = getFreshDb();
-      const vo = await db.variationOrder.findUnique({
-        where: { id: input.id },
+      // IDOR guard: verify the VO belongs to the project the caller
+      // was authorized on. Previously this fetched by id only.
+      const vo = await db.variationOrder.findFirst({
+        where: { id: input.id, projectId: input.projectId },
         include: {
           items: {
             include: { boqItem: true },
@@ -97,7 +99,9 @@ export const variationOrderRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
       const db = getFreshDb();
 
-      const vo = await db.variationOrder.findUnique({ where: { id: input.id } });
+      const vo = await db.variationOrder.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+      });
       if (!vo || vo.status === "approved") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot update an approved Variation Order." });
       }
@@ -151,11 +155,11 @@ export const variationOrderRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
       const db = getFreshDb();
 
-      const vo = await db.variationOrder.findUnique({
-        where: { id: input.id },
+      const vo = await db.variationOrder.findFirst({
+        where: { id: input.id, projectId: input.projectId },
         include: { items: true },
       });
-      
+
       if (!vo) throw new TRPCError({ code: "NOT_FOUND" });
       if (vo.status === "approved") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Variation Order is already approved and locked." });

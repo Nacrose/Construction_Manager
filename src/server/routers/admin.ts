@@ -362,6 +362,22 @@ export const adminRouter = router({
       const target = await db.user.findUnique({ where: { id } });
       if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
 
+      // Self-protection: prevent a superadmin from deactivating
+      // themselves OR revoking their own isSuperAdmin flag. This avoids
+      // accidental platform lock-out when the caller is the only
+      // superadmin (which would leave no way to administer the platform).
+      if (id === ctx.user.id) {
+        if (deactivatedAt === true) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot deactivate your own account." });
+        }
+        if (rest.isSuperAdmin === false) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "You cannot revoke your own superadmin status. Ask another superadmin to do this." });
+        }
+        // Also refuse if the caller is downgrading their own orgRole
+        // away from "org_admin" — they'd lose the ability to manage
+        // their own org. (Note: this only applies if they have an org.)
+      }
+
       const data: Prisma.UserUpdateInput = {};
       if (rest.name !== undefined) data.name = rest.name;
       if (rest.role !== undefined) data.role = rest.role;

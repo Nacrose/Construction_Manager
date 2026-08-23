@@ -224,11 +224,18 @@ export const ganttTasksRouter = router({
       }
 
       if (input.versionId) {
-        const version = await db.ganttVersion.findUnique({
-          where: { id: input.versionId },
+        // IDOR guard: verify the version belongs to the project the
+        // caller was authorized on. Without this, a user with project A
+        // access could create tasks in project B's version by passing
+        // that version's cuid.
+        const version = await db.ganttVersion.findFirst({
+          where: { id: input.versionId, projectId: input.projectId },
           select: { status: true },
         });
-        if (version && version.status !== "DRAFT") {
+        if (!version) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Version not found in this project." });
+        }
+        if (version.status !== "DRAFT") {
           throw new TRPCError({
             code: "FORBIDDEN",
             message:
@@ -1076,6 +1083,18 @@ export const ganttTasksRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
       const rootStartDate = new Date(input.startDate);
 
+      // IDOR guard on versionId: verify the version belongs to the
+      // project the caller was authorized on.
+      if (input.versionId) {
+        const version = await db.ganttVersion.findFirst({
+          where: { id: input.versionId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!version) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Version not found in this project." });
+        }
+      }
+
       let templateDef: WorkPackageTemplateDef | null = null;
       if (input.templateId.startsWith("builtin-")) {
         templateDef = BUILT_IN_TEMPLATES.find((t) => t.id === input.templateId) || null;
@@ -1084,6 +1103,17 @@ export const ganttTasksRouter = router({
           where: { id: input.templateId },
         });
         if (custom) {
+          // IDOR guard on template: organization-scoped templates are
+          // only usable by members of that org. Project-scoped templates
+          // require project membership (already enforced above). Global
+          // templates (organizationId == null AND projectId == null)
+          // are usable by anyone.
+          if (custom.organizationId && custom.organizationId !== ctx.user.organizationId) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Template belongs to a different organization.",
+            });
+          }
           try {
             const parsed = JSON.parse(custom.data);
             templateDef = {
@@ -1241,6 +1271,17 @@ export const ganttTasksRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR guard on versionId.
+      if (input.versionId) {
+        const version = await db.ganttVersion.findFirst({
+          where: { id: input.versionId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!version) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Version not found in this project." });
+        }
+      }
 
       let targetVersionId = input.versionId;
       if (!targetVersionId) {

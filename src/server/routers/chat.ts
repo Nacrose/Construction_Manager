@@ -213,6 +213,27 @@ export const chatRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
         }
       }
+      // For org_order channels (no project), the user must be in the
+      // same org as the channel creator — otherwise any authed user
+      // could read another org's broadcast channel by cuid.
+      if (!isMember && channel.type === "org_order") {
+        if (!ctx.user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
+        }
+        // Resolve the channel creator's org via createdById. If
+        // createdById is null (legacy), reject — the user must be an
+        // explicit member.
+        if (!channel.createdById) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+        }
+        const creator = await db.user.findUnique({
+          where: { id: channel.createdById },
+          select: { organizationId: true },
+        });
+        if (!creator || creator.organizationId !== ctx.user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this organization." });
+        }
+      }
 
       const messages = await db.chatMessage.findMany({
         where: { channelId: input.channelId },
@@ -235,7 +256,34 @@ export const chatRouter = router({
   /** Get channel members for @mention autocomplete. */
   getChannelMembers: protectedProcedure
     .input(z.object({ channelId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // IDOR guard: caller must be a member of the channel before they
+      // can enumerate its members (including email + avatarUrl). PII
+      // leak across tenants if not enforced.
+      const member = await db.chatMember.findUnique({
+        where: { channelId_userId: { channelId: input.channelId, userId: ctx.user.id } },
+      });
+      if (!member) {
+        // For public / project_order / org_order channels, verify the
+        // caller has project access (or is in the org for org_order).
+        const channel = await db.chatChannel.findUnique({
+          where: { id: input.channelId },
+          select: { type: true, projectId: true },
+        });
+        if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        if (channel.type === "public" || channel.type === "project_order") {
+          if (channel.projectId) {
+            const role = await getProjectRole(ctx.user.id, channel.projectId);
+            if (!role) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
+            }
+          }
+        } else {
+          // group / personal / org_order: require explicit membership
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+        }
+      }
+
       const members = await db.chatMember.findMany({
         where: { channelId: input.channelId },
         include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
@@ -392,8 +440,29 @@ export const chatRouter = router({
   getReadReceipts: protectedProcedure
     .input(z.object({ channelId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const channel = await db.chatChannel.findUnique({ where: { id: input.channelId } });
-      if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+      // IDOR guard: caller must be a member (or have project access for
+      // public/project_order channels) before they can see who has read
+      // which messages.
+      const member = await db.chatMember.findUnique({
+        where: { channelId_userId: { channelId: input.channelId, userId: ctx.user.id } },
+      });
+      if (!member) {
+        const channel = await db.chatChannel.findUnique({
+          where: { id: input.channelId },
+          select: { type: true, projectId: true },
+        });
+        if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+        if (channel.type === "public" || channel.type === "project_order") {
+          if (channel.projectId) {
+            const role = await getProjectRole(ctx.user.id, channel.projectId);
+            if (!role) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
+            }
+          }
+        } else {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+        }
+      }
 
       const receipts = await db.chatReadReceipt.findMany({
         where: { channelId: input.channelId },
@@ -407,8 +476,22 @@ export const chatRouter = router({
   togglePin: protectedProcedure
     .input(z.object({ messageId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const msg = await db.chatMessage.findUnique({ where: { id: input.messageId } });
+      const msg = await db.chatMessage.findUnique({
+        where: { id: input.messageId },
+        select: { channelId: true, isPinned: true },
+      });
       if (!msg) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // IDOR guard: only channel admins can pin/unpin. Previously this
+      // procedure had NO authz check — any authed user could pin any
+      // message in any channel by cuid.
+      const member = await db.chatMember.findUnique({
+        where: { channelId_userId: { channelId: msg.channelId, userId: ctx.user.id } },
+      });
+      if (!member || member.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only channel admins can pin messages." });
+      }
+
       const updated = await db.chatMessage.update({
         where: { id: input.messageId },
         data: { isPinned: !msg.isPinned },
@@ -427,23 +510,102 @@ export const chatRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Only channel admins can add members." });
       }
 
+      // Verify the channel exists and resolve its project / type so we
+      // can scope the new members appropriately.
+      const channel = await db.chatChannel.findUnique({
+        where: { id: input.channelId },
+        select: { type: true, projectId: true },
+      });
+      if (!channel) throw new TRPCError({ code: "NOT_FOUND", message: "Channel not found." });
+
+      // For project-scoped channels (public / group / project_order),
+      // every new member must be a member of the project. For org_order
+      // channels, every new member must belong to the channel's org
+      // (resolved via project → organizationId). Personal channels don't
+      // support addMembers (they're strictly 1:1).
+      if (channel.type === "personal") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot add members to a personal channel." });
+      }
+
+      let allowedUserIds = new Set<string>();
+      if (channel.projectId) {
+        const projectMembers = await db.projectMember.findMany({
+          where: { projectId: channel.projectId, userId: { in: input.userIds } },
+          select: { userId: true },
+        });
+        allowedUserIds = new Set(projectMembers.map((m) => m.userId));
+      } else if (channel.type === "org_order") {
+        // org_order channels have no project — resolve via creator's org.
+        // We treat membership in the same org as the channel creator as
+        // the requirement. (See listChannels for the symmetric read-side
+        // guard.)
+        const creator = await db.user.findFirst({
+          where: {
+            id: { in: input.userIds },
+            // Match org against the caller's org — admin must be in the
+            // same org to add members in the first place (already checked
+            // implicitly via being a channel admin of an org_order
+            // channel, but we double-check here).
+            organizationId: ctx.user.organizationId,
+          },
+          select: { id: true },
+        });
+        if (!creator) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Cannot add users from a different organization to an org_order channel.",
+          });
+        }
+        const sameOrgUsers = await db.user.findMany({
+          where: { id: { in: input.userIds }, organizationId: ctx.user.organizationId },
+          select: { id: true },
+        });
+        allowedUserIds = new Set(sameOrgUsers.map((u) => u.id));
+      }
+
+      const validIds = input.userIds.filter((id) => allowedUserIds.has(id));
+      if (validIds.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "None of the specified users are members of this project.",
+        });
+      }
+
       await db.chatMember.createMany({
-        data: input.userIds.map(id => ({ channelId: input.channelId, userId: id, role: "member" })),
+        data: validIds.map(id => ({ channelId: input.channelId, userId: id, role: "member" })),
         skipDuplicates: true,
       });
 
-      return { ok: true };
+      return { ok: true, addedCount: validIds.length };
     }),
 
-  /** Delete a message (own messages only). */
+  /** Delete a message (own messages only; channel admins can delete others'). */
   deleteMessage: protectedProcedure
     .input(z.object({ messageId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const msg = await db.chatMessage.findUnique({ where: { id: input.messageId } });
+      const msg = await db.chatMessage.findUnique({
+        where: { id: input.messageId },
+        select: { userId: true, channelId: true },
+      });
       if (!msg) throw new TRPCError({ code: "NOT_FOUND" });
-      if (msg.userId !== ctx.user.id && !isOrgAdmin(ctx.user)) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete your own messages." });
+
+      // Owner can always delete their own message. Otherwise the caller
+      // must be an admin OF THE SAME CHANNEL. Previously this used
+      // `isOrgAdmin(ctx.user)` as a bypass — which let any org admin of
+      // Org A delete any message in any channel across tenants, since
+      // isOrgAdmin returns true for any org admin regardless of org.
+      if (msg.userId !== ctx.user.id) {
+        const member = await db.chatMember.findUnique({
+          where: { channelId_userId: { channelId: msg.channelId, userId: ctx.user.id } },
+        });
+        if (!member || member.role !== "admin") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You can only delete your own messages. Channel admins can delete others'.",
+          });
+        }
       }
+
       await db.chatMessage.delete({ where: { id: input.messageId } });
       return { ok: true };
     }),
@@ -460,6 +622,47 @@ export const chatRouter = router({
       limit: z.number().min(1).max(200).default(50),
     }))
     .query(async ({ ctx, input }) => {
+      // IDOR guard: verify the caller is a member of the project the
+      // linked entity belongs to before returning its linked chat
+      // messages. Without this, an authed user could fetch images
+      // attached to any daily report or RFI across tenants by cuid.
+      //
+      // We currently only support entity types whose tables have a
+      // projectId column. If a new entity type is added, extend the
+      // switch below.
+      let authorizedProjectId: string | null = null;
+      switch (input.entityType) {
+        case "daily_report": {
+          const r = await db.dailyReport.findUnique({
+            where: { id: input.entityId },
+            select: { projectId: true },
+          });
+          if (!r) return { messages: [] };
+          authorizedProjectId = r.projectId;
+          break;
+        }
+        case "rfi": {
+          const r = await db.rfi.findUnique({
+            where: { id: input.entityId },
+            select: { projectId: true },
+          });
+          if (!r) return { messages: [] };
+          authorizedProjectId = r.projectId;
+          break;
+        }
+        default:
+          // Unknown entity type — refuse to return data rather than
+          // risk leaking cross-tenant attachments.
+          return { messages: [] };
+      }
+
+      if (authorizedProjectId) {
+        const role = await getProjectRole(ctx.user.id, authorizedProjectId);
+        if (!role) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
+        }
+      }
+
       const messages = await db.chatMessage.findMany({
         where: {
           linkedEntityType: input.entityType,
@@ -535,13 +738,26 @@ export const chatRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot DM yourself." });
       }
 
-      // Verify the other user exists (and is in same org, if applicable)
+      // Verify the other user exists AND is in the same org (if the
+      // caller is in an org). Without the same-org check, any authed
+      // user could open a DM with any other authed user across tenants
+      // by their cuid (which leaks via search, audit logs, etc.).
       const otherUser = await db.user.findUnique({
         where: { id: input.otherUserId },
         select: { id: true, name: true, email: true, organizationId: true },
       });
       if (!otherUser) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+      if (
+        ctx.user.organizationId &&
+        otherUser.organizationId &&
+        ctx.user.organizationId !== otherUser.organizationId
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot DM users from a different organization.",
+        });
       }
 
       // Find existing personal channel containing both users

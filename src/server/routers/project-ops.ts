@@ -104,11 +104,19 @@ const paymentRouter = router({
       let resolvedSubCategory = data.subCategory;
 
       if (data.categoryId && !resolvedCategory) {
-        const cat = await db.paymentCategory.findUnique({ where: { id: data.categoryId } });
+        // IDOR guard: verify the payment category belongs to the
+        // project the caller was authorized on. Previously this used
+        // findUnique on the cuid only — minor cross-tenant info leak
+        // (category name from another project).
+        const cat = await db.paymentCategory.findFirst({
+          where: { id: data.categoryId, projectId },
+        });
         if (cat) resolvedCategory = cat.name;
       }
       if (data.subCategoryId && !resolvedSubCategory) {
-        const sub = await db.paymentCategory.findUnique({ where: { id: data.subCategoryId } });
+        const sub = await db.paymentCategory.findFirst({
+          where: { id: data.subCategoryId, projectId },
+        });
         if (sub) resolvedSubCategory = sub.name;
       }
 

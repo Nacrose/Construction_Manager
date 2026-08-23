@@ -260,8 +260,11 @@ export const equipmentSpotHireProcedures = {
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const ticket = await db.equipmentSpotHire.findUnique({
-        where: { id: input.ticketId },
+      // IDOR guard: verify the ticket belongs to the project the
+      // caller was authorized on — without this, a user with project A
+      // access could delete spot tickets in project B by their cuid.
+      const ticket = await db.equipmentSpotHire.findFirst({
+        where: { id: input.ticketId, projectId: input.projectId },
       });
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Spot ticket not found." });
       if (ticket.isBilled) {

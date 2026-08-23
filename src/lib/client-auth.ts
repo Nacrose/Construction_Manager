@@ -58,6 +58,32 @@ export function clearAuth(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  // Clear service worker caches. The SW caches tRPC GET responses
+  // (including project data, financial data, and PII) for offline use.
+  // Without this, a subsequent user on the same shared browser could
+  // read the previous user's cached data via the SW even after logout.
+  // Best-effort — failures are silently ignored.
+  if (typeof caches !== "undefined") {
+    try {
+      caches.keys().then((keys) => {
+        for (const k of keys) {
+          caches.delete(k).catch(() => {});
+        }
+      }).catch(() => {});
+    } catch {
+      /* caches API not available */
+    }
+  }
+  // Clear the IndexedDB offline mutation queue. Queued mutations from
+  // the previous user must NOT be replayed under a new session — they
+  // could create phantom records in another user's projects or leak
+  // data via error messages. Best-effort — failures are silently
+  // ignored (the queue might already be empty).
+  try {
+    void import("@/lib/offline-queue").then(({ clearQueue }) => clearQueue()).catch(() => {});
+  } catch {
+    /* offline-queue module unavailable */
+  }
   notifyAuthChange();
 }
 

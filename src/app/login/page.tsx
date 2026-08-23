@@ -64,7 +64,21 @@ function LoginScene() {
 function LoginCard() {
   const _router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/dashboard";
+  // Sanitize the `next` param to prevent open-redirect attacks.
+  // Only allow same-origin absolute paths (must start with "/" and must
+  // not start with "//" which browsers treat as protocol-relative).
+  // Anything else (full URLs, "//evil.com", backslashes, etc.) falls
+  // back to "/dashboard". This matters because an attacker can craft a
+  // phishing URL like /login?next=https://evil.com and the victim would
+  // be redirected there after a legitimate-looking login.
+  const rawNext = search.get("next") || "/dashboard";
+  const next =
+    typeof rawNext === "string" &&
+    rawNext.startsWith("/") &&
+    !rawNext.startsWith("//") &&
+    !rawNext.startsWith("/\\")
+      ? rawNext
+      : "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
