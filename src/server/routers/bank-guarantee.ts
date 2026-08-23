@@ -7,6 +7,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs, bsToAd } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
 
@@ -172,6 +173,7 @@ export const bankGuaranteeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertProjectManager(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
 
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);

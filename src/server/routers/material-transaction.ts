@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 export const TxnSchema = z.object({
   projectId: z.string(),
@@ -78,6 +79,7 @@ export const materialTransactionProcedures = {
     .input(TxnSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
       const material = await db.material.findFirst({
         where: { id: input.materialId, projectId: input.projectId },
       });

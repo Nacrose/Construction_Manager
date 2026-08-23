@@ -1103,4 +1103,142 @@ export const financialReportingRouter = router({
         snapshotData: parsedData,
       };
     }),
+
+  // ═══════════════════════════════════════════════════════════
+  // BANK RECONCILIATION
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Bank Reconciliation: match recorded payments against bank statement entries.
+   *
+   * The caller provides bank statement entries (from CSV/Excel import).
+   * The system auto-matches them against Payment records by amount ±2 days.
+   * Unmatched entries are flagged (outstanding checks, bank charges, interest).
+   */
+  bankReconciliation: protectedProcedure
+    .input(z.object({
+      bankAccountId: z.string(),
+      fromDate: z.string(),
+      toDate: z.string(),
+      statementEntries: z.array(z.object({
+        date: z.string(),
+        description: z.string().optional(),
+        debit: z.number().min(0).default(0),  // money in (deposit)
+        credit: z.number().min(0).default(0), // money out (withdrawal)
+        balance: z.number().optional(),
+      })).max(500), // cap at 500 entries per reconciliation
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify the bank account belongs to the caller's org.
+      const bankAccount = await db.companyBankAccount.findFirst({
+        where: { id: input.bankAccountId },
+      });
+      if (!bankAccount) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Bank account not found." });
+      }
+      if (bankAccount.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Bank account does not belong to your organization." });
+      }
+
+      const fromDate = new Date(input.fromDate);
+      const toDate = new Date(input.toDate);
+
+      // Fetch all payments linked to this bank account in the period.
+      const payments = await db.payment.findMany({
+        where: {
+          paymentDate: { gte: fromDate, lte: toDate },
+          companyBankAccountId: input.bankAccountId,
+          status: "paid",
+        },
+        select: {
+          id: true, amount: true, netPaid: true, paymentDate: true,
+          payeeName: true, paymentMode: true, notes: true,
+        },
+        orderBy: { paymentDate: "asc" },
+      });
+
+      // Auto-match: for each statement entry, find a payment with the same
+      // amount within ±2 days tolerance.
+      const TOLERANCE_DAYS = 2;
+      const matched: Array<{
+        statementEntry: typeof input.statementEntries[0];
+        payment: typeof payments[0] | null;
+        matchType: "exact" | "approximate" | "unmatched";
+      }> = [];
+
+      const usedPaymentIds = new Set<string>();
+
+      for (const entry of input.statementEntries) {
+        const entryDate = new Date(entry.date);
+        const entryAmount = entry.credit > 0 ? entry.credit : entry.debit; // match by absolute amount
+
+        // Find matching payment
+        let bestMatch: typeof payments[0] | null = null;
+        let bestMatchDays = Infinity;
+
+        for (const payment of payments) {
+          if (usedPaymentIds.has(payment.id)) continue;
+
+          const paymentAmount = payment.netPaid || payment.amount;
+          if (Math.abs(paymentAmount - entryAmount) > 0.01) continue;
+
+          const daysDiff = Math.abs(
+            (new Date(payment.paymentDate).getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
+
+          if (daysDiff <= TOLERANCE_DAYS && daysDiff < bestMatchDays) {
+            bestMatch = payment;
+            bestMatchDays = daysDiff;
+          }
+        }
+
+        if (bestMatch) {
+          usedPaymentIds.add(bestMatch.id);
+          matched.push({
+            statementEntry: entry,
+            payment: bestMatch,
+            matchType: bestMatchDays === 0 ? "exact" : "approximate",
+          });
+        } else {
+          matched.push({
+            statementEntry: entry,
+            payment: null,
+            matchType: "unmatched",
+          });
+        }
+      }
+
+      // Find unmatched payments (recorded but not on statement)
+      const unmatchedPayments = payments.filter((p) => !usedPaymentIds.has(p.id));
+
+      // Calculate adjusted balance
+      const statementClosingBalance = input.statementEntries.length > 0
+        ? input.statementEntries[input.statementEntries.length - 1].balance ?? 0
+        : 0;
+
+      const outstandingPayments = unmatchedPayments.reduce((s, p) => s + (p.netPaid || p.amount), 0);
+      const unmatchedDeposits = matched
+        .filter((m) => m.matchType === "unmatched" && m.statementEntry.debit > 0)
+        .reduce((s, m) => s + m.statementEntry.debit, 0);
+
+      const adjustedBalance = bankAccount.currentBalance + unmatchedDeposits - outstandingPayments;
+
+      return {
+        bankAccount: {
+          id: bankAccount.id,
+          name: `Account ${bankAccount.accountNumber}`,
+          recordedBalance: bankAccount.currentBalance,
+        },
+        statementClosingBalance,
+        matchedCount: matched.filter((m) => m.matchType !== "unmatched").length,
+        unmatchedStatementEntries: matched.filter((m) => m.matchType === "unmatched").length,
+        unmatchedPayments: unmatchedPayments.length,
+        outstandingPayments,
+        unmatchedDeposits,
+        adjustedBalance,
+        isReconciled: Math.abs(adjustedBalance - statementClosingBalance) < 1,
+        entries: matched,
+        unmatchedPaymentRecords: unmatchedPayments,
+      };
+    }),
 });

@@ -3,6 +3,7 @@ import { router, protectedProcedure } from "../trpc";
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 /** Standard Construction & Accounting (Tally / Swastik) Category Tree Presets */
 export const DEFAULT_NEPAL_PAYMENT_CATEGORIES = [
@@ -213,6 +214,7 @@ export const paymentCategoryRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
 
       // Check unique name per parent
       const existing = await db.paymentCategory.findFirst({

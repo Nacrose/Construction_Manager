@@ -8,6 +8,8 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 
 const BillItemSchema = z.object({
   boqCode: z.string().optional().nullable(),
@@ -242,6 +244,7 @@ export const subcontractorBillRouter = router({
 
     const existing = await db.subcontractorBill.findFirst({
       where: { id: input.billId, projectId: input.projectId },
+        include: { subcontractor: { select: { id: true, name: true } } },
     });
     if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
     if (existing.status !== "draft") {
@@ -322,6 +325,7 @@ export const subcontractorBillRouter = router({
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },
+        include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
       if (bill.status !== "draft") {
@@ -344,6 +348,7 @@ export const subcontractorBillRouter = router({
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },
+        include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
       if (bill.status !== "submitted") {
@@ -371,10 +376,12 @@ export const subcontractorBillRouter = router({
   markPaid: protectedProcedure
     .input(z.object({ projectId: z.string(), billId: z.string(), amount: z.number().positive() }))
     .mutation(async ({ ctx, input }) => {
+      await assertNotLocked(ctx.user.organizationId);
       await assertProjectAdmin(ctx.user, input.projectId);
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },
+        include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
       if (bill.status !== "certified" && bill.status !== "paid") {
@@ -402,6 +409,39 @@ export const subcontractorBillRouter = router({
         WHERE "id" = ${input.billId}
       `;
 
+      // Generate journal entry for subcontractor payment:
+      // Dr Subcontractor Payable (2002) NPR input.amount
+      //    Cr Bank / Cash (1010/1001) NPR input.amount
+      const subName = bill.subcontractor?.name || "Subcontractor";
+      const bankCode = "1010"; // subcontractor payments are typically bank
+      await createJournalEntry(db, {
+        source: "subcontractor_bill",
+        sourceRefId: input.billId,
+        sourceRefType: "SubcontractorBill",
+        description: `Subcontractor payment to ${subName} — ${bill.number}`,
+        entryDate: new Date(),
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: "2002",
+            accountName: "Subcontractor Payables",
+            debit: input.amount,
+            credit: 0,
+            description: `Payment to ${subName}`,
+            projectId: input.projectId,
+            partnerId: bill.subcontractor?.id,
+          },
+          {
+            accountCode: bankCode,
+            accountName: "Bank",
+            debit: 0,
+            credit: input.amount,
+            description: `Payment via bank transfer`,
+            projectId: input.projectId,
+          },
+        ],
+      });
+
       const updated = await db.subcontractorBill.findUniqueOrThrow({
         where: { id: input.billId },
       });
@@ -426,6 +466,7 @@ export const subcontractorBillRouter = router({
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },
+        include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
       if (bill.status !== "draft") {
@@ -655,7 +696,7 @@ export const subcontractorBillRouter = router({
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },
-        include: { items: true },
+        include: { subcontractor: { select: { id: true, name: true } }, items: true },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
 

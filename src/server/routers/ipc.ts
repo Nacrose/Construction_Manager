@@ -8,6 +8,8 @@ import {db} from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { notifyProject } from "@/server/utils/notify";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry, ipcBillingEntry } from "@/lib/journal-entry";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -184,6 +186,9 @@ export const ipcRouter = router({
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
       await assertCanWrite(ctx.user, item.projectId);
 
+      // Fiscal year lock enforcement
+      await assertNotLocked(ctx.user.organizationId);
+
       // Status transition validation: prevent skipping certification.
       // Valid transitions:
       //   draft → submitted → certified → approved → paid
@@ -242,6 +247,36 @@ export const ipcRouter = router({
           include: { items: true, subcontractor: { select: { name: true } } },
         });
         await recalculateIpc(tx, ipcId);
+
+        // When the IPC transitions to "certified", generate the journal
+        // entry for revenue recognition:
+        //   Dr Client Receivable (gross + VAT - retention - TDS)
+        //   Dr Retention Receivable (held by client)
+        //   Dr TDS Receivable (deducted by client)
+        //      Cr Contract Revenue (gross)
+        //      Cr VAT Payable (VAT on gross)
+        if (data.status === "certified") {
+          const certifiedIpc = await tx.ipc.findUnique({
+            where: { id: ipcId },
+            select: {
+              number: true, grossAmount: true, vatAmount: true,
+              retentionAmount: true, tdsAmount: true, projectId: true,
+            },
+          });
+          if (certifiedIpc && certifiedIpc.grossAmount > 0) {
+            const jeInput = ipcBillingEntry({
+              ipcId,
+              ipcNumber: certifiedIpc.number,
+              grossAmount: certifiedIpc.grossAmount,
+              vatAmount: certifiedIpc.vatAmount || 0,
+              retentionAmount: certifiedIpc.retentionAmount || 0,
+              tdsAmount: certifiedIpc.tdsAmount || 0,
+              projectId: certifiedIpc.projectId,
+              date: new Date(),
+            });
+            await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
+          }
+        }
 
         // When the IPC transitions to "approved" or "paid", mark all
         // currently-deducted material transactions as deducted in THIS

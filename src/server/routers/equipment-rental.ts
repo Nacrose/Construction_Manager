@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 export const equipmentRentalProcedures = {
   listRentals: protectedProcedure
@@ -114,6 +115,7 @@ export const equipmentRentalProcedures = {
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
 
       const existing = await db.equipmentRental.findFirst({
         where: {

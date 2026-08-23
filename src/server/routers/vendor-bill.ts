@@ -7,6 +7,8 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry, vendorPaymentEntry } from "@/lib/journal-entry";
 
 const CreateVendorBillSchema = z.object({
   projectId: z.string(),
@@ -230,8 +232,12 @@ export const vendorBillRouter = router({
       // Role-gate financial disbursement to Project Manager or Coordinator
       await assertProjectAdmin(ctx.user, input.projectId);
 
+      // Fiscal year lock enforcement
+      await assertNotLocked(ctx.user.organizationId, input.paymentDate ? new Date(input.paymentDate) : new Date());
+
       const bill = await db.vendorBill.findFirst({
         where: { id: input.vendorBillId, projectId: input.projectId },
+        include: { partner: { select: { id: true, name: true } } },
       });
 
       if (!bill) {
@@ -272,6 +278,24 @@ export const vendorBillRouter = router({
               "status" = ${newStatus}
           WHERE "id" = ${input.vendorBillId}
         `;
+
+        // Generate the double-entry journal entry for this payment.
+        // Dr Sundry Creditors (vendor payable reduced)
+        //    Cr TDS Payable (if TDS deducted)
+        //    Cr Bank / Cash (net amount paid out)
+        const vendorName = bill.partner?.name || bill.billNumber;
+        const jeInput = vendorPaymentEntry({
+          vendorBillId: input.vendorBillId,
+          vendorName,
+          amount: input.amount,
+          tdsDeducted: 0, // vendor bill payments don't deduct TDS at payment time (it's on the bill)
+          netPaid: input.amount,
+          paymentMode: input.paymentMethod || "bank_transfer",
+          projectId: input.projectId,
+          partnerId: bill.partner?.id,
+          date: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+        });
+        await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
 
         return p;
       });

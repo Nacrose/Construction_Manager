@@ -8,6 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { computePayrollLine } from "@/server/utils/payroll-calc";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 export const payrollRouter = router({
   /** Calculate on-the-fly preview for a given project and month (YYYY-MM). */
@@ -171,6 +172,7 @@ export const payrollRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
 
       // ── Server-side recomputation ──────────────────────────────
       // Fetch fresh staff + attendance + advances data and recompute

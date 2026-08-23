@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 const SpotHireTicketSchema = z.object({
   projectId: z.string(),
@@ -40,6 +41,7 @@ export const equipmentSpotHireProcedures = {
     .input(SpotHireTicketSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
 
       const ticketDate = input.date ? new Date(input.date) : new Date();
 

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
@@ -169,6 +170,7 @@ export const siteExpenseRouter = router({
   approve: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      await assertNotLocked(ctx.user.organizationId);
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
         select: { projectId: true, status: true },

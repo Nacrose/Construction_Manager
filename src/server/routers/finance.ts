@@ -17,6 +17,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 export const financeRouter = router({
   /**
@@ -240,6 +241,33 @@ export const financeRouter = router({
         materialCostByBoq.set(c.boqItemId, (materialCostByBoq.get(c.boqItemId) ?? 0) + c.amount);
       }
 
+      // ── Committed Cost: open PO items (ordered but not yet received) ──
+      // A PO item is "committed" if the PO is not cancelled and the
+      // received quantity is less than the ordered quantity.
+      const openPoItems = await db.purchaseOrderItem.findMany({
+        where: {
+          purchaseOrder: {
+            projectId: input.projectId,
+            status: { in: ["draft", "sent", "partially_received"] },
+          },
+        },
+        select: {
+          materialId: true,
+          quantity: true,
+          rate: true,
+          amount: true,
+          receivedQty: true,
+        },
+      });
+
+      // Build committed cost map by material (not BOQ — committed costs
+      // are per-material, not per-BOQ-item). We'll aggregate at the
+      // section level instead.
+      const totalCommitted = openPoItems.reduce((s, poi) => {
+        const remaining = Math.max(0, poi.quantity - (poi.receivedQty ?? 0));
+        return s + remaining * poi.rate;
+      }, 0);
+
       // Build variance rows
       const rows = boqItems.map((item) => {
         const budgetAmount = item.quantity * item.rate;
@@ -313,11 +341,19 @@ export const financeRouter = router({
       return {
         rows,
         sections,
+        committed: {
+          totalCommitted,
+          openPOItemCount: openPoItems.length,
+          openPOsRemaining: openPoItems.reduce((s, poi) => s + Math.max(0, poi.quantity - (poi.receivedQty ?? 0)), 0),
+        },
         totals: {
           ...totals,
+          totalCommitted,
+          totalForecast: totals.totalActual + totalCommitted, // actual + committed
           totalVariancePercent: totals.totalBudget > 0
             ? (totals.totalVariance / totals.totalBudget) * 100
             : 0,
+          forecastVariance: totals.totalBudget - (totals.totalActual + totalCommitted), // budget - forecast
         },
       };
     }),
@@ -1011,6 +1047,7 @@ export const financeRouter = router({
       // Bank accounts are org-wide financial assets — only org admins
       // should be able to create them.
       assertOrgAdmin(ctx.user);
+      await assertNotLocked(ctx.user.organizationId);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
         select: { organizationId: true },
@@ -1073,6 +1110,7 @@ export const financeRouter = router({
       // SECURITY: org-wide settlement is an admin-tier financial action.
       // Caller must be an org admin AND belong to an organization.
       assertOrgAdmin(ctx.user);
+      await assertNotLocked(ctx.user.organizationId);
       const callerOrgId = ctx.user.organizationId;
       if (!callerOrgId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
@@ -1250,6 +1288,7 @@ export const financeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertOrgAdmin(ctx.user);
+      await assertNotLocked(ctx.user.organizationId);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
         select: { organizationId: true },
