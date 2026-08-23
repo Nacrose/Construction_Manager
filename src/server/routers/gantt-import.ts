@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { recalculateWbsCodes } from "@/lib/wbs";
+import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 import { parseMSPXML, type ParsedMSPTask } from "@/server/utils/msp-import";
 
 export const ganttImportRouter = router({
@@ -245,7 +246,8 @@ export const ganttImportRouter = router({
         }
       }
 
-      await recalculateWbsCodes(version.projectId);
+      await recalculateWbsCodes(version.projectId, input.versionId);
+      await recalculateProjectSchedule(version.projectId, input.versionId);
 
       let assignmentsCreated = 0;
       let assignmentsSkipped = 0;

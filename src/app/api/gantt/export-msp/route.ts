@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
       let deps: MSPTask["dependencies"] = [];
       if (task.predecessors.length > 0) {
         deps = task.predecessors.map((pred) => ({
+          predecessorId: pred.predecessorId,
           predecessorCode: pred.predecessor.code,
           type: pred.type,
           offset: pred.offset,
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
         try {
           const parsed = JSON.parse(task.dependencies);
           deps = parsed.map((d: any) => ({
+            predecessorId: typeof d === "string" ? d : d.taskId || null,
             predecessorCode: d.taskCode || null,
             type: d.type || "FS",
             offset: d.offset || 0,

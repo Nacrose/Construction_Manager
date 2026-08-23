@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 
 const BillItemSchema = z.object({
   boqCode: z.string().optional().nullable(),
@@ -22,9 +23,9 @@ const CreateBillSchema = z.object({
   projectId: z.string(),
   subcontractorId: z.string().min(1),
   period: z.string().optional().nullable(),
-  retentionPercent: z.number().nonnegative().optional().default(10),
-  vatPercent: z.number().nonnegative().optional().default(13),
-  tdsPercent: z.number().nonnegative().optional().default(1.5),
+  retentionPercent: z.number().min(0).max(100).optional().default(10),
+  vatPercent: z.number().min(0).max(100).optional().default(13),
+  tdsPercent: z.number().min(0).max(100).optional().default(1.5),
   materialDeduction: z.number().nonnegative().optional().default(0),
   advanceRecovery: z.number().nonnegative().optional().default(0),
   notes: z.string().optional().nullable(),
@@ -35,9 +36,9 @@ const UpdateBillSchema = z.object({
   projectId: z.string(),
   billId: z.string(),
   period: z.string().optional().nullable(),
-  retentionPercent: z.number().nonnegative().optional(),
-  vatPercent: z.number().nonnegative().optional(),
-  tdsPercent: z.number().nonnegative().optional(),
+  retentionPercent: z.number().min(0).max(100).optional(),
+  vatPercent: z.number().min(0).max(100).optional(),
+  tdsPercent: z.number().min(0).max(100).optional(),
   materialDeduction: z.number().nonnegative().optional(),
   advanceRecovery: z.number().nonnegative().optional(),
   notes: z.string().optional().nullable(),
@@ -167,9 +168,14 @@ export const subcontractorBillRouter = router({
     });
     if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
 
-    // Auto-generate bill number
+    // Auto-generate collision-free bill number
     const count = await db.subcontractorBill.count({ where: { projectId: input.projectId } });
-    const number = `SUB-BILL-${(count + 1).toString().padStart(3, "0")}`;
+    let nextIndex = count + 1;
+    let number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
+    while (await db.subcontractorBill.findFirst({ where: { projectId: input.projectId, number } })) {
+      nextIndex++;
+      number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
+    }
 
     const amounts = calculateBillAmounts({
       items: input.items,
@@ -204,10 +210,10 @@ export const subcontractorBillRouter = router({
         },
       });
 
-      // Create line items with cumulative qty tracking
-      let cumQty = 0;
+      // Create line items with per-item cumulative qty tracking (previousQty + thisQty)
       for (const item of input.items) {
-        cumQty += item.thisQty;
+        const prev = item.previousQty ?? 0;
+        const cumQty = prev + item.thisQty;
         await tx.subcontractorBillItem.create({
           data: {
             billId: created.id,
@@ -215,7 +221,7 @@ export const subcontractorBillRouter = router({
             description: item.description,
             unit: item.unit || null,
             contractQty: item.contractQty ?? 0,
-            previousQty: item.previousQty ?? 0,
+            previousQty: prev,
             thisQty: item.thisQty,
             cumQty,
             rate: item.rate,
@@ -247,9 +253,9 @@ export const subcontractorBillRouter = router({
       let itemsForCalc: { thisQty: number; rate: number }[] = [];
       if (input.items) {
         await tx.subcontractorBillItem.deleteMany({ where: { billId: input.billId } });
-        let cumQty = 0;
         for (const item of input.items) {
-          cumQty += item.thisQty;
+          const prev = item.previousQty ?? 0;
+          const cumQty = prev + item.thisQty;
           await tx.subcontractorBillItem.create({
             data: {
               billId: input.billId,
@@ -257,7 +263,7 @@ export const subcontractorBillRouter = router({
               description: item.description,
               unit: item.unit || null,
               contractQty: item.contractQty ?? 0,
-              previousQty: item.previousQty ?? 0,
+              previousQty: prev,
               thisQty: item.thisQty,
               cumQty,
               rate: item.rate,
@@ -349,6 +355,15 @@ export const subcontractorBillRouter = router({
         data: { status: "certified" },
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "subcontractor.bill.certify",
+        entityType: "subcontractor_bill",
+        entityId: input.billId,
+        metadata: { number: bill.number, certifiedNet: bill.netPayable },
+      });
+
       return { bill: updated };
     }),
 
@@ -382,6 +397,15 @@ export const subcontractorBillRouter = router({
           paidAmount: newPaidAmount,
           status: isFull ? "paid" : "certified",
         },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "subcontractor.bill.pay",
+        entityType: "subcontractor_bill",
+        entityId: input.billId,
+        metadata: { number: bill.number, amount: input.amount, newPaidAmount, isFull },
       });
 
       return { bill: updated, remaining: Math.max(0, bill.netPayable - newPaidAmount) };
@@ -481,43 +505,52 @@ export const subcontractorBillRouter = router({
       // Map IPC latest certified cumulative quantities by boqCode / description
       const ipcMap = new Map<string, { cumQty: number; cumAmount: number }>();
       for (const item of ipcItems) {
-        const key = (item.boqCode || item.description || "").trim().toLowerCase();
-        if (!key) continue;
-        const prev = ipcMap.get(key) || { cumQty: 0, cumAmount: 0 };
         const itemCumAmount = (item.cumQty || 0) * (item.rate || 0);
-        ipcMap.set(key, {
-          cumQty: Math.max(prev.cumQty, item.cumQty || 0),
-          cumAmount: Math.max(prev.cumAmount, itemCumAmount),
-        });
+        const entry = { cumQty: item.cumQty || 0, cumAmount: itemCumAmount };
+        if (item.boqCode && item.boqCode.trim()) {
+          const k = item.boqCode.trim().toLowerCase();
+          const prev = ipcMap.get(k) || { cumQty: 0, cumAmount: 0 };
+          ipcMap.set(k, { cumQty: Math.max(prev.cumQty, entry.cumQty), cumAmount: Math.max(prev.cumAmount, entry.cumAmount) });
+        }
+        if (item.description && item.description.trim()) {
+          const k = item.description.trim().toLowerCase();
+          const prev = ipcMap.get(k) || { cumQty: 0, cumAmount: 0 };
+          ipcMap.set(k, { cumQty: Math.max(prev.cumQty, entry.cumQty), cumAmount: Math.max(prev.cumAmount, entry.cumAmount) });
+        }
       }
 
       // Group Subcontractor claims by BOQ Code & SubcontractorId
       const subClaimsMap = new Map<string, Map<string, { qty: number; amount: number; rate: number; count: number }>>();
       for (const item of billItems) {
-        const codeKey = (item.boqCode || item.description || "").trim().toLowerCase();
-        if (!codeKey) continue;
-        if (!subClaimsMap.has(codeKey)) {
-          subClaimsMap.set(codeKey, new Map());
-        }
-        const subMap = subClaimsMap.get(codeKey)!;
         const subId = item.bill.subcontractorId;
-        const prev = subMap.get(subId) || { qty: 0, amount: 0, rate: 0, count: 0 };
         const verifiedOrClaimedQty = item.verifiedQty !== null && item.verifiedQty !== undefined ? item.verifiedQty : item.thisQty;
         const verifiedOrClaimedAmount = verifiedOrClaimedQty * item.rate;
 
-        subMap.set(subId, {
-          qty: prev.qty + verifiedOrClaimedQty,
-          amount: prev.amount + verifiedOrClaimedAmount,
-          rate: item.rate,
-          count: prev.count + 1,
-        });
+        const keysToSet: string[] = [];
+        if (item.boqCode && item.boqCode.trim()) keysToSet.push(item.boqCode.trim().toLowerCase());
+        else if (item.description && item.description.trim()) keysToSet.push(item.description.trim().toLowerCase());
+
+        for (const k of keysToSet) {
+          if (!subClaimsMap.has(k)) {
+            subClaimsMap.set(k, new Map());
+          }
+          const subMap = subClaimsMap.get(k)!;
+          const prev = subMap.get(subId) || { qty: 0, amount: 0, rate: 0, count: 0 };
+          subMap.set(subId, {
+            qty: prev.qty + verifiedOrClaimedQty,
+            amount: prev.amount + verifiedOrClaimedAmount,
+            rate: item.rate,
+            count: prev.count + 1,
+          });
+        }
       }
 
       // Build the Master Cross-Grid Rows
       const rows = boqItems.map((boq) => {
-        const codeKey = (boq.code || boq.description).trim().toLowerCase();
-        const subMap = subClaimsMap.get(codeKey) || new Map();
-        const ipc = ipcMap.get(codeKey) || { cumQty: 0, cumAmount: 0 };
+        const codeKey = (boq.code || "").trim().toLowerCase();
+        const descKey = (boq.description || "").trim().toLowerCase();
+        const subMap = (codeKey ? subClaimsMap.get(codeKey) : null) || (descKey ? subClaimsMap.get(descKey) : null) || new Map();
+        const ipc = (codeKey ? ipcMap.get(codeKey) : null) || (descKey ? ipcMap.get(descKey) : null) || { cumQty: 0, cumAmount: 0 };
 
         let totalSubQty = 0;
         let totalSubAmount = 0;
@@ -677,6 +710,15 @@ export const subcontractorBillRouter = router({
         });
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "subcontractor.bill.verify",
+        entityType: "subcontractor_bill",
+        entityId: input.billId,
+        metadata: { number: bill.number, action: input.action, verifiedGross: updated.verifiedGross, verifiedNet: updated.verifiedNet },
+      });
+
       return { bill: updated };
     }),
 
@@ -806,7 +848,15 @@ export const subcontractorBillRouter = router({
       let totalDebitDeduction = 0;
       const statement = Array.from(materialMap.values()).map((item) => {
         const normName = item.name.trim().toLowerCase();
-        const theoreticalReq = theoreticalMap.get(normName) || 0;
+        let theoreticalReq = theoreticalMap.get(normName) || 0;
+        if (theoreticalReq === 0) {
+          for (const [tKey, tVal] of theoreticalMap.entries()) {
+            if (normName.includes(tKey) || tKey.includes(normName)) {
+              theoreticalReq = tVal;
+              break;
+            }
+          }
+        }
         const allowedWastage = theoreticalReq * 0.02; // 2% permissible tolerance
         const totalAllowed = theoreticalReq + allowedWastage;
         const excessQty = Math.max(0, item.netIssuedQty - totalAllowed);

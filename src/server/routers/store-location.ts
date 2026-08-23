@@ -198,6 +198,13 @@ export const storeLocationRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "One or both store locations not found." });
       }
 
+      if (fromStore.status === "inactive" || toStore.status === "inactive") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot transfer stock to or from an inactive store location.",
+        });
+      }
+
       // Check source store balance
       const sourceStock = await db.materialStoreStock.findUnique({
         where: {

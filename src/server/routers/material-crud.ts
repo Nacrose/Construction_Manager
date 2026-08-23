@@ -201,8 +201,10 @@ export const materialCrudProcedures = {
       });
       if (items.length === 0) return { ok: true, count: 0 };
 
-      const projectId = items[0].projectId;
-      await assertCanWrite(ctx.user, projectId);
+      const projectIds = new Set(items.map((i) => i.projectId));
+      for (const pId of projectIds) {
+        await assertCanWrite(ctx.user, pId);
+      }
 
       await db.material.deleteMany({
         where: { id: { in: input.itemIds } },

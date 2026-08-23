@@ -163,7 +163,7 @@ describe("MS Project XML (MSPDI) Generator & Parser Engine", () => {
       expect(xml).toContain("<PredecessorUID>1</PredecessorUID>");
       expect(xml).toContain(`<Type>${expectedTypeStr}</Type>`);
       if (offset !== 0) {
-        expect(xml).toContain(`<LinkLag>${Math.abs(offset) * 4800}</LinkLag>`);
+        expect(xml).toContain(`<LinkLag>${offset * 4800}</LinkLag>`);
       }
     });
   });

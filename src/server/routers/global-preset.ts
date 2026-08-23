@@ -280,61 +280,63 @@ export const globalPresetRouter = router({
         }
       }
 
-      await db.boqIngredient.deleteMany({ where: { rateAnalysisId: input.rateAnalysisId } });
-
       const projectMaterials = await db.material.findMany({
         where: { projectId: item.projectId, isActive: true },
         select: { id: true, name: true, catalogMaterialId: true },
       });
 
-      for (const ing of preset.ingredients) {
-        let rate = ing.rate;
-        const unit = ing.unit;
+      await db.$transaction(async (tx) => {
+        await tx.boqIngredient.deleteMany({ where: { rateAnalysisId: input.rateAnalysisId } });
 
-        // Auto-pull rate from catalog by catalogMaterialId, normalizedName, or exact name
-        if (ing.catalogMaterialId && catalogRates.has(ing.catalogMaterialId)) {
-          rate = catalogRates.get(ing.catalogMaterialId)!;
-        } else if (catalogRates.has(ing.name.toLowerCase().trim())) {
-          rate = catalogRates.get(ing.name.toLowerCase().trim())!;
+        for (const ing of preset.ingredients) {
+          let rate = ing.rate;
+          const unit = ing.unit;
+
+          // Auto-pull rate from catalog by catalogMaterialId, normalizedName, or exact name
+          if (ing.catalogMaterialId && catalogRates.has(ing.catalogMaterialId)) {
+            rate = catalogRates.get(ing.catalogMaterialId)!;
+          } else if (catalogRates.has(ing.name.toLowerCase().trim())) {
+            rate = catalogRates.get(ing.name.toLowerCase().trim())!;
+          }
+
+          let amount = ing.amount;
+          if (ing.calcMode === "fixed") {
+            const qtyWithPct = ing.quantity + (ing.quantity * ing.percentage) / 100;
+            amount = qtyWithPct * rate;
+          }
+
+          // Match against project Resource Library
+          const matchedResource = projectMaterials.find(
+            (m) =>
+              (ing.catalogMaterialId && m.catalogMaterialId === ing.catalogMaterialId) ||
+              m.name.toLowerCase().trim() === ing.name.toLowerCase().trim()
+          );
+
+          await tx.boqIngredient.create({
+            data: {
+              boqItemId: input.boqItemId,
+              rateAnalysisId: input.rateAnalysisId,
+              name: ing.name,
+              type: ing.type,
+              calcMode: ing.calcMode,
+              quantity: ing.quantity,
+              unit,
+              percentage: ing.percentage,
+              pctBase: ing.pctBase,
+              rate,
+              amount,
+              sortOrder: ing.sortOrder,
+              materialId: matchedResource?.id || null,
+              catalogMaterialId: ing.catalogMaterialId,
+              rateDistrict: input.district || null,
+            },
+          });
         }
 
-        let amount = ing.amount;
-        if (ing.calcMode === "fixed") {
-          const qtyWithPct = ing.quantity + (ing.quantity * ing.percentage) / 100;
-          amount = qtyWithPct * rate;
-        }
-
-        // Match against project Resource Library
-        const matchedResource = projectMaterials.find(
-          (m) =>
-            (ing.catalogMaterialId && m.catalogMaterialId === ing.catalogMaterialId) ||
-            m.name.toLowerCase().trim() === ing.name.toLowerCase().trim()
-        );
-
-        await db.boqIngredient.create({
-          data: {
-            boqItemId: input.boqItemId,
-            rateAnalysisId: input.rateAnalysisId,
-            name: ing.name,
-            type: ing.type,
-            calcMode: ing.calcMode,
-            quantity: ing.quantity,
-            unit,
-            percentage: ing.percentage,
-            pctBase: ing.pctBase,
-            rate,
-            amount,
-            sortOrder: ing.sortOrder,
-            materialId: matchedResource?.id || null,
-            catalogMaterialId: ing.catalogMaterialId,
-            rateDistrict: input.district || null,
-          },
+        await tx.rateAnalysis.update({
+          where: { id: input.rateAnalysisId },
+          data: { batchSize: preset.batchSize },
         });
-      }
-
-      await db.rateAnalysis.update({
-        where: { id: input.rateAnalysisId },
-        data: { batchSize: preset.batchSize },
       });
 
       await recalcAnalysis(input.rateAnalysisId, input.boqItemId);

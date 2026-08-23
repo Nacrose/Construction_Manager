@@ -167,6 +167,16 @@ export const variationOrderRouter = router({
         if (input.status === "approved") {
           updateData.dateApproved = new Date();
 
+          // Pre-fetch libraries and sortOrder for any new extra items
+          const libraries = await tx.analysisLibrary.findMany({
+            where: { projectId: input.projectId },
+          });
+          const maxSortResult = await tx.boqItem.aggregate({
+            where: { projectId: input.projectId },
+            _max: { sortOrder: true },
+          });
+          let currentSortOrder = (maxSortResult._max.sortOrder ?? -1) + 1;
+
           // Merge VO items into BOQ
           for (const item of vo.items) {
             if (item.boqItemId) {
@@ -186,7 +196,7 @@ export const variationOrderRouter = router({
                 });
               }
             } else {
-              await tx.boqItem.create({
+              const createdBoq = await tx.boqItem.create({
                 data: {
                   projectId: input.projectId,
                   code: item.boqCode,
@@ -198,8 +208,22 @@ export const variationOrderRouter = router({
                   baselineQty: 0,
                   baselineRate: 0,
                   tags: JSON.stringify(["extra_item", vo.number]),
+                  sortOrder: currentSortOrder++,
                 },
               });
+
+              // Auto-create analysis records for all libraries
+              for (const lib of libraries) {
+                await tx.rateAnalysis.create({
+                  data: {
+                    boqItemId: createdBoq.id,
+                    libraryId: lib.id,
+                    name: lib.name,
+                    batchSize: 1,
+                    isDefault: lib.isDefault,
+                  },
+                });
+              }
             }
           }
 

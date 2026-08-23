@@ -174,8 +174,8 @@ export function MSPImportButton({
                 <p className="font-medium">{preview.projectName}</p>
                 {preview.startDate && (
                   <p className="text-xs text-muted-foreground">
-                    {format(preview.startDate, "dd MMM yyyy")} —{" "}
-                    {preview.finishDate ? format(preview.finishDate, "dd MMM yyyy") : "—"}
+                    {format(new Date(preview.startDate), "dd MMM yyyy")} —{" "}
+                    {preview.finishDate ? format(new Date(preview.finishDate), "dd MMM yyyy") : "—"}
                   </p>
                 )}
               </div>

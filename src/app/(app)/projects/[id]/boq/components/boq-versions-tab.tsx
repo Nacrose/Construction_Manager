@@ -261,7 +261,7 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
                           </td>
                         </tr>
                       ))}
-                    {diffData.diffRows.filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0).length === 0 && (
+                    {diffData.diffRows.filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0 || r.amountDiff !== 0).length === 0 && (
                       <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">No changes between these versions.</td></tr>
                     )}
                   </tbody>

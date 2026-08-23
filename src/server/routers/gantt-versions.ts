@@ -138,7 +138,7 @@ export const ganttVersionsRouter = router({
           include: { boqLinks: true },
         });
 
-        const idMap = new Map();
+        const idMap = new Map<string, string>();
         for (const task of sourceTasks) {
           const newTask = await tx.ganttTask.create({
             data: {
@@ -154,6 +154,21 @@ export const ganttVersionsRouter = router({
               isProgressEdited: false,
               baseVersionId: baseVersionId,
               sortOrder: task.sortOrder,
+              laborCount: task.laborCount,
+              assignees: task.assignees,
+              isMilestone: task.isMilestone,
+              plannedValue: task.plannedValue,
+              workHours: task.workHours,
+              taskType: task.taskType,
+              constraintType: task.constraintType,
+              constraintDate: task.constraintDate,
+              deadline: task.deadline,
+              notes: task.notes,
+              effortDriven: task.effortDriven,
+              estimated: task.estimated,
+              ignoreResourceCalendar: task.ignoreResourceCalendar,
+              priority: task.priority,
+              earnedValueMethod: task.earnedValueMethod,
               boqLinks: {
                 create: task.boqLinks.map((link) => ({
                   boqItemId: link.boqItemId,
@@ -346,6 +361,18 @@ export const ganttVersionsRouter = router({
               laborCount: task.laborCount,
               assignees: task.assignees,
               isMilestone: task.isMilestone,
+              plannedValue: task.plannedValue,
+              workHours: task.workHours,
+              taskType: task.taskType,
+              constraintType: task.constraintType,
+              constraintDate: task.constraintDate,
+              deadline: task.deadline,
+              notes: task.notes,
+              effortDriven: task.effortDriven,
+              estimated: task.estimated,
+              ignoreResourceCalendar: task.ignoreResourceCalendar,
+              priority: task.priority,
+              earnedValueMethod: task.earnedValueMethod,
               boqLinks: {
                 create: task.boqLinks.map((link) => ({
                   boqItemId: link.boqItemId,

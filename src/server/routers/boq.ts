@@ -208,6 +208,20 @@ export const boqRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "This BOQ item is locked." });
       }
 
+      // Check for duplicate code if code is changing
+      if (data.code && data.code !== item.code) {
+        const dup = await db.boqItem.findUnique({
+          where: { projectId_code: { projectId: item.projectId, code: data.code } },
+          select: { id: true },
+        });
+        if (dup && dup.id !== itemId) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `BOQ code "${data.code}" is already in use by another item in this project.`,
+          });
+        }
+      }
+
       // Recompute amount from final quantity + rate
       const quantity = data.quantity ?? item.quantity;
       let rate = data.rate;

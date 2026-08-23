@@ -108,6 +108,14 @@ export async function importBoq(
     let skipped = 0;
     let sortOrder = 0;
 
+    const parseNum = (val: any): number => {
+      if (typeof val === "number") return isNaN(val) ? 0 : val;
+      if (!val) return 0;
+      const cleaned = String(val).replace(/,/g, "").replace(/[^0-9.-]/g, "");
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     for (const row of rows) {
       const code = String(row.Code ?? row.code ?? "").trim();
       const description = String(row.Description ?? row.description ?? "").trim();
@@ -116,8 +124,8 @@ export async function importBoq(
         continue;
       }
       const unit = String(row.Unit ?? row.unit ?? "no").trim() || "no";
-      const quantity = parseFloat(String(row.Quantity ?? row.quantity ?? 0)) || 0;
-      const rate = parseFloat(String(row["Rate (NPR)"] ?? row.rate ?? 0)) || 0;
+      const quantity = parseNum(row.Quantity ?? row.quantity ?? row.Qty ?? row.qty);
+      const rate = parseNum(row["Rate (NPR)"] ?? row.Rate ?? row.rate ?? row["Rate(NPR)"] ?? row["Unit Rate"]);
       const category = String(row.Category ?? row.category ?? "").trim() || undefined;
       const section = String(row.Section ?? row.section ?? "").trim() || undefined;
 

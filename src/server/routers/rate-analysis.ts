@@ -17,7 +17,7 @@ import type { AuthUser } from "@/lib/auth";
 const CreateAnalysisSchema = z.object({
   itemId: z.string(),
   name: z.string().min(1).max(100),
-  batchSize: z.number().min(0).default(1),
+  batchSize: z.number().positive().default(1),
   isDefault: z.boolean().default(false),
 });
 
@@ -25,7 +25,7 @@ const UpdateAnalysisSchema = z.object({
   itemId: z.string(),
   analysisId: z.string(),
   name: z.string().optional(),
-  batchSize: z.number().optional(),
+  batchSize: z.number().positive().optional(),
   isDefault: z.boolean().optional(),
 });
 

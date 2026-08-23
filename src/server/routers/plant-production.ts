@@ -471,7 +471,12 @@ export const plantProductionRouter = router({
             },
           },
         });
-        ticketNum = `BT-${datePrefix}-${String(count + 1).padStart(3, "0")}`;
+        let nextTicketIndex = count + 1;
+        ticketNum = `BT-${datePrefix}-${String(nextTicketIndex).padStart(3, "0")}`;
+        while (await db.plantBatchTicket.findFirst({ where: { projectId: input.projectId, ticketNumber: ticketNum } })) {
+          nextTicketIndex++;
+          ticketNum = `BT-${datePrefix}-${String(nextTicketIndex).padStart(3, "0")}`;
+        }
       }
 
       const ticket = await db.plantBatchTicket.create({

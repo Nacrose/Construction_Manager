@@ -494,13 +494,29 @@ const paymentRouter = router({
         orderBy: { name: "asc" },
       });
 
-      // Get IPC retention amounts per subcontractor
-      const ipcs = await db.ipc.findMany({
-        where: { projectId: input.projectId, subcontractorId: { not: null } },
-        select: { subcontractorId: true, retentionAmount: true, status: true },
-      });
+      // Get Subcontractor Bill & IPC retention amounts per subcontractor
+      const [ipcs, subBills] = await Promise.all([
+        db.ipc.findMany({
+          where: { projectId: input.projectId, subcontractorId: { not: null } },
+          select: { subcontractorId: true, retentionAmount: true, status: true },
+        }),
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: input.projectId,
+            status: { in: ["submitted", "verified", "certified", "paid"] },
+          },
+          select: { subcontractorId: true, retentionAmount: true },
+        }),
+      ]);
 
       const ipcRetentionBySub = new Map<string, number>();
+      for (const bill of subBills) {
+        if (!bill.subcontractorId) continue;
+        ipcRetentionBySub.set(
+          bill.subcontractorId,
+          (ipcRetentionBySub.get(bill.subcontractorId) ?? 0) + bill.retentionAmount
+        );
+      }
       for (const ipc of ipcs) {
         if (!ipc.subcontractorId) continue;
         ipcRetentionBySub.set(
@@ -559,7 +575,7 @@ const paymentRouter = router({
       projectId: z.string(),
       subcontractorId: z.string(),
       amount: z.number().positive(),
-      paymentDate: z.string().datetime().optional(),
+      paymentDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
       paymentMode: z.enum(["cash", "bank_transfer", "cheque", "mobile_pay"]).default("bank_transfer"),
       chequeNo: z.string().optional(),
       bankRef: z.string().optional(),

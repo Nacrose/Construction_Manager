@@ -59,13 +59,30 @@ export function TaskHoverTooltip({
 
   // Predecessor names
   const predecessors = useMemo(() => {
-    if (!task.dependencies || !Array.isArray(task.dependencies)) return [];
-    return task.dependencies
-      .map((d: any) => {
-        const p = taskMap.get(typeof d === "string" ? d : d.taskId);
-        return p ? { name: p.name, code: p.code, type: d.type || "FS" } : null;
-      })
-      .filter(Boolean);
+    if (task.predecessors && task.predecessors.length > 0) {
+      return task.predecessors
+        .map((p) => {
+          const pred = taskMap.get(p.predecessorId);
+          return pred ? { name: pred.name, code: pred.code, type: p.type || "FS" } : null;
+        })
+        .filter(Boolean);
+    }
+    if (task.dependencies) {
+      try {
+        const parsed = typeof task.dependencies === "string" ? JSON.parse(task.dependencies) : task.dependencies;
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((d: any) => {
+              const p = taskMap.get(typeof d === "string" ? d : d.taskId);
+              return p ? { name: p.name, code: p.code, type: d.type || "FS" } : null;
+            })
+            .filter(Boolean);
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
   }, [task, taskMap]);
 
   // Viewport bounds

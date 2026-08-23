@@ -312,4 +312,902 @@ export const financeRouter = router({
         },
       };
     }),
+
+  // ─────────────────────────────────────────────────────────────
+  // Organization-Level Finance & Central Payables Suite
+  // ─────────────────────────────────────────────────────────────
+
+  /** Organization Summary KPIs (Cash/Bank, Total Payables, Total Receivables, Profit) */
+  orgSummary: protectedProcedure.query(async ({ ctx }) => {
+    const user = await db.user.findUniqueOrThrow({
+      where: { id: ctx.user.id },
+      select: { organizationId: true },
+    });
+
+    const memberships = await db.projectMember.findMany({
+      where: { userId: ctx.user.id },
+      select: { projectId: true },
+    });
+    const projectIds = memberships.map((m) => m.projectId);
+
+    const [
+      bankAccounts,
+      vendorBills,
+      subBills,
+      ipcs,
+      payments,
+      hoExpenses,
+    ] = await Promise.all([
+      user.organizationId
+        ? db.companyBankAccount.findMany({
+            where: { organizationId: user.organizationId, status: "active" },
+          })
+        : [],
+      db.vendorBill.findMany({
+        where: { projectId: { in: projectIds }, status: { in: ["unpaid", "partially_paid"] } },
+        select: { netPayable: true, paidAmount: true },
+      }),
+      db.subcontractorBill.findMany({
+        where: {
+          projectId: { in: projectIds },
+          status: { in: ["submitted", "verified", "certified", "approved"] },
+        },
+        select: { netPayable: true, paidAmount: true },
+      }),
+      db.ipc.findMany({
+        where: { projectId: { in: projectIds } },
+        select: { grossAmount: true, netPayable: true, status: true },
+      }),
+      db.payment.findMany({
+        where: { projectId: { in: projectIds }, status: "paid" },
+        select: { amount: true, tdsDeducted: true },
+      }),
+      user.organizationId
+        ? db.headOfficeExpense.findMany({
+            where: { organizationId: user.organizationId },
+            select: { amount: true },
+          })
+        : [],
+    ]);
+
+    const totalCashBankBalance = bankAccounts.reduce((s, b) => s + b.currentBalance, 0);
+
+    const totalVendorPayables = vendorBills.reduce(
+      (s, b) => s + Math.max(0, b.netPayable - b.paidAmount),
+      0
+    );
+    const totalSubPayables = subBills.reduce(
+      (s, b) => s + Math.max(0, b.netPayable - (b.paidAmount || 0)),
+      0
+    );
+    const totalPayables = totalVendorPayables + totalSubPayables;
+
+    const totalRevenueCertified = ipcs.reduce((s, i) => s + i.grossAmount, 0);
+    const totalRevenueCollected = ipcs
+      .filter((i) => i.status === "paid")
+      .reduce((s, i) => s + i.netPayable, 0);
+    const totalClientReceivables = Math.max(0, totalRevenueCertified - totalRevenueCollected);
+
+    const totalTdsWithheld = payments.reduce((s, p) => s + p.tdsDeducted, 0);
+    const totalHeadOfficeExpenses = hoExpenses.reduce((s, e) => s + e.amount, 0);
+
+    return {
+      totalCashBankBalance,
+      totalPayables,
+      totalVendorPayables,
+      totalSubPayables,
+      totalClientReceivables,
+      totalRevenueCertified,
+      totalRevenueCollected,
+      totalTdsWithheld,
+      totalHeadOfficeExpenses,
+      bankAccountsCount: bankAccounts.length,
+      activeProjectsCount: projectIds.length,
+    };
+  }),
+
+  /** Consolidated Multi-Project Payables Grouped by Supplier / Subcontractor */
+  orgPayables: protectedProcedure
+    .input(
+      z.object({
+        search: z.string().optional(),
+        type: z.enum(["all", "vendor", "subcontractor"]).optional(),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const memberships = await db.projectMember.findMany({
+        where: { userId: ctx.user.id },
+        select: { projectId: true },
+      });
+      const projectIds = memberships.map((m) => m.projectId);
+
+      if (projectIds.length === 0) {
+        return { suppliers: [], totalDue: 0, totalBills: 0 };
+      }
+
+      const [vendorBills, subBills] = await Promise.all([
+        db.vendorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            status: { in: ["unpaid", "partially_paid"] },
+          },
+          include: {
+            partner: { select: { id: true, name: true, pan: true, phone: true } },
+            project: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { billDate: "asc" },
+        }),
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            status: { in: ["submitted", "verified", "certified", "approved"] },
+          },
+          include: {
+            subcontractor: { select: { id: true, name: true, pan: true, phone: true } },
+            project: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { billDate: "asc" },
+        }),
+      ]);
+
+      // Normalize all open bills into a unified structure
+      type OpenBill = {
+        id: string;
+        billType: "vendor" | "subcontractor";
+        projectId: string;
+        projectName: string;
+        projectCode: string;
+        supplierName: string;
+        supplierPan: string | null;
+        supplierPhone: string | null;
+        billNumber: string;
+        billDate: string;
+        grossAmount: number;
+        tdsAmount: number;
+        netPayable: number;
+        paidAmount: number;
+        balanceDue: number;
+        status: string;
+      };
+
+      const allBills: OpenBill[] = [];
+
+      if (!input?.type || input.type === "all" || input.type === "vendor") {
+        vendorBills.forEach((vb) => {
+          const balance = Math.max(0, vb.netPayable - vb.paidAmount);
+          if (balance > 0) {
+            allBills.push({
+              id: vb.id,
+              billType: "vendor",
+              projectId: vb.projectId,
+              projectName: vb.project.name,
+              projectCode: vb.project.code,
+              supplierName: vb.partner?.name || "Unknown Vendor",
+              supplierPan: vb.partner?.pan || null,
+              supplierPhone: vb.partner?.phone || null,
+              billNumber: vb.billNumber,
+              billDate: vb.billDate.toISOString(),
+              grossAmount: vb.grossAmount,
+              tdsAmount: vb.tdsAmount,
+              netPayable: vb.netPayable,
+              paidAmount: vb.paidAmount,
+              balanceDue: balance,
+              status: vb.status,
+            });
+          }
+        });
+      }
+
+      if (!input?.type || input.type === "all" || input.type === "subcontractor") {
+        subBills.forEach((sb) => {
+          const balance = Math.max(0, sb.netPayable - (sb.paidAmount || 0));
+          if (balance > 0) {
+            allBills.push({
+              id: sb.id,
+              billType: "subcontractor",
+              projectId: sb.projectId,
+              projectName: sb.project.name,
+              projectCode: sb.project.code,
+              supplierName: sb.subcontractor?.name || "Subcontractor",
+              supplierPan: sb.subcontractor?.pan || null,
+              supplierPhone: sb.subcontractor?.phone || null,
+              billNumber: sb.number,
+              billDate: sb.billDate.toISOString(),
+              grossAmount: sb.grossAmount,
+              tdsAmount: sb.tdsAmount,
+              netPayable: sb.netPayable,
+              paidAmount: sb.paidAmount || 0,
+              balanceDue: balance,
+              status: sb.status,
+            });
+          }
+        });
+      }
+
+      // Group by Supplier Name + PAN
+      const supplierMap = new Map<
+        string,
+        {
+          key: string;
+          name: string;
+          pan: string | null;
+          phone: string | null;
+          type: "vendor" | "subcontractor";
+          totalDue: number;
+          billsCount: number;
+          projectCodes: string[];
+          bills: OpenBill[];
+        }
+      >();
+
+      allBills.forEach((b) => {
+        const key = `${b.supplierName.trim().toLowerCase()}_${b.supplierPan || ""}`;
+        if (!supplierMap.has(key)) {
+          supplierMap.set(key, {
+            key,
+            name: b.supplierName,
+            pan: b.supplierPan,
+            phone: b.supplierPhone,
+            type: b.billType,
+            totalDue: 0,
+            billsCount: 0,
+            projectCodes: [],
+            bills: [],
+          });
+        }
+
+        const sup = supplierMap.get(key)!;
+        sup.totalDue += b.balanceDue;
+        sup.billsCount += 1;
+        if (!sup.projectCodes.includes(b.projectCode)) {
+          sup.projectCodes.push(b.projectCode);
+        }
+        sup.bills.push(b);
+      });
+
+      let suppliers = Array.from(supplierMap.values()).sort((a, b) => b.totalDue - a.totalDue);
+
+      if (input?.search) {
+        const q = input.search.toLowerCase();
+        suppliers = suppliers.filter(
+          (s) =>
+            s.name.toLowerCase().includes(q) ||
+            s.pan?.toLowerCase().includes(q) ||
+            s.projectCodes.some((c) => c.toLowerCase().includes(q))
+        );
+      }
+
+      const totalDue = suppliers.reduce((s, sup) => s + sup.totalDue, 0);
+
+      return {
+        suppliers,
+        totalDue,
+        totalBills: allBills.length,
+      };
+    }),
+
+  /** Master Company Day Book (All Projects + Head Office) */
+  orgMasterDayBook: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string().optional(),
+        fromDate: z.string().optional(),
+        toDate: z.string().optional(),
+        search: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+
+      const memberships = await db.projectMember.findMany({
+        where: { userId: ctx.user.id },
+        select: { projectId: true },
+      });
+      const projectIds = input?.projectId ? [input.projectId] : memberships.map((m) => m.projectId);
+
+      const [payments, vendorBills, subBills, ipcs, hoExpenses] = await Promise.all([
+        db.payment.findMany({
+          where: {
+            projectId: { in: projectIds },
+            ...(input?.fromDate || input?.toDate
+              ? {
+                  paymentDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          include: { project: { select: { id: true, name: true, code: true } } },
+          orderBy: { paymentDate: "desc" },
+        }),
+        db.vendorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            ...(input?.fromDate || input?.toDate
+              ? {
+                  billDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          include: {
+            partner: true,
+            project: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { billDate: "desc" },
+        }),
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            ...(input?.fromDate || input?.toDate
+              ? {
+                  billDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          include: {
+            subcontractor: true,
+            project: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { billDate: "desc" },
+        }),
+        db.ipc.findMany({
+          where: {
+            projectId: { in: projectIds },
+            ...(input?.fromDate || input?.toDate
+              ? {
+                  createdAt: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          include: { project: { select: { id: true, name: true, code: true } } },
+          orderBy: { createdAt: "desc" },
+        }),
+        user.organizationId && !input?.projectId
+          ? db.headOfficeExpense.findMany({
+              where: {
+                organizationId: user.organizationId,
+                ...(input?.fromDate || input?.toDate
+                  ? {
+                      date: {
+                        ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                        ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                      },
+                    }
+                  : {}),
+              },
+              orderBy: { date: "desc" },
+            })
+          : [],
+      ]);
+
+      const entries: Array<{
+        id: string;
+        source: "payment" | "vendor_bill" | "subcontractor_bill" | "ipc" | "head_office";
+        projectName: string;
+        projectCode: string;
+        voucherNo: string;
+        voucherType: string;
+        date: string;
+        miti: string;
+        accountHead: string;
+        particulars: string;
+        debit: number;
+        credit: number;
+        paymentMode: string | null;
+        chequeNo: string | null;
+        partyPan: string | null;
+      }> = [];
+
+      // 1. Payments
+      payments.forEach((p) => {
+        entries.push({
+          id: p.id,
+          source: "payment",
+          projectName: p.project.name,
+          projectCode: p.project.code,
+          voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5).toUpperCase()}`,
+          voucherType: (p.voucherType || "payment").toUpperCase(),
+          date: p.paymentDate.toISOString(),
+          miti: p.paymentMiti || "—",
+          accountHead: p.category || "Project Expense",
+          particulars: `${p.payeeName} - ${p.notes || "Disbursement"}`,
+          debit: p.amount,
+          credit: 0,
+          paymentMode: p.paymentMode,
+          chequeNo: p.chequeNo,
+          partyPan: p.partyPan,
+        });
+      });
+
+      // 2. Vendor Bills
+      vendorBills.forEach((b) => {
+        entries.push({
+          id: b.id,
+          source: "vendor_bill",
+          projectName: b.project.name,
+          projectCode: b.project.code,
+          voucherNo: b.billNumber,
+          voucherType: "PURCHASE BILL",
+          date: b.billDate.toISOString(),
+          miti: "—",
+          accountHead: "Materials & Supplies",
+          particulars: `Purchase from ${b.partner?.name || "Vendor"}`,
+          debit: 0,
+          credit: b.netPayable,
+          paymentMode: "Credit Bill",
+          chequeNo: null,
+          partyPan: b.partner?.pan || null,
+        });
+      });
+
+      // 3. Subcontractor Bills
+      subBills.forEach((b) => {
+        entries.push({
+          id: b.id,
+          source: "subcontractor_bill",
+          projectName: b.project.name,
+          projectCode: b.project.code,
+          voucherNo: b.number,
+          voucherType: "SUB BILL",
+          date: b.billDate.toISOString(),
+          miti: "—",
+          accountHead: "Subcontractor Work",
+          particulars: `${b.subcontractor?.name || "Subcontractor"} - Period: ${b.period || "Work"}`,
+          debit: 0,
+          credit: b.netPayable,
+          paymentMode: "Certified Bill",
+          chequeNo: null,
+          partyPan: b.subcontractor?.pan || null,
+        });
+      });
+
+      // 4. IPCs
+      ipcs.forEach((i) => {
+        entries.push({
+          id: i.id,
+          source: "ipc",
+          projectName: i.project.name,
+          projectCode: i.project.code,
+          voucherNo: i.number,
+          voucherType: "IPC REVENUE",
+          date: i.createdAt.toISOString(),
+          miti: "—",
+          accountHead: "Contract Revenue",
+          particulars: `IPC #${i.number} Client Bill (Gross: ${i.grossAmount})`,
+          debit: i.grossAmount,
+          credit: 0,
+          paymentMode: "Govt Bill",
+          chequeNo: null,
+          partyPan: null,
+        });
+      });
+
+      // 5. Head Office Expenses
+      hoExpenses.forEach((e) => {
+        entries.push({
+          id: e.id,
+          source: "head_office",
+          projectName: "Head Office (केन्द्रीय कार्यालय)",
+          projectCode: "HQ",
+          voucherNo: e.voucherNo || `HO-${e.id.slice(-5).toUpperCase()}`,
+          voucherType: "HQ EXPENSE",
+          date: e.date.toISOString(),
+          miti: e.miti || "—",
+          accountHead: e.category,
+          particulars: e.particulars,
+          debit: e.amount,
+          credit: 0,
+          paymentMode: e.paymentMode,
+          chequeNo: e.chequeNo,
+          partyPan: null,
+        });
+      });
+
+      entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      let filtered = entries;
+      if (input?.search) {
+        const q = input.search.toLowerCase();
+        filtered = entries.filter(
+          (e) =>
+            e.particulars.toLowerCase().includes(q) ||
+            e.voucherNo.toLowerCase().includes(q) ||
+            e.projectName.toLowerCase().includes(q) ||
+            e.projectCode.toLowerCase().includes(q) ||
+            e.partyPan?.toLowerCase().includes(q)
+        );
+      }
+
+      const totalDebit = filtered.reduce((s, e) => s + e.debit, 0);
+      const totalCredit = filtered.reduce((s, e) => s + e.credit, 0);
+
+      return {
+        entries: filtered,
+        summary: {
+          totalDebit,
+          totalCredit,
+          count: filtered.length,
+        },
+      };
+    }),
+
+  /** Multi-Project Party Statement of Account */
+  orgPartyStatement: protectedProcedure
+    .input(z.object({ partyName: z.string(), partyPan: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const memberships = await db.projectMember.findMany({
+        where: { userId: ctx.user.id },
+        select: { projectId: true },
+      });
+      const projectIds = memberships.map((m) => m.projectId);
+
+      const [vendorBills, subBills, payments] = await Promise.all([
+        db.vendorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            OR: [
+              { partner: { name: { contains: input.partyName, mode: "insensitive" } } },
+              ...(input.partyPan ? [{ partner: { pan: input.partyPan } }] : []),
+            ],
+          },
+          include: { project: { select: { id: true, name: true, code: true } } },
+          orderBy: { billDate: "asc" },
+        }),
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            OR: [
+              { subcontractor: { name: { contains: input.partyName, mode: "insensitive" } } },
+              ...(input.partyPan ? [{ subcontractor: { pan: input.partyPan } }] : []),
+            ],
+          },
+          include: { project: { select: { id: true, name: true, code: true } } },
+          orderBy: { billDate: "asc" },
+        }),
+        db.payment.findMany({
+          where: {
+            projectId: { in: projectIds },
+            OR: [
+              { payeeName: { contains: input.partyName, mode: "insensitive" } },
+              ...(input.partyPan ? [{ partyPan: input.partyPan }] : []),
+            ],
+          },
+          include: { project: { select: { id: true, name: true, code: true } } },
+          orderBy: { paymentDate: "asc" },
+        }),
+      ]);
+
+      const transactions: Array<{
+        id: string;
+        date: string;
+        projectCode: string;
+        voucherNo: string;
+        voucherType: string;
+        particulars: string;
+        debit: number;
+        credit: number;
+        runningBalance: number;
+      }> = [];
+
+      vendorBills.forEach((b) => {
+        transactions.push({
+          id: b.id,
+          date: b.billDate.toISOString(),
+          projectCode: b.project.code,
+          voucherNo: b.billNumber,
+          voucherType: "Purchase Bill",
+          particulars: `[${b.project.code}] Materials Bill #${b.billNumber} (Gross: ${b.grossAmount}, VAT: ${b.vatAmount}, TDS: ${b.tdsAmount})`,
+          debit: 0,
+          credit: b.netPayable,
+          runningBalance: 0,
+        });
+      });
+
+      subBills.forEach((b) => {
+        transactions.push({
+          id: b.id,
+          date: b.billDate.toISOString(),
+          projectCode: b.project.code,
+          voucherNo: b.number,
+          voucherType: "Subcontractor Bill",
+          particulars: `[${b.project.code}] Certified Bill #${b.number} (Period: ${b.period || "Work Done"})`,
+          debit: 0,
+          credit: b.netPayable,
+          runningBalance: 0,
+        });
+      });
+
+      payments.forEach((p) => {
+        transactions.push({
+          id: p.id,
+          date: p.paymentDate.toISOString(),
+          projectCode: p.project.code,
+          voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5)}`,
+          voucherType: "Payment Voucher",
+          particulars: `[${p.project.code}] Paid via ${p.paymentMode} ${p.chequeNo ? `(Cheque #${p.chequeNo})` : ""} - TDS: ${p.tdsDeducted}`,
+          debit: p.amount,
+          credit: 0,
+          runningBalance: 0,
+        });
+      });
+
+      // Chronological sort
+      transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      let running = 0;
+      transactions.forEach((t) => {
+        running += t.credit - t.debit; // Credit increases payable, Debit reduces payable
+        t.runningBalance = running;
+      });
+
+      const totalDebit = transactions.reduce((s, t) => s + t.debit, 0);
+      const totalCredit = transactions.reduce((s, t) => s + t.credit, 0);
+
+      return {
+        partyName: input.partyName,
+        partyPan: input.partyPan || null,
+        transactions: transactions.reverse(),
+        totalBilled: totalCredit,
+        totalPaid: totalDebit,
+        closingBalanceDue: running,
+      };
+    }),
+
+  /** Company Bank Accounts List */
+  orgBankAccounts: protectedProcedure.query(async ({ ctx }) => {
+    const user = await db.user.findUniqueOrThrow({
+      where: { id: ctx.user.id },
+      select: { organizationId: true },
+    });
+
+    if (!user.organizationId) {
+      return { accounts: [] };
+    }
+
+    const accounts = await db.companyBankAccount.findMany({
+      where: { organizationId: user.organizationId },
+      orderBy: { isDefault: "desc" },
+    });
+
+    return { accounts };
+  }),
+
+  /** Create a Company Bank Account */
+  createBankAccount: protectedProcedure
+    .input(
+      z.object({
+        bankName: z.string().min(1, "Bank name required"),
+        accountNumber: z.string().min(1, "Account number required"),
+        accountName: z.string().min(1, "Account name required"),
+        accountType: z.enum(["current", "saving", "overdraft", "petty_cash"]).default("current"),
+        branch: z.string().optional(),
+        openingBalance: z.number().default(0),
+        isDefault: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+
+      if (!user.organizationId) {
+        throw new Error("User does not belong to an organization.");
+      }
+
+      if (input.isDefault) {
+        await db.companyBankAccount.updateMany({
+          where: { organizationId: user.organizationId },
+          data: { isDefault: false },
+        });
+      }
+
+      const account = await db.companyBankAccount.create({
+        data: {
+          organizationId: user.organizationId,
+          bankName: input.bankName.trim(),
+          accountNumber: input.accountNumber.trim(),
+          accountName: input.accountName.trim(),
+          accountType: input.accountType,
+          branch: input.branch?.trim() || null,
+          openingBalance: input.openingBalance,
+          currentBalance: input.openingBalance,
+          isDefault: input.isDefault,
+        },
+      });
+
+      return { account };
+    }),
+
+  /** Settle Multi-Project Bills from Organization Level (Central Cheque / Transfer) */
+  orgSettleMultiBill: protectedProcedure
+    .input(
+      z.object({
+        companyBankAccountId: z.string().optional(),
+        paymentMode: z.enum(["cheque", "bank_transfer", "cash", "mobile_pay", "connectips"]),
+        chequeNo: z.string().optional(),
+        paymentDate: z.string(),
+        paymentMiti: z.string().optional(),
+        bills: z.array(
+          z.object({
+            billId: z.string(),
+            billType: z.enum(["vendor", "subcontractor"]),
+            projectId: z.string(),
+            supplierName: z.string(),
+            partyPan: z.string().optional().nullable(),
+            billNumber: z.string(),
+            amountToPay: z.number().positive(),
+            tdsDeducted: z.number().default(0),
+            netPaid: z.number().positive(),
+          })
+        ).min(1, "At least one bill must be selected"),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const totalDisbursement = input.bills.reduce((s, b) => s + b.netPaid, 0);
+
+      // Perform updates inside a transaction
+      await db.$transaction(async (tx) => {
+        for (const b of input.bills) {
+          // 1. Record payment for each bill linked to its specific project
+          await tx.payment.create({
+            data: {
+              projectId: b.projectId,
+              payeeType: b.billType,
+              payeeName: b.supplierName,
+              partyPan: b.partyPan,
+              invoiceNumber: b.billNumber,
+              amount: b.amountToPay,
+              tdsDeducted: b.tdsDeducted,
+              netPaid: b.netPaid,
+              paymentDate: new Date(input.paymentDate),
+              paymentMiti: input.paymentMiti,
+              paymentMode: input.paymentMode,
+              chequeNo: input.chequeNo,
+              companyBankAccountId: input.companyBankAccountId || null,
+              category: b.billType === "vendor" ? "Materials" : "Subcontractor",
+              notes: input.notes
+                ? `Central Org Payment: ${input.notes}`
+                : `Central Cheque #${input.chequeNo || "Direct"} payment`,
+              status: "paid",
+            },
+          });
+
+          // 2. Auto-settle VendorBill or SubcontractorBill
+          if (b.billType === "vendor") {
+            const vb = await tx.vendorBill.findUnique({ where: { id: b.billId } });
+            if (vb) {
+              const newPaid = vb.paidAmount + b.amountToPay;
+              const isPaid = newPaid >= vb.netPayable - 0.01;
+              await tx.vendorBill.update({
+                where: { id: b.billId },
+                data: {
+                  paidAmount: newPaid,
+                  status: isPaid ? "paid" : "partially_paid",
+                },
+              });
+            }
+          } else {
+            const sb = await tx.subcontractorBill.findUnique({ where: { id: b.billId } });
+            if (sb) {
+              const newPaid = (sb.paidAmount || 0) + b.amountToPay;
+              const isPaid = newPaid >= sb.netPayable - 0.01;
+              await tx.subcontractorBill.update({
+                where: { id: b.billId },
+                data: {
+                  paidAmount: newPaid,
+                  status: isPaid ? "paid" : "partially_paid",
+                },
+              });
+            }
+          }
+        }
+
+        // 3. Decrement Central Company Bank Account balance if specified
+        if (input.companyBankAccountId) {
+          const bank = await tx.companyBankAccount.findUnique({
+            where: { id: input.companyBankAccountId },
+          });
+          if (bank) {
+            await tx.companyBankAccount.update({
+              where: { id: input.companyBankAccountId },
+              data: { currentBalance: bank.currentBalance - totalDisbursement },
+            });
+          }
+        }
+      });
+
+      return {
+        ok: true,
+        settledBillsCount: input.bills.length,
+        totalDisbursement,
+      };
+    }),
+
+  /** Head Office Expenses */
+  listHeadOfficeExpenses: protectedProcedure.query(async ({ ctx }) => {
+    const user = await db.user.findUniqueOrThrow({
+      where: { id: ctx.user.id },
+      select: { organizationId: true },
+    });
+
+    if (!user.organizationId) return { expenses: [], total: 0 };
+
+    const expenses = await db.headOfficeExpense.findMany({
+      where: { organizationId: user.organizationId },
+      include: { bankAccount: true },
+      orderBy: { date: "desc" },
+    });
+
+    const total = expenses.reduce((s, e) => s + e.amount, 0);
+
+    return { expenses, total };
+  }),
+
+  createHeadOfficeExpense: protectedProcedure
+    .input(
+      z.object({
+        category: z.string().min(1, "Category required"),
+        particulars: z.string().min(1, "Particulars required"),
+        amount: z.number().positive("Amount must be positive"),
+        date: z.string(),
+        miti: z.string().optional(),
+        paymentMode: z.string().default("bank_transfer"),
+        bankAccountId: z.string().optional(),
+        chequeNo: z.string().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+
+      if (!user.organizationId) throw new Error("No organization assigned.");
+
+      const expense = await db.headOfficeExpense.create({
+        data: {
+          organizationId: user.organizationId,
+          category: input.category,
+          particulars: input.particulars,
+          amount: input.amount,
+          date: new Date(input.date),
+          miti: input.miti || null,
+          paymentMode: input.paymentMode,
+          bankAccountId: input.bankAccountId || null,
+          chequeNo: input.chequeNo || null,
+          notes: input.notes || null,
+        },
+      });
+
+      if (input.bankAccountId) {
+        const bank = await db.companyBankAccount.findUnique({
+          where: { id: input.bankAccountId },
+        });
+        if (bank) {
+          await db.companyBankAccount.update({
+            where: { id: input.bankAccountId },
+            data: { currentBalance: bank.currentBalance - input.amount },
+          });
+        }
+      }
+
+      return { expense };
+    }),
 });
+

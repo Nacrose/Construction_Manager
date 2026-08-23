@@ -33,15 +33,36 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
     onError: (e) => toast.error(e.message),
   });
   const addDepMutation = trpc.gantt.addDependency.useMutation({
-    onSuccess: () => utils.gantt.list.invalidate({ projectId }),
+    onSuccess: (res) => {
+      utils.gantt.list.invalidate({ projectId });
+      if (res.updatedCount > 0) {
+        toast.success(`Dependency added — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`);
+      } else {
+        toast.success("Dependency added");
+      }
+    },
     onError: (e) => toast.error(e.message),
   });
   const removeDepMutation = trpc.gantt.removeDependency.useMutation({
-    onSuccess: () => utils.gantt.list.invalidate({ projectId }),
+    onSuccess: (res) => {
+      utils.gantt.list.invalidate({ projectId });
+      if (res.updatedCount > 0) {
+        toast.success(`Dependency removed — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`);
+      } else {
+        toast.success("Dependency removed");
+      }
+    },
     onError: (e) => toast.error(e.message),
   });
   const setDepsMutation = trpc.gantt.setDependencies.useMutation({
-    onSuccess: () => { utils.gantt.list.invalidate({ projectId }); toast.success("Dates recalculated"); },
+    onSuccess: (res) => {
+      utils.gantt.list.invalidate({ projectId });
+      if (res.updatedCount > 0) {
+        toast.success(`Dependencies applied — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`);
+      } else {
+        toast.success("Dependencies applied");
+      }
+    },
     onError: (e) => toast.error(e.message),
   });
   const addLinkMutation = trpc.gantt.linkBoq.useMutation({

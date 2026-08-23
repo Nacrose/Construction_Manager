@@ -9,6 +9,7 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertVersionIsEditable } from "./gantt-tasks";
+import { detectCycle, recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 
 const LinkBoqSchema = z.object({
   taskId: z.string(),
@@ -146,7 +147,9 @@ export const ganttDependenciesRouter = router({
         });
       }
 
-      await db.taskBoqLink.delete({ where: { id: input.linkId } });
+      await db.taskBoqLink.deleteMany({
+        where: { id: input.linkId, taskId: input.taskId },
+      });
       return { ok: true };
     }),
 
@@ -163,7 +166,7 @@ export const ganttDependenciesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, projectId: true, name: true, duration: true },
+        select: { id: true, projectId: true, versionId: true, name: true, duration: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
@@ -194,6 +197,28 @@ export const ganttDependenciesRouter = router({
         });
       }
 
+      // ── Cycle Detection (scoped to version) ──
+      const existingDeps = await db.taskDependency.findMany({
+        where: {
+          successor: {
+            projectId: task.projectId,
+            ...(task.versionId ? { versionId: task.versionId } : {}),
+          },
+        },
+        select: { predecessorId: true, successorId: true },
+      });
+
+      const { hasCycle } = detectCycle(existingDeps, [
+        { predecessorId: input.predecessorId, successorId: input.taskId },
+      ]);
+
+      if (hasCycle) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot link '${pred.name}' → '${task.name}': creates a circular dependency loop.`,
+        });
+      }
+
       await db.taskDependency.upsert({
         where: {
           predecessorId_successorId: {
@@ -210,20 +235,8 @@ export const ganttDependenciesRouter = router({
         },
       });
 
-      const created = await db.taskDependency.findUnique({
-        where: {
-          predecessorId_successorId: {
-            predecessorId: input.predecessorId,
-            successorId: input.taskId,
-          },
-        },
-      });
-      if (!created) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create dependency record.",
-        });
-      }
+      // ── Automated Forward-Pass CPM Cascade ──
+      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
 
       await audit({
         userId: ctx.user.id,
@@ -231,9 +244,10 @@ export const ganttDependenciesRouter = router({
         action: "gantt.add_dependency",
         entityType: "gantt_task",
         entityId: input.taskId,
-        metadata: { taskName: task.name, predecessorId: input.predecessorId },
+        metadata: { taskName: task.name, predecessorId: input.predecessorId, updatedCount },
       });
-      return { ok: true };
+
+      return { ok: true, updatedCount };
     }),
 
   /** Remove a dependency from a task. */
@@ -242,7 +256,7 @@ export const ganttDependenciesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, projectId: true, name: true, duration: true },
+        select: { id: true, projectId: true, versionId: true, name: true, duration: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
@@ -264,7 +278,11 @@ export const ganttDependenciesRouter = router({
           message: `No dependency found for task ${input.taskId} -> predecessor ${input.predecessorId}`,
         });
       }
-      return { ok: true };
+
+      // ── Automated Forward-Pass CPM Cascade ──
+      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
+
+      return { ok: true, updatedCount };
     }),
 
   /**
@@ -286,7 +304,7 @@ export const ganttDependenciesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, projectId: true, name: true, duration: true },
+        select: { id: true, projectId: true, versionId: true, name: true, duration: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
@@ -302,7 +320,7 @@ export const ganttDependenciesRouter = router({
       const predecessorIds = input.dependencies.map((d) => d.predecessorId);
       const predecessors = await db.ganttTask.findMany({
         where: { id: { in: predecessorIds }, projectId: task.projectId },
-        select: { id: true, startDate: true, endDate: true },
+        select: { id: true, name: true, startDate: true, endDate: true },
       });
       const foundIds = new Set(predecessors.map((p) => p.id));
       const missingIds = predecessorIds.filter((id) => !foundIds.has(id));
@@ -310,6 +328,33 @@ export const ganttDependenciesRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Predecessor tasks not found: ${missingIds.join(", ")}`,
+        });
+      }
+
+      // ── Cycle Detection (scoped to version) ──
+      const existingDeps = await db.taskDependency.findMany({
+        where: {
+          successor: {
+            projectId: task.projectId,
+            ...(task.versionId ? { versionId: task.versionId } : {}),
+          },
+        },
+        select: { predecessorId: true, successorId: true },
+      });
+
+      const { hasCycle } = detectCycle(
+        existingDeps,
+        input.dependencies.map((d) => ({
+          predecessorId: d.predecessorId,
+          successorId: input.taskId,
+        })),
+        input.taskId // exclude existing dependencies for this successor
+      );
+
+      if (hasCycle) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot apply dependencies to '${task.name}': one or more dependencies create a circular loop.`,
         });
       }
 
@@ -325,43 +370,8 @@ export const ganttDependenciesRouter = router({
         });
       }
 
-      let newStart: Date | null = null;
-      if (input.dependencies.length > 0) {
-        for (const dep of input.dependencies) {
-          const pred = predecessors.find((p) => p.id === dep.predecessorId);
-          if (!pred) continue;
-          const offsetMs = dep.offset * 24 * 60 * 60 * 1000;
-          let candidate: Date;
-          if (dep.type === "FS") {
-            candidate = new Date(pred.endDate.getTime() + offsetMs);
-          } else if (dep.type === "SS") {
-            candidate = new Date(pred.startDate.getTime() + offsetMs);
-          } else if (dep.type === "FF") {
-            candidate = new Date(
-              pred.endDate.getTime() +
-                offsetMs -
-                task.duration * 24 * 60 * 60 * 1000
-            );
-          } else if (dep.type === "SF") {
-            candidate = new Date(
-              pred.startDate.getTime() +
-                offsetMs -
-                task.duration * 24 * 60 * 60 * 1000
-            );
-          } else continue;
-          if (!newStart || candidate > newStart) newStart = candidate;
-        }
-      }
-
-      if (newStart) {
-        const newEnd = new Date(
-          newStart.getTime() + task.duration * 24 * 60 * 60 * 1000
-        );
-        await db.ganttTask.update({
-          where: { id: input.taskId },
-          data: { startDate: newStart, endDate: newEnd },
-        });
-      }
+      // ── Automated Forward-Pass CPM Cascade to edited task & all downstream successors ──
+      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
 
       await audit({
         userId: ctx.user.id,
@@ -369,9 +379,10 @@ export const ganttDependenciesRouter = router({
         action: "gantt.set_dependencies",
         entityType: "gantt_task",
         entityId: input.taskId,
-        metadata: { taskName: task.name, count: input.dependencies.length },
+        metadata: { taskName: task.name, count: input.dependencies.length, updatedCount },
       });
-      return { ok: true };
+
+      return { ok: true, updatedCount };
     }),
 
   /** Check if adding a dependency would create a cycle. */
@@ -386,39 +397,25 @@ export const ganttDependenciesRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      if (input.predecessorId === input.successorId) return { hasCycle: true };
-
-      const visited = new Set<string>();
-      const stack = [input.successorId];
+      const succTask = await db.ganttTask.findUnique({
+        where: { id: input.successorId },
+        select: { versionId: true },
+      });
 
       const allDeps = await db.taskDependency.findMany({
         where: {
-          OR: [
-            { predecessor: { projectId: input.projectId } },
-            { successor: { projectId: input.projectId } },
-          ],
+          successor: {
+            projectId: input.projectId,
+            ...(succTask?.versionId ? { versionId: succTask.versionId } : {}),
+          },
         },
         select: { predecessorId: true, successorId: true },
       });
 
-      const adj = new Map<string, string[]>();
-      for (const dep of allDeps) {
-        const list = adj.get(dep.predecessorId) ?? [];
-        list.push(dep.successorId);
-        adj.set(dep.predecessorId, list);
-      }
+      const result = detectCycle(allDeps, [
+        { predecessorId: input.predecessorId, successorId: input.successorId },
+      ]);
 
-      while (stack.length > 0) {
-        const current = stack.pop()!;
-        if (current === input.predecessorId) return { hasCycle: true };
-        if (visited.has(current)) continue;
-        visited.add(current);
-        const successors = adj.get(current) ?? [];
-        for (const succ of successors) {
-          if (!visited.has(succ)) stack.push(succ);
-        }
-      }
-
-      return { hasCycle: false };
+      return result;
     }),
 });

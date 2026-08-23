@@ -12,7 +12,7 @@ export function IpcVersionDiff({ projectId, boqVersionId, boqVersionNumber }: { 
     { enabled: open },
   );
 
-  const changedRows = diffData?.diffRows.filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0) ?? [];
+  const changedRows = diffData?.diffRows.filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0 || r.amountDiff !== 0) ?? [];
 
   return (
     <Card className="print-card">

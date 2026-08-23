@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 
 const CreateVendorBillSchema = z.object({
   projectId: z.string(),
@@ -15,8 +16,8 @@ const CreateVendorBillSchema = z.object({
   billDate: z.string(),
   dueDate: z.string().optional().nullable(),
   grossAmount: z.number().nonnegative(),
-  vatPercent: z.number().nonnegative().optional().default(13),
-  tdsPercent: z.number().nonnegative().optional().default(1.5),
+  vatPercent: z.number().min(0).max(100).optional().default(13),
+  tdsPercent: z.number().min(0).max(100).optional().default(1.5),
   fileUrl: z.string().optional().nullable(),
   remarks: z.string().optional().nullable(),
 });
@@ -272,6 +273,21 @@ export const vendorBillRouter = router({
         });
 
         return p;
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "vendor.bill.pay",
+        entityType: "vendor_bill",
+        entityId: input.vendorBillId,
+        metadata: {
+          billNumber: bill.billNumber,
+          amount: input.amount,
+          newPaidAmount,
+          status: newStatus,
+          paymentMethod: input.paymentMethod || "bank_transfer",
+        },
       });
 
       return { payment, newStatus, remainingPayable: Math.max(0, bill.netPayable - newPaidAmount) };

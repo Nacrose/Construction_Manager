@@ -112,9 +112,16 @@ export const executionRouter = router({
         orderBy: { sortOrder: "asc" },
       });
 
-      // Skip tasks already in the program
+      // Find all parent task IDs in the active version to exclude summary containers
+      const allVersionTasks = await db.ganttTask.findMany({
+        where: { projectId: input.projectId, versionId: activeVersion.id },
+        select: { parentId: true },
+      });
+      const parentIds = new Set(allVersionTasks.map((t) => t.parentId).filter(Boolean));
+
+      // Skip tasks already in the program and summary tasks
       const existingTaskIds = new Set(program.tasks.map((t) => t.ganttTaskId).filter(Boolean));
-      const newTasks = tasks.filter((t) => !existingTaskIds.has(t.id));
+      const newTasks = tasks.filter((t) => !existingTaskIds.has(t.id) && !parentIds.has(t.id));
 
       // Create DailyProgramTask entries
       const programTasks: Array<{
@@ -423,6 +430,13 @@ export const executionRouter = router({
             include: {
               boqItem: {
                 include: {
+                  rateAnalyses: {
+                    include: {
+                      ingredients: {
+                        where: { type: "material" },
+                      },
+                    },
+                  },
                   ingredients: {
                     where: { type: "material" },
                   },
@@ -454,11 +468,21 @@ export const executionRouter = router({
       for (const task of tasks) {
         for (const link of task.boqLinks) {
           const taskQty = link.quantity;
-          const taskDurationDays = Math.max(1, Math.ceil(
-            (new Date(task.endDate).getTime() - new Date(task.startDate).getTime()) / (1000 * 60 * 60 * 24)
-          ));
 
-          for (const ing of link.boqItem.ingredients) {
+          // Select ingredients from default rate analysis, or unassigned top-level ingredients
+          const defaultAnalysis =
+            link.boqItem.rateAnalyses?.find((ra) => ra.isDefault) ||
+            link.boqItem.rateAnalyses?.[0];
+
+          let effectiveIngredients = defaultAnalysis?.ingredients?.length
+            ? defaultAnalysis.ingredients
+            : link.boqItem.ingredients.filter((i) => !i.rateAnalysisId);
+
+          if (effectiveIngredients.length === 0 && link.boqItem.ingredients.length > 0) {
+            effectiveIngredients = link.boqItem.ingredients;
+          }
+
+          for (const ing of effectiveIngredients) {
             const key = ing.name;
             const requiredQty = ing.quantity * taskQty;
 

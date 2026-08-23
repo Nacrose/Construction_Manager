@@ -52,6 +52,8 @@ model Organization {
   uncatalogedMaterials UncatalogedMaterial[]
   presetAnalyses       GlobalPresetAnalysis[]
   ganttTemplates       GanttTaskTemplate[]
+  companyBankAccounts  CompanyBankAccount[]
+  headOfficeExpenses   HeadOfficeExpense[]
 
   @@index([status])
 }
@@ -3008,6 +3010,10 @@ model Payment {
   scannedBillName     String?
   isBillAttached      Boolean   @default(false)
 
+  // Organization-level Central Bank Account Link
+  companyBankAccountId String?
+  companyBankAccount   CompanyBankAccount? @relation(fields: [companyBankAccountId], references: [id], onDelete: SetNull)
+
   project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   paymentCategory PaymentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -3575,4 +3581,55 @@ model BankGuarantee {
 
   @@index([projectId, status, expiryDate])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Organization Level Central Finance & Head Office Models
+// ─────────────────────────────────────────────────────────────
+
+model CompanyBankAccount {
+  id              String    @id @default(cuid())
+  organizationId  String
+  bankName        String    // e.g. "Nabil Bank", "Global IME Bank", "Nepal Bank", "Site Petty Cash"
+  accountNumber   String    // Account Number
+  accountName     String    // e.g. "Nacrose Construction Pvt. Ltd."
+  accountType     String    @default("current") // current | saving | overdraft | petty_cash
+  branch          String?   // e.g. "Hetauda Branch"
+  openingBalance  Float     @default(0)
+  currentBalance  Float     @default(0)
+  currency        String    @default("NPR")
+  isDefault       Boolean   @default(false)
+  status          String    @default("active") // active | inactive
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+  headOfficeExpenses HeadOfficeExpense[]
+
+  @@index([organizationId, status])
+}
+
+model HeadOfficeExpense {
+  id              String    @id @default(cuid())
+  organizationId  String
+  date            DateTime  @default(now())
+  miti            String?   // BS Miti e.g. 2081-05-15
+  category        String    // Rent, Audit/Tax Fees, Utilities, Vehicle/Fuel, Director Draw, Legal
+  particulars     String
+  amount          Float
+  paymentMode     String    @default("bank_transfer") // cheque | bank_transfer | cash | connectips
+  bankAccountId   String?
+  chequeNo        String?
+  voucherNo       String?
+  scannedBillUrl  String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount     CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, date])
+}
+
 

@@ -30,6 +30,11 @@ export function getSuccessorIds(tasks: Task[]): Set<string> {
   return set;
 }
 
+function getTaskDuration(t: Task): number {
+  if (t.isMilestone) return t.duration ?? 0;
+  return t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+}
+
 export function computeCriticalPath(tasks: Task[]): Set<string> {
   if (!tasks.length) return new Set();
 
@@ -38,11 +43,14 @@ export function computeCriticalPath(tasks: Task[]): Set<string> {
   const ls = new Map<string, number>();
   const lf = new Map<string, number>();
 
-  const referenceDate = new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())));
+  const timestamps = tasks
+    .map((t) => new Date(t.startDate).getTime())
+    .filter((ts) => Number.isFinite(ts));
+  const referenceDate = new Date(timestamps.length > 0 ? Math.min(...timestamps) : Date.now());
 
   for (const t of tasks) {
     const startDay = differenceInDays(new Date(t.startDate), referenceDate);
-    const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+    const dur = getTaskDuration(t);
     es.set(t.id, startDay);
     ef.set(t.id, startDay + dur);
   }
@@ -80,7 +88,7 @@ export function computeCriticalPath(tasks: Task[]): Set<string> {
     let changed = false;
     for (const t of tasks) {
       const deps = depsMap.get(t.id) || [];
-      const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+      const dur = getTaskDuration(t);
       for (const dep of deps) {
         const predEs = es.get(dep.taskId);
         const predEf = ef.get(dep.taskId);
@@ -109,7 +117,7 @@ export function computeCriticalPath(tasks: Task[]): Set<string> {
 
   for (const t of tasks) {
     lf.set(t.id, projectEnd);
-    const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+    const dur = getTaskDuration(t);
     ls.set(t.id, projectEnd - dur);
   }
 
@@ -118,7 +126,7 @@ export function computeCriticalPath(tasks: Task[]): Set<string> {
     let changed = false;
     for (const t of tasks) {
       const successors = successorsMap.get(t.id) || [];
-      const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+      const dur = getTaskDuration(t);
       for (const succId of successors) {
         const succDeps = depsMap.get(succId) || [];
         const dep = succDeps.find(d => d.taskId === t.id);
@@ -128,11 +136,11 @@ export function computeCriticalPath(tasks: Task[]): Set<string> {
         const offset = dep.offset || 0;
         let newLf: number;
         switch (dep.type) {
-          case "SS": newLf = succLs + offset + dur; break;
-          case "FF": newLf = succLf + offset; break;
-          case "SF": newLf = succLs + offset; break;
+          case "SS": newLf = succLs - offset + dur; break;
+          case "FF": newLf = succLf - offset; break;
+          case "SF": newLf = succLf - offset + dur; break;
           case "FS":
-          default:   newLf = succLs + offset; break;
+          default:   newLf = succLs - offset; break;
         }
         const currentLf = lf.get(t.id) ?? projectEnd;
         if (newLf < currentLf) {
@@ -172,11 +180,14 @@ export function computeFloatMap(tasks: Task[]): Map<string, number> {
   const ls = new Map<string, number>();
   const lf = new Map<string, number>();
 
-  const referenceDate = new Date(Math.min(...tasks.map(t => new Date(t.startDate).getTime())));
+  const timestamps = tasks
+    .map((t) => new Date(t.startDate).getTime())
+    .filter((ts) => Number.isFinite(ts));
+  const referenceDate = new Date(timestamps.length > 0 ? Math.min(...timestamps) : Date.now());
 
   for (const t of tasks) {
     const startDay = differenceInDays(new Date(t.startDate), referenceDate);
-    const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+    const dur = getTaskDuration(t);
     es.set(t.id, startDay);
     ef.set(t.id, startDay + dur);
   }
@@ -203,7 +214,7 @@ export function computeFloatMap(tasks: Task[]): Map<string, number> {
     let changed = false;
     for (const t of tasks) {
       const deps = depsMap.get(t.id) || [];
-      const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+      const dur = getTaskDuration(t);
       for (const dep of deps) {
         const predEs = es.get(dep.taskId);
         const predEf = ef.get(dep.taskId);
@@ -225,7 +236,7 @@ export function computeFloatMap(tasks: Task[]): Map<string, number> {
   const projectEnd = Math.max(...Array.from(ef.values()));
   for (const t of tasks) {
     lf.set(t.id, projectEnd);
-    const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+    const dur = getTaskDuration(t);
     ls.set(t.id, projectEnd - dur);
   }
 
@@ -234,7 +245,7 @@ export function computeFloatMap(tasks: Task[]): Map<string, number> {
     let changed = false;
     for (const t of tasks) {
       const successors = successorsMap.get(t.id) || [];
-      const dur = t.duration || Math.max(1, differenceInDays(new Date(t.endDate), new Date(t.startDate)) + 1);
+      const dur = getTaskDuration(t);
       for (const succId of successors) {
         const succDeps = depsMap.get(succId) || [];
         const dep = succDeps.find(d => d.taskId === t.id);
@@ -244,10 +255,10 @@ export function computeFloatMap(tasks: Task[]): Map<string, number> {
         const offset = dep.offset || 0;
         let newLf: number;
         switch (dep.type) {
-          case "SS": newLf = succLs + offset + dur; break;
-          case "FF": newLf = succLf + offset; break;
-          case "SF": newLf = succLs + offset; break;
-          default:   newLf = succLs + offset; break;
+          case "SS": newLf = succLs - offset + dur; break;
+          case "FF": newLf = succLf - offset; break;
+          case "SF": newLf = succLf - offset + dur; break;
+          default:   newLf = succLs - offset; break;
         }
         if (newLf < (lf.get(t.id) ?? projectEnd)) { lf.set(t.id, newLf); ls.set(t.id, newLf - dur); changed = true; }
       }
@@ -418,6 +429,19 @@ export function computeRolledUpProgress(tasks: Task[]): Map<string, number> {
   for (const t of tasks) {
     result.set(t.id, rollup(t.id));
   }
+
+  // Calculate overall project ("root") rolled-up progress across top-level tasks
+  const topLevelTasks = tasks.filter(t => !t.parentId);
+  let totalRootWeight = 0;
+  let totalRootProgress = 0;
+  for (const t of topLevelTasks) {
+    const w = Math.max(t.duration, 1);
+    totalRootWeight += w;
+    totalRootProgress += (result.get(t.id) ?? 0) * w;
+  }
+  const rootVal = totalRootWeight > 0 ? Math.round(totalRootProgress / totalRootWeight) : 0;
+  result.set("root", rootVal);
+
   return result;
 }
 

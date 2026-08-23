@@ -17,7 +17,7 @@ import {
 const CreateReportSchema = z.object({
   projectId: z.string(),
   number: z.string().min(1).max(50),
-  reportDate: z.string().datetime(),
+  reportDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
   weatherMorning: z.string().optional(),
   weatherAfternoon: z.string().optional(),
   weatherEvening: z.string().optional(),
@@ -393,7 +393,7 @@ const dailyReportCoreRouter = router({
                   const mat = await db.material.findFirst({
                     where: {
                       projectId: report.projectId,
-                      name: { equals: ing.name },
+                      name: { equals: ing.name, mode: "insensitive" },
                     },
                   });
 
@@ -404,7 +404,7 @@ const dailyReportCoreRouter = router({
                     } else {
                       theoreticalMap.set(mat.id, {
                         quantity: theoreticalQty,
-                        rate: mat.minStock > 0 ? mat.minStock : 0,
+                        rate: 0,
                       });
                     }
                   }

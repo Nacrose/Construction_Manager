@@ -178,17 +178,16 @@ export const analysisLibraryRouter = router({
           }
         }
 
+        // If isDefault, also set Project.costLibraryId inside the transaction
+        if (input.isDefault) {
+          await tx.project.update({
+            where: { id: input.projectId },
+            data: { costLibraryId: created.id },
+          });
+        }
+
         return created;
       });
-
-      // If isDefault, also set Project.costLibraryId (single source of truth
-      // used by getDefaultLibrary() and the rest of the app).
-      if (input.isDefault) {
-        await db.project.update({
-          where: { id: input.projectId },
-          data: { costLibraryId: library.id },
-        });
-      }
 
       return { library, analysesCreated: boqItems.length };
     }),
@@ -224,23 +223,24 @@ export const analysisLibraryRouter = router({
         });
       }
 
-      // 1. Clear isDefault on all sibling libraries
-      await db.analysisLibrary.updateMany({
-        where: { projectId: input.projectId, isDefault: true },
-        data: { isDefault: false },
-      });
+      await db.$transaction(async (tx) => {
+        // 1. Clear isDefault on all sibling libraries
+        await tx.analysisLibrary.updateMany({
+          where: { projectId: input.projectId, isDefault: true },
+          data: { isDefault: false },
+        });
 
-      // 2. Set isDefault on the chosen library
-      await db.analysisLibrary.update({
-        where: { id: input.libraryId },
-        data: { isDefault: true },
-      });
+        // 2. Set isDefault on the chosen library
+        await tx.analysisLibrary.update({
+          where: { id: input.libraryId },
+          data: { isDefault: true },
+        });
 
-      // 3. Update Project.costLibraryId - single source of truth read by
-      //    getDefaultLibrary() in lib/default-library.ts
-      await db.project.update({
-        where: { id: input.projectId },
-        data: { costLibraryId: input.libraryId },
+        // 3. Update Project.costLibraryId
+        await tx.project.update({
+          where: { id: input.projectId },
+          data: { costLibraryId: input.libraryId },
+        });
       });
 
       return { ok: true, defaultLibraryId: input.libraryId };

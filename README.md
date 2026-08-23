@@ -1,5 +1,9 @@
 # Construction Manager
 
+> **🤖 Mandatory Directive for All AI Agents**:
+> **ALWAYS consult and get explicit user approval before editing, adding, or removing files.**
+> Run discovery, audit, and planning first. Present your findings and the exact proposed changes to the user for confirmation BEFORE modifying any code or files in the repository.
+
 A comprehensive, self-hosted construction project management system tailored for personal use and contractor workflows in the Nepal Department of Roads / DUDBC context — BOQ & rate analysis, Gantt scheduling, RFI workflow, daily reports, IPC (interim payment certificates), variations, materials, equipment, HR, documents, and drawings.
 
 Built with Next.js 16 (App Router), React 19, TypeScript, tRPC v11, Prisma 6, PostgreSQL, and Tailwind CSS.

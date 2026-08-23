@@ -45,7 +45,8 @@ export type MSPTask = {
   priority?: number; // 0-1000
   earnedValueMethod?: string; // percent_complete | percent_work_complete
   dependencies: Array<{
-    predecessorCode: string | null;
+    predecessorId?: string | null;
+    predecessorCode?: string | null;
     type: string; // FS, SS, FF, SF
     offset: number; // days (positive = lag, negative = lead)
   }>;
@@ -77,10 +78,13 @@ export function generateMSPXML(tasks: MSPTask[], projectName: string): string {
     return level;
   }
 
-  // Build a code → task ID mapping for dependency resolution
+  // Build a code → task UID mapping and id → task UID mapping for dependency resolution
   const codeToId = new Map<string, number>();
+  const idToUid = new Map<string, number>();
   sorted.forEach((t, i) => {
-    if (t.code) codeToId.set(t.code, i + 1);
+    const uid = i + 1;
+    idToUid.set(t.id, uid);
+    if (t.code) codeToId.set(t.code, uid);
   });
 
   // Calculate project dates
@@ -112,13 +116,18 @@ export function generateMSPXML(tasks: MSPTask[], projectName: string): string {
   const taskXML = sorted.map((task, i) => {
     const uid = i + 1;
     const outlineLevel = getOutlineLevel(task);
-    const deps = task.dependencies.filter((d) => d.predecessorCode && codeToId.has(d.predecessorCode));
+    const deps = task.dependencies.filter((d) =>
+      (d.predecessorId && idToUid.has(d.predecessorId)) ||
+      (d.predecessorCode && codeToId.has(d.predecessorCode))
+    );
 
     const depXML = deps.map((dep) => {
-      const predUid = codeToId.get(dep.predecessorCode!)!;
+      const predUid =
+        (dep.predecessorId ? idToUid.get(dep.predecessorId) : null) ??
+        (dep.predecessorCode ? codeToId.get(dep.predecessorCode) : null)!;
       const depType = dep.type === "FS" ? "1" : dep.type === "SS" ? "3" : dep.type === "FF" ? "0" : "2";
       const lag = dep.offset !== 0 ? `
-              <LinkLag>${Math.abs(dep.offset) * 4800}</LinkLag>
+              <LinkLag>${dep.offset * 4800}</LinkLag>
               <LagFormat>7</LagFormat>` : "";
       return `          <PredecessorLink>
             <PredecessorUID>${predUid}</PredecessorUID>

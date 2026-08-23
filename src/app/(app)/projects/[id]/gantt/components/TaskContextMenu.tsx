@@ -330,7 +330,7 @@ export function TaskContextMenu({
             )}
           >
             <Diamond className="h-3.5 w-3.5 text-amber-400" />
-            <span className="flex-1">{task.isMilestone ? "Convert to Task (0d)" : "Set as Milestone"}</span>
+            <span className="flex-1">{task.isMilestone ? "Convert to Task (1d)" : "Set as Milestone"}</span>
           </button>
         </div>
       )}

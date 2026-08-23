@@ -3,6 +3,17 @@
 import { format } from "date-fns";
 import { Check, Loader2 } from "lucide-react";
 
+function safeFormat(dateVal: any, formatStr: string, fallback = "—"): string {
+  if (!dateVal) return fallback;
+  try {
+    const d = typeof dateVal === "string" || typeof dateVal === "number" ? new Date(dateVal) : dateVal;
+    if (isNaN(d.getTime())) return fallback;
+    return format(d, formatStr);
+  } catch {
+    return fallback;
+  }
+}
+
 export function GanttAnalysisModals({
   showEVM,
   evmLoading,
@@ -244,20 +255,20 @@ export function GanttAnalysisModals({
                         <span className="font-mono text-[10px]">{c.task1Code ?? "—"}</span>
                         <span className="block truncate">{c.task1Name}</span>
                         <span className="text-[9px] text-muted-foreground font-mono">
-                          {format(c.task1Start, "dd MMM")} → {format(c.task1End, "dd MMM")}
+                          {safeFormat(c.task1Start, "dd MMM")} → {safeFormat(c.task1End, "dd MMM")}
                         </span>
                       </td>
                       <td className="p-1 text-xs">
                         <span className="font-mono text-[10px]">{c.task2Code ?? "—"}</span>
                         <span className="block truncate">{c.task2Name}</span>
                         <span className="text-[9px] text-muted-foreground font-mono">
-                          {format(c.task2Start, "dd MMM")} → {format(c.task2End, "dd MMM")}
+                          {safeFormat(c.task2Start, "dd MMM")} → {safeFormat(c.task2End, "dd MMM")}
                         </span>
                       </td>
                       <td className="p-1 text-right">
                         <span className="font-mono font-bold text-red-600">{c.overlapDays}d</span>
                         <span className="block text-[9px] text-muted-foreground font-mono">
-                          {format(c.overlapStart, "dd MMM")} → {format(c.overlapEnd, "dd MMM")}
+                          {safeFormat(c.overlapStart, "dd MMM")} → {safeFormat(c.overlapEnd, "dd MMM")}
                         </span>
                       </td>
                     </tr>
@@ -307,10 +318,10 @@ export function GanttAnalysisModals({
                       <span className="font-mono text-[9px]">{p.taskCode ?? "—"}</span>
                       <span className="font-medium truncate flex-1">{p.taskName}</span>
                       <span className="text-muted-foreground font-mono">
-                        {format(p.currentStart, "dd MMM")} →
+                        {safeFormat(p.currentStart, "dd MMM")} →
                       </span>
                       <span className="font-mono font-bold text-sky-600">
-                        {format(p.newStart, "dd MMM")}
+                        {safeFormat(p.newStart, "dd MMM")}
                       </span>
                       <span className="rounded bg-sky-100 px-1 text-sky-700 font-bold">
                         +{p.delayDays}d
@@ -393,12 +404,12 @@ export function GanttAnalysisModals({
                       <td className="p-1 font-mono text-xs">{row.taskCode ?? "—"}</td>
                       <td className="p-1 text-xs truncate">{row.taskName}</td>
                       <td className="p-1 text-xs text-muted-foreground whitespace-nowrap font-mono">
-                        {format(row.plannedStart, "dd MMM")} → {format(row.plannedEnd, "dd MMM")}
+                        {safeFormat(row.plannedStart, "dd MMM")} → {safeFormat(row.plannedEnd, "dd MMM")}
                         <span className="text-[9px]"> ({row.plannedDuration}d)</span>
                       </td>
                       <td className="p-1 text-xs whitespace-nowrap font-mono">
-                        {row.actualStart ? format(row.actualStart, "dd MMM") : "—"} →{" "}
-                        {row.actualEnd ? format(row.actualEnd, "dd MMM") : "—"}
+                        {row.actualStart ? safeFormat(row.actualStart, "dd MMM") : "—"} →{" "}
+                        {row.actualEnd ? safeFormat(row.actualEnd, "dd MMM") : "—"}
                         <span className="text-[9px]"> ({row.actualDuration}d)</span>
                       </td>
                       <td

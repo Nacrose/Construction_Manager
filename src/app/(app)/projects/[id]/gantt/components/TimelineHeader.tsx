@@ -31,7 +31,7 @@ export function TimelineHeader({
 
   // Precompute daily manpower allocated across active leaf tasks
   const dailyLabor = useMemo(() => {
-    if (!rangeStart || !tasks || tasks.length === 0) return new Array(days).fill(0);
+    if (!rangeStart || !tasks || tasks.length === 0 || days <= 0) return [];
     const labor = new Array(days).fill(0);
     const leafTasks = tasks.filter(t => !tasks.some(ch => ch.parentId === t.id));
 

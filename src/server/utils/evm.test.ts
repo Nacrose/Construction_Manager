@@ -222,10 +222,10 @@ describe("Earned Value Management (EVM) Calculation Engine", () => {
       expect(res.pv).toBe(0);
       expect(res.ev).toBe(0);
       expect(res.ac).toBe(0);
-      expect(res.cpi).toBe(0);
-      expect(res.spi).toBe(0);
+      expect(res.cpi).toBe(1.0);
+      expect(res.spi).toBe(1.0);
       expect(res.eac).toBe(0);
-      expect(res.status).toBe("critical");
+      expect(res.status).toBe("on_track");
       expect(res.tasks).toEqual([]);
     });
 
@@ -247,6 +247,27 @@ describe("Earned Value Management (EVM) Calculation Engine", () => {
       expect(res.cpi).toBe(0);
       expect(res.percentComplete).toBe(0);
       expect(res.cv).toBe(-50000);
+    });
+
+    it("evaluates a newly created project before start date as neutral on_track", () => {
+      const task: EVMTask = {
+        id: "future_task",
+        name: "Future Work",
+        code: "1.0",
+        startDate: new Date("2026-09-01"),
+        endDate: new Date("2026-09-30"),
+        progress: 0,
+        plannedCost: 500000,
+        actualCost: 0,
+      };
+
+      const res = calculateEVM([task], new Date("2026-08-01")); // before start
+      expect(res.pv).toBe(0);
+      expect(res.ev).toBe(0);
+      expect(res.ac).toBe(0);
+      expect(res.cpi).toBe(1.0);
+      expect(res.spi).toBe(1.0);
+      expect(res.status).toBe("on_track");
     });
 
     const edgeScenarios = Array.from({ length: 23 }, (_, i) => ({

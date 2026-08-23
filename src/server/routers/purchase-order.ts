@@ -275,29 +275,38 @@ export const purchaseOrderRouter = router({
       const updated = await db.$transaction(async (tx) => {
         if (input.status === "received") {
           for (const item of po.items) {
-            const material = await tx.material.findUnique({
-              where: { id: item.materialId },
-            });
-            if (material) {
-              const newStock = material.currentStock + item.quantity;
-              await tx.material.update({
+            const remainingToReceive = Math.max(0, item.quantity - item.receivedQty);
+            if (remainingToReceive > 0) {
+              const material = await tx.material.findUnique({
                 where: { id: item.materialId },
-                data: { currentStock: newStock },
               });
+              if (material) {
+                const newStock = material.currentStock + remainingToReceive;
+                await tx.material.update({
+                  where: { id: item.materialId },
+                  data: { currentStock: newStock },
+                });
 
-              await tx.materialTransaction.create({
-                data: {
-                  materialId: item.materialId,
-                  projectId: input.projectId,
-                  type: "receive",
-                  quantity: item.quantity,
-                  unit: item.unit,
-                  rate: item.rate,
-                  reference: po.number,
-                  remarks: `Received from Purchase Order ${po.number}`,
-                  createdById: ctx.user.id,
-                },
-              });
+                await tx.materialTransaction.create({
+                  data: {
+                    materialId: item.materialId,
+                    projectId: input.projectId,
+                    purchaseOrderId: po.id,
+                    type: "receive",
+                    quantity: remainingToReceive,
+                    unit: item.unit,
+                    rate: item.rate,
+                    reference: po.number,
+                    remarks: `Received from Purchase Order ${po.number}`,
+                    createdById: ctx.user.id,
+                  },
+                });
+
+                await tx.purchaseOrderItem.update({
+                  where: { id: item.id },
+                  data: { receivedQty: item.quantity },
+                });
+              }
             }
           }
         }

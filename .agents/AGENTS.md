@@ -1,6 +1,7 @@
 # Workspace Rules
 
-- Always check the build locally (e.g., using `npm run build` or equivalent) before pushing to git from now on.
+- **CRITICAL DIRECTIVE FOR ALL AI AGENTS**: ALWAYS consult the user and present findings/proposed changes for explicit confirmation BEFORE modifying or creating files. Never edit files unannounced.
+- Always check the build locally (e.g., using `npm run build` or equivalent) before pushing to git.
 - Only push to git after user has checked build locally on browser.
 
 ## Core Construction Domain Rules

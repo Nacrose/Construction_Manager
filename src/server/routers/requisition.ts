@@ -178,11 +178,16 @@ async function executeGeneratePOs(
         });
       }
 
-      // Generate PO number
+      // Generate collision-free PO number
       const poCount = await tx.purchaseOrder.count({
         where: { projectId: input.projectId },
       });
-      const poNumber = `PO-${(poCount + 1).toString().padStart(4, "0")}`;
+      let nextPoIndex = poCount + 1;
+      let poNumber = `PO-${nextPoIndex.toString().padStart(4, "0")}`;
+      while (await tx.purchaseOrder.findFirst({ where: { projectId: input.projectId, number: poNumber } })) {
+        nextPoIndex++;
+        poNumber = `PO-${nextPoIndex.toString().padStart(4, "0")}`;
+      }
 
       // Get single requisitionId if all items belong to 1 PR, else null for multi-PR batch
       const uniquePrIds = Array.from(new Set(group.map((g) => g.dbItem.requisitionId)));

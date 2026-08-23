@@ -40,7 +40,7 @@ export const materialReconciliationProcedures = {
 
       const issuedMap = new Map<string, number>();
       const transactions = await db.materialTransaction.findMany({
-        where: { projectId: input.projectId, type: { in: ["issue", "transfer"] } },
+        where: { projectId: input.projectId, type: "issue" },
       });
       for (const t of transactions) {
         issuedMap.set(t.materialId, (issuedMap.get(t.materialId) ?? 0) + t.quantity);
@@ -106,8 +106,8 @@ export const materialReconciliationProcedures = {
   reconciliation: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      startDate: z.string().datetime(),
-      endDate: z.string().datetime(),
+      startDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+      endDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T23:59:59.999Z` : v)),
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);

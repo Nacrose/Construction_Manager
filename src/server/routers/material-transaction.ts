@@ -18,9 +18,9 @@ export const TxnSchema = z.object({
   materialCatalogId: z.string().optional().nullable(),
   storeLocationId: z.string().optional().nullable(),
   targetStoreLocationId: z.string().optional().nullable(),
-  weighbridgeGross: z.number().optional().nullable(),
-  weighbridgeTare: z.number().optional().nullable(),
-  densityFactor: z.number().optional().nullable(),
+  weighbridgeGross: z.number().nonnegative().optional().nullable(),
+  weighbridgeTare: z.number().nonnegative().optional().nullable(),
+  densityFactor: z.number().positive().optional().nullable(),
   isDebitable: z.boolean().default(false),
   subcontractorId: z.string().optional().nullable(),
   recoveryRate: z.number().nonnegative().optional().nullable(),
@@ -83,10 +83,44 @@ export const materialTransactionProcedures = {
       });
       if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "Material not found in this project." });
 
-      const delta = input.type === "receive" || input.type === "adjustment" ? input.quantity : -input.quantity;
+      if (input.type === "transfer") {
+        if (input.storeLocationId && input.targetStoreLocationId && input.storeLocationId === input.targetStoreLocationId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Source and destination store locations cannot be the same.",
+          });
+        }
+      }
+
+      const delta =
+        input.type === "receive" || input.type === "adjustment"
+          ? input.quantity
+          : input.type === "issue"
+            ? -input.quantity
+            : 0; // For transfer, overall project stock remains unchanged
+
       const newStock = material.currentStock + delta;
       if (newStock < 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient stock level for this transaction." });
+      }
+
+      // If issuing or transferring from a specific store, verify source store stock balance
+      if ((input.type === "issue" || input.type === "transfer") && input.storeLocationId) {
+        const sourceStoreStock = await db.materialStoreStock.findUnique({
+          where: {
+            materialId_storeLocationId: {
+              materialId: input.materialId,
+              storeLocationId: input.storeLocationId,
+            },
+          },
+        });
+        const availableInStore = sourceStoreStock ? sourceStoreStock.currentStock : 0;
+        if (availableInStore < input.quantity - 0.0001) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Insufficient stock at source store. Available: ${availableInStore} ${material.unit}, Requested: ${input.quantity} ${material.unit}.`,
+          });
+        }
       }
 
       let warningMessage: string | null = null;
@@ -376,8 +410,8 @@ export const materialTransactionProcedures = {
     .input(
       z.object({
         projectId: z.string(),
-        fromDate: z.string().datetime().optional(),
-        toDate: z.string().datetime().optional(),
+        fromDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+        toDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T23:59:59.999Z` : v)),
       })
     )
     .query(async ({ ctx, input }) => {

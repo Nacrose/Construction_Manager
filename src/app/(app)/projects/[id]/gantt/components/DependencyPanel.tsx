@@ -30,27 +30,46 @@ export function DependencyPanel({
   );
 
   const addDepMutation = trpc.gantt.addDependency.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.gantt.list.invalidate({ projectId });
       setSelectedTaskId("");
       setOffset("0");
+      if (res.updatedCount > 0) {
+        toast.success(
+          `Dependency added — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`
+        );
+      } else {
+        toast.success("Dependency added");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
 
   const removeDepMutation = trpc.gantt.removeDependency.useMutation({
     onMutate: () => toast.loading("Removing dependency..."),
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.gantt.list.invalidate({ projectId });
-      toast.success("Dependency removed");
+      if (res.updatedCount > 0) {
+        toast.success(
+          `Dependency removed — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`
+        );
+      } else {
+        toast.success("Dependency removed");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
 
   const setDepsMutation = trpc.gantt.setDependencies.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.gantt.list.invalidate({ projectId });
-      toast.success("Dependencies applied — task dates recalculated");
+      if (res.updatedCount > 0) {
+        toast.success(
+          `Dependencies applied — ${res.updatedCount} downstream task${res.updatedCount > 1 ? "s" : ""} rescheduled`
+        );
+      } else {
+        toast.success("Dependencies applied");
+      }
     },
     onError: (e) => toast.error(e.message),
   });

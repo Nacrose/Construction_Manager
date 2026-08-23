@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { cloneDependencies, cloneResourceAssignments } from "./gantt-versions";
+import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 
 export const ganttAnalyticsRouter = router({
   /** List all schedules (planning + execution) with revision chain info. */
@@ -136,6 +137,18 @@ export const ganttAnalyticsRouter = router({
               laborCount: task.laborCount,
               assignees: task.assignees,
               isMilestone: task.isMilestone,
+              plannedValue: task.plannedValue,
+              workHours: task.workHours,
+              taskType: task.taskType,
+              constraintType: task.constraintType,
+              constraintDate: task.constraintDate,
+              deadline: task.deadline,
+              notes: task.notes,
+              effortDriven: task.effortDriven,
+              estimated: task.estimated,
+              ignoreResourceCalendar: task.ignoreResourceCalendar,
+              priority: task.priority,
+              earnedValueMethod: task.earnedValueMethod,
               boqLinks: {
                 create: task.boqLinks.map((link) => ({
                   boqItemId: link.boqItemId,
@@ -205,10 +218,7 @@ export const ganttAnalyticsRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
 
       const execTasks = await db.ganttTask.findMany({
-        where: {
-          versionId: input.executionVersionId,
-          planningTaskId: { not: null },
-        },
+        where: { versionId: input.executionVersionId },
         include: {
           planningTask: {
             select: {
@@ -224,6 +234,31 @@ export const ganttAnalyticsRouter = router({
         },
         orderBy: { sortOrder: "asc" },
       });
+
+      // If any tasks lack direct planningTask FK, match against base version by code or name
+      const fallbackPlanMap = new Map<string, any>();
+      const execVersion = await db.ganttVersion.findUnique({
+        where: { id: input.executionVersionId },
+        select: { baseVersionId: true },
+      });
+      if (execVersion?.baseVersionId) {
+        const baseTasks = await db.ganttTask.findMany({
+          where: { versionId: execVersion.baseVersionId },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startDate: true,
+            endDate: true,
+            duration: true,
+            progress: true,
+          },
+        });
+        for (const bt of baseTasks) {
+          if (bt.code) fallbackPlanMap.set(`code:${bt.code}`, bt);
+          fallbackPlanMap.set(`name:${bt.name.toLowerCase().trim()}`, bt);
+        }
+      }
 
       type VarianceRow = {
         taskId: string;
@@ -253,11 +288,16 @@ export const ganttAnalyticsRouter = router({
       let tasksNotStarted = 0;
 
       for (const task of execTasks) {
-        if (!task.planningTask) continue;
-        const plan = task.planningTask;
+        const plan =
+          task.planningTask ||
+          (task.code ? fallbackPlanMap.get(`code:${task.code}`) : null) ||
+          fallbackPlanMap.get(`name:${task.name.toLowerCase().trim()}`) ||
+          null;
 
-        const plannedStart = new Date(plan.startDate);
-        const plannedEnd = new Date(plan.endDate);
+        const plannedStart = plan ? new Date(plan.startDate) : new Date(task.startDate);
+        const plannedEnd = plan ? new Date(plan.endDate) : new Date(task.endDate);
+        const plannedDuration = plan ? plan.duration : task.duration;
+        const plannedProgress = plan ? plan.progress : 0;
         const actualStart = task.actualStartDate
           ? new Date(task.actualStartDate)
           : null;
@@ -466,9 +506,11 @@ export const ganttAnalyticsRouter = router({
       }
 
       const evmTasks = tasks.map((task) => {
-        const plannedCost = task.boqLinks.reduce((sum, link) => {
+        const boqCost = task.boqLinks.reduce((sum, link) => {
           return sum + link.quantity * (link.boqItem.rate || 0);
         }, 0);
+        const plannedCost =
+          task.boqLinks.length > 0 ? boqCost : (task.plannedValue || 0);
 
         const actualCost = task.boqLinks.reduce((sum, link) => {
           const totalPaidForItem = actualCostMap.get(link.boqItemId) ?? 0;
@@ -567,6 +609,13 @@ export const ganttAnalyticsRouter = router({
         }
       }
 
+      const appliedCount = results.filter((r) => r.success).length;
+      if (appliedCount > 0) {
+        for (const vId of versionIds) {
+          await recalculateProjectSchedule(input.projectId, vId);
+        }
+      }
+
       await audit({
         userId: ctx.user.id,
         projectId: input.projectId,
@@ -574,12 +623,12 @@ export const ganttAnalyticsRouter = router({
         entityType: "gantt_task",
         entityId: input.projectId,
         metadata: {
-          applied: results.filter((r) => r.success).length,
+          applied: appliedCount,
           failed: results.filter((r) => !r.success).length,
         },
       });
 
-      return { results, applied: results.filter((r) => r.success).length };
+      return { results, applied: appliedCount };
     }),
 
   /** Forecast cash flow based on scheduled task costs over time. */
@@ -616,10 +665,12 @@ export const ganttAnalyticsRouter = router({
       let totalPlanned = 0;
 
       for (const task of tasks) {
-        const taskCost = task.boqLinks.reduce(
+        const boqCost = task.boqLinks.reduce(
           (sum, link) => sum + link.quantity * (link.boqItem.rate || 0),
           0
         );
+        const taskCost =
+          task.boqLinks.length > 0 ? boqCost : (task.plannedValue || 0);
         totalPlanned += taskCost;
 
         const start = new Date(task.startDate);
@@ -748,6 +799,18 @@ export const ganttAnalyticsRouter = router({
               laborCount: task.laborCount,
               assignees: task.assignees,
               isMilestone: task.isMilestone,
+              plannedValue: task.plannedValue,
+              workHours: task.workHours,
+              taskType: task.taskType,
+              constraintType: task.constraintType,
+              constraintDate: task.constraintDate,
+              deadline: task.deadline,
+              notes: task.notes,
+              effortDriven: task.effortDriven,
+              estimated: task.estimated,
+              ignoreResourceCalendar: task.ignoreResourceCalendar,
+              priority: task.priority,
+              earnedValueMethod: task.earnedValueMethod,
               boqLinks: {
                 create: task.boqLinks.map((link) => ({
                   boqItemId: link.boqItemId,

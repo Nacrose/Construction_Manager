@@ -120,8 +120,9 @@ export function calculateEVM(tasks: EVMTask[], asOfDate: Date = new Date()): EVM
   }
 
   // Derived metrics
-  const cpi = ac > 0 ? ev / ac : ev > 0 ? 1 : 0;
-  const spi = pv > 0 ? ev / pv : ev > 0 ? 1 : 0;
+  // When no cost has been incurred (AC=0) or no work scheduled yet (PV=0), default to neutral 1.0
+  const cpi = ac > 0 ? ev / ac : 1.0;
+  const spi = pv > 0 ? ev / pv : 1.0;
   const eac = cpi > 0 ? bac / cpi : bac;
   const vac = bac - eac;
   const etc = eac - ac;

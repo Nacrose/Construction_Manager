@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { differenceInDays } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Task } from "../../gantt/types";
 import { getDeps, getBarStatus } from "../../gantt/utils";
@@ -68,7 +68,7 @@ export function Timeline(props: TimelineProps) {
 
   // Precompute daily manpower allocated across active leaf tasks
   const dailyLabor = useMemo(() => {
-    if (!rangeStart || !tasks || tasks.length === 0) return new Array(days).fill(0);
+    if (!rangeStart || !tasks || tasks.length === 0 || days <= 0) return [];
     const labor = new Array(days).fill(0);
     const leafTasks = tasks.filter(t => !tasks.some(ch => ch.parentId === t.id));
 
@@ -190,11 +190,11 @@ export function Timeline(props: TimelineProps) {
           label = `${bs.monthName} ${bs.year}`;
         } catch {
           key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
-          label = `${d.date.getFullYear()}`;
+          label = format(d.date, "MMMM yyyy");
         }
       } else {
         key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
-        label = `${d.date.getFullYear()}`;
+        label = format(d.date, "MMMM yyyy");
       }
 
       if (idx === 0) {
@@ -489,7 +489,7 @@ export function Timeline(props: TimelineProps) {
       {/* Task bars */}
       {visibleRows.map(({ task }, i) => {
         const isCritical = criticalTaskIds.has(task.id);
-        const hasCh = visibleRows.some(r => r.task.parentId === task.id);
+        const hasCh = tasks.some(t => t.parentId === task.id);
         const childRange = childRanges.get(task.id);
 
         let barStart: Date;

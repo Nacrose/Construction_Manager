@@ -10,6 +10,7 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { recalculateWbsCodes } from "@/lib/wbs";
+import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 import { BUILT_IN_TEMPLATES, type WorkPackageTemplateDef } from "@/server/utils/work-package-templates";
 
 // ─── Draft check helper ───────────────────────────────────────
@@ -72,10 +73,22 @@ const UpdateTaskSchema = z.object({
   name: z.string().min(1).max(300).optional(),
   code: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
-  actualStartDate: z.string().datetime().nullable().optional(),
-  actualEndDate: z.string().datetime().nullable().optional(),
+  startDate: z.string().transform((v) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
+    return v;
+  }).optional(),
+  endDate: z.string().transform((v) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T23:59:59.000Z`;
+    return v;
+  }).optional(),
+  actualStartDate: z.string().transform((v) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
+    return v;
+  }).nullable().optional(),
+  actualEndDate: z.string().transform((v) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T23:59:59.000Z`;
+    return v;
+  }).nullable().optional(),
   duration: z.number().int().min(0).optional(),
   progress: z.number().min(0).max(100).optional(),
   plannedValue: z.number().min(0).optional(),
@@ -172,7 +185,7 @@ export const ganttTasksRouter = router({
       });
 
       if (tasks.length > 0 && tasks.some((t) => !t.code)) {
-        await recalculateWbsCodes(input.projectId);
+        await recalculateWbsCodes(input.projectId, targetVersionId);
         tasks = await database.ganttTask.findMany({
           where: whereClause,
           orderBy: { sortOrder: "asc" },
@@ -292,7 +305,7 @@ export const ganttTasksRouter = router({
         metadata: { name: task.name },
       });
 
-      await recalculateWbsCodes(input.projectId);
+      await recalculateWbsCodes(input.projectId, targetVersionId);
       const withCode = await db.ganttTask.findUnique({ where: { id: task.id } });
       return { task: withCode ?? task };
     }),
@@ -305,7 +318,7 @@ export const ganttTasksRouter = router({
 
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, projectId: true, name: true, duration: true },
+        select: { id: true, projectId: true, versionId: true, name: true, duration: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
 
@@ -417,10 +430,20 @@ export const ganttTasksRouter = router({
       const structureChanged =
         data.parentId !== undefined || data.sortOrder !== undefined;
       if (structureChanged) {
-        await recalculateWbsCodes(task.projectId);
+        await recalculateWbsCodes(task.projectId, task.versionId);
       }
 
-      const refreshed = structureChanged
+      // Automatically cascade downstream dates if dates or duration changed
+      const dateChanged =
+        data.startDate !== undefined ||
+        data.endDate !== undefined ||
+        data.duration !== undefined ||
+        data.dependencies !== undefined;
+      if (dateChanged) {
+        await recalculateProjectSchedule(task.projectId, task.versionId);
+      }
+
+      const refreshed = structureChanged || dateChanged
         ? await db.ganttTask.findUnique({ where: { id: taskId } })
         : updated;
 
@@ -442,7 +465,7 @@ export const ganttTasksRouter = router({
     .mutation(async ({ ctx, input }) => {
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, projectId: true, name: true, duration: true },
+        select: { id: true, projectId: true, versionId: true, name: true, duration: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
 
@@ -457,7 +480,8 @@ export const ganttTasksRouter = router({
       }
 
       await db.ganttTask.delete({ where: { id: input.taskId } });
-      await recalculateWbsCodes(task.projectId);
+      await recalculateWbsCodes(task.projectId, task.versionId);
+      await recalculateProjectSchedule(task.projectId, task.versionId);
 
       await audit({
         userId: ctx.user.id,
@@ -488,166 +512,14 @@ export const ganttTasksRouter = router({
         });
       }
 
-      const tasks = await db.ganttTask.findMany({
-        where: {
-          projectId: input.projectId,
-          ...(input.versionId !== undefined ? { versionId: input.versionId } : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-          duration: true,
-          isMilestone: true,
-          dependencies: true,
-          predecessors: {
-            select: { predecessorId: true, type: true, offset: true },
-          },
-        },
-        orderBy: { sortOrder: "asc" },
-      });
-
-      if (tasks.length === 0) return { updatedCount: 0 };
-
-      const taskMap = new Map(tasks.map((t) => [t.id, t]));
-
-      const depMap = new Map<
-        string,
-        { predecessorId: string; type: string; offset: number }[]
-      >();
-      for (const task of tasks) {
-        const deps: { predecessorId: string; type: string; offset: number }[] = [];
-        if (task.predecessors.length > 0) {
-          deps.push(...task.predecessors);
-        } else if (task.dependencies) {
-          try {
-            const parsed: { taskId: string; type: string; offset: number }[] =
-              JSON.parse(task.dependencies);
-            deps.push(
-              ...parsed.map((d) => ({
-                predecessorId: d.taskId,
-                type: d.type,
-                offset: d.offset,
-              }))
-            );
-          } catch {
-            /* ignore */
-          }
-        }
-        depMap.set(task.id, deps);
-      }
-
-      const inDegree = new Map<string, number>();
-      const successors = new Map<string, string[]>();
-      for (const task of tasks) {
-        if (!inDegree.has(task.id)) inDegree.set(task.id, 0);
-        for (const dep of depMap.get(task.id) || []) {
-          if (!taskMap.has(dep.predecessorId)) continue;
-          if (!successors.has(dep.predecessorId))
-            successors.set(dep.predecessorId, []);
-          successors.get(dep.predecessorId)!.push(task.id);
-          inDegree.set(task.id, (inDegree.get(task.id) || 0) + 1);
-        }
-      }
-
-      const sorted: typeof tasks = [];
-      const queue = tasks.filter((t) => inDegree.get(t.id) === 0).map((t) => t.id);
-      while (queue.length > 0) {
-        const id = queue.shift()!;
-        const task = taskMap.get(id)!;
-        sorted.push(task);
-        for (const succId of successors.get(id) || []) {
-          const deg = inDegree.get(succId)! - 1;
-          inDegree.set(succId, deg);
-          if (deg === 0) queue.push(succId);
-        }
-      }
-
-      const cycleDetected = sorted.length < tasks.length;
-
-      const newDates = new Map<string, { start: Date; end: Date }>();
-      for (const task of sorted) {
-        const deps = depMap.get(task.id) || [];
-        if (deps.length === 0) {
-          newDates.set(task.id, {
-            start: new Date(task.startDate),
-            end: new Date(task.endDate),
-          });
-          continue;
-        }
-
-        let newStart: Date | null = null;
-        for (const dep of deps) {
-          const pred = taskMap.get(dep.predecessorId);
-          if (!pred) continue;
-          const predDates = newDates.get(dep.predecessorId) || {
-            start: new Date(pred.startDate),
-            end: new Date(pred.endDate),
-          };
-          const offsetMs = dep.offset * 24 * 60 * 60 * 1000;
-          let candidate: Date;
-          if (dep.type === "FS") {
-            candidate = new Date(predDates.end.getTime() + offsetMs);
-          } else if (dep.type === "SS") {
-            candidate = new Date(predDates.start.getTime() + offsetMs);
-          } else if (dep.type === "FF") {
-            candidate = new Date(
-              predDates.end.getTime() +
-                offsetMs -
-                task.duration * 24 * 60 * 60 * 1000
-            );
-          } else if (dep.type === "SF") {
-            candidate = new Date(
-              predDates.start.getTime() +
-                offsetMs -
-                task.duration * 24 * 60 * 60 * 1000
-            );
-          } else continue;
-          if (!newStart || candidate > newStart) newStart = candidate;
-        }
-
-        if (newStart) {
-          const dur = Math.max(task.duration, task.isMilestone ? 0 : 1);
-          const end = new Date(newStart.getTime() + dur * 24 * 60 * 60 * 1000);
-          newDates.set(task.id, { start: newStart, end });
-        } else {
-          newDates.set(task.id, {
-            start: new Date(task.startDate),
-            end: new Date(task.endDate),
-          });
-        }
-      }
-
-      const updates: { id: string; startDate: Date; endDate: Date }[] = [];
-      for (const task of sorted) {
-        const d = newDates.get(task.id);
-        if (!d) continue;
-        if (
-          d.start.getTime() !== task.startDate.getTime() ||
-          d.end.getTime() !== task.endDate.getTime()
-        ) {
-          updates.push({ id: task.id, startDate: d.start, endDate: d.end });
-        }
-      }
-
-      if (updates.length > 0) {
-        await db.$transaction(
-          updates.map((u) =>
-            db.ganttTask.update({
-              where: { id: u.id },
-              data: { startDate: u.startDate, endDate: u.endDate },
-            })
-          )
-        );
-      }
+      const { updatedCount, cycleDetected, cyclicTaskNames } =
+        await recalculateProjectSchedule(input.projectId, input.versionId);
 
       return {
-        updatedCount: updates.length,
+        updatedCount,
         ...(cycleDetected
           ? {
-              warning:
-                "Circular dependency detected — some tasks could not be scheduled.",
+              warning: `Circular dependency detected involving: ${cyclicTaskNames.join(", ")}. These tasks could not be scheduled.`,
             }
           : {}),
       };
@@ -673,6 +545,7 @@ export const ganttTasksRouter = router({
           sortOrder: true,
           name: true,
           projectId: true,
+          versionId: true,
         },
       });
       if (!task || task.projectId !== input.projectId) {
@@ -781,7 +654,7 @@ export const ganttTasksRouter = router({
         ]);
       }
 
-      await recalculateWbsCodes(input.projectId);
+      await recalculateWbsCodes(input.projectId, task.versionId);
 
       await audit({
         userId: ctx.user.id,
@@ -822,6 +695,7 @@ export const ganttTasksRouter = router({
           sortOrder: true,
           name: true,
           projectId: true,
+          versionId: true,
         },
       });
       if (!task || task.projectId !== input.projectId) {
@@ -841,7 +715,30 @@ export const ganttTasksRouter = router({
         });
       }
 
+      if (input.taskId === input.targetTaskId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot move a task relative to itself.",
+        });
+      }
+
       if (input.position === "asChild") {
+        // Prevent cyclic parent-child hierarchy loop (moving a task into one of its own descendants)
+        let currAncestor: string | null = target.parentId;
+        while (currAncestor) {
+          if (currAncestor === input.taskId) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Cannot move a task into one of its own descendant subtasks.",
+            });
+          }
+          const p = await db.ganttTask.findUnique({
+            where: { id: currAncestor },
+            select: { parentId: true },
+          });
+          currAncestor = p?.parentId ?? null;
+        }
+
         const maxChild = await db.ganttTask.aggregate({
           where: { projectId: input.projectId, parentId: target.id },
           _max: { sortOrder: true },
@@ -880,7 +777,7 @@ export const ganttTasksRouter = router({
         );
       }
 
-      await recalculateWbsCodes(input.projectId);
+      await recalculateWbsCodes(input.projectId, task.versionId);
 
       await audit({
         userId: ctx.user.id,
@@ -909,14 +806,109 @@ export const ganttTasksRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const reports = await db.dailyReport
-        .findMany({
+      const [reports, progressItems, tasks] = await Promise.all([
+        db.dailyReport.findMany({
           where: { projectId: input.projectId },
+          select: { id: true, reportDate: true },
           orderBy: { reportDate: "asc" },
-        })
-        .catch(() => []);
+        }),
+        db.dailyReportProgress.findMany({
+          where: {
+            report: { projectId: input.projectId },
+            ganttTaskId: { not: null },
+          },
+          include: {
+            report: { select: { reportDate: true } },
+          },
+          orderBy: { report: { reportDate: "asc" } },
+        }),
+        db.ganttTask.findMany({
+          where: { versionId: input.executionVersionId },
+          include: { boqLinks: true },
+        }),
+      ]);
 
-      const updated = 0;
+      const taskActuals = new Map<
+        string,
+        {
+          totalActualQty: number;
+          earliestDate: Date | null;
+          latestDate: Date | null;
+        }
+      >();
+
+      for (const item of progressItems) {
+        if (!item.ganttTaskId) continue;
+        const entry = taskActuals.get(item.ganttTaskId) ?? {
+          totalActualQty: 0,
+          earliestDate: null,
+          latestDate: null,
+        };
+        const qty = item.actualQty || 0;
+        entry.totalActualQty += qty;
+
+        const reportDate = new Date(item.report.reportDate);
+        if (qty > 0) {
+          if (!entry.earliestDate || reportDate < entry.earliestDate) {
+            entry.earliestDate = reportDate;
+          }
+          if (!entry.latestDate || reportDate > entry.latestDate) {
+            entry.latestDate = reportDate;
+          }
+        }
+        taskActuals.set(item.ganttTaskId, entry);
+      }
+
+      let updated = 0;
+      const updates: Promise<any>[] = [];
+
+      for (const task of tasks) {
+        const actualData = taskActuals.get(task.id);
+        if (!actualData) continue;
+
+        const totalPlannedQty = task.boqLinks.reduce(
+          (sum, link) => sum + (link.quantity || 0),
+          0
+        );
+
+        let newProgress = task.progress;
+        if (totalPlannedQty > 0) {
+          newProgress = Math.min(
+            100,
+            Math.round((actualData.totalActualQty / totalPlannedQty) * 100)
+          );
+        } else if (actualData.totalActualQty > 0) {
+          newProgress = 100;
+        }
+
+        const newActualStart = actualData.earliestDate ?? task.actualStartDate;
+        const newActualEnd =
+          newProgress >= 100 ? (actualData.latestDate ?? task.actualEndDate) : null;
+
+        const hasChanged =
+          Math.abs(newProgress - task.progress) > 0.01 ||
+          newActualStart?.getTime() !== task.actualStartDate?.getTime() ||
+          newActualEnd?.getTime() !== task.actualEndDate?.getTime();
+
+        if (hasChanged) {
+          updated++;
+          updates.push(
+            db.ganttTask.update({
+              where: { id: task.id },
+              data: {
+                progress: newProgress,
+                actualStartDate: newActualStart,
+                actualEndDate: newActualEnd,
+                isProgressEdited: true,
+              },
+            })
+          );
+        }
+      }
+
+      if (updates.length > 0) {
+        await Promise.all(updates);
+      }
 
       await audit({
         userId: ctx.user.id,
@@ -924,7 +916,7 @@ export const ganttTasksRouter = router({
         action: "gantt.syncDailyReports",
         entityType: "gantt_version",
         entityId: input.executionVersionId,
-        metadata: { updated },
+        metadata: { updated, totalReports: reports.length },
       });
 
       return { updated, totalReports: reports.length };
@@ -1227,7 +1219,8 @@ export const ganttTasksRouter = router({
         }
       }
 
-      await recalculateWbsCodes(input.projectId);
+      await recalculateWbsCodes(input.projectId, targetVersionId);
+      await recalculateProjectSchedule(input.projectId, targetVersionId);
 
       await audit({
         userId: ctx.user.id,
@@ -1255,9 +1248,22 @@ export const ganttTasksRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      let targetVersionId = input.versionId;
+      if (!targetVersionId) {
+        const activeVer = await db.ganttVersion.findFirst({
+          where: { projectId: input.projectId, isActive: true },
+          select: { id: true },
+        });
+        targetVersionId = activeVer?.id;
+      }
+
       const allTasks = await db.ganttTask.findMany({
-        where: { projectId: input.projectId },
-        include: { predecessors: true },
+        where: {
+          projectId: input.projectId,
+          ...(targetVersionId ? { versionId: targetVersionId } : {}),
+        },
+        include: { predecessors: true, boqLinks: true },
       });
 
       const rootTask = allTasks.find((t) => t.id === input.taskId);
@@ -1290,15 +1296,6 @@ export const ganttTasksRouter = router({
       });
       let nextSort = (maxSort._max.sortOrder ?? 0) + 10;
 
-      let targetVersionId = input.versionId;
-      if (!targetVersionId) {
-        const activeVer = await db.ganttVersion.findFirst({
-          where: { projectId: input.projectId, isActive: true },
-          select: { id: true },
-        });
-        targetVersionId = activeVer?.id;
-      }
-
       const oldToNewId = new Map<string, string>();
 
       // Create root clone first
@@ -1317,9 +1314,26 @@ export const ganttTasksRouter = router({
           progress: 0,
           plannedValue: rootTask.plannedValue,
           laborCount: rootTask.laborCount,
+          assignees: rootTask.assignees,
           taskType: rootTask.taskType,
           isMilestone: rootTask.isMilestone,
+          workHours: rootTask.workHours,
+          constraintType: rootTask.constraintType,
+          constraintDate: rootTask.constraintDate ? addDays(new Date(rootTask.constraintDate), dayOffset) : null,
+          deadline: rootTask.deadline ? addDays(new Date(rootTask.deadline), dayOffset) : null,
+          notes: rootTask.notes,
+          effortDriven: rootTask.effortDriven,
+          estimated: rootTask.estimated,
+          ignoreResourceCalendar: rootTask.ignoreResourceCalendar,
+          priority: rootTask.priority,
+          earnedValueMethod: rootTask.earnedValueMethod,
           sortOrder: nextSort++,
+          boqLinks: {
+            create: rootTask.boqLinks.map((link) => ({
+              boqItemId: link.boqItemId,
+              quantity: link.quantity,
+            })),
+          },
         },
       });
       oldToNewId.set(rootTask.id, clonedRoot.id);
@@ -1343,9 +1357,26 @@ export const ganttTasksRouter = router({
             progress: 0,
             plannedValue: st.plannedValue,
             laborCount: st.laborCount,
+            assignees: st.assignees,
             taskType: st.taskType,
             isMilestone: st.isMilestone,
+            workHours: st.workHours,
+            constraintType: st.constraintType,
+            constraintDate: st.constraintDate ? addDays(new Date(st.constraintDate), dayOffset) : null,
+            deadline: st.deadline ? addDays(new Date(st.deadline), dayOffset) : null,
+            notes: st.notes,
+            effortDriven: st.effortDriven,
+            estimated: st.estimated,
+            ignoreResourceCalendar: st.ignoreResourceCalendar,
+            priority: st.priority,
+            earnedValueMethod: st.earnedValueMethod,
             sortOrder: nextSort++,
+            boqLinks: {
+              create: st.boqLinks.map((link) => ({
+                boqItemId: link.boqItemId,
+                quantity: link.quantity,
+              })),
+            },
           },
         });
         oldToNewId.set(st.id, clonedSub.id);
@@ -1369,7 +1400,8 @@ export const ganttTasksRouter = router({
         }
       }
 
-      await recalculateWbsCodes(input.projectId);
+      await recalculateWbsCodes(input.projectId, targetVersionId);
+      await recalculateProjectSchedule(input.projectId, targetVersionId);
 
       await audit({
         userId: ctx.user.id,

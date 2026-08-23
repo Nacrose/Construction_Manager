@@ -39,14 +39,14 @@ const TaskSchema = z.object({
 
 const CreateProgramSchema = z.object({
   projectId: z.string(),
-  programDate: z.string().datetime(),
+  programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
   notes: z.string().optional(),
   tasks: z.array(TaskSchema).default([]),
 });
 
 export const dailyProgramRouter = router({
   getApprovedDailyProgramByDate: protectedProcedure
-    .input(z.object({ projectId: z.string(), programDate: z.string().datetime() }))
+    .input(z.object({ projectId: z.string(), programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)) }))
     .query(async ({ ctx, input }) => {
       const role = await assertProjectMember(ctx.user, input.projectId);
       if (role === "client" || role === "inspector") {
@@ -115,7 +115,7 @@ export const dailyProgramRouter = router({
     }),
 
   getProgramResources: protectedProcedure
-    .input(z.object({ projectId: z.string(), programDate: z.string().datetime() }))
+    .input(z.object({ projectId: z.string(), programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)) }))
     .query(async ({ ctx, input }) => {
       const role = await assertProjectMember(ctx.user, input.projectId);
       if (role === "client" || role === "inspector") {
@@ -308,7 +308,7 @@ export const dailyProgramRouter = router({
   fetchWeather: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      reportDate: z.string().datetime(),
+      reportDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
       latitude: z.number().optional(),
       longitude: z.number().optional(),
     }))
@@ -811,7 +811,7 @@ export const dailyProgramRouter = router({
     .input(z.object({
       programId: z.string(),
       projectId: z.string(),
-      programDate: z.string().datetime(),
+      programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
       notes: z.string().optional(),
       tasks: z.array(TaskSchema).default([]),
     }))

@@ -259,8 +259,11 @@ export function RateAnalysisInspector({
     else if (b === "equipment") base = eqCost;
     else if (b === "material_labor") base = matCost + labCost;
     else if (b === "labor_equipment") base = labCost + eqCost;
-    else if (b === "all" || b === "all_including_pct") base = directCost;
-    pctCost += (base * (i.percentage || 0)) / 100;
+    else if (b === "all_including_pct") base = directCost + pctCost;
+    else if (b === "all") base = directCost;
+    else base = directCost;
+    const itemPctCost = (base * (i.percentage || 0)) / 100;
+    pctCost += itemPctCost;
   });
 
   const totalBatchCost = directCost + pctCost;

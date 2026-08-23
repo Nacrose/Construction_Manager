@@ -8,40 +8,59 @@ import { db } from "@/lib/db";
  * Codes are stored on the `code` field of GanttTask.
  * Call this after any create/update/delete that affects tree structure or sibling order.
  */
-export async function recalculateWbsCodes(projectId: string): Promise<void> {
+export async function recalculateWbsCodes(
+  projectId: string,
+  versionId?: string | null
+): Promise<void> {
+  const whereClause = versionId
+    ? { projectId, versionId }
+    : { projectId };
+
   const tasks = await db.ganttTask.findMany({
-    where: { projectId },
+    where: whereClause,
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, parentId: true, sortOrder: true },
+    select: { id: true, parentId: true, sortOrder: true, versionId: true },
   });
 
-  // Group children by parent (null = root)
-  const byParent = new Map<string | null, typeof tasks>();
+  // Group tasks by versionId so version trees are completely isolated
+  const byVersion = new Map<string | null, typeof tasks>();
   for (const t of tasks) {
-    const key = t.parentId ?? null;
-    const arr = byParent.get(key) ?? [];
-    arr.push(t);
-    byParent.set(key, arr);
+    const vKey = t.versionId ?? null;
+    const vArr = byVersion.get(vKey) ?? [];
+    vArr.push(t);
+    byVersion.set(vKey, vArr);
   }
 
-  // Sort each group by sortOrder (already sorted from query, but be safe)
-  for (const arr of byParent.values()) {
-    arr.sort((a, b) => a.sortOrder - b.sortOrder);
-  }
-
-  // Walk depth-first, assign codes
   const updates: Promise<unknown>[] = [];
-  function walk(parentId: string | null, prefix: string) {
-    const children = byParent.get(parentId) ?? [];
-    children.forEach((child, idx) => {
-      const code = prefix ? `${prefix}.${idx + 1}` : String(idx + 1);
-      updates.push(
-        db.ganttTask.update({ where: { id: child.id }, data: { code } }),
-      );
-      walk(child.id, code);
-    });
+
+  for (const versionTasks of byVersion.values()) {
+    // Group children by parent (null = root) for this version
+    const byParent = new Map<string | null, typeof versionTasks>();
+    for (const t of versionTasks) {
+      const key = t.parentId ?? null;
+      const arr = byParent.get(key) ?? [];
+      arr.push(t);
+      byParent.set(key, arr);
+    }
+
+    // Sort each sibling group by sortOrder
+    for (const arr of byParent.values()) {
+      arr.sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+
+    // Walk depth-first, assign codes for this version
+    function walk(parentId: string | null, prefix: string) {
+      const children = byParent.get(parentId) ?? [];
+      children.forEach((child, idx) => {
+        const code = prefix ? `${prefix}.${idx + 1}` : String(idx + 1);
+        updates.push(
+          db.ganttTask.update({ where: { id: child.id }, data: { code } })
+        );
+        walk(child.id, code);
+      });
+    }
+    walk(null, "");
   }
-  walk(null, "");
 
   await Promise.all(updates);
 }

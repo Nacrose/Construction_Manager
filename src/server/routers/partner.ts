@@ -212,10 +212,19 @@ export const partnerRouter = router({
       });
       if (!subcontractor) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
 
-      const linked = await db.materialTransaction.count({
-        where: { subcontractorId: input.subId },
-      });
-      if (linked > 0) {
+      const [billsCount, ipcsCount, txnCount] = await Promise.all([
+        db.subcontractorBill.count({ where: { subcontractorId: input.subId } }),
+        db.ipc.count({ where: { subcontractorId: input.subId } }),
+        db.materialTransaction.count({ where: { subcontractorId: input.subId } }),
+      ]);
+
+      if (billsCount > 0 || ipcsCount > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot delete subcontractor with existing billing/IPC records. Please deactivate the subcontractor instead.`,
+        });
+      }
+      if (txnCount > 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Cannot delete subcontractor with active material issues. Please void transactions first.",
@@ -427,12 +436,15 @@ export const partnerRouter = router({
       if (!partner) throw new TRPCError({ code: "NOT_FOUND", message: "Partner not found." });
       await assertCanWrite(ctx.user, partner.projectId);
 
-      const linkedPOs = await db.purchaseOrder.count({ where: { partnerId: input.partnerId } });
-      const linkedRentals = await db.equipmentRental.count({ where: { partnerId: input.partnerId } });
-      if (linkedPOs > 0 || linkedRentals > 0) {
+      const [linkedPOs, linkedRentals, linkedBills] = await Promise.all([
+        db.purchaseOrder.count({ where: { partnerId: input.partnerId } }),
+        db.equipmentRental.count({ where: { partnerId: input.partnerId } }),
+        db.vendorBill.count({ where: { partnerId: input.partnerId } }),
+      ]);
+      if (linkedPOs > 0 || linkedRentals > 0 || linkedBills > 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Cannot delete partner with active purchase orders or equipment rentals.",
+          message: "Cannot delete partner with active purchase orders, equipment rentals, or vendor bills.",
         });
       }
 

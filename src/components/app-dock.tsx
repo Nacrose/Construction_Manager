@@ -37,6 +37,7 @@ type NavItem = {
 const TOP_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
   { label: "Team", href: "/team", icon: Users },
   { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
   { label: "Presets", href: "/presets", icon: ClipboardList },
