@@ -815,7 +815,7 @@ async function captureReportCosts(
         const fuel = Number(e.fuel) || 0;
 
         let hourlyRate = getEquipmentRate(e.ownership, projectRates);
-        if (e.equipmentId && equipMap.has(e.equipmentId)) {
+        if (fuel > 0) {
           totalFuelCost += fuel * FUEL_PRICE_PER_LITER;
         }
 

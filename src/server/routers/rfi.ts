@@ -39,7 +39,7 @@ const CreateRfiSchema = z.object({
   discipline: z
     .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
     .optional(),
-  workDate: z.string().datetime().optional(),
+  workDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
   inspectionStartTime: z.string().datetime().optional(),
   inspectionEndTime: z.string().datetime().optional(),
   ganttTaskId: z.string().nullable().optional(),
@@ -63,7 +63,7 @@ const UpdateRfiSchema = z.object({
   discipline: z
     .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
     .optional(),
-  workDate: z.string().datetime().nullable().optional(),
+  workDate: z.string().nullable().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
   inspectionStartTime: z.string().datetime().nullable().optional(),
   inspectionEndTime: z.string().datetime().nullable().optional(),
   ganttTaskId: z.string().nullable().optional(),
@@ -288,6 +288,24 @@ export const rfiRouter = router({
         if (data.pinY !== undefined) updateData.pinY = data.pinY ?? null;
         if (data.costImpact !== undefined) updateData.costImpact = data.costImpact;
         if (data.scheduleImpact !== undefined) updateData.scheduleImpact = data.scheduleImpact;
+
+        if (data.items !== undefined) {
+          await db.rfiItem.deleteMany({ where: { rfiId: id } });
+          if (data.items.length > 0) {
+            await db.rfiItem.createMany({
+              data: data.items.map((item) => ({
+                rfiId: id,
+                boqItemId: item.boqItemId || null,
+                boqCode: item.boqCode || null,
+                boqDesc: item.boqDesc || null,
+                quantity: item.quantity,
+                unit: item.unit || null,
+                paymentType: item.paymentType || "payable",
+                remark: item.remark || null,
+              })),
+            });
+          }
+        }
       }
 
       if (data.status !== undefined && data.status !== rfi.status) {
