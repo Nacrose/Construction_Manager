@@ -357,7 +357,26 @@ const dailyReportCoreRouter = router({
         });
 
         if (fullReport) {
-          const consumptions: { materialId: string; quantity: number; rate?: number }[] = [];
+          // CRITICAL: Check if material deductions were already applied
+          // for this report (e.g. if the report was previously approved,
+          // then reverted to "submitted", then re-approved). Without this
+          // guard, each approval cycle would deduct materials AGAIN —
+          // causing the stock to go negative over time.
+          //
+          // We check for an existing materialTransaction with
+          // reference = report.number and type = "issue".
+          const existingDeductions = await db.materialTransaction.findFirst({
+            where: {
+              projectId: report.projectId,
+              reference: report.number,
+              type: "issue",
+              remarks: { contains: `Auto-deducted from Daily Report ${report.number}` },
+            },
+            select: { id: true },
+          });
+
+          if (!existingDeductions) {
+            const consumptions: { materialId: string; quantity: number; rate?: number }[] = [];
 
           if (fullReport.materialConsumed.length > 0) {
             for (const item of fullReport.materialConsumed) {
@@ -455,6 +474,7 @@ const dailyReportCoreRouter = router({
               }
             });
           }
+          } // end if (!existingDeductions)
         }
       }
 

@@ -123,6 +123,17 @@ export const materialTransactionProcedures = {
         }
       }
 
+      // For transfer: verify the destination store is different from source.
+      // (Already checked above, but double-guard against data corruption.)
+      if (input.type === "transfer" && input.storeLocationId && input.targetStoreLocationId) {
+        if (input.storeLocationId === input.targetStoreLocationId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Source and destination store locations cannot be the same for a transfer.",
+          });
+        }
+      }
+
       let warningMessage: string | null = null;
 
       if (input.type === "issue" || input.type === "transfer") {

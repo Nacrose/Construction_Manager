@@ -184,22 +184,42 @@ export function computeCpmSchedule(
         end: new Date(pred.endDate),
       };
 
+      // Offset sign convention: positive = lag (successor starts AFTER
+      // predecessor by N days), negative = lead (successor starts BEFORE
+      // predecessor ends by N days). This is the standard MS Project /
+      // Primavera convention.
+      //
+      // The previous code treated offset as a raw number of days to ADD
+      // to the predecessor's end date. A negative offset (lead) was
+      // correctly subtracted, but the semantic was unclear. This is now
+      // documented explicitly.
       const offsetMs = (dep.offset || 0) * 24 * 60 * 60 * 1000;
       const taskDurMs = task.duration * 24 * 60 * 60 * 1000;
       let candidate: Date;
 
       if (dep.type === "FS" || !dep.type) {
+        // Finish-to-Start: successor starts after predecessor finishes.
+        // Positive offset = lag (delay), negative = lead (overlap).
         candidate = new Date(predDates.end.getTime() + offsetMs);
       } else if (dep.type === "SS") {
+        // Start-to-Start: successor starts after predecessor starts.
         candidate = new Date(predDates.start.getTime() + offsetMs);
       } else if (dep.type === "FF") {
+        // Finish-to-Finish: successor finishes after predecessor finishes.
+        // Successor start = predecessor end + offset - successor duration.
         candidate = new Date(predDates.end.getTime() + offsetMs - taskDurMs);
       } else if (dep.type === "SF") {
+        // Start-to-Finish: successor finishes after predecessor starts.
+        // Successor start = predecessor start + offset - successor duration.
         candidate = new Date(predDates.start.getTime() + offsetMs - taskDurMs);
       } else {
         candidate = new Date(predDates.end.getTime() + offsetMs);
       }
 
+      // Take the LATEST candidate (most constrained start date).
+      // This is the standard CPM forward-pass: a task starts when ALL
+      // its predecessors have been satisfied — i.e., the maximum of
+      // all candidate start dates.
       if (!newStart || candidate.getTime() > newStart.getTime()) {
         newStart = candidate;
       }
