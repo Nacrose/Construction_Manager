@@ -79,19 +79,22 @@ export const financialReportingRouter = router({
       const vatCollected = filteredIpcs.reduce((s, i) => s + (i.vatAmount || 0), 0);
 
       // ── Direct Cost: Vendor Bills (materials purchased) ────
+      // ── Direct Cost: Vendor Bills (exclude disputed) ──────
       const vendorBills = await db.vendorBill.findMany({
         where: {
           projectId: input.projectId,
+          status: { not: "disputed" },
           ...(hasDate ? { billDate: dateFilter } : {}),
         },
         select: { grossAmount: true, vatAmount: true },
       });
       const materialCost = vendorBills.reduce((s, b) => s + b.grossAmount, 0);
 
-      // ── Direct Cost: Subcontractor Bills ──────────────────
+      // ── Direct Cost: Subcontractor Bills (non-draft only) ──
       const subBills = await db.subcontractorBill.findMany({
         where: {
           projectId: input.projectId,
+          status: { in: ["submitted", "verified", "certified", "paid"] },
           ...(hasDate ? { billDate: dateFilter } : {}),
         },
         select: { grossAmount: true },
@@ -860,6 +863,16 @@ export const financialReportingRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "No organization assigned." });
       }
 
+      // Validate date range: endDate must be after startDate.
+      const startDate = new Date(input.startDate);
+      const endDate = new Date(input.endDate);
+      if (endDate <= startDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "End date must be after start date.",
+        });
+      }
+
       const lock = await db.fiscalYearLock.upsert({
         where: {
           organizationId_fiscalYear: {
@@ -870,16 +883,16 @@ export const financialReportingRouter = router({
         create: {
           organizationId: ctx.user.organizationId,
           fiscalYear: input.fiscalYear,
-          startDate: new Date(input.startDate),
-          endDate: new Date(input.endDate),
+          startDate,
+          endDate,
           isLocked: input.isLocked,
           lockedById: input.isLocked ? ctx.user.id : null,
           lockedAt: input.isLocked ? new Date() : null,
           lockNotes: input.lockNotes || null,
         },
         update: {
-          startDate: new Date(input.startDate),
-          endDate: new Date(input.endDate),
+          startDate,
+          endDate,
           isLocked: input.isLocked,
           lockedById: input.isLocked ? ctx.user.id : null,
           lockedAt: input.isLocked ? new Date() : null,

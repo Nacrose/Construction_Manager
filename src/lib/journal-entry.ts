@@ -316,10 +316,22 @@ export function ipcBillingEntry(params: {
   //   G = gross (revenue)
   //   V = VAT
 
-  const clientReceivable = Math.max(
-    0,
-    params.grossAmount + params.vatAmount - params.retentionAmount - params.tdsAmount,
-  );
+  const totalDeductions = params.retentionAmount + params.tdsAmount;
+  const totalBill = params.grossAmount + params.vatAmount;
+
+  // Validate: deductions cannot exceed the total bill. In real accounting,
+  // retention + TDS is always a portion of the gross — you can't deduct
+  // more than the bill amount. If this happens, it's a data error that
+  // would produce an unbalanced entry (debits > credits).
+  if (totalDeductions > totalBill + 0.01) {
+    throw new Error(
+      `ipcBillingEntry: deductions (retention=${params.retentionAmount} + tds=${params.tdsAmount} = ${totalDeductions}) ` +
+        `exceed total bill (gross=${params.grossAmount} + vat=${params.vatAmount} = ${totalBill}). ` +
+        `This indicates a data error — deductions should always be ≤ total bill.`,
+    );
+  }
+
+  const clientReceivable = totalBill - totalDeductions;
 
   // Debit: Client Receivable (net of retention and TDS)
   lines.push({
