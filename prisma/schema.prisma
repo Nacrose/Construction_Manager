@@ -3608,6 +3608,7 @@ model CompanyBankAccount {
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   payments        Payment[]
   headOfficeExpenses HeadOfficeExpense[]
+  bankReconciliations BankReconciliation[]
 
   @@index([organizationId, status])
 }
@@ -3767,6 +3768,40 @@ model CostCode {
   @@index([category])
   @@index([parentId])
   @@index([sortOrder])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BANK RECONCILIATION — Persisted reconciliation state
+// ═══════════════════════════════════════════════════════════════
+// Stores the result of a bank reconciliation run so the user can
+// review past reconciliations, see which entries were matched/unmatched,
+// and track reconciliation history.
+
+model BankReconciliation {
+  id                    String   @id @default(cuid())
+  bankAccountId         String
+  periodStart          DateTime
+  periodEnd             DateTime
+  statementClosingBalance Float  @default(0)
+  recordedBalance       Float    @default(0)
+  adjustedBalance      Float    @default(0)
+  matchedCount         Int      @default(0)
+  unmatchedStatementCount Int    @default(0)
+  unmatchedPaymentCount Int      @default(0)
+  outstandingPayments   Float    @default(0)
+  unmatchedDeposits     Float    @default(0)
+  isReconciled         Boolean  @default(false)
+  reconciliationData    String   // JSON: full matched/unmatched detail
+  status               String   @default("draft") // draft | confirmed | discarded
+  confirmedById         String?
+  confirmedAt           DateTime?
+  notes                 String?
+  createdAt             DateTime @default(now())
+
+  bankAccount           CompanyBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  @@index([bankAccountId, periodStart])
+  @@index([status])
 }
 
 

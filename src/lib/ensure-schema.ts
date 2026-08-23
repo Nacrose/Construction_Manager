@@ -1209,6 +1209,33 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `CREATE INDEX IF NOT EXISTS "CostCode_parentId_idx" ON "CostCode"("parentId")`,
     `CREATE INDEX IF NOT EXISTS "CostCode_sortOrder_idx" ON "CostCode"("sortOrder")`,
     `ALTER TABLE "CostCode" ADD CONSTRAINT IF NOT EXISTS "CostCode_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "CostCode"("id") ON DELETE SET NULL`,
+
+    // Bank Reconciliation
+    `CREATE TABLE IF NOT EXISTS "BankReconciliation" (
+      "id" TEXT NOT NULL,
+      "bankAccountId" TEXT NOT NULL,
+      "periodStart" TIMESTAMPTZ NOT NULL,
+      "periodEnd" TIMESTAMPTZ NOT NULL,
+      "statementClosingBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "recordedBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "adjustedBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "matchedCount" INTEGER NOT NULL DEFAULT 0,
+      "unmatchedStatementCount" INTEGER NOT NULL DEFAULT 0,
+      "unmatchedPaymentCount" INTEGER NOT NULL DEFAULT 0,
+      "outstandingPayments" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "unmatchedDeposits" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "isReconciled" BOOLEAN NOT NULL DEFAULT false,
+      "reconciliationData" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'draft',
+      "confirmedById" TEXT,
+      "confirmedAt" TIMESTAMPTZ,
+      "notes" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "BankReconciliation_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "BankReconciliation_bankAccountId_periodStart_idx" ON "BankReconciliation"("bankAccountId", "periodStart")`,
+    `CREATE INDEX IF NOT EXISTS "BankReconciliation_status_idx" ON "BankReconciliation"("status")`,
+    `ALTER TABLE "BankReconciliation" ADD CONSTRAINT IF NOT EXISTS "BankReconciliation_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "CompanyBankAccount"("id") ON DELETE CASCADE`,
   ];
 
   for (const stmt of financialArchStatements) {

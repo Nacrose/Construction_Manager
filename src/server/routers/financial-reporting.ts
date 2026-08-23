@@ -1224,23 +1224,50 @@ export const financialReportingRouter = router({
 
       const adjustedBalance = bankAccount.currentBalance + unmatchedDeposits - outstandingPayments;
 
-      return {
+      const matchedCount = matched.filter((m) => m.matchType !== "unmatched").length;
+      const unmatchedStatementCount = matched.filter((m) => m.matchType === "unmatched").length;
+      const isReconciled = Math.abs(adjustedBalance - statementClosingBalance) < 1;
+
+      const result = {
         bankAccount: {
           id: bankAccount.id,
           name: `Account ${bankAccount.accountNumber}`,
           recordedBalance: bankAccount.currentBalance,
         },
         statementClosingBalance,
-        matchedCount: matched.filter((m) => m.matchType !== "unmatched").length,
-        unmatchedStatementEntries: matched.filter((m) => m.matchType === "unmatched").length,
+        matchedCount,
+        unmatchedStatementEntries: unmatchedStatementCount,
         unmatchedPayments: unmatchedPayments.length,
         outstandingPayments,
         unmatchedDeposits,
         adjustedBalance,
-        isReconciled: Math.abs(adjustedBalance - statementClosingBalance) < 1,
+        isReconciled,
         entries: matched,
         unmatchedPaymentRecords: unmatchedPayments,
       };
+
+      // Persist the reconciliation as a draft so the user can review
+      // and confirm it later. The full match detail is stored as JSON.
+      await db.bankReconciliation.create({
+        data: {
+          bankAccountId: input.bankAccountId,
+          periodStart: fromDate,
+          periodEnd: toDate,
+          statementClosingBalance,
+          recordedBalance: bankAccount.currentBalance,
+          adjustedBalance,
+          matchedCount,
+          unmatchedStatementCount,
+          unmatchedPaymentCount: unmatchedPayments.length,
+          outstandingPayments,
+          unmatchedDeposits,
+          isReconciled,
+          reconciliationData: JSON.stringify(result),
+          status: "draft",
+        },
+      });
+
+      return result;
     }),
 
   // ═══════════════════════════════════════════════════════════

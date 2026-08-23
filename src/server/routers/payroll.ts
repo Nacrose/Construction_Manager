@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { computePayrollLine } from "@/server/utils/payroll-calc";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 
 export const payrollRouter = router({
   /** Calculate on-the-fly preview for a given project and month (YYYY-MM). */
@@ -273,6 +274,7 @@ export const payrollRouter = router({
       const totalAllowances = computedRecords.reduce((sum, { computed }) => sum + computed.allowances, 0);
       const totalAdvancesRecovered = computedRecords.reduce((sum, { computed }) => sum + computed.advanceDeduction, 0);
       const totalDeductions = computedRecords.reduce((sum, { computed }) => sum + computed.totalDeductions, 0);
+      const totalTds = computedRecords.reduce((sum, { computed }) => sum + computed.tdsAmount, 0);
       const totalNetPayable = computedRecords.reduce((sum, { computed }) => sum + computed.netPayable, 0);
 
       const payrollRun = await db.$transaction(async (tx) => {
@@ -402,6 +404,66 @@ export const payrollRouter = router({
             }
           }
         }
+
+        // Generate the payroll journal entry:
+        // Dr Direct Labor (5010) = totalGross
+        //    Cr Salary Payable (2030) = totalNetPayable
+        //    Cr TDS Payable (2020) = totalTds
+        //    Cr Staff Advance Recoverable (2040) = totalAdvancesRecovered
+        //    Cr Cash (1001) = totalMessDeductions + totalOtherDeductions
+        const totalMessAndOther = computedRecords.reduce(
+          (s, { computed }) => s + computed.messDeduction + computed.otherDeductions, 0,
+        );
+        await createJournalEntry(tx, {
+          source: "payroll",
+          sourceRefId: run.id,
+          sourceRefType: "PayrollRun",
+          description: `Payroll for ${input.month} — ${input.projectId}`,
+          entryDate: new Date(),
+          postedById: ctx.user.id,
+          lines: [
+            {
+              accountCode: "5010",
+              accountName: "Direct Labor",
+              debit: totalGross,
+              credit: 0,
+              description: `Gross payroll — ${computedRecords.length} staff — ${input.month}`,
+              projectId: input.projectId,
+            },
+            ...(totalNetPayable > 0 ? [{
+              accountCode: "2030",
+              accountName: "Salary Payable",
+              debit: 0,
+              credit: totalNetPayable,
+              description: `Net payable to staff — ${input.month}`,
+              projectId: input.projectId,
+            }] : []),
+            ...(totalTds > 0 ? [{
+              accountCode: "2020" as const,
+              accountName: "TDS Payable",
+              debit: 0,
+              credit: totalTds,
+              description: `TDS deducted from payroll — ${input.month}`,
+              projectId: input.projectId,
+            }] : []),
+            ...(totalAdvancesRecovered > 0 ? [{
+              accountCode: "2040" as const,
+              accountName: "Staff Advance Recoverable",
+              debit: 0,
+              credit: totalAdvancesRecovered,
+              description: `Cash advances recovered — ${input.month}`,
+              projectId: input.projectId,
+            }] : []),
+            ...(totalMessAndOther > 0 ? [{
+              accountCode: "1001" as const,
+              accountName: "Cash on Hand",
+              debit: 0,
+              credit: totalMessAndOther,
+              description: `Mess & other deductions retained — ${input.month}`,
+              projectId: input.projectId,
+            }] : []),
+          ],
+        });
 
         return run;
       });
