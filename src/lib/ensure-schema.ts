@@ -1131,6 +1131,7 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `CREATE INDEX IF NOT EXISTS "JournalEntry_source_sourceRefId_idx" ON "JournalEntry"("source", "sourceRefId")`,
     `CREATE INDEX IF NOT EXISTS "JournalEntry_fiscalYearId_idx" ON "JournalEntry"("fiscalYearId")`,
     `CREATE INDEX IF NOT EXISTS "JournalEntry_isPosted_idx" ON "JournalEntry"("isPosted")`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "JournalEntry_entryNumber_key" ON "JournalEntry"("entryNumber")`,
 
     `CREATE TABLE IF NOT EXISTS "JournalEntryLine" (
       "id" TEXT NOT NULL,

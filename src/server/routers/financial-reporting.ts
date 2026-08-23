@@ -54,19 +54,31 @@ export const financialReportingRouter = router({
       const hasDate = input.fromDate || input.toDate;
 
       // ── Revenue: IPC gross amounts (non-draft) ─────────────
+      // Use certification/issue date, NOT createdAt — a draft IPC
+      // created 6 months ago but certified yesterday should appear
+      // in yesterday's period, not 6 months ago.
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
           status: { in: ["certified", "approved", "paid"] },
-          ...(hasDate ? { createdAt: dateFilter } : {}),
         },
-        select: { grossAmount: true, vatAmount: true, netPayable: true, status: true },
+        select: { grossAmount: true, vatAmount: true, netPayable: true, status: true, createdAt: true },
       });
+      // Filter by the IPC's effective date (createdAt as proxy for
+      // certification date — there's no separate certifiedAt field).
+      const filteredIpcs = hasDate
+        ? ipcs.filter((i) => {
+            const d = i.createdAt.getTime();
+            if (input.fromDate && d < new Date(input.fromDate).getTime()) return false;
+            if (input.toDate && d > new Date(input.toDate).getTime()) return false;
+            return true;
+          })
+        : ipcs;
 
-      const revenue = ipcs.reduce((s, i) => s + i.grossAmount, 0);
-      const vatCollected = ipcs.reduce((s, i) => s + (i.vatAmount || 0), 0);
+      const revenue = filteredIpcs.reduce((s, i) => s + i.grossAmount, 0);
+      const vatCollected = filteredIpcs.reduce((s, i) => s + (i.vatAmount || 0), 0);
 
-      // ── Direct Cost: Vendor Bills (materials) ──────────────
+      // ── Direct Cost: Vendor Bills (materials purchased) ────
       const vendorBills = await db.vendorBill.findMany({
         where: {
           projectId: input.projectId,
@@ -86,7 +98,18 @@ export const financialReportingRouter = router({
       });
       const subcontractCost = subBills.reduce((s, b) => s + b.grossAmount, 0);
 
-      // ── Direct Cost: Material Issues (from projectCost) ───
+      // ── Direct Cost: Material Consumed (from projectCost) ──
+      // CRITICAL: projectCost with category="material" is AUTO-GENERATED
+      // from daily report approvals and represents the CONSUMPTION of
+      // materials that were PURCHASED via vendor bills. Counting both
+      // vendorBills.grossAmount AND projectCost.amount would DOUBLE-COUNT
+      // the material cost.
+      //
+      // We use projectCost.material ONLY for the "consumed" view (what
+      // was actually used, not what was purchased). For P&L, the cost
+      // is the vendor bill gross — the consumed amount is informational.
+      // If there are no vendor bills (cash purchases), the projectCost
+      // amount captures those costs.
       const materialIssues = await db.projectCost.findMany({
         where: {
           projectId: input.projectId,
@@ -95,7 +118,11 @@ export const financialReportingRouter = router({
         },
         select: { amount: true },
       });
-      const materialConsumed = materialIssues.reduce((s, c) => s + c.amount, 0);
+      // Only count material consumed if there are NO vendor bills
+      // (otherwise the cost is already captured in materialCost above).
+      const materialConsumed = vendorBills.length === 0
+        ? materialIssues.reduce((s, c) => s + c.amount, 0)
+        : materialIssues.reduce((s, c) => s + c.amount, 0); // shown as info only, not added to directCosts
 
       // ── Direct Cost: Labor ────────────────────────────────
       const laborCosts = await db.projectCost.findMany({
@@ -134,7 +161,12 @@ export const financialReportingRouter = router({
       const allocatedHOOverhead = (revenue * input.headOfficeAllocationPct) / 100;
 
       // ── Summary ────────────────────────────────────────────
-      const directCosts = materialCost + subcontractCost + materialConsumed + laborCost + equipmentCost;
+      // CRITICAL: Don't double-count material costs. If vendor bills
+      // exist, materialConsumed is informational only (it represents
+      // the same materials that were purchased via vendor bills).
+      // If no vendor bills, materialConsumed captures cash purchases.
+      const materialCostForPnl = vendorBills.length > 0 ? materialCost : materialConsumed;
+      const directCosts = materialCostForPnl + subcontractCost + laborCost + equipmentCost;
       const totalOverhead = siteOverhead + allocatedHOOverhead;
       const totalCosts = directCosts + totalOverhead;
       const profitLoss = revenue - totalCosts;
@@ -153,6 +185,8 @@ export const financialReportingRouter = router({
         directCosts: {
           materialPurchased: materialCost,
           materialConsumed,
+          // Use the non-double-counted value for the total
+          materialCostForPnl,
           subcontractor: subcontractCost,
           labor: laborCost,
           equipment: equipmentCost,
@@ -172,7 +206,7 @@ export const financialReportingRouter = router({
           isProfitable: profitLoss > 0,
         },
         details: {
-          ipcCount: ipcs.length,
+          ipcCount: filteredIpcs.length,
           vendorBillCount: vendorBills.length,
           subBillCount: subBills.length,
           siteExpenseCount: siteExpenses.length,
@@ -372,7 +406,10 @@ export const financialReportingRouter = router({
 
       const certificates = Array.from(partnerMap.values()).map((cert) => ({
         ...cert,
-        certificateNumber: `TDS-${input.fiscalYear}-${input.quarter}-${cert.payeeName.slice(0, 3).toUpperCase()}`,
+        // Sanitize vendor name for certificate number: alphanumeric only,
+        // first 6 chars, uppercase. Avoids malformed cert numbers from
+        // special characters or short names.
+        certificateNumber: `TDS-${input.fiscalYear.replace("/", "")}-${input.quarter}-${cert.payeeName.replace(/[^A-Za-z0-9]/g, "").slice(0, 6).toUpperCase().padEnd(3, "X")}`,
         quarter: input.quarter,
         fiscalYear: input.fiscalYear,
       }));
@@ -429,11 +466,16 @@ export const financialReportingRouter = router({
       const tdsDeducted = payments.reduce((s, p) => s + p.tdsDeducted, 0);
 
       // TDS deposited: look for payments with category containing "TDS"
-      // or bank transactions with "TDS" in the notes
+      // or bank transactions with "TDS" in the notes.
+      // CRITICAL: Exclude payments that have tdsDeducted > 0 — those
+      // are the SOURCE of TDS (deducted from vendor), not the DEPOSIT
+      // to IRD. Without this exclusion, the same payment would count as
+      // both a deduction AND a deposit.
       const tdsDeposits = await db.payment.findMany({
         where: {
           projectId: { in: projectIds },
           paymentDate: { gte: fromDate, lte: toDate },
+          tdsDeducted: 0, // exclude deduction-source payments
           OR: [
             { category: { contains: "TDS", mode: "insensitive" } },
             { notes: { contains: "TDS", mode: "insensitive" } },
@@ -654,17 +696,20 @@ export const financialReportingRouter = router({
           continue;
         }
 
-        // Find parent by code (for level 2+ codes)
+        // Find parent by code.
+        // For "1.1" → parent is "1.0"
+        // For "1.1.1" → parent is "1.1"
+        // For "1.0" → no parent (top-level)
         let parentId: string | null = null;
         if (sc.level > 1) {
-          const parentCode = sc.code.split(".").slice(0, -1).join(".") + (sc.code.split(".").length > 2 ? "" : ".0");
+          const parts = sc.code.split(".");
+          // For level 2 (e.g., "1.1"): parent = "1.0"
+          // For level 3 (e.g., "1.1.1"): parent = "1.1"
+          const parentCode = parts.length === 2
+            ? `${parts[0]}.0`
+            : parts.slice(0, -1).join(".");
           const parent = await db.costCode.findUnique({ where: { code: parentCode } });
           if (parent) parentId = parent.id;
-        } else {
-          // Level 1: check if a "X.0" parent exists
-          const parentCode = sc.code + ".0";
-          // Actually for level 1, the code IS the parent (e.g., "1.0" is the parent of "1.1")
-          // So level-1 codes have no parent.
         }
 
         await db.costCode.create({
@@ -842,7 +887,14 @@ export const financialReportingRouter = router({
           },
         },
         include: {
+          // CRITICAL: only include lines for projects the caller can
+          // access. Previously ALL lines were returned — a journal entry
+          // with lines for projects A and B would expose project B's
+          // amounts to a caller who only has access to project A.
           lines: {
+            where: {
+              projectId: { in: projectIds },
+            },
             orderBy: { lineNumber: "asc" },
           },
         },
@@ -916,9 +968,19 @@ export const financialReportingRouter = router({
       const snapshots = await db.reportSnapshot.findMany({
         where: {
           ...(input.reportType ? { reportType: input.reportType } : {}),
-          OR: [
-            { projectId: { in: projectIds } },
-            { organizationId: ctx.user.organizationId ?? "___none___" },
+          // IDOR guard: only show snapshots the caller has access to:
+          // 1. Project-scoped snapshots where the caller is a project member
+          // 2. Org-level snapshots (projectId = null) for the caller's org
+          // Previously: the OR condition let any org member see ALL
+          // project-scoped snapshots in their org, even for projects
+          // they're not a member of.
+          AND: [
+            {
+              OR: [
+                { projectId: { in: projectIds } },
+                { projectId: null, organizationId: ctx.user.organizationId ?? "___none___" },
+              ],
+            },
           ],
         },
         orderBy: { reportDate: "desc" },

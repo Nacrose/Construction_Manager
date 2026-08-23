@@ -3648,7 +3648,7 @@ model HeadOfficeExpense {
 
 model JournalEntry {
   id              String   @id @default(cuid())
-  entryNumber     String   // e.g. JE-2026-0001
+  entryNumber     String   @unique // e.g. JE-2026-0001
   entryDate       DateTime @default(now())
   miti            String?  // BS date
   fiscalYearId    String?  // links to FiscalYearLock

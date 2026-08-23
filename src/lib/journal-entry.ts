@@ -43,6 +43,7 @@ export type JournalEntryInput = {
   miti?: string;
   lines: JournalLineInput[];
   isPosted?: boolean;
+  postedById?: string; // user who posted the entry
 };
 
 /**
@@ -65,42 +66,61 @@ export async function createJournalEntry(
     );
   }
 
-  // Generate entry number (JE-YYYY-NNNN)
+  // Generate entry number (JE-YYYY-NNNN) with retry on collision.
+  // The unique constraint on entryNumber prevents duplicates — if a
+  // concurrent request inserts the same number, we retry.
   const year = (input.entryDate ?? new Date()).getFullYear();
-  const count = await tx.journalEntry.count({
-    where: { entryNumber: { startsWith: `JE-${year}-` } },
-  });
-  const entryNumber = `JE-${year}-${String(count + 1).padStart(4, "0")}`;
+  const MAX_RETRIES = 5;
+  let entry;
+  let entryNumber = "";
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const count = await tx.journalEntry.count({
+      where: { entryNumber: { startsWith: `JE-${year}-` } },
+    });
+    entryNumber = `JE-${year}-${String(count + 1).padStart(4, "0")}`;
 
-  const entry = await tx.journalEntry.create({
-    data: {
-      entryNumber,
-      entryDate: input.entryDate ?? new Date(),
-      miti: input.miti,
-      source: input.source,
-      sourceRefId: input.sourceRefId || null,
-      sourceRefType: input.sourceRefType || null,
-      description: input.description,
-      totalDebit,
-      totalCredit,
-      isPosted: input.isPosted ?? true,
-      postedById: null, // set by caller if needed
-      postedAt: input.isPosted ?? true ? new Date() : null,
-      lines: {
-        create: input.lines.map((line, idx) => ({
-          lineNumber: idx + 1,
-          accountCode: line.accountCode,
-          accountName: line.accountName,
-          debit: line.debit || 0,
-          credit: line.credit || 0,
-          description: line.description || null,
-          projectId: line.projectId || null,
-          partnerId: line.partnerId || null,
-        })),
-      },
-    },
-    include: { lines: true },
-  });
+    try {
+      entry = await tx.journalEntry.create({
+        data: {
+          entryNumber,
+          entryDate: input.entryDate ?? new Date(),
+          miti: input.miti,
+          source: input.source,
+          sourceRefId: input.sourceRefId || null,
+          sourceRefType: input.sourceRefType || null,
+          description: input.description,
+          totalDebit,
+          totalCredit,
+          isPosted: input.isPosted ?? true,
+          postedById: input.postedById || null,
+          postedAt: (input.isPosted ?? true) ? new Date() : null,
+          lines: {
+            create: input.lines.map((line, idx) => ({
+              lineNumber: idx + 1,
+              accountCode: line.accountCode,
+              accountName: line.accountName,
+              debit: line.debit || 0,
+              credit: line.credit || 0,
+              description: line.description || null,
+              projectId: line.projectId || null,
+              partnerId: line.partnerId || null,
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+      break; // success
+    } catch (err: any) {
+      if (attempt < MAX_RETRIES - 1 && err?.code === "P2002") {
+        continue; // retry with next number
+      }
+      throw err;
+    }
+  }
+
+  if (!entry) {
+    throw new Error("Failed to create journal entry after multiple retries.");
+  }
 
   return { id: entry.id, entryNumber: entry.entryNumber };
 }
@@ -252,15 +272,48 @@ export function ipcBillingEntry(params: {
 }): JournalEntryInput {
   const lines: JournalLineInput[] = [];
 
-  // Debit: Client Receivable for total bill (gross + VAT)
+  // The IPC billing entry represents the revenue recognition event.
+  // The standard double-entry for an IPC with retention is:
+  //
+  //   Dr Client Receivable (gross + VAT - retention)    NPR X  (1100)
+  //   Dr Retention Receivable (held by client)            NPR R  (1110)
+  //      Cr Contract Revenue (gross)                     NPR G  (4001)
+  //      Cr VAT Payable (VAT on gross)                   NPR V  (2021)
+  //
+  // Where: X + R = G + V (balanced)
+  //   X = gross + VAT - retention (what client pays now)
+  //   R = retention (held back, released later)
+  //   G = gross (revenue)
+  //   V = VAT
+  //
+  // Previously: retention was NOT included in the entry. The entry
+  // was unbalanced when retention was deducted — the client receivable
+  // was debited for gross+VAT but the net payable (after retention) was
+  // less, with no accounting for the retention held.
+
+  const clientReceivable = params.grossAmount + params.vatAmount - params.retentionAmount;
+
+  // Debit: Client Receivable (net of retention)
   lines.push({
     accountCode: "1100",
     accountName: "Client Receivables",
-    debit: params.grossAmount + params.vatAmount,
+    debit: clientReceivable,
     credit: 0,
-    description: `IPC ${params.ipcNumber} billing`,
+    description: `IPC ${params.ipcNumber} — receivable (net of retention)`,
     projectId: params.projectId,
   });
+
+  // Debit: Retention Receivable (held by client)
+  if (params.retentionAmount > 0) {
+    lines.push({
+      accountCode: "1110",
+      accountName: "Retention Receivable (from Client)",
+      debit: params.retentionAmount,
+      credit: 0,
+      description: `Retention deducted on IPC ${params.ipcNumber}`,
+      projectId: params.projectId,
+    });
+  }
 
   // Credit: Contract Revenue (gross)
   lines.push({
