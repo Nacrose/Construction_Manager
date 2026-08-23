@@ -120,9 +120,7 @@ export const financialReportingRouter = router({
       });
       // Only count material consumed if there are NO vendor bills
       // (otherwise the cost is already captured in materialCost above).
-      const materialConsumed = vendorBills.length === 0
-        ? materialIssues.reduce((s, c) => s + c.amount, 0)
-        : materialIssues.reduce((s, c) => s + c.amount, 0); // shown as info only, not added to directCosts
+      const materialConsumed = materialIssues.reduce((s, c) => s + c.amount, 0);
 
       // ── Direct Cost: Labor ────────────────────────────────
       const laborCosts = await db.projectCost.findMany({
@@ -267,7 +265,13 @@ export const financialReportingRouter = router({
           date: i.createdAt,
           retentionAmount: i.retentionAmount || 0,
           status: i.status,
-          isReleased: i.status === "paid", // retention is released on final payment
+          // Retention is NOT released when the IPC is paid — the IPC
+          // being "paid" means the client paid the net payable (after
+          // retention deduction). The retention itself is held by the
+          // client until project completion + defect liability period.
+          // A separate "retention release" process should be used to
+          // mark retention as released.
+          isReleased: false,
         }));
 
       // ── Retention PAYABLE: retention deducted on sub-bills ──
@@ -295,7 +299,10 @@ export const financialReportingRouter = router({
           date: b.billDate,
           retentionAmount: b.retentionAmount || 0,
           status: b.status,
-          isReleased: b.status === "paid", // retention released on final settlement
+          // Same as IPCs: retention payable to subcontractors is held
+          // until project completion + defect liability period, NOT
+          // released when the bill is paid.
+          isReleased: false,
         }));
 
       const totalReceivable = receivables.reduce((s, r) => s + (r.isReleased ? 0 : r.retentionAmount), 0);
@@ -338,7 +345,11 @@ export const financialReportingRouter = router({
       // Q3: Magh-Chaitra (~Feb 15 - Apr 13)
       // Q4: Baishakh-Asarh (~Apr 14 - Jul 15)
       const [bsStart, bsEnd] = input.fiscalYear.split("/");
-      const adStartYear = parseInt(bsStart) + 56; // BS to AD approximation
+      // BS to AD conversion: AD = BS - 56 (approximately).
+      // BS 2081 = AD 2025 (Nepal fiscal year starts mid-July).
+      // Previously this used + 56 which produced dates 112 years in
+      // the future — the entire TDS certificate feature was broken.
+      const adStartYear = parseInt(bsStart) - 56;
       const quarterRanges: Record<string, [Date, Date]> = {
         Q1: [new Date(adStartYear, 6, 16), new Date(adStartYear, 9, 16)],
         Q2: [new Date(adStartYear, 9, 17), new Date(adStartYear + 1, 1, 14)],
@@ -553,7 +564,10 @@ export const financialReportingRouter = router({
       });
       const totalRecentCosts = recentCosts.reduce((s, c) => s + c.amount, 0);
       const monthlyBurnRate = totalRecentCosts / input.monthsToAverage;
-      const runwayMonths = monthlyBurnRate > 0 ? cashBalance / monthlyBurnRate : Infinity;
+      // JSON.stringify(Infinity) returns null — use a large number + flag
+      // instead so the client gets a meaningful value.
+      const runwayMonths = monthlyBurnRate > 0 ? cashBalance / monthlyBurnRate : null;
+      const isCashSustainable = monthlyBurnRate === 0;
 
       // ── Total payables (due within 30 days) ────────────────
       const [vendorBills, subBills] = await Promise.all([
@@ -594,6 +608,7 @@ export const financialReportingRouter = router({
         cashBalance,
         monthlyBurnRate,
         runwayMonths,
+        isCashSustainable,
         cashGap,
         totalPayables,
         expectedInflows,
@@ -1014,9 +1029,22 @@ export const financialReportingRouter = router({
         await assertProjectMember(ctx.user, snapshot.projectId);
       }
 
+      // Parse the snapshot data safely — if the stored JSON is corrupted
+      // (truncated, encoding issue), return a structured error instead of
+      // crashing the entire request.
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(snapshot.snapshotData);
+      } catch {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Report snapshot data is corrupted and cannot be parsed. Please regenerate the report.",
+        });
+      }
+
       return {
         ...snapshot,
-        snapshotData: JSON.parse(snapshot.snapshotData),
+        snapshotData: parsedData,
       };
     }),
 });

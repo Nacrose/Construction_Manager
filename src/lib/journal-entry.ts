@@ -208,6 +208,17 @@ export function vendorPaymentEntry(params: {
   partnerId?: string;
   date: Date;
 }): JournalEntryInput {
+  // Validate balance: amount must equal tdsDeducted + netPaid.
+  // Without this check, createJournalEntry would throw a confusing
+  // "unbalanced" error later.
+  const expectedNet = params.amount - params.tdsDeducted;
+  if (Math.abs(expectedNet - params.netPaid) > 0.01) {
+    throw new Error(
+      `vendorPaymentEntry: amount (${params.amount}) must equal tdsDeducted (${params.tdsDeducted}) + netPaid (${params.netPaid}). ` +
+        `Expected netPaid=${expectedNet}, got ${params.netPaid}.`,
+    );
+  }
+
   const lines: JournalLineInput[] = [];
 
   // Debit: reduce vendor payable by gross amount
