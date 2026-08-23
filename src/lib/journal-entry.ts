@@ -154,39 +154,56 @@ export async function reverseJournalEntry(
     partnerId: line.partnerId ?? undefined,
   }));
 
+  // Generate entry number with retry (same pattern as createJournalEntry).
   const year = new Date().getFullYear();
-  const count = await tx.journalEntry.count({
-    where: { entryNumber: { startsWith: `JE-${year}-` } },
-  });
-  const entryNumber = `JE-${year}-R${String(count + 1).padStart(4, "0")}`;
+  const MAX_RETRIES = 5;
+  let reversal;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const count = await tx.journalEntry.count({
+      where: { entryNumber: { startsWith: `JE-${year}-` } },
+    });
+    const entryNumber = `JE-${year}-R${String(count + 1).padStart(4, "0")}`;
 
-  const reversal = await tx.journalEntry.create({
-    data: {
-      entryNumber,
-      entryDate: new Date(),
-      source: "reversal",
-      sourceRefId: originalEntryId,
-      sourceRefType: "JournalEntry",
-      description: `REVERSAL of ${original.entryNumber}: ${reason}`,
-      totalDebit: original.totalCredit,
-      totalCredit: original.totalDebit,
-      isPosted: true,
-      postedAt: new Date(),
-      reversalOfId: originalEntryId,
-      lines: {
-        create: reversedLines.map((line, idx) => ({
-          lineNumber: idx + 1,
-          accountCode: line.accountCode,
-          accountName: line.accountName,
-          debit: line.debit || 0,
-          credit: line.credit || 0,
-          description: line.description || null,
-          projectId: line.projectId || null,
-          partnerId: line.partnerId || null,
-        })),
-      },
-    },
-  });
+    try {
+      reversal = await tx.journalEntry.create({
+        data: {
+          entryNumber,
+          entryDate: new Date(),
+          source: "reversal",
+          sourceRefId: originalEntryId,
+          sourceRefType: "JournalEntry",
+          description: `REVERSAL of ${original.entryNumber}: ${reason}`,
+          totalDebit: original.totalCredit,
+          totalCredit: original.totalDebit,
+          isPosted: true,
+          postedAt: new Date(),
+          reversalOfId: originalEntryId,
+          lines: {
+            create: reversedLines.map((line, idx) => ({
+              lineNumber: idx + 1,
+              accountCode: line.accountCode,
+              accountName: line.accountName,
+              debit: line.debit || 0,
+              credit: line.credit || 0,
+              description: line.description || null,
+              projectId: line.projectId || null,
+              partnerId: line.partnerId || null,
+            })),
+          },
+        },
+      });
+      break; // success
+    } catch (err: any) {
+      if (attempt < MAX_RETRIES - 1 && err?.code === "P2002") {
+        continue; // retry with next number
+      }
+      throw err;
+    }
+  }
+
+  if (!reversal) {
+    throw new Error("Failed to create reversal journal entry after multiple retries.");
+  }
 
   return { id: reversal.id, entryNumber: reversal.entryNumber };
 }

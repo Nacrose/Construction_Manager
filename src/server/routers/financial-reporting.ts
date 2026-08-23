@@ -159,11 +159,20 @@ export const financialReportingRouter = router({
       const allocatedHOOverhead = (revenue * input.headOfficeAllocationPct) / 100;
 
       // ── Summary ────────────────────────────────────────────
-      // CRITICAL: Don't double-count material costs. If vendor bills
-      // exist, materialConsumed is informational only (it represents
-      // the same materials that were purchased via vendor bills).
-      // If no vendor bills, materialConsumed captures cash purchases.
-      const materialCostForPnl = vendorBills.length > 0 ? materialCost : materialConsumed;
+      // For P&L: use materialConsumed (actual consumption from projectCost)
+      // as the material cost — this represents the cost actually incurred
+      // in the period. Vendor bill grossAmount represents PURCHASES
+      // (balance sheet: inventory increases), not P&L expense.
+      //
+      // However, projectCost records are only auto-generated from daily
+      // report approvals. If daily reports aren't being used, there
+      // are no projectCost records — in that case fall back to vendor
+      // bill gross as the material cost.
+      //
+      // This is the correct accounting treatment:
+      //   - Period P&L: match revenue with CONSUMPTION (not purchase)
+      //   - Balance sheet: track inventory via purchase - consumption
+      const materialCostForPnl = materialConsumed > 0 ? materialConsumed : materialCost;
       const directCosts = materialCostForPnl + subcontractCost + laborCost + equipmentCost;
       const totalOverhead = siteOverhead + allocatedHOOverhead;
       const totalCosts = directCosts + totalOverhead;
@@ -535,7 +544,22 @@ export const financialReportingRouter = router({
       });
 
       if (!user.organizationId) {
-        return { cashBalance: 0, monthlyBurnRate: 0, runwayMonths: 0, cashGap: 0, expectedInflows: 0, totalPayables: 0 };
+        return {
+          cashBalance: 0,
+          monthlyBurnRate: 0,
+          runwayMonths: null,
+          isCashSustainable: true,
+          cashGap: 0,
+          totalPayables: 0,
+          expectedInflows: 0,
+          projection: {
+            days: 90,
+            projectedOutflow: 0,
+            projectedInflow: 0,
+            projectedNet: 0,
+            projectedBalance: 0,
+          },
+        };
       }
 
       // ── Cash / Bank balance ────────────────────────────────
@@ -664,12 +688,23 @@ export const financialReportingRouter = router({
         throw new TRPCError({ code: "CONFLICT", message: `Cost code ${input.code} already exists.` });
       }
 
+      // Verify parent exists if specified.
       let sortOrder = 0;
       if (input.parentId) {
         const parent = await db.costCode.findUnique({ where: { id: input.parentId } });
-        if (parent) {
-          sortOrder = parent.sortOrder;
+        if (!parent) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Parent cost code not found." });
         }
+        // Verify the parent's category matches (or is compatible with)
+        // the child's — a material code shouldn't be a child of a labor
+        // code. This catches user mistakes early.
+        if (parent.category !== input.category) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Category mismatch: parent is "${parent.category}" but child is "${input.category}". Cost code hierarchy must use the same category.`,
+          });
+        }
+        sortOrder = parent.sortOrder;
       }
 
       const code = await db.costCode.create({
@@ -929,8 +964,8 @@ export const financialReportingRouter = router({
     .input(z.object({
       reportType: z.enum(["pnl", "trial_balance", "cash_flow", "retention_ledger", "tds_reconciliation"]),
       projectId: z.string().optional(),
-      periodLabel: z.string().optional(),
-      snapshotData: z.string(), // JSON stringified report result
+      periodLabel: z.string().max(100).optional(),
+      snapshotData: z.string().max(1_000_000), // 1MB cap — prevents DB bloat
     }))
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) {
