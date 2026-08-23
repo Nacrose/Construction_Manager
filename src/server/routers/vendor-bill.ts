@@ -246,8 +246,7 @@ export const vendorBillRouter = router({
         });
       }
 
-      const newPaidAmount = bill.paidAmount + input.amount;
-      const isFull = newPaidAmount >= bill.netPayable - 0.01;
+      const isFull = (bill.paidAmount + input.amount) >= bill.netPayable - 0.01;
       const newStatus = isFull ? "paid" : "partially_paid";
 
       const payment = await db.$transaction(async (tx) => {
@@ -264,13 +263,15 @@ export const vendorBillRouter = router({
           },
         });
 
-        await tx.vendorBill.update({
-          where: { id: input.vendorBillId },
-          data: {
-            paidAmount: newPaidAmount,
-            status: newStatus,
-          },
-        });
+        // Atomic increment to avoid lost-update race on concurrent payments.
+        // Previously this used `bill.paidAmount + input.amount` (read-then-write)
+        // — two concurrent payments would race and one would be lost.
+        await tx.$executeRaw`
+          UPDATE "VendorBill"
+          SET "paidAmount" = "paidAmount" + ${input.amount},
+              "status" = ${newStatus}
+          WHERE "id" = ${input.vendorBillId}
+        `;
 
         return p;
       });
@@ -284,12 +285,12 @@ export const vendorBillRouter = router({
         metadata: {
           billNumber: bill.billNumber,
           amount: input.amount,
-          newPaidAmount,
+          newPaidAmount: bill.paidAmount + input.amount,
           status: newStatus,
           paymentMethod: input.paymentMethod || "bank_transfer",
         },
       });
 
-      return { payment, newStatus, remainingPayable: Math.max(0, bill.netPayable - newPaidAmount) };
+      return { payment, newStatus, remainingPayable: Math.max(0, bill.netPayable - (bill.paidAmount + input.amount)) };
     }),
 });

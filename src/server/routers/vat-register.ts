@@ -120,8 +120,9 @@ export const vatRegisterRouter = router({
 
       for (const m of materialTxns) {
         const baseAmt = m.quantity * m.rate;
-        const vatAmt = m.vatAmount || (baseAmt * (m.vatPercent || 13)) / 100;
-        const isExempt = m.vatPercent === 0;
+        // Use ?? instead of || so that 0 (legitimately VAT-exempt) is respected.
+        const vatAmt = m.vatAmount ?? (baseAmt * (m.vatPercent || 13)) / 100;
+        const isExempt = m.vatPercent === 0 || m.vatAmount === 0;
 
         rows.push({
           id: `mat-${m.id}`,
@@ -180,7 +181,7 @@ export const vatRegisterRouter = router({
           date: sp.date,
           invoiceNo: sp.slipNumber || `SPOT-${sp.id.slice(-4)}`,
           partyName: sp.vendorName,
-          partyPan: sp.vendorPhone || "—",
+          partyPan: "—", // vendorPhone is not a PAN — don't use it as one
           taxableLocal: base,
           exemptAmount: 0,
           capitalGoods: 0,

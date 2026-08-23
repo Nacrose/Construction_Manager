@@ -1341,6 +1341,9 @@ model MaterialTransaction {
   recoveryRate      Float?
   paymentType       String   @default("payable") // payable | unpayable | temporary
   gateEntryId       String?  @unique
+  // Tracks which IPC this material deduction was already applied to —
+  // prevents double-counting across multiple IPCs for the same subcontractor.
+  deductedInIpcId   String?
   // Tax fields (only applicable to 'receive' transactions)
   vatPercent        Float    @default(0) // VAT % applied (e.g. 13% in Nepal)
   vatAmount         Float    @default(0) // computed: (quantity * rate) * vatPercent / 100

@@ -792,6 +792,11 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `ALTER TABLE "MaterialTransaction" ADD COLUMN IF NOT EXISTS "netPayable" DOUBLE PRECISION NOT NULL DEFAULT 0`,
     `ALTER TABLE "MaterialTransaction" ADD COLUMN IF NOT EXISTS "supplierInvoiceNo" TEXT`,
     `ALTER TABLE "MaterialTransaction" ADD COLUMN IF NOT EXISTS "supplierPan" TEXT`,
+    // MaterialTransaction — IPC deduction tracking (prevents double-counting
+    // of material deductions across multiple IPCs for the same subcontractor).
+    // When an IPC is approved, debitable materials are marked with the IPC ID
+    // so subsequent IPC recalculations don't re-deduct them.
+    `ALTER TABLE "MaterialTransaction" ADD COLUMN IF NOT EXISTS "deductedInIpcId" TEXT`,
 
     // Payment — vendor/subcontractor payment tracking
     `CREATE TABLE IF NOT EXISTS "Payment" (

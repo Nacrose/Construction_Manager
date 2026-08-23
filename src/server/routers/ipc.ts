@@ -81,8 +81,17 @@ async function recalculateIpc(tx: any, ipcId: string) {
 
   let materialDeductions = 0;
   if (ipc.subcontractorId) {
+    // Only deduct materials that haven't already been deducted in a
+    // previous IPC. Without the `deductedInIpcId: null` filter, every
+    // IPC recalculation would re-deduct ALL debitable materials —
+    // causing massive underpayment to subcontractors across multiple IPCs.
     const txns = await tx.materialTransaction.findMany({
-      where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true },
+      where: {
+        projectId: ipc.projectId,
+        subcontractorId: ipc.subcontractorId,
+        isDebitable: true,
+        deductedInIpcId: null,
+      },
     });
     materialDeductions = txns.reduce((sum: number, t: any) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
   }
@@ -201,6 +210,24 @@ export const ipcRouter = router({
           include: { items: true, subcontractor: { select: { name: true } } },
         });
         await recalculateIpc(tx, ipcId);
+
+        // When the IPC transitions to "approved" or "paid", mark all
+        // currently-deducted material transactions as deducted in THIS
+        // IPC so they won't be re-deducted in subsequent IPCs.
+        if (item.subcontractorId && (data.status === "approved" || data.status === "paid")) {
+          await tx.materialTransaction.updateMany({
+            where: {
+              projectId: item.projectId,
+              subcontractorId: item.subcontractorId,
+              isDebitable: true,
+              deductedInIpcId: null,
+            },
+            data: {
+              deductedInIpcId: ipcId,
+            },
+          });
+        }
+
         return tx.ipc.findUnique({
           where: { id: ipcId },
           include: { items: true, subcontractor: { select: { name: true } } },
@@ -226,7 +253,7 @@ export const ipcRouter = router({
       const ipc = await db.ipc.findUnique({
         where: { id: input.ipcId },
         include: {
-          project: { select: { name: true, client: true, location: true } },
+          project: { select: { name: true, client: true, location: true, contractValue: true } },
           subcontractor: { select: { name: true, pan: true } },
           items: true,
         },
@@ -279,17 +306,23 @@ export const ipcRouter = router({
       const cumTotalDeductions = prevTotalDeductions + thisTotalDeductions;
       const cumNetPayable = prevNetPayable + thisNetPayable;
 
-      const contractWithoutVat = ipc.originalContractAmountWithoutVat || (cumGross > 0 ? cumGross / 0.7578 : 35906434.20);
+      // Use the project's actual contract value — no hardcoded fallbacks.
+      // The previous code had hardcoded values (NPR 35,906,434.20 and
+      // NPR 7,181,286.84) which were project-specific and would produce
+      // wrong results for any other project.
+      const contractWithoutVat = ipc.originalContractAmountWithoutVat || ipc.project.contractValue || 0;
+      const contractWithVat = ipc.originalContractAmountWithVat || (contractWithoutVat > 0 ? contractWithoutVat * 1.13 : 0);
+      const mobilizationAdvanceTotal = ipc.mobilizationAdvanceTotal || 0;
       const progressPct = contractWithoutVat > 0 ? (cumGross / contractWithoutVat) * 100 : 0;
 
       return {
         ipc,
         summary: {
           contractWithoutVat,
-          contractWithVat: ipc.originalContractAmountWithVat || contractWithoutVat * 1.13,
-          mobilizationPaid: ipc.mobilizationAdvanceTotal || 7181286.84,
+          contractWithVat,
+          mobilizationPaid: mobilizationAdvanceTotal,
           mobilizationDeducted: cumAdvance,
-          mobilizationBalance: Math.max(0, (ipc.mobilizationAdvanceTotal || 7181286.84) - cumAdvance),
+          mobilizationBalance: Math.max(0, mobilizationAdvanceTotal - cumAdvance),
           progressPct,
           prev: {
             gross: prevGross,
@@ -368,11 +401,11 @@ export const ipcRouter = router({
         orderBy: { sortOrder: "asc" },
       });
 
-      // Calculate subcontractor material deductions
+      // Calculate subcontractor material deductions (only unrecovered)
       let materialDeductions = 0;
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
-          where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true },
+          where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }
@@ -419,11 +452,11 @@ export const ipcRouter = router({
         });
       });
 
-      // Calculate subcontractor material deductions
+      // Calculate subcontractor material deductions (only unrecovered)
       let materialDeductions = 0;
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
-          where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true },
+          where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }

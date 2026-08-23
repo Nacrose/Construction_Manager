@@ -274,23 +274,66 @@ export const payrollRouter = router({
           });
         }
 
-        // Mark associated unrecovered advances as recovered in this payroll run
+        // Mark associated unrecovered advances as recovered in this payroll run.
+        // IMPORTANT: Only mark the DEDUCTED PORTION as recovered, not the full
+        // advance amount. Previously this marked ALL unrecovered advances as
+        // fully recovered, even if only a partial deduction was made — silently
+        // writing off the remaining balance.
+        //
+        // Strategy: for each staff member, deduct advances in FIFO order
+        // (oldest first) until the deducted amount is consumed. Any advance
+        // that is partially recovered gets its remaining balance carried
+        // forward (isRecovered stays false).
         const staffWithAdvanceRecovery = input.records
           .filter((r) => r.advanceDeduction > 0 || r.messDeduction > 0)
           .map((r) => r.staffId);
 
         if (staffWithAdvanceRecovery.length > 0) {
-          await tx.staffAdvance.updateMany({
-            where: {
-              projectId: input.projectId,
-              staffId: { in: staffWithAdvanceRecovery },
-              isRecovered: false,
-            },
-            data: {
-              isRecovered: true,
-              recoveredInPayrollId: run.id,
-            },
-          });
+          for (const rec of input.records) {
+            if (rec.advanceDeduction <= 0 && rec.messDeduction <= 0) continue;
+
+            // Fetch this staff's unrecovered advances, oldest first
+            const staffAdvances = await tx.staffAdvance.findMany({
+              where: {
+                projectId: input.projectId,
+                staffId: rec.staffId,
+                isRecovered: false,
+              },
+              orderBy: { date: "asc" },
+            });
+
+            // Apply the deduction in FIFO order, marking advances as
+            // recovered only when their full amount is consumed.
+            let remainingDeduction = rec.advanceDeduction + rec.messDeduction;
+            for (const adv of staffAdvances) {
+              if (remainingDeduction <= 0) break;
+              if (adv.amount <= remainingDeduction + 0.01) {
+                // This advance is fully recovered
+                await tx.staffAdvance.update({
+                  where: { id: adv.id },
+                  data: {
+                    isRecovered: true,
+                    recoveredInPayrollId: run.id,
+                  },
+                });
+                remainingDeduction -= adv.amount;
+              } else {
+                // Partial recovery — don't mark as recovered, just
+                // reduce the amount. We need to track the remaining
+                // balance on the advance record.
+                await tx.staffAdvance.update({
+                  where: { id: adv.id },
+                  data: {
+                    amount: adv.amount - remainingDeduction,
+                    // Note: isRecovered stays false — remaining balance
+                    // will be recovered in a future payroll run.
+                    remarks: `Partially recovered in payroll ${input.month}. Remaining: NPR ${(adv.amount - remainingDeduction).toFixed(2)}`,
+                  },
+                });
+                remainingDeduction = 0;
+              }
+            }
+          }
         }
 
         return run;

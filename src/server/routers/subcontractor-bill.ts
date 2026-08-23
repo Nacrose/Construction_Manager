@@ -390,13 +390,20 @@ export const subcontractorBillRouter = router({
       }
 
       const isFull = newPaidAmount >= bill.netPayable - 0.01;
+      const newStatus = isFull ? "paid" : "certified";
 
-      const updated = await db.subcontractorBill.update({
+      // Atomic increment to avoid lost-update race on concurrent payments.
+      // Previously this used `bill.paidAmount + input.amount` (read-then-write)
+      // — two concurrent markPaid calls would race and one payment would be lost.
+      await db.$executeRaw`
+        UPDATE "SubcontractorBill"
+        SET "paidAmount" = "paidAmount" + ${input.amount},
+            "status" = ${newStatus}
+        WHERE "id" = ${input.billId}
+      `;
+
+      const updated = await db.subcontractorBill.findUniqueOrThrow({
         where: { id: input.billId },
-        data: {
-          paidAmount: newPaidAmount,
-          status: isFull ? "paid" : "certified",
-        },
       });
 
       await audit({
@@ -405,7 +412,7 @@ export const subcontractorBillRouter = router({
         action: "subcontractor.bill.pay",
         entityType: "subcontractor_bill",
         entityId: input.billId,
-        metadata: { number: bill.number, amount: input.amount, newPaidAmount, isFull },
+        metadata: { number: bill.number, amount: input.amount, newPaidAmount: updated.paidAmount, isFull },
       });
 
       return { bill: updated, remaining: Math.max(0, bill.netPayable - newPaidAmount) };

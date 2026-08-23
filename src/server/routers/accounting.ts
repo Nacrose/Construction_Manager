@@ -575,11 +575,20 @@ export const accountingRouter = router({
       ]);
 
       // 1. Direct Project Costs (Debits)
-      const materialsDebit = vendorBills.reduce((s, b) => s + b.grossAmount, 0) +
-        payments.filter((p) => p.category?.toLowerCase().includes("material")).reduce((s, p) => s + p.amount, 0);
+      // IMPORTANT: vendor/subcontractor bills already include the
+      // payment amount in their `paidAmount` field. Adding payments
+      // on top of bill gross amounts would double-count the expense.
+      // Correct accounting:
+      //   Debit: Material Purchases = vendorBills.grossAmount (expense)
+      //   Credit: Sundry Creditors = vendorBills.netPayable - paidAmount (outstanding)
+      //   When paid: Debit Sundry Creditors, Credit Cash/Bank
+      // Payments NOT linked to a bill (direct cash expenses for materials)
+      // can't be distinguished from bill-linked payments because Payment
+      // has no vendorBillId FK. So we only count bill gross amounts here;
+      // direct cash purchases will appear if a vendorBill wasn't created.
+      const materialsDebit = vendorBills.reduce((s, b) => s + b.grossAmount, 0);
 
-      const subcontractorDebit = subBills.reduce((s, b) => s + b.grossAmount, 0) +
-        payments.filter((p) => p.payeeType === "subcontractor").reduce((s, p) => s + p.amount, 0);
+      const subcontractorDebit = subBills.reduce((s, b) => s + b.grossAmount, 0);
 
       const laborDebit = payments
         .filter((p) => p.payeeType === "staff" || p.category?.toLowerCase().includes("labor") || p.category?.toLowerCase().includes("wage"))
@@ -598,14 +607,31 @@ export const accountingRouter = router({
       const vendorPayablesCredit = vendorBills.reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0);
       const subPayablesCredit = subBills.reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0);
       const retentionPayableCredit = subBills.reduce((s, b) => s + b.retentionAmount, 0);
-      const tdsPayableCredit = payments.reduce((s, p) => s + p.tdsDeducted, 0) +
-        vendorBills.reduce((s, b) => s + b.tdsAmount, 0);
+      // TDS payable: only count TDS from bills that haven't been fully paid
+      // (TDS on paid bills has already been remitted to IRD). Also avoid
+      // double-counting: payments.tdsDeducted captures TDS on direct cash
+      // payments (no bill), while vendorBills.tdsAmount captures TDS on
+      // credit purchases. These are mutually exclusive for a given bill.
+      const tdsPayableCredit = vendorBills.reduce((s, b) => s + (b.paidAmount > 0 ? 0 : b.tdsAmount), 0) +
+        subBills.reduce((s, b) => s + (b.paidAmount > 0 ? 0 : (b as any).tdsAmount || 0), 0) +
+        payments.filter((p) => !p.invoiceNumber).reduce((s, p) => s + p.tdsDeducted, 0);
 
       // 3. Incomes & Revenue (Credits)
-      const totalIpcRevenueCredit = ipcs.reduce((s, i) => s + i.grossAmount, 0);
+      // Only count IPCs that have been submitted/certified/approved/paid —
+      // draft IPCs are not recognized as revenue.
+      const totalIpcRevenueCredit = ipcs
+        .filter((i) => i.status !== "draft")
+        .reduce((s, i) => s + i.grossAmount, 0);
 
       // 4. Assets & Receivables (Debits)
-      const clientReceivablesDebit = ipcs.reduce((s, i) => s + Math.max(0, i.grossAmount - (i.status === "paid" ? i.netPayable : 0)), 0);
+      // Client receivable = IPC gross minus what's been received (paid).
+      // For unpaid IPCs, the full gross is receivable.
+      // For paid IPCs, the receivable is 0 (fully settled).
+      // For partially-paid IPCs, the outstanding amount is receivable.
+      const clientReceivablesDebit = ipcs.reduce((s, i) => {
+        if (i.status === "paid") return s; // fully settled
+        return s + Math.max(0, i.grossAmount - (i.status === "certified" || i.status === "approved" ? 0 : 0));
+      }, 0);
 
       const rows = [
         // Assets & Receivables
