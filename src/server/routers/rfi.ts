@@ -39,7 +39,7 @@ const CreateRfiSchema = z.object({
   discipline: z
     .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
     .optional(),
-  workDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+  workDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime().optional()),
   inspectionStartTime: z.string().datetime().optional(),
   inspectionEndTime: z.string().datetime().optional(),
   ganttTaskId: z.string().nullable().optional(),
@@ -63,7 +63,7 @@ const UpdateRfiSchema = z.object({
   discipline: z
     .enum(["civil", "structural", "electrical", "mechanical", "architectural"])
     .optional(),
-  workDate: z.string().nullable().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+  workDate: z.string().nullable().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime().nullable().optional()),
   inspectionStartTime: z.string().datetime().nullable().optional(),
   inspectionEndTime: z.string().datetime().nullable().optional(),
   ganttTaskId: z.string().nullable().optional(),

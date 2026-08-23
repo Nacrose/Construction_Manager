@@ -22,9 +22,11 @@ import { audit } from "@/lib/audit";
 
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024; // 5MB for receipt photos
 
+const safeDateSchema = z.string().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime());
+
 const CreateExpenseSchema = z.object({
   projectId: z.string(),
-  date: z.string().datetime().optional(), // defaults to now
+  date: safeDateSchema.optional(),
   amount: z.number().positive(),
   category: z.enum(["material", "labor", "equipment", "subcontractor", "overhead"]),
   subcategory: z.string().max(100).optional(),
@@ -44,8 +46,8 @@ export const projectCostRouter = router({
   list: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      startDate: z.string().datetime().optional(),
-      endDate: z.string().datetime().optional(),
+      startDate: safeDateSchema.optional(),
+      endDate: safeDateSchema.optional(),
       category: z.string().optional(),
       source: z.string().optional(), // manual | daily_report | ipc | purchase_order
       boqItemId: z.string().optional(),
@@ -83,8 +85,8 @@ export const projectCostRouter = router({
   stats: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      startDate: z.string().datetime().optional(),
-      endDate: z.string().datetime().optional(),
+      startDate: safeDateSchema.optional(),
+      endDate: safeDateSchema.optional(),
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -238,8 +240,8 @@ export const projectCostRouter = router({
   exportCsv: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      startDate: z.string().datetime().optional(),
-      endDate: z.string().datetime().optional(),
+      startDate: safeDateSchema.optional(),
+      endDate: safeDateSchema.optional(),
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);

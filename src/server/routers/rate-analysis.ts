@@ -476,19 +476,30 @@ export const rateAnalysisRouter = router({
         },
       });
 
-      const materials = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
-      const labor = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
-      const equipment = new Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>();
+      const materials = new Map<string, { name: string; qty: number; cost: number; unit: string; resourceId?: string | null }>();
+      const labor = new Map<string, { name: string; qty: number; cost: number; unit: string; resourceId?: string | null }>();
+      const equipment = new Map<string, { name: string; qty: number; cost: number; unit: string; resourceId?: string | null }>();
 
       for (const item of boqItems) {
         for (const ing of item.ingredients) {
-          const batch =
-            ing.rateAnalysis?.batchSize && ing.rateAnalysis.batchSize > 0
-              ? ing.rateAnalysis.batchSize
-              : 1;
-          const perUnitQty = ing.quantity / batch;
-          const totalQty = item.quantity * perUnitQty;
-          const totalCost = ing.rate * totalQty;
+          const isDirectIngredient = !ing.rateAnalysisId;
+          let totalQty: number;
+          let totalCost: number;
+
+          if (isDirectIngredient) {
+            // Direct ingredients represent the TOTAL quantity for the entire BOQ item
+            totalQty = ing.quantity;
+            totalCost = ing.amount || (ing.rate * ing.quantity);
+          } else {
+            // Rate analysis ingredients represent the quantity per batch
+            const batch =
+              ing.rateAnalysis?.batchSize && ing.rateAnalysis.batchSize > 0
+                ? ing.rateAnalysis.batchSize
+                : 1;
+            const perUnitQty = ing.quantity / batch;
+            totalQty = item.quantity * perUnitQty;
+            totalCost = ing.rate * totalQty;
+          }
           
           // Use materialId as key when available for 100% exact deduplication, fallback to name|unit
           const key = ing.materialId ? `id:${ing.materialId}` : `name:${(ing.material?.name || ing.name).toLowerCase().trim()}|${ing.unit}`;
@@ -501,17 +512,20 @@ export const rateAnalysisRouter = router({
             existing.qty += totalQty;
             existing.cost += totalCost;
           } else {
-            map.set(key, { qty: totalQty, cost: totalCost, unit: displayUnit, resourceId: ing.materialId });
+            map.set(key, { name: displayName, qty: totalQty, cost: totalCost, unit: displayUnit, resourceId: ing.materialId });
           }
         }
       }
 
-      const toArray = (m: Map<string, { qty: number; cost: number; unit: string; resourceId?: string | null }>) =>
-        Array.from(m.entries())
-          .map(([key, val]) => {
-            const name = key.startsWith("id:") ? (val as any).name || key.replace("id:", "") : key.replace("name:", "").split("|")[0];
-            return { name, unit: val.unit, totalQty: val.qty, totalCost: val.cost, resourceId: val.resourceId };
-          })
+      const toArray = (m: Map<string, { name: string; qty: number; cost: number; unit: string; resourceId?: string | null }>) =>
+        Array.from(m.values())
+          .map((val) => ({
+            name: val.name,
+            unit: val.unit,
+            totalQty: val.qty,
+            totalCost: val.cost,
+            resourceId: val.resourceId,
+          }))
           .sort((a, b) => b.totalCost - a.totalCost);
 
       return {

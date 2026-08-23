@@ -37,6 +37,9 @@ export async function assertVersionIsEditable(taskId: string): Promise<void> {
   }
 }
 
+const isoStartDate = z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime());
+const isoEndDate = z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T23:59:59.000Z` : v)).pipe(z.string().datetime());
+
 const CreateTaskSchema = z.object({
   versionId: z.string().optional(),
   selectedCostLibraryId: z.string().nullable().optional(),
@@ -44,14 +47,8 @@ const CreateTaskSchema = z.object({
   name: z.string().min(1).max(300),
   code: z.string().optional(),
   parentId: z.string().nullable().optional(),
-  startDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
-    return v;
-  }),
-  endDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T23:59:59.000Z`;
-    return v;
-  }),
+  startDate: isoStartDate,
+  endDate: isoEndDate,
   duration: z.number().int().min(0).default(1),
   progress: z.number().min(0).max(100).default(0),
   plannedValue: z.number().min(0).default(0),
@@ -73,22 +70,10 @@ const UpdateTaskSchema = z.object({
   name: z.string().min(1).max(300).optional(),
   code: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
-  startDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
-    return v;
-  }).optional(),
-  endDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T23:59:59.000Z`;
-    return v;
-  }).optional(),
-  actualStartDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00:00.000Z`;
-    return v;
-  }).nullable().optional(),
-  actualEndDate: z.string().transform((v) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T23:59:59.000Z`;
-    return v;
-  }).nullable().optional(),
+  startDate: isoStartDate.optional(),
+  endDate: isoEndDate.optional(),
+  actualStartDate: isoStartDate.nullable().optional(),
+  actualEndDate: isoEndDate.nullable().optional(),
   duration: z.number().int().min(0).optional(),
   progress: z.number().min(0).max(100).optional(),
   plannedValue: z.number().min(0).optional(),
@@ -806,6 +791,14 @@ export const ganttTasksRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      const execVersion = await db.ganttVersion.findFirst({
+        where: { id: input.executionVersionId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!execVersion) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Gantt execution version not found for this project." });
+      }
+
       const [reports, progressItems, tasks] = await Promise.all([
         db.dailyReport.findMany({
           where: { projectId: input.projectId },
@@ -823,7 +816,7 @@ export const ganttTasksRouter = router({
           orderBy: { report: { reportDate: "asc" } },
         }),
         db.ganttTask.findMany({
-          where: { versionId: input.executionVersionId },
+          where: { versionId: input.executionVersionId, projectId: input.projectId },
           include: { boqLinks: true },
         }),
       ]);

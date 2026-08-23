@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
@@ -73,9 +74,14 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      // Auto-generate expense number
+      // Auto-generate expense number with collision prevention
       const count = await db.siteExpense.count({ where: { projectId: input.projectId } });
-      const number = `EXP-${String(count + 1).padStart(3, "0")}`;
+      let seq = count + 1;
+      let number = `EXP-${String(seq).padStart(3, "0")}`;
+      while (await db.siteExpense.findFirst({ where: { projectId: input.projectId, number } })) {
+        seq++;
+        number = `EXP-${String(seq).padStart(3, "0")}`;
+      }
 
       const totalAmount = input.amount + input.vatAmount;
 
@@ -97,6 +103,16 @@ export const siteExpenseRouter = router({
           createdById: ctx.user.id,
         },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "site_expense.create",
+        entityType: "site_expense",
+        entityId: expense.id,
+        metadata: { number: expense.number, amount: expense.totalAmount, category: expense.category },
+      });
+
       return { expense };
     }),
 
@@ -165,6 +181,16 @@ export const siteExpenseRouter = router({
           approvedAt: new Date(),
         },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: expense.projectId,
+        action: "site_expense.approve",
+        entityType: "site_expense",
+        entityId: updated.id,
+        metadata: { number: updated.number, totalAmount: updated.totalAmount },
+      });
+
       return { expense: updated };
     }),
 
@@ -174,7 +200,7 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true },
+        select: { projectId: true, status: true, number: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertProjectAdmin(ctx.user, expense.projectId);
@@ -187,6 +213,16 @@ export const siteExpenseRouter = router({
         where: { id: input.id },
         data: { status: "rejected" },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: expense.projectId,
+        action: "site_expense.reject",
+        entityType: "site_expense",
+        entityId: updated.id,
+        metadata: { number: updated.number },
+      });
+
       return { expense: updated };
     }),
 
@@ -196,7 +232,7 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true },
+        select: { projectId: true, status: true, number: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertCanWrite(ctx.user, expense.projectId);
@@ -206,6 +242,16 @@ export const siteExpenseRouter = router({
       }
 
       await db.siteExpense.delete({ where: { id: input.id } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: expense.projectId,
+        action: "site_expense.delete",
+        entityType: "site_expense",
+        entityId: input.id,
+        metadata: { number: expense.number },
+      });
+
       return { ok: true };
     }),
 

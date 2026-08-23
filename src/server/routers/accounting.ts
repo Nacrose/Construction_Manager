@@ -177,7 +177,7 @@ export const accountingRouter = router({
         });
       });
 
-      // 4. Client IPC Billings (Revenue)
+      // 4. Client IPC Billings (Revenue) & Subcontractor IPCs (Payables)
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
@@ -190,28 +190,35 @@ export const accountingRouter = router({
               }
             : {}),
         },
+        include: { subcontractor: { select: { name: true, pan: true } } },
         orderBy: { createdAt: "desc" },
       });
 
       ipcs.forEach((i) => {
         let mitiStr = "";
+        const entryDate = i.issueDate || i.createdAt;
         try {
-          mitiStr = adToBs(new Date(i.createdAt)).formatted;
+          mitiStr = adToBs(new Date(entryDate)).formatted;
         } catch {}
+
+        const isSubcontractor = Boolean(i.subcontractorId);
 
         entries.push({
           id: i.id,
           source: "ipc",
           voucherNo: i.number,
-          voucherType: "IPC BILLING",
-          date: i.createdAt.toISOString(),
+          voucherType: isSubcontractor ? "SUB IPC" : "CLIENT IPC",
+          date: entryDate.toISOString(),
           miti: mitiStr || "—",
-          accountHead: "Project Revenue / IPC",
-          particulars: `IPC #${i.number} - Client Progress Bill (Gross: ${i.grossAmount})`,
-          debit: i.grossAmount,
-          credit: 0,
+          accountHead: isSubcontractor ? "Subcontractor Work (IPC)" : "Project Revenue / IPC",
+          particulars: isSubcontractor
+            ? `Subcontractor IPC #${i.number} - ${i.subcontractor?.name || "Subcontractor"} (Gross: ${i.grossAmount})`
+            : `Client IPC #${i.number} - Client Progress Bill (Gross: ${i.grossAmount})`,
+          partyPan: isSubcontractor ? i.subcontractor?.pan : undefined,
+          debit: isSubcontractor ? 0 : i.grossAmount,
+          credit: isSubcontractor ? i.netPayable : 0,
           netAmount: i.netPayable,
-          paymentMode: "Client Bill",
+          paymentMode: isSubcontractor ? "Subcontractor Bill" : "Client Bill",
           accountingSoftware: "tally",
         });
       });

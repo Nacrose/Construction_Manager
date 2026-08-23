@@ -26,7 +26,7 @@ import { db } from "@/lib/db";
 export async function recalcItemRate(itemId: string): Promise<void> {
   const item = await db.boqItem.findUnique({
     where: { id: itemId },
-    include: { ingredients: true },
+    include: { ingredients: { orderBy: { sortOrder: "asc" } } },
   });
   if (!item) return;
 

@@ -37,16 +37,18 @@ const TaskSchema = z.object({
   carriedOverFromId: z.string().nullable().optional(),
 });
 
+const safeIsoDate = z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime());
+
 const CreateProgramSchema = z.object({
   projectId: z.string(),
-  programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+  programDate: safeIsoDate,
   notes: z.string().optional(),
   tasks: z.array(TaskSchema).default([]),
 });
 
 export const dailyProgramRouter = router({
   getApprovedDailyProgramByDate: protectedProcedure
-    .input(z.object({ projectId: z.string(), programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)) }))
+    .input(z.object({ projectId: z.string(), programDate: safeIsoDate }))
     .query(async ({ ctx, input }) => {
       const role = await assertProjectMember(ctx.user, input.projectId);
       if (role === "client" || role === "inspector") {
@@ -115,7 +117,7 @@ export const dailyProgramRouter = router({
     }),
 
   getProgramResources: protectedProcedure
-    .input(z.object({ projectId: z.string(), programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)) }))
+    .input(z.object({ projectId: z.string(), programDate: safeIsoDate }))
     .query(async ({ ctx, input }) => {
       const role = await assertProjectMember(ctx.user, input.projectId);
       if (role === "client" || role === "inspector") {
@@ -308,7 +310,7 @@ export const dailyProgramRouter = router({
   fetchWeather: protectedProcedure
     .input(z.object({
       projectId: z.string(),
-      reportDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+      reportDate: safeIsoDate,
       latitude: z.number().optional(),
       longitude: z.number().optional(),
     }))
@@ -811,7 +813,7 @@ export const dailyProgramRouter = router({
     .input(z.object({
       programId: z.string(),
       projectId: z.string(),
-      programDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+      programDate: safeIsoDate,
       notes: z.string().optional(),
       tasks: z.array(TaskSchema).default([]),
     }))

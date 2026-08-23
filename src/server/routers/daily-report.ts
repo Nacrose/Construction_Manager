@@ -17,7 +17,7 @@ import {
 const CreateReportSchema = z.object({
   projectId: z.string(),
   number: z.string().min(1).max(50),
-  reportDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+  reportDate: z.string().transform((v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime()),
   weatherMorning: z.string().optional(),
   weatherAfternoon: z.string().optional(),
   weatherEvening: z.string().optional(),

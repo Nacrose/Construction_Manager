@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 import { format } from "date-fns";
 
 const DirectVatBillSchema = z.object({
@@ -23,8 +24,8 @@ const DirectVatBillSchema = z.object({
   partyAddress: z.string().optional().nullable(),
   taxableAmount: z.number().nonnegative().default(0),
   exemptAmount: z.number().nonnegative().default(0),
-  vatPercent: z.number().nonnegative().default(13),
-  tdsPercent: z.number().nonnegative().default(0),
+  vatPercent: z.number().min(0).max(100).default(13),
+  tdsPercent: z.number().min(0).max(100).default(0),
   category: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   scannedBillUrl: z.string().optional().nullable(),
@@ -470,6 +471,20 @@ export const vatRegisterRouter = router({
           scannedBillName: input.scannedBillName || null,
           isBillAttached: Boolean(input.scannedBillUrl),
           createdById: ctx.user.id,
+        },
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "vat_bill.create",
+        entityType: "vat_bill",
+        entityId: bill.id,
+        metadata: {
+          billNumber: bill.billNumber,
+          billType: bill.billType,
+          totalAmount: bill.totalAmount,
+          partyName: bill.partyName,
         },
       });
 

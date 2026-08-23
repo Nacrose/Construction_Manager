@@ -217,8 +217,16 @@ export const ganttAnalyticsRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
+      const execVersion = await db.ganttVersion.findFirst({
+        where: { id: input.executionVersionId, projectId: input.projectId },
+        select: { id: true, baseVersionId: true },
+      });
+      if (!execVersion) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Gantt execution version not found for this project." });
+      }
+
       const execTasks = await db.ganttTask.findMany({
-        where: { versionId: input.executionVersionId },
+        where: { versionId: input.executionVersionId, projectId: input.projectId },
         include: {
           planningTask: {
             select: {
@@ -235,28 +243,38 @@ export const ganttAnalyticsRouter = router({
         orderBy: { sortOrder: "asc" },
       });
 
-      // If any tasks lack direct planningTask FK, match against base version by code or name
+      // If any tasks lack direct planningTask FK, match against base version by code or unique name
       const fallbackPlanMap = new Map<string, any>();
-      const execVersion = await db.ganttVersion.findUnique({
-        where: { id: input.executionVersionId },
-        select: { baseVersionId: true },
-      });
       if (execVersion?.baseVersionId) {
         const baseTasks = await db.ganttTask.findMany({
-          where: { versionId: execVersion.baseVersionId },
+          where: { versionId: execVersion.baseVersionId, projectId: input.projectId },
           select: {
             id: true,
             name: true,
             code: true,
+            parentId: true,
             startDate: true,
             endDate: true,
             duration: true,
             progress: true,
           },
         });
+
+        // Count name frequencies to prevent collisions across multiple floors/blocks
+        const nameFrequency = new Map<string, number>();
         for (const bt of baseTasks) {
+          const normName = bt.name.toLowerCase().trim();
+          nameFrequency.set(normName, (nameFrequency.get(normName) || 0) + 1);
+        }
+
+        for (const bt of baseTasks) {
+          const normName = bt.name.toLowerCase().trim();
           if (bt.code) fallbackPlanMap.set(`code:${bt.code}`, bt);
-          fallbackPlanMap.set(`name:${bt.name.toLowerCase().trim()}`, bt);
+          if (bt.parentId) fallbackPlanMap.set(`parent:${bt.parentId}::${normName}`, bt);
+          // Only permit plain name fallback if this task name appears uniquely once in baseline
+          if (nameFrequency.get(normName) === 1) {
+            fallbackPlanMap.set(`name:${normName}`, bt);
+          }
         }
       }
 

@@ -303,6 +303,7 @@ interface FakeIngredient {
   rate: number;
   batchSize?: number;
   itemQuantity: number;
+  isDirect?: boolean;
 }
 
 function aggregateResources(ingredients: FakeIngredient[]) {
@@ -311,10 +312,18 @@ function aggregateResources(ingredients: FakeIngredient[]) {
   const equipment = new Map<string, { qty: number; cost: number; unit: string }>();
 
   for (const ing of ingredients) {
-    const batch = ing.batchSize && ing.batchSize > 0 ? ing.batchSize : 1;
-    const perUnitQty = ing.quantity / batch;
-    const totalQty = ing.itemQuantity * perUnitQty;
-    const totalCost = ing.rate * totalQty;
+    let totalQty: number;
+    let totalCost: number;
+
+    if (ing.isDirect) {
+      totalQty = ing.quantity;
+      totalCost = ing.rate * ing.quantity;
+    } else {
+      const batch = ing.batchSize && ing.batchSize > 0 ? ing.batchSize : 1;
+      const perUnitQty = ing.quantity / batch;
+      totalQty = ing.itemQuantity * perUnitQty;
+      totalCost = ing.rate * totalQty;
+    }
 
     const key = ing.materialId
       ? `id:${ing.materialId}`
@@ -343,6 +352,18 @@ describe("getResources aggregation — materialId-keyed deduplication", () => {
     expect(materials.size).toBe(1);
     const entry = materials.get("id:mat-cement")!;
     expect(entry.qty).toBeCloseTo(4 * 100 + 2 * 50, 5);
+  });
+
+  it("does not double count BOQ item quantity for direct ingredients", () => {
+    const ingredients: FakeIngredient[] = [
+      { materialId: "mat-cement", name: "Cement OPC 43", unit: "bag", type: "material", quantity: 400, rate: 800, itemQuantity: 100, isDirect: true },
+    ];
+    const { materials } = aggregateResources(ingredients);
+    expect(materials.size).toBe(1);
+    const entry = materials.get("id:mat-cement")!;
+    // Should be exactly 400 bags total, NOT 400 * 100 = 40,000
+    expect(entry.qty).toBeCloseTo(400, 5);
+    expect(entry.cost).toBeCloseTo(400 * 800, 5);
   });
 
   it("merges same name+unit combination without materialId (case-insensitive)", () => {

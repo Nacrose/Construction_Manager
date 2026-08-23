@@ -42,7 +42,7 @@ export const punchListRouter = router({
       category: z.string().optional(),
       severity: z.enum(["minor", "major", "critical"]).default("minor"),
       assignedTo: z.string().optional(),
-      dueDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)),
+      dueDate: z.string().optional().transform((v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v)).pipe(z.string().datetime().optional()),
       linkedBoqItemId: z.string().optional(),
       linkedGanttTaskId: z.string().optional(),
       linkedDrawingId: z.string().optional(),

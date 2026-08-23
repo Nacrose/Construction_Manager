@@ -7,6 +7,8 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { recalcAnalysis } from "@/server/utils/boq-calc";
+import { audit } from "@/lib/audit";
 
 export const analysisLibraryRouter = router({
   /** List all analysis libraries for the project (auto-ensures standard 3 libraries exist). */
@@ -236,14 +238,44 @@ export const analysisLibraryRouter = router({
           data: { isDefault: true },
         });
 
-        // 3. Update Project.costLibraryId
+        // 3. Update RateAnalysis isDefault flags across the project
+        await tx.rateAnalysis.updateMany({
+          where: { boqItem: { projectId: input.projectId } },
+          data: { isDefault: false },
+        });
+
+        await tx.rateAnalysis.updateMany({
+          where: { libraryId: input.libraryId },
+          data: { isDefault: true },
+        });
+
+        // 4. Update Project.costLibraryId
         await tx.project.update({
           where: { id: input.projectId },
           data: { costLibraryId: input.libraryId },
         });
       });
 
-      return { ok: true, defaultLibraryId: input.libraryId };
+      // 5. Recalculate and push rates from this library to all project BOQ items
+      const analyses = await db.rateAnalysis.findMany({
+        where: { libraryId: input.libraryId },
+        select: { id: true, boqItemId: true },
+      });
+
+      for (const ra of analyses) {
+        await recalcAnalysis(ra.id, ra.boqItemId);
+      }
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "analysis_library.set_default",
+        entityType: "analysis_library",
+        entityId: input.libraryId,
+        metadata: { name: library.name, itemsRecalculated: analyses.length },
+      });
+
+      return { ok: true, defaultLibraryId: input.libraryId, itemsRecalculated: analyses.length };
     }),
 
   /** Get all BOQ items with their analysis (or empty) for this library. */

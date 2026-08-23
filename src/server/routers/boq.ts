@@ -8,6 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { recalcItemRate } from "@/server/utils/boq-calc";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -230,7 +231,7 @@ export const boqRouter = router({
         rate = full?.rate ?? 0;
       }
 
-      const updated = await db.boqItem.update({
+      let updated = await db.boqItem.update({
         where: { id: itemId },
         data: {
           ...(data.code !== undefined && { code: data.code }),
@@ -246,6 +247,22 @@ export const boqRouter = router({
         },
         include: { ingredients: true },
       });
+
+      // If quantity changed on an item with direct legacy ingredients (and rate wasn't explicitly overridden),
+      // recalibrate rate = total / new_quantity
+      if (data.quantity !== undefined && data.quantity !== item.quantity && data.rate === undefined) {
+        const directIngs = await db.boqIngredient.count({
+          where: { boqItemId: itemId, rateAnalysisId: null },
+        });
+        if (directIngs > 0) {
+          await recalcItemRate(itemId);
+          const refreshed = await db.boqItem.findUnique({
+            where: { id: itemId },
+            include: { ingredients: true },
+          });
+          if (refreshed) updated = refreshed;
+        }
+      }
 
       await audit({
         userId: ctx.user.id,
