@@ -301,33 +301,33 @@ export function ipcBillingEntry(params: {
   const lines: JournalLineInput[] = [];
 
   // The IPC billing entry represents the revenue recognition event.
-  // The standard double-entry for an IPC with retention is:
+  // The standard double-entry for an IPC with retention and TDS is:
   //
-  //   Dr Client Receivable (gross + VAT - retention)    NPR X  (1100)
-  //   Dr Retention Receivable (held by client)            NPR R  (1110)
-  //      Cr Contract Revenue (gross)                     NPR G  (4001)
-  //      Cr VAT Payable (VAT on gross)                   NPR V  (2021)
+  //   Dr Client Receivable (gross + VAT - retention - TDS)  NPR X  (1100)
+  //   Dr Retention Receivable (held by client)                 NPR R  (1110)
+  //   Dr TDS Receivable (deducted by client, recoverable)      NPR T  (1400)
+  //      Cr Contract Revenue (gross)                          NPR G  (4001)
+  //      Cr VAT Payable (VAT on gross)                        NPR V  (2021)
   //
-  // Where: X + R = G + V (balanced)
-  //   X = gross + VAT - retention (what client pays now)
+  // Where: X + R + T = G + V (balanced)
+  //   X = gross + VAT - retention - TDS (what client pays now)
   //   R = retention (held back, released later)
+  //   T = TDS (deducted by client, recoverable from IRD)
   //   G = gross (revenue)
   //   V = VAT
-  //
-  // Previously: retention was NOT included in the entry. The entry
-  // was unbalanced when retention was deducted — the client receivable
-  // was debited for gross+VAT but the net payable (after retention) was
-  // less, with no accounting for the retention held.
 
-  const clientReceivable = params.grossAmount + params.vatAmount - params.retentionAmount;
+  const clientReceivable = Math.max(
+    0,
+    params.grossAmount + params.vatAmount - params.retentionAmount - params.tdsAmount,
+  );
 
-  // Debit: Client Receivable (net of retention)
+  // Debit: Client Receivable (net of retention and TDS)
   lines.push({
     accountCode: "1100",
     accountName: "Client Receivables",
     debit: clientReceivable,
     credit: 0,
-    description: `IPC ${params.ipcNumber} — receivable (net of retention)`,
+    description: `IPC ${params.ipcNumber} — receivable (net of retention & TDS)`,
     projectId: params.projectId,
   });
 
@@ -339,6 +339,18 @@ export function ipcBillingEntry(params: {
       debit: params.retentionAmount,
       credit: 0,
       description: `Retention deducted on IPC ${params.ipcNumber}`,
+      projectId: params.projectId,
+    });
+  }
+
+  // Debit: TDS Receivable (deducted by client, recoverable from IRD)
+  if (params.tdsAmount > 0) {
+    lines.push({
+      accountCode: "1400",
+      accountName: "TDS Receivable (from IRD)",
+      debit: params.tdsAmount,
+      credit: 0,
+      description: `TDS deducted by client on IPC ${params.ipcNumber}`,
       projectId: params.projectId,
     });
   }

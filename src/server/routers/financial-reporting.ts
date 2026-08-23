@@ -590,8 +590,11 @@ export const financialReportingRouter = router({
       const monthlyBurnRate = totalRecentCosts / input.monthsToAverage;
       // JSON.stringify(Infinity) returns null — use a large number + flag
       // instead so the client gets a meaningful value.
-      const runwayMonths = monthlyBurnRate > 0 ? cashBalance / monthlyBurnRate : null;
-      const isCashSustainable = monthlyBurnRate === 0;
+      const runwayMonths = monthlyBurnRate > 0.01 ? cashBalance / monthlyBurnRate : null;
+      // Use tolerance for float comparison — tiny floating-point
+      // remainders from division would make isCashSustainable false
+      // even when the burn rate is effectively zero.
+      const isCashSustainable = monthlyBurnRate < 0.01;
 
       // ── Total payables (due within 30 days) ────────────────
       const [vendorBills, subBills] = await Promise.all([
@@ -738,43 +741,45 @@ export const financialReportingRouter = router({
 
       let inserted = 0;
       let skipped = 0;
+      let failed = 0;
 
       for (const sc of STANDARD_COST_CODES) {
-        const existing = await db.costCode.findUnique({ where: { code: sc.code } });
-        if (existing) {
-          skipped++;
-          continue;
-        }
+        try {
+          const existing = await db.costCode.findUnique({ where: { code: sc.code } });
+          if (existing) {
+            skipped++;
+            continue;
+          }
 
-        // Find parent by code.
-        // For "1.1" → parent is "1.0"
-        // For "1.1.1" → parent is "1.1"
-        // For "1.0" → no parent (top-level)
-        let parentId: string | null = null;
-        if (sc.level > 1) {
-          const parts = sc.code.split(".");
-          // For level 2 (e.g., "1.1"): parent = "1.0"
-          // For level 3 (e.g., "1.1.1"): parent = "1.1"
-          const parentCode = parts.length === 2
-            ? `${parts[0]}.0`
-            : parts.slice(0, -1).join(".");
-          const parent = await db.costCode.findUnique({ where: { code: parentCode } });
-          if (parent) parentId = parent.id;
-        }
+          // Find parent by code.
+          let parentId: string | null = null;
+          if (sc.level > 1) {
+            const parts = sc.code.split(".");
+            const parentCode = parts.length === 2
+              ? `${parts[0]}.0`
+              : parts.slice(0, -1).join(".");
+            const parent = await db.costCode.findUnique({ where: { code: parentCode } });
+            if (parent) parentId = parent.id;
+          }
 
-        await db.costCode.create({
-          data: {
-            code: sc.code,
-            name: sc.name,
-            nameNp: sc.nameNp || null,
-            category: sc.category,
-            parentId,
-            level: sc.level,
-            sortOrder: parseInt(sc.code.split(".")[0]) || 0,
-            isSystem: true,
-          },
-        });
-        inserted++;
+          await db.costCode.create({
+            data: {
+              code: sc.code,
+              name: sc.name,
+              nameNp: sc.nameNp || null,
+              category: sc.category,
+              parentId,
+              level: sc.level,
+              sortOrder: parseInt(sc.code.split(".")[0]) || 0,
+              isSystem: true,
+            },
+          });
+          inserted++;
+        } catch (err) {
+          // Don't abort the entire seed — log and continue.
+          console.error(`[costCodeSeed] Failed to insert ${sc.code}:`, err);
+          failed++;
+        }
       }
 
       await audit({
@@ -782,10 +787,10 @@ export const financialReportingRouter = router({
         action: "cost_code.seed",
         entityType: "cost_code",
         entityId: "bulk",
-        metadata: { inserted, skipped, total: STANDARD_COST_CODES.length },
+        metadata: { inserted, skipped, failed, total: STANDARD_COST_CODES.length },
       });
 
-      return { inserted, skipped, total: STANDARD_COST_CODES.length };
+      return { inserted, skipped, failed, total: STANDARD_COST_CODES.length };
     }),
 
   /** Seed chart of accounts (for journal entry system). */
@@ -795,32 +800,35 @@ export const financialReportingRouter = router({
 
       let inserted = 0;
       let skipped = 0;
+      let failed = 0;
 
       for (const acc of CHART_OF_ACCOUNTS) {
-        // Check if already exists by code (using the accountCode field
-        // on CostCode — we store COA entries as CostCodes too, with
-        // category matching the account type)
-        const existing = await db.costCode.findUnique({ where: { code: acc.code } });
-        if (existing) {
-          skipped++;
-          continue;
-        }
+        try {
+          const existing = await db.costCode.findUnique({ where: { code: acc.code } });
+          if (existing) {
+            skipped++;
+            continue;
+          }
 
-        await db.costCode.create({
-          data: {
-            code: acc.code,
-            name: acc.name,
-            nameNp: null,
-            category: acc.category,
-            level: 1,
-            sortOrder: parseInt(acc.code.slice(0, 1)) || 0,
-            isSystem: true,
-          },
-        });
-        inserted++;
+          await db.costCode.create({
+            data: {
+              code: acc.code,
+              name: acc.name,
+              nameNp: null,
+              category: acc.category,
+              level: 1,
+              sortOrder: parseInt(acc.code.slice(0, 1)) || 0,
+              isSystem: true,
+            },
+          });
+          inserted++;
+        } catch (err) {
+          console.error(`[chartOfAccountsSeed] Failed to insert ${acc.code}:`, err);
+          failed++;
+        }
       }
 
-      return { inserted, skipped, total: CHART_OF_ACCOUNTS.length };
+      return { inserted, skipped, failed, total: CHART_OF_ACCOUNTS.length };
     }),
 
   // ═══════════════════════════════════════════════════════════
