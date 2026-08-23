@@ -39,17 +39,13 @@ export const boqVersionRouter = router({
 
   /**
    * Create a new version by snapshotting the current BOQ.
+   * Uses a retry loop on unique-constraint violation to handle the
+   * TOCTOU race between reading max(versionNumber) and inserting.
    */
   create: protectedProcedure
     .input(z.object({ projectId: z.string(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-
-      const last = await db.boqVersion.aggregate({
-        where: { projectId: input.projectId },
-        _max: { versionNumber: true },
-      });
-      const versionNumber = (last._max.versionNumber ?? 0) + 1;
 
       const items = await db.boqItem.findMany({
         where: { projectId: input.projectId },
@@ -64,25 +60,54 @@ export const boqVersionRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot create a version snapshot when BOQ is empty." });
       }
 
-      const version = await db.boqVersion.create({
-        data: {
-          projectId: input.projectId,
-          versionNumber,
-          notes: input.notes,
-          status: "draft",
-          items: {
-            create: items.map((item) => ({
-              boqItemId: item.id,
-              code: item.code,
-              description: item.description,
-              unit: item.unit,
-              quantity: item.quantity,
-              rate: item.rate,
-              amount: item.amount,
-            })),
-          },
-        },
-      });
+      // Retry loop: read max(versionNumber) → create. If a concurrent
+      // request inserts the same versionNumber between our read and
+      // insert, the unique constraint [projectId, versionNumber] will
+      // throw P2002. We retry with an incremented number.
+      const MAX_RETRIES = 5;
+      let version;
+      let versionNumber = 0;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const last = await db.boqVersion.aggregate({
+          where: { projectId: input.projectId },
+          _max: { versionNumber: true },
+        });
+        versionNumber = (last._max.versionNumber ?? 0) + 1;
+
+        try {
+          version = await db.boqVersion.create({
+            data: {
+              projectId: input.projectId,
+              versionNumber,
+              notes: input.notes,
+              status: "draft",
+              items: {
+                create: items.map((item) => ({
+                  boqItemId: item.id,
+                  code: item.code,
+                  description: item.description,
+                  unit: item.unit,
+                  quantity: item.quantity,
+                  rate: item.rate,
+                  amount: item.amount,
+                })),
+              },
+            },
+          });
+          break; // success
+        } catch (err: any) {
+          // P2002 = unique constraint violation on [projectId, versionNumber].
+          // Retry with the next versionNumber.
+          if (attempt < MAX_RETRIES - 1 && err?.code === "P2002") {
+            continue;
+          }
+          throw err; // different error or out of retries
+        }
+      }
+
+      if (!version) {
+        throw new TRPCError({ code: "CONFLICT", message: "Failed to create BOQ version after multiple retries. Please try again." });
+      }
 
       await audit({
         userId: ctx.user.id,

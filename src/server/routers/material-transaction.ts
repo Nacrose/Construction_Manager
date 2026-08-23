@@ -414,6 +414,95 @@ export const materialTransactionProcedures = {
         },
       });
 
+      // If isDebitable, subcontractorId, or recoveryRate changed, and
+      // this transaction is linked to a subcontractor that has IPCs,
+      // we must recalculate those IPCs — otherwise the stored IPC
+      // materialDeductions will be stale (wrong net payable).
+      //
+      // Also: if the transaction was previously deducted in an IPC
+      // (deductedInIpcId is set) and isDebitable is being turned OFF,
+      // we must "un-deduct" it by clearing the deductedInIpcId so the
+      // IPC recalculation doesn't still count it.
+      const affectsDeduction =
+        data.isDebitable !== undefined ||
+        data.subcontractorId !== undefined ||
+        data.recoveryRate !== undefined;
+
+      if (affectsDeduction && updated.subcontractorId) {
+        // If isDebitable was turned off and the txn was already
+        // deducted in an IPC, clear the link so the IPC recalculates
+        // without this txn.
+        if (data.isDebitable === false && updated.deductedInIpcId) {
+          await db.materialTransaction.update({
+            where: { id: transactionId },
+            data: { deductedInIpcId: null },
+          });
+        }
+
+        // Find all IPCs for this project + subcontractor that are in
+        // draft/submitted/certified status (not yet paid — paid IPCs
+        // are locked) and recalculate them.
+        const affectedIpcs = await db.ipc.findMany({
+          where: {
+            projectId,
+            subcontractorId: updated.subcontractorId,
+            status: { in: ["draft", "submitted", "certified"] },
+          },
+          select: { id: true },
+        });
+
+        for (const ipc of affectedIpcs) {
+          await db.$transaction(async (tx) => {
+            // Re-import the recalculation logic inline to avoid a
+            // circular import with ipc.ts. This mirrors the
+            // recalculateIpc() function in ipc.ts.
+            const ipcRec = await tx.ipc.findUnique({
+              where: { id: ipc.id },
+              select: {
+                projectId: true,
+                retention: true,
+                advanceRecovery: true,
+                subcontractorId: true,
+                vatPercent: true,
+                tdsPercent: true,
+              },
+            });
+            if (!ipcRec) return;
+
+            const items = await tx.ipcItem.findMany({ where: { ipcId: ipc.id } });
+            const gross = items.reduce((s: number, i: any) => s + i.amount, 0);
+            const retentionAmount = (gross * ipcRec.retention) / 100;
+
+            let materialDeductions = 0;
+            if (ipcRec.subcontractorId) {
+              const txns = await tx.materialTransaction.findMany({
+                where: {
+                  projectId: ipcRec.projectId,
+                  subcontractorId: ipcRec.subcontractorId,
+                  isDebitable: true,
+                  deductedInIpcId: null,
+                },
+              });
+              materialDeductions = txns.reduce(
+                (sum: number, t: any) => sum + (t.quantity * (t.recoveryRate ?? t.rate)),
+                0,
+              );
+            }
+
+            const vatAmount = (gross * (ipcRec.vatPercent || 0)) / 100;
+            const totalWithVat = gross + vatAmount;
+            const tdsAmount = (gross * (ipcRec.tdsPercent || 0)) / 100;
+            const netPayable = gross - retentionAmount - ipcRec.advanceRecovery - materialDeductions;
+            const finalPayable = totalWithVat - retentionAmount - ipcRec.advanceRecovery - materialDeductions - tdsAmount;
+
+            await tx.ipc.update({
+              where: { id: ipc.id },
+              data: { grossAmount: gross, retentionAmount, netPayable, vatAmount, totalWithVat, tdsAmount, finalPayable },
+            });
+          });
+        }
+      }
+
       return { transaction: updated };
     }),
 

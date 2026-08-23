@@ -319,6 +319,11 @@ export async function recalculateProjectSchedule(
   );
 
   if (changedTasks.length > 0) {
+    // Wrap the batch update in a transaction so partial failures don't
+    // leave the schedule in an inconsistent state. Previously each
+    // update was independent — if the 3rd of 10 updates failed, the
+    // first 2 would be committed but the remaining 8 would be skipped,
+    // leaving tasks with dates that don't match their dependencies.
     await db.$transaction(
       changedTasks.map((t) =>
         db.ganttTask.update({

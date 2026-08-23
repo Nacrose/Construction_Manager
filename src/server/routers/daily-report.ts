@@ -381,10 +381,17 @@ const dailyReportCoreRouter = router({
           if (fullReport.materialConsumed.length > 0) {
             for (const item of fullReport.materialConsumed) {
               if (item.materialId && item.quantity > 0) {
+                // Look up the latest receive rate so the issue transaction
+                // has a real cost (not 0).
+                const lastReceive = await db.materialTransaction.findFirst({
+                  where: { materialId: item.materialId, type: "receive" },
+                  orderBy: { date: "desc" },
+                  select: { rate: true },
+                });
                 consumptions.push({
                   materialId: item.materialId,
                   quantity: item.quantity,
-                  rate: 0,
+                  rate: lastReceive?.rate ?? 0,
                 });
               }
             }
@@ -422,9 +429,24 @@ const dailyReportCoreRouter = router({
                     if (existing) {
                       existing.quantity += theoreticalQty;
                     } else {
+                      // Look up the latest receive rate for this material
+                      // so the issue transaction has a real cost — not 0.
+                      // Previously this used rate=0, making stock valuation
+                      // (FIFO/avg cost) wrong because issued materials had
+                      // no cost attached.
+                      const lastReceive = await db.materialTransaction.findFirst({
+                        where: {
+                          materialId: mat.id,
+                          type: "receive",
+                        },
+                        orderBy: { date: "desc" },
+                        select: { rate: true },
+                      });
+                      const rate = lastReceive?.rate ?? ing.rate ?? 0;
+
                       theoreticalMap.set(mat.id, {
                         quantity: theoreticalQty,
-                        rate: 0,
+                        rate,
                       });
                     }
                   }

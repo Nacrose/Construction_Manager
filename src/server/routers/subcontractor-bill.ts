@@ -683,13 +683,33 @@ export const subcontractorBillRouter = router({
           });
         }
 
-        // Recalculate financial breakdown based on verified gross
+        // Recalculate financial breakdown based on verified gross.
+        // IMPORTANT: recompute materialDeduction from the CURRENT set of
+        // debitable material transactions — don't use the stale stored
+        // value. If materials were added or marked debitable after the
+        // bill was created, the stored materialDeduction would be wrong.
+        let currentMaterialDeduction = 0;
+        if (bill.subcontractorId) {
+          const subTxns = await tx.materialTransaction.findMany({
+            where: {
+              projectId: input.projectId,
+              subcontractorId: bill.subcontractorId,
+              isDebitable: true,
+              deductedInIpcId: null,
+            },
+          });
+          currentMaterialDeduction = subTxns.reduce(
+            (sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)),
+            0,
+          );
+        }
+
         const retentionAmount = (verifiedGross * bill.retentionPercent) / 100;
         const vatAmount = (verifiedGross * bill.vatPercent) / 100;
         const tdsAmount = (verifiedGross * bill.tdsPercent) / 100;
         const verifiedNet = Math.max(
           0,
-          verifiedGross - retentionAmount + vatAmount - tdsAmount - bill.materialDeduction - bill.advanceRecovery
+          verifiedGross - retentionAmount + vatAmount - tdsAmount - currentMaterialDeduction - bill.advanceRecovery
         );
 
         let newStatus = bill.status;
@@ -706,6 +726,8 @@ export const subcontractorBillRouter = router({
             retentionAmount: input.action === "certify" ? retentionAmount : bill.retentionAmount,
             vatAmount: input.action === "certify" ? vatAmount : bill.vatAmount,
             tdsAmount: input.action === "certify" ? tdsAmount : bill.tdsAmount,
+            // Update materialDeduction with the fresh computation.
+            materialDeduction: currentMaterialDeduction,
             netPayable: input.action === "certify" ? verifiedNet : bill.netPayable,
             status: newStatus,
             verifiedById: ctx.user.id,
