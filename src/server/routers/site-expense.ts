@@ -44,16 +44,23 @@ export const siteExpenseRouter = router({
   /** Get single expense. */
   get: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
+        where: { id: input.id },
+        select: { projectId: true },
+      });
+      if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
+      // IDOR guard — see leave.get for rationale.
+      await assertProjectMember(ctx.user, expense.projectId);
+
+      const expenseWithIncludes = await db.siteExpense.findUnique({
         where: { id: input.id },
         include: {
           approvedBy: { select: { name: true } },
           createdBy: { select: { name: true } },
         },
       });
-      if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
-      return { expense };
+      return { expense: expenseWithIncludes };
     }),
 
   /** Create expense (auto-generate number EXP-{seq}). */

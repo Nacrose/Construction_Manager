@@ -34,8 +34,21 @@ export const leaveRouter = router({
   /** Get single leave request. */
   get: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
+        where: { id: input.id },
+        select: { projectId: true, staffId: true, leaveType: true, startDate: true, endDate: true, totalDays: true, reason: true, status: true, approvedById: true, createdById: true },
+      });
+      if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
+      // IDOR guard: verify the caller is a member of the project the
+      // leave belongs to. Previously this procedure returned leave data
+      // to ANY authenticated user — leaking HR-sensitive PII (staff
+      // name, leave type, dates, reason) across tenants.
+      await assertProjectMember(ctx.user, leave.projectId);
+
+      // Re-fetch with includes for the response shape (now that we've
+      // verified the caller is authorized).
+      const leaveWithIncludes = await db.leaveRequest.findUnique({
         where: { id: input.id },
         include: {
           staff: { select: { name: true, designation: true, category: true } },
@@ -43,8 +56,7 @@ export const leaveRouter = router({
           createdBy: { select: { name: true } },
         },
       });
-      if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
-      return { leave };
+      return { leave: leaveWithIncludes };
     }),
 
   /** Create leave request. Auto-calculate totalDays from date difference. */

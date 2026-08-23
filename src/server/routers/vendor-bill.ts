@@ -230,8 +230,8 @@ export const vendorBillRouter = router({
       // Role-gate financial disbursement to Project Manager or Coordinator
       await assertProjectAdmin(ctx.user, input.projectId);
 
-      const bill = await db.vendorBill.findUnique({
-        where: { id: input.vendorBillId },
+      const bill = await db.vendorBill.findFirst({
+        where: { id: input.vendorBillId, projectId: input.projectId },
       });
 
       if (!bill) {

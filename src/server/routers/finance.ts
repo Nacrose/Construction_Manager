@@ -13,9 +13,10 @@
  *  - Shows variance (positive = under budget, negative = over budget)
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember } from "@/lib/authz";
+import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
 
 export const financeRouter = router({
   /**
@@ -1001,13 +1002,16 @@ export const financeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Bank accounts are org-wide financial assets — only org admins
+      // should be able to create them.
+      assertOrgAdmin(ctx.user);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
         select: { organizationId: true },
       });
 
       if (!user.organizationId) {
-        throw new Error("User does not belong to an organization.");
+        throw new TRPCError({ code: "FORBIDDEN", message: "User does not belong to an organization." });
       }
 
       if (input.isDefault) {
@@ -1060,6 +1064,71 @@ export const financeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // SECURITY: org-wide settlement is an admin-tier financial action.
+      // Caller must be an org admin AND belong to an organization.
+      assertOrgAdmin(ctx.user);
+      const callerOrgId = ctx.user.organizationId;
+      if (!callerOrgId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
+      }
+
+      // SECURITY: if a bank account is specified, it must belong to the
+      // caller's org — otherwise an org admin of Org A could pay Org B
+      // bills by referencing Org B's bank account ID.
+      if (input.companyBankAccountId) {
+        const bank = await db.companyBankAccount.findUnique({
+          where: { id: input.companyBankAccountId },
+          select: { organizationId: true },
+        });
+        if (!bank || bank.organizationId !== callerOrgId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Bank account not found in your organization." });
+        }
+      }
+
+      // SECURITY: every bill passed by the caller must be verified to
+      // belong to a project in the caller's org. Without this, an
+      // authenticated org admin could settle arbitrary bills across
+      // tenants by their cuid (which leak via shared audit logs, search
+      // results, etc.).
+      const projectIds = Array.from(new Set(input.bills.map((b) => b.projectId)));
+      const orgProjects = await db.project.findMany({
+        where: { id: { in: projectIds }, organizationId: callerOrgId },
+        select: { id: true },
+      });
+      const orgProjectIdSet = new Set(orgProjects.map((p) => p.id));
+      for (const b of input.bills) {
+        if (!orgProjectIdSet.has(b.projectId)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Bill references a project outside your organization.",
+          });
+        }
+      }
+
+      // Fetch each bill and verify it belongs to the stated project + org
+      // before mutating it. Previously this code called findUnique on
+      // the bill ID with no project/org scoping, so a malicious caller
+      // could pay an unrelated bill by cuid.
+      for (const b of input.bills) {
+        if (b.billType === "vendor") {
+          const vb = await db.vendorBill.findUnique({
+            where: { id: b.billId },
+            select: { projectId: true },
+          });
+          if (!vb || !orgProjectIdSet.has(vb.projectId)) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Vendor bill not found." });
+          }
+        } else {
+          const sb = await db.subcontractorBill.findUnique({
+            where: { id: b.billId },
+            select: { projectId: true },
+          });
+          if (!sb || !orgProjectIdSet.has(sb.projectId)) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor bill not found." });
+          }
+        }
+      }
+
       const totalDisbursement = input.bills.reduce((s, b) => s + b.netPaid, 0);
 
       // Perform updates inside a transaction
@@ -1119,17 +1188,16 @@ export const financeRouter = router({
           }
         }
 
-        // 3. Decrement Central Company Bank Account balance if specified
+        // 3. Decrement Central Company Bank Account balance if specified.
+        // Use an atomic UPDATE ... = currentBalance - $1 instead of
+        // read-then-write — otherwise two concurrent settle calls racing
+        // on the same bank account produce a lost update.
         if (input.companyBankAccountId) {
-          const bank = await tx.companyBankAccount.findUnique({
-            where: { id: input.companyBankAccountId },
-          });
-          if (bank) {
-            await tx.companyBankAccount.update({
-              where: { id: input.companyBankAccountId },
-              data: { currentBalance: bank.currentBalance - totalDisbursement },
-            });
-          }
+          await tx.$executeRaw`
+            UPDATE "CompanyBankAccount"
+            SET "currentBalance" = "currentBalance" - ${totalDisbursement}
+            WHERE "id" = ${input.companyBankAccountId}
+          `;
         }
       });
 
@@ -1175,12 +1243,26 @@ export const financeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      assertOrgAdmin(ctx.user);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
         select: { organizationId: true },
       });
 
-      if (!user.organizationId) throw new Error("No organization assigned.");
+      if (!user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No organization assigned." });
+      }
+
+      // Verify the bank account belongs to the caller's org.
+      if (input.bankAccountId) {
+        const bank = await db.companyBankAccount.findUnique({
+          where: { id: input.bankAccountId },
+          select: { organizationId: true },
+        });
+        if (!bank || bank.organizationId !== user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Bank account not found in your organization." });
+        }
+      }
 
       const expense = await db.headOfficeExpense.create({
         data: {
@@ -1197,16 +1279,13 @@ export const financeRouter = router({
         },
       });
 
+      // Atomic balance decrement to avoid lost-update race on concurrent expenses.
       if (input.bankAccountId) {
-        const bank = await db.companyBankAccount.findUnique({
-          where: { id: input.bankAccountId },
-        });
-        if (bank) {
-          await db.companyBankAccount.update({
-            where: { id: input.bankAccountId },
-            data: { currentBalance: bank.currentBalance - input.amount },
-          });
-        }
+        await db.$executeRaw`
+          UPDATE "CompanyBankAccount"
+          SET "currentBalance" = "currentBalance" - ${input.amount}
+          WHERE "id" = ${input.bankAccountId}
+        `;
       }
 
       return { expense };

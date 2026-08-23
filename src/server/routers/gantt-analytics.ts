@@ -416,6 +416,15 @@ export const ganttAnalyticsRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
+      // IDOR guard: see getEVM for rationale.
+      const versionBelongsToProject = await db.ganttVersion.findFirst({
+        where: { id: input.versionId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!versionBelongsToProject) {
+        return { conflicts: [], proposals: [], totalConflicts: 0, affectedResources: 0 };
+      }
+
       const assignments = await db.resourceAssignment.findMany({
         where: {
           task: { versionId: input.versionId },
@@ -475,6 +484,18 @@ export const ganttAnalyticsRouter = router({
       }
 
       if (!targetVersionId) {
+        return { error: "No version found" };
+      }
+
+      // IDOR guard: verify the resolved version actually belongs to the
+      // project the caller was authorized on. Without this check, a user
+      // with project A access could pass versionId from project B and
+      // read its tasks, BOQ links, and IPC payments.
+      const versionBelongsToProject = await db.ganttVersion.findFirst({
+        where: { id: targetVersionId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!versionBelongsToProject) {
         return { error: "No version found" };
       }
 
@@ -670,6 +691,15 @@ export const ganttAnalyticsRouter = router({
       }
 
       if (!targetVersionId) return { months: [], totalPlanned: 0, totalBilled: 0 };
+
+      // IDOR guard: see getEVM for rationale.
+      const versionBelongsToProject = await db.ganttVersion.findFirst({
+        where: { id: targetVersionId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!versionBelongsToProject) {
+        return { months: [], totalPlanned: 0, totalBilled: 0 };
+      }
 
       const tasks = await db.ganttTask.findMany({
         where: { versionId: targetVersionId },

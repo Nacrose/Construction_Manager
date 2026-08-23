@@ -9,6 +9,30 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { notifyProjectMembers } from "@/server/utils/notify";
 
+/**
+ * IDOR guard: throws FORBIDDEN if `version.projectId !== projectId`.
+ * Call this on every version returned from db.ganttVersion.findUnique
+ * before mutating or returning its data — the versionId is a cuid that
+ * leaks via audit logs, member lists, and notifications, so a caller
+ * authorized on project A could otherwise pass a versionId from
+ * project B and read/mutate that version's data.
+ */
+function assertVersionBelongsToProject(
+  version: { projectId: string } | null,
+  projectId: string,
+  message = "Version not found.",
+): asserts version {
+  if (!version) {
+    throw new TRPCError({ code: "NOT_FOUND", message });
+  }
+  if (version.projectId !== projectId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Version does not belong to this project.",
+    });
+  }
+}
+
 export async function cloneDependencies(
   idMap: Map<string, string>,
   tx: any
@@ -233,7 +257,7 @@ export const ganttVersionsRouter = router({
         where: { id: input.versionId },
         select: { id: true, status: true, projectId: true, versionNumber: true },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      assertVersionBelongsToProject(version, input.projectId);
       if (version.status !== "DRAFT") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -436,7 +460,7 @@ export const ganttVersionsRouter = router({
         where: { id: input.versionId },
         select: { id: true, scheduleType: true, revisionStatus: true, projectId: true },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      assertVersionBelongsToProject(version, input.projectId);
       if (version.scheduleType !== "PLANNING") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -506,7 +530,7 @@ export const ganttVersionsRouter = router({
           projectId: true,
         },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      assertVersionBelongsToProject(version, input.projectId);
       if (version.revisionStatus !== "SUBMITTED") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -574,9 +598,9 @@ export const ganttVersionsRouter = router({
 
       const version = await db.ganttVersion.findUnique({
         where: { id: input.versionId },
-        select: { id: true, revisionStatus: true },
+        select: { id: true, revisionStatus: true, projectId: true },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      assertVersionBelongsToProject(version, input.projectId);
       if (version.revisionStatus !== "SUBMITTED") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -627,13 +651,7 @@ export const ganttVersionsRouter = router({
           scheduleType: true,
         },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
-      if (version.projectId !== input.projectId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Version does not belong to this project.",
-        });
-      }
+      assertVersionBelongsToProject(version, input.projectId);
       if (version.isActive) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -669,13 +687,7 @@ export const ganttVersionsRouter = router({
         where: { id: input.versionId },
         select: { id: true, projectId: true, isActive: true },
       });
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
-      if (version.projectId !== input.projectId) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Version does not belong to this project.",
-        });
-      }
+      assertVersionBelongsToProject(version, input.projectId);
 
       await db.ganttVersion.update({
         where: { id: input.versionId },
@@ -726,7 +738,7 @@ export const ganttVersionsRouter = router({
         },
       });
 
-      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
+      assertVersionBelongsToProject(version, input.projectId);
 
       const currentTasks = await db.ganttTask.findMany({
         where: { versionId: input.versionId },

@@ -16,7 +16,7 @@ export const ganttImportRouter = router({
   previewImport: protectedProcedure
     .input(
       z.object({
-        xml: z.string().min(1),
+        xml: z.string().min(1).max(5_000_000), // 5 MB cap — protects server memory
         versionId: z.string(),
       })
     )
@@ -72,7 +72,7 @@ export const ganttImportRouter = router({
   commitImport: protectedProcedure
     .input(
       z.object({
-        xml: z.string().min(1),
+        xml: z.string().min(1).max(5_000_000), // 5 MB cap — protects server memory
         versionId: z.string(),
         mode: z.enum(["merge", "replace"]).default("merge"),
         updateExisting: z.boolean().default(true),

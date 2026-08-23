@@ -417,8 +417,11 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const record = await db.payrollStaffRecord.findUnique({
-        where: { id: input.recordId },
+      // Verify the record belongs to the project the caller was authorized
+      // on. Without this, a user with project A access could mutate
+      // payroll staff records in project B by their cuid.
+      const record = await db.payrollStaffRecord.findFirst({
+        where: { id: input.recordId, payrollRun: { projectId: input.projectId } },
       });
       if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Staff record not found." });
 

@@ -450,7 +450,12 @@ export const hrRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const adv = await db.staffAdvance.findUnique({ where: { id: input.advanceId } });
+      // Verify the advance belongs to the project the caller was
+      // authorized on — without this, a user with project A access
+      // could delete advances in project B by their cuid.
+      const adv = await db.staffAdvance.findFirst({
+        where: { id: input.advanceId, projectId: input.projectId },
+      });
       if (!adv) throw new TRPCError({ code: "NOT_FOUND", message: "Advance not found." });
       if (adv.isRecovered) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete an advance that has already been recovered in a payroll run." });
