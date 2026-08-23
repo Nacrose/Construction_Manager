@@ -3635,4 +3635,138 @@ model HeadOfficeExpense {
   @@index([organizationId, date])
 }
 
+// ═══════════════════════════════════════════════════════════════
+// FINANCIAL ARCHITECTURE — Journal Entry Foundation (Arch B)
+// ═══════════════════════════════════════════════════════════════
+// Double-entry bookkeeping layer. Every financial event (payment,
+// bill, IPC, expense) generates a balanced journal entry with at
+// least 2 lines (debit + credit). This enables:
+//   - Trial balance derived from journal entries (not ad-hoc queries)
+//   - P&L and Balance Sheet generation
+//   - Tally/Swastik export
+//   - Audit trail for every financial movement
+
+model JournalEntry {
+  id              String   @id @default(cuid())
+  entryNumber     String   // e.g. JE-2026-0001
+  entryDate       DateTime @default(now())
+  miti            String?  // BS date
+  fiscalYearId    String?  // links to FiscalYearLock
+  source          String   // payment | vendor_bill | subcontractor_bill | ipc | site_expense | payroll | bank_charge | journal_voucher
+  sourceRefId     String?  // the record ID that generated this entry
+  sourceRefType   String?  // model name for reverse lookup
+  description     String
+  totalDebit      Float    @default(0) // must equal totalCredit
+  totalCredit     Float    @default(0) // must equal totalDebit
+  isPosted        Boolean  @default(false) // draft vs posted
+  postedById      String?
+  postedAt        DateTime?
+  reversalOfId    String?  // if this entry reverses another
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  lines           JournalEntryLine[]
+
+  @@index([entryDate])
+  @@index([source, sourceRefId])
+  @@index([fiscalYearId])
+  @@index([isPosted])
+}
+
+model JournalEntryLine {
+  id              String   @id @default(cuid())
+  journalEntryId  String
+  lineNumber      Int
+  accountCode     String   // e.g. "1001", "2001", "4001"
+  accountName     String   // denormalized for readability
+  debit           Float    @default(0)
+  credit          Float    @default(0)
+  description     String?
+  projectId       String?  // for project-level cost allocation
+  partnerId       String?  // for vendor/subcontractor tracking
+  createdAt       DateTime @default(now())
+
+  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@index([journalEntryId])
+  @@index([accountCode])
+  @@index([projectId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINANCIAL ARCHITECTURE — Fiscal Year Locking (Arch A)
+// ═══════════════════════════════════════════════════════════════
+// Once a fiscal year is locked, all financial records in that period
+// become read-only. This prevents retrospective editing after tax
+// returns have been filed.
+
+model FiscalYearLock {
+  id              String   @id @default(cuid())
+  organizationId  String
+  fiscalYear      String   // e.g. "2081/82" (BS) or "2026" (AD)
+  startDate       DateTime
+  endDate         DateTime
+  isLocked        Boolean  @default(false)
+  lockedById      String?
+  lockedAt        DateTime?
+  lockNotes       String?  // e.g. "Locked after annual tax return filing"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, fiscalYear])
+  @@index([organizationId, isLocked])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINANCIAL ARCHITECTURE — Report Snapshot (Arch D)
+// ═══════════════════════════════════════════════════════════════
+// Snapshots financial report results at a point in time so the
+// user can see what the report showed even if underlying data
+// changes later. Critical for audit defense.
+
+model ReportSnapshot {
+  id              String   @id @default(cuid())
+  organizationId  String?
+  projectId       String?
+  reportType      String   // pnl | trial_balance | cash_flow | retention_ledger | tds_reconciliation
+  reportDate      DateTime @default(now())
+  generatedById   String
+  snapshotData    String   // JSON stringified full report result
+  periodLabel     String?  // e.g. "Fiscal Year 2081/82" or "2026-08"
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, reportType])
+  @@index([projectId, reportType])
+  @@index([reportDate])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STANDARD COST CODING (Tier 3.13)
+// ═══════════════════════════════════════════════════════════════
+// Standard cost code system for cross-project cost comparison.
+// Based on Nepal construction industry standard coding (similar to
+// CPWD schedule). Each code has a parent for hierarchical reporting.
+
+model CostCode {
+  id              String   @id @default(cuid())
+  code            String   @unique // e.g. "1.1", "2.3.1"
+  name            String   // e.g. "Earthwork", "Concrete - PCC"
+  nameNp          String?  // Devanagari name
+  category        String   // material | labor | equipment | subcontract | overhead | revenue | asset | liability | equity
+  parentId        String?  // for hierarchy
+  level           Int      @default(1) // 1 = top-level, 2 = sub, 3 = detail
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  isSystem        Boolean  @default(false) // true = seeded standard codes (non-deletable)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  parent          CostCode?  @relation("CostCodeHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        CostCode[] @relation("CostCodeHierarchy")
+
+  @@index([category])
+  @@index([parentId])
+  @@index([sortOrder])
+}
+
 

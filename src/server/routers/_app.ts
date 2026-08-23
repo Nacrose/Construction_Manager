@@ -52,6 +52,7 @@ import { vatRegisterRouter } from "./vat-register";
 import { paymentCategoryRouter } from "./payment-category";
 import { accountingRouter } from "./accounting";
 import { bankGuaranteeRouter } from "./bank-guarantee";
+import { financialReportingRouter } from "./financial-reporting";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -103,6 +104,7 @@ export const appRouter = router({
   paymentCategory: paymentCategoryRouter,
   accounting: accountingRouter,
   bankGuarantee: bankGuaranteeRouter,
+  financialReporting: financialReportingRouter,
 });
 
 export type AppRouter = typeof appRouter;

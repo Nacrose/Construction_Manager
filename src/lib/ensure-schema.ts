@@ -1104,6 +1104,128 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // Financial Architecture — Journal Entry Foundation
+  // ═══════════════════════════════════════════════════════════════
+  const financialArchStatements = [
+    `CREATE TABLE IF NOT EXISTS "JournalEntry" (
+      "id" TEXT NOT NULL,
+      "entryNumber" TEXT NOT NULL,
+      "entryDate" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "miti" TEXT,
+      "fiscalYearId" TEXT,
+      "source" TEXT NOT NULL,
+      "sourceRefId" TEXT,
+      "sourceRefType" TEXT,
+      "description" TEXT NOT NULL,
+      "totalDebit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalCredit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "isPosted" BOOLEAN NOT NULL DEFAULT false,
+      "postedById" TEXT,
+      "postedAt" TIMESTAMPTZ,
+      "reversalOfId" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "JournalEntry_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntry_entryDate_idx" ON "JournalEntry"("entryDate")`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntry_source_sourceRefId_idx" ON "JournalEntry"("source", "sourceRefId")`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntry_fiscalYearId_idx" ON "JournalEntry"("fiscalYearId")`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntry_isPosted_idx" ON "JournalEntry"("isPosted")`,
+
+    `CREATE TABLE IF NOT EXISTS "JournalEntryLine" (
+      "id" TEXT NOT NULL,
+      "journalEntryId" TEXT NOT NULL,
+      "lineNumber" INTEGER NOT NULL,
+      "accountCode" TEXT NOT NULL,
+      "accountName" TEXT NOT NULL,
+      "debit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "credit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "description" TEXT,
+      "projectId" TEXT,
+      "partnerId" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "JournalEntryLine_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntryLine_journalEntryId_idx" ON "JournalEntryLine"("journalEntryId")`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntryLine_accountCode_idx" ON "JournalEntryLine"("accountCode")`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntryLine_projectId_idx" ON "JournalEntryLine"("projectId")`,
+    `ALTER TABLE "JournalEntryLine" ADD CONSTRAINT IF NOT EXISTS "JournalEntryLine_journalEntryId_fkey" FOREIGN KEY ("journalEntryId") REFERENCES "JournalEntry"("id") ON DELETE CASCADE`,
+
+    // Fiscal Year Locking
+    `CREATE TABLE IF NOT EXISTS "FiscalYearLock" (
+      "id" TEXT NOT NULL,
+      "organizationId" TEXT NOT NULL,
+      "fiscalYear" TEXT NOT NULL,
+      "startDate" TIMESTAMPTZ NOT NULL,
+      "endDate" TIMESTAMPTZ NOT NULL,
+      "isLocked" BOOLEAN NOT NULL DEFAULT false,
+      "lockedById" TEXT,
+      "lockedAt" TIMESTAMPTZ,
+      "lockNotes" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "FiscalYearLock_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "FiscalYearLock_organizationId_fiscalYear_key" ON "FiscalYearLock"("organizationId", "fiscalYear")`,
+    `CREATE INDEX IF NOT EXISTS "FiscalYearLock_organizationId_isLocked_idx" ON "FiscalYearLock"("organizationId", "isLocked")`,
+    `ALTER TABLE "FiscalYearLock" ADD CONSTRAINT IF NOT EXISTS "FiscalYearLock_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE`,
+
+    // Report Snapshot
+    `CREATE TABLE IF NOT EXISTS "ReportSnapshot" (
+      "id" TEXT NOT NULL,
+      "organizationId" TEXT,
+      "projectId" TEXT,
+      "reportType" TEXT NOT NULL,
+      "reportDate" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "generatedById" TEXT NOT NULL,
+      "snapshotData" TEXT NOT NULL,
+      "periodLabel" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ReportSnapshot_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "ReportSnapshot_organizationId_reportType_idx" ON "ReportSnapshot"("organizationId", "reportType")`,
+    `CREATE INDEX IF NOT EXISTS "ReportSnapshot_projectId_reportType_idx" ON "ReportSnapshot"("projectId", "reportType")`,
+    `CREATE INDEX IF NOT EXISTS "ReportSnapshot_reportDate_idx" ON "ReportSnapshot"("reportDate")`,
+
+    // Standard Cost Codes
+    `CREATE TABLE IF NOT EXISTS "CostCode" (
+      "id" TEXT NOT NULL,
+      "code" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "nameNp" TEXT,
+      "category" TEXT NOT NULL,
+      "parentId" TEXT,
+      "level" INTEGER NOT NULL DEFAULT 1,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "sortOrder" INTEGER NOT NULL DEFAULT 0,
+      "isSystem" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "CostCode_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "CostCode_code_key" ON "CostCode"("code")`,
+    `CREATE INDEX IF NOT EXISTS "CostCode_category_idx" ON "CostCode"("category")`,
+    `CREATE INDEX IF NOT EXISTS "CostCode_parentId_idx" ON "CostCode"("parentId")`,
+    `CREATE INDEX IF NOT EXISTS "CostCode_sortOrder_idx" ON "CostCode"("sortOrder")`,
+    `ALTER TABLE "CostCode" ADD CONSTRAINT IF NOT EXISTS "CostCode_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "CostCode"("id") ON DELETE SET NULL`,
+  ];
+
+  for (const stmt of financialArchStatements) {
+    try {
+      await db.$executeRawUnsafe(stmt);
+      executed++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("already exists")) {
+        skipped++;
+      } else {
+        failed++;
+        errors.push(`${msg.slice(0, 150)} — statement: ${stmt.slice(0, 80)}`);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // Apply RLS (Row-Level Security) policies
   // ═══════════════════════════════════════════════════════════════
   // RLS policies are idempotent (DROP IF EXISTS + CREATE)
