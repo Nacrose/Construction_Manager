@@ -7,6 +7,10 @@ import { db } from "@/lib/db";
  *
  * Codes are stored on the `code` field of GanttTask.
  * Call this after any create/update/delete that affects tree structure or sibling order.
+ *
+ * All updates are wrapped in a single transaction so that if any update
+ * fails, the entire WBS recalculation is rolled back — no partial
+ * state with some tasks having new codes and others having old ones.
  */
 export async function recalculateWbsCodes(
   projectId: string,
@@ -31,7 +35,8 @@ export async function recalculateWbsCodes(
     byVersion.set(vKey, vArr);
   }
 
-  const updates: Promise<unknown>[] = [];
+  // Collect all updates to apply in a single transaction
+  const updates: Array<{ id: string; code: string }> = [];
 
   for (const versionTasks of byVersion.values()) {
     // Group children by parent (null = root) for this version
@@ -48,19 +53,24 @@ export async function recalculateWbsCodes(
       arr.sort((a, b) => a.sortOrder - b.sortOrder);
     }
 
-    // Walk depth-first, assign codes for this version
+    // Walk depth-first, collect code assignments
     function walk(parentId: string | null, prefix: string) {
       const children = byParent.get(parentId) ?? [];
       children.forEach((child, idx) => {
         const code = prefix ? `${prefix}.${idx + 1}` : String(idx + 1);
-        updates.push(
-          db.ganttTask.update({ where: { id: child.id }, data: { code } })
-        );
+        updates.push({ id: child.id, code });
         walk(child.id, code);
       });
     }
     walk(null, "");
   }
 
-  await Promise.all(updates);
+  // Apply all code updates in a single transaction
+  if (updates.length > 0) {
+    await db.$transaction(
+      updates.map((u) =>
+        db.ganttTask.update({ where: { id: u.id }, data: { code: u.code } })
+      )
+    );
+  }
 }

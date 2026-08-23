@@ -2,7 +2,10 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { getFreshDb } from "@/lib/db";
 import { assertCanWrite, assertProjectMember } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 import { TRPCError } from "@trpc/server";
+import { audit } from "@/lib/audit";
 
 export const variationOrderRouter = router({
   /** List all Variation Orders for a project */
@@ -153,6 +156,10 @@ export const variationOrderRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // VO approval generates a journal entry — check fiscal lock for the JE date.
+      if (input.status === "approved") {
+        await assertNotLocked(ctx.user.organizationId);
+      }
       const db = getFreshDb();
 
       const vo = await db.variationOrder.findFirst({
@@ -270,6 +277,69 @@ export const variationOrderRouter = router({
           where: { id: input.id },
           data: updateData,
         });
+
+        // When approved, generate a journal entry for the contract value change.
+        // VO changes the contract value — this is a financial event:
+        //   Dr Client Receivable (contract value increase)
+        //      Cr Contract Revenue (variation revenue recognized)
+        if (input.status === "approved") {
+          // Calculate the total contract value change from VO items
+          let totalValueChange = 0;
+          for (const item of vo.items) {
+            if (item.boqItemId) {
+              // Existing item modified: value change = (newQty * newRate) - (oldQty * oldRate)
+              const existing = await tx.boqItem.findUnique({
+                where: { id: item.boqItemId },
+                select: { baselineQty: true, baselineRate: true },
+              });
+              const oldQty = existing?.baselineQty ?? item.newQty;
+              const oldRate = existing?.baselineRate ?? item.newRate;
+              totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
+            } else {
+              // New item added: full value
+              totalValueChange += item.newQty * item.newRate;
+            }
+          }
+
+          if (Math.abs(totalValueChange) > 0.01) {
+            await createJournalEntry(tx, {
+              source: "variation_order",
+              sourceRefId: input.id,
+              sourceRefType: "VariationOrder",
+              description: `Variation Order ${vo.number} approved — contract value change`,
+              entryDate: new Date(),
+              postedById: ctx.user.id,
+              lines: [
+                {
+                  accountCode: "1100",
+                  accountName: "Client Receivables",
+                  debit: Math.max(0, totalValueChange),
+                  credit: Math.max(0, -totalValueChange),
+                  description: `VO ${vo.number} — contract value adjustment`,
+                  projectId: input.projectId,
+                },
+                {
+                  accountCode: "4001",
+                  accountName: "Contract Revenue",
+                  debit: Math.max(0, -totalValueChange),
+                  credit: Math.max(0, totalValueChange),
+                  description: `VO ${vo.number} — variation revenue`,
+                  projectId: input.projectId,
+                },
+              ],
+            });
+          }
+        }
+      });
+
+      // Audit log (was missing entirely)
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: `variation_order.${input.status}`,
+        entityType: "variation_order",
+        entityId: input.id,
+        metadata: { number: vo.number, status: input.status },
       });
 
       return { success: true };

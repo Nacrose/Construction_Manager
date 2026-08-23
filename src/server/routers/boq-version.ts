@@ -209,16 +209,26 @@ export const boqVersionRouter = router({
         rightLabel = "Current";
       }
 
-      const leftMap = new Map(left.items.map((i) => [i.code, i]));
+      // Match by code first, then fall back to boqItemId (stable ID
+      // that doesn't change even if the code was renamed).
+      const leftMapByCode = new Map(left.items.map((i) => [i.code, i]));
+      const leftMapById = new Map(left.items.map((i) => [i.boqItemId, i]));
       const diffRows: Array<{
         code: string; description: string; unit: string;
         leftQty: number; leftRate: number; leftAmount: number;
         rightQty: number; rightRate: number; rightAmount: number;
         qtyDiff: number; rateDiff: number; amountDiff: number;
+        isRenamed: boolean;
       }> = [];
 
       for (const right of rightItems) {
-        const l = leftMap.get(right.code);
+        // Try matching by code first, then by boqItemId
+        let l = leftMapByCode.get(right.code);
+        let isRenamed = false;
+        if (!l && (right as any).boqItemId) {
+          l = leftMapById.get((right as any).boqItemId);
+          if (l) isRenamed = true; // found by ID but not by code = code was renamed
+        }
         const leftQty = l?.quantity ?? 0;
         const leftRate = l?.rate ?? 0;
         const leftAmount = l?.amount ?? 0;
@@ -229,17 +239,22 @@ export const boqVersionRouter = router({
           qtyDiff: right.quantity - leftQty,
           rateDiff: right.rate - leftRate,
           amountDiff: right.amount - leftAmount,
+          isRenamed,
         });
       }
 
+      // Find left items not present on the right (deleted items)
       const rightCodes = new Set(rightItems.map((i) => i.code));
+      const rightIds = new Set(rightItems.map((i: any) => i.boqItemId).filter(Boolean));
       for (const l of left.items) {
-        if (!rightCodes.has(l.code)) {
+        // Check by both code and boqItemId
+        if (!rightCodes.has(l.code) && !rightIds.has(l.boqItemId)) {
           diffRows.push({
             code: l.code, description: l.description, unit: l.unit,
             leftQty: l.quantity, leftRate: l.rate, leftAmount: l.amount,
             rightQty: 0, rightRate: 0, rightAmount: 0,
             qtyDiff: -l.quantity, rateDiff: -l.rate, amountDiff: -l.amount,
+            isRenamed: false,
           });
         }
       }

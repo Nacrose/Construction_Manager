@@ -8,7 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { recalcItemRate } from "@/server/utils/boq-calc";
+import { recalcItemRate, resolvePercentageBase } from "@/server/utils/boq-calc";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -231,37 +231,81 @@ export const boqRouter = router({
         rate = full?.rate ?? 0;
       }
 
-      let updated = await db.boqItem.update({
-        where: { id: itemId },
-        data: {
-          ...(data.code !== undefined && { code: data.code }),
-          ...(data.description !== undefined && { description: data.description }),
-          ...(data.unit !== undefined && { unit: data.unit }),
-          ...(data.quantity !== undefined && { quantity: data.quantity }),
-          ...(data.rate !== undefined && { rate: data.rate }),
-          ...(data.category !== undefined && { category: data.category }),
-          ...(data.section !== undefined && { section: data.section }),
-          ...(data.tags !== undefined && { tags: data.tags === null ? null : JSON.stringify(data.tags) }),
-          ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
-          amount: quantity * (rate ?? 0),
-        },
-        include: { ingredients: true },
+      // Wrap the update + recalc in a single transaction so that if
+      // recalcItemRate fails, the BOQ item update is rolled back too.
+      // Previously recalcItemRate was called outside the transaction —
+      // a DB error during recalc would leave the item with updated
+      // quantity but stale rate/amount.
+      let updated = await db.$transaction(async (tx) => {
+        const result = await tx.boqItem.update({
+          where: { id: itemId },
+          data: {
+            ...(data.code !== undefined && { code: data.code }),
+            ...(data.description !== undefined && { description: data.description }),
+            ...(data.unit !== undefined && { unit: data.unit }),
+            ...(data.quantity !== undefined && { quantity: data.quantity }),
+            ...(data.rate !== undefined && { rate: data.rate }),
+            ...(data.category !== undefined && { category: data.category }),
+            ...(data.section !== undefined && { section: data.section }),
+            ...(data.tags !== undefined && { tags: data.tags === null ? null : JSON.stringify(data.tags) }),
+            ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
+            amount: quantity * (rate ?? 0),
+          },
+          include: { ingredients: true },
+        });
+
+        // If quantity changed on an item with direct legacy ingredients
+        // (and rate wasn't explicitly overridden), recalibrate rate =
+        // total / new_quantity. Now inside the transaction.
+        if (data.quantity !== undefined && data.quantity !== item.quantity && data.rate === undefined) {
+          const directIngs = await tx.boqIngredient.count({
+            where: { boqItemId: itemId, rateAnalysisId: null },
+          });
+          if (directIngs > 0) {
+            // Inline the recalc logic (can't call recalcItemRate which
+            // uses the global db, not tx).
+            const itemWithIngs = await tx.boqItem.findUnique({
+              where: { id: itemId },
+              include: { ingredients: { orderBy: { sortOrder: "asc" } } },
+            });
+            if (itemWithIngs) {
+              const fixed = itemWithIngs.ingredients.filter((i: any) => i.calcMode === "fixed" || !i.calcMode);
+              const pctBased = itemWithIngs.ingredients.filter((i: any) => i.calcMode === "percentage");
+
+              const matTotal = fixed.filter((i: any) => i.type === "material").reduce((s: number, i: any) => s + i.amount, 0);
+              const labTotal = fixed.filter((i: any) => i.type === "labor").reduce((s: number, i: any) => s + i.amount, 0);
+              const eqpTotal = fixed.filter((i: any) => i.type === "equipment").reduce((s: number, i: any) => s + i.amount, 0);
+              const ovhTotal = fixed.filter((i: any) => i.type === "overhead").reduce((s: number, i: any) => s + i.amount, 0);
+              const allFixedTotal = matTotal + labTotal + eqpTotal + ovhTotal;
+
+              let runningPctTotal = 0;
+              for (const ing of pctBased) {
+                const base = resolvePercentageBase(ing.pctBase, matTotal, labTotal, eqpTotal, ovhTotal, allFixedTotal, runningPctTotal);
+                const newAmount = (base * ing.percentage) / 100;
+                runningPctTotal += newAmount;
+                await tx.boqIngredient.update({ where: { id: ing.id }, data: { amount: newAmount } });
+              }
+
+              const total = allFixedTotal + runningPctTotal;
+              const newRate = itemWithIngs.quantity > 0 ? total / itemWithIngs.quantity : 0;
+              await tx.boqItem.update({
+                where: { id: itemId },
+                data: { rate: newRate, amount: itemWithIngs.quantity * newRate },
+              });
+            }
+          }
+        }
+
+        return result;
       });
 
-      // If quantity changed on an item with direct legacy ingredients (and rate wasn't explicitly overridden),
-      // recalibrate rate = total / new_quantity
+      // Re-fetch with ingredients after the transaction (in case recalc changed them)
       if (data.quantity !== undefined && data.quantity !== item.quantity && data.rate === undefined) {
-        const directIngs = await db.boqIngredient.count({
-          where: { boqItemId: itemId, rateAnalysisId: null },
+        const refreshed = await db.boqItem.findUnique({
+          where: { id: itemId },
+          include: { ingredients: true },
         });
-        if (directIngs > 0) {
-          await recalcItemRate(itemId);
-          const refreshed = await db.boqItem.findUnique({
-            where: { id: itemId },
-            include: { ingredients: true },
-          });
-          if (refreshed) updated = refreshed;
-        }
+        if (refreshed) updated = refreshed;
       }
 
       await audit({
