@@ -22,6 +22,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 import { CHART_OF_ACCOUNTS, STANDARD_COST_CODES } from "@/lib/chart-of-accounts";
 
 export const financialReportingRouter = router({
@@ -1239,6 +1240,191 @@ export const financialReportingRouter = router({
         isReconciled: Math.abs(adjustedBalance - statementClosingBalance) < 1,
         entries: matched,
         unmatchedPaymentRecords: unmatchedPayments,
+      };
+    }),
+
+  // ═══════════════════════════════════════════════════════════
+  // RETENTION RELEASE WORKFLOW
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Release retention for a project (at project completion + defect
+   * liability period).
+   *
+   * In Nepal construction, retention (typically 5-10% of each IPC)
+   * is held by the client until project completion + defect liability
+   * period (usually 6-12 months). This procedure:
+   *
+   * 1. Verifies the project is completed (status = "completed")
+   * 2. Verifies the defect liability period has elapsed
+   *    (configurable, default 365 days after completion)
+   * 3. Marks all outstanding retention as released
+   * 4. Generates journal entries:
+   *    Dr Client Receivable (retention now due from client)
+   *       Cr Retention Receivable (retention released)
+   *    And for sub-bills:
+   *    Dr Retention Payable (retention now due to sub)
+   *       Cr Subcontractor Payables
+   */
+  releaseRetention: protectedProcedure
+    .input(z.object({
+      projectId: z.string(),
+      defectLiabilityDays: z.number().min(0).max(730).default(365),
+      force: z.boolean().default(false), // allow override of DLP check
+      notes: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId);
+
+      const project = await db.project.findUnique({
+        where: { id: input.projectId },
+        select: { id: true, name: true, status: true, endDate: true },
+      });
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found." });
+      }
+
+      // Verify project is completed (unless forced)
+      if (!input.force && project.status !== "completed") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Project must be "completed" before retention can be released. Current status: "${project.status}". Use force=true to override.`,
+        });
+      }
+
+      // Verify defect liability period has elapsed (unless forced)
+      if (!input.force && project.endDate) {
+        const dlpEnd = new Date(project.endDate);
+        dlpEnd.setDate(dlpEnd.getDate() + input.defectLiabilityDays);
+        if (new Date() < dlpEnd) {
+          const daysRemaining = Math.ceil((dlpEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Defect liability period has not elapsed. ${daysRemaining} days remaining (ends ${dlpEnd.toISOString().slice(0, 10)}). Use force=true to override.`,
+          });
+        }
+      }
+
+      // Fetch all IPCs with outstanding retention (receivable from client)
+      const ipcsWithRetention = await db.ipc.findMany({
+        where: {
+          projectId: input.projectId,
+          retentionAmount: { gt: 0 },
+          status: { in: ["certified", "approved", "paid"] },
+        },
+        select: { id: true, number: true, retentionAmount: true, grossAmount: true },
+      });
+
+      // Fetch all sub-bills with outstanding retention (payable to subs)
+      const subsWithRetention = await db.subcontractorBill.findMany({
+        where: {
+          projectId: input.projectId,
+          retentionAmount: { gt: 0 },
+          status: { in: ["submitted", "verified", "certified", "paid"] },
+        },
+        select: { id: true, number: true, retentionAmount: true, subcontractorId: true },
+      });
+
+      const totalReceivableRetention = ipcsWithRetention.reduce((s, i) => s + i.retentionAmount, 0);
+      const totalPayableRetention = subsWithRetention.reduce((s, b) => s + b.retentionAmount, 0);
+
+      if (totalReceivableRetention === 0 && totalPayableRetention === 0) {
+        return {
+          released: false,
+          message: "No outstanding retention to release for this project.",
+        };
+      }
+
+      // Generate journal entries for client retention release
+      // Dr Client Receivable (retention now due)
+      //    Cr Retention Receivable (released)
+      for (const ipc of ipcsWithRetention) {
+        await createJournalEntry(db, {
+          source: "retention_release",
+          sourceRefId: ipc.id,
+          sourceRefType: "IPC",
+          description: `Retention released for IPC ${ipc.number} — project completion`,
+          entryDate: new Date(),
+          postedById: ctx.user.id,
+          lines: [
+            {
+              accountCode: "1100",
+              accountName: "Client Receivables",
+              debit: ipc.retentionAmount,
+              credit: 0,
+              description: `Retention due from client — IPC ${ipc.number}`,
+              projectId: input.projectId,
+            },
+            {
+              accountCode: "1110",
+              accountName: "Retention Receivable (from Client)",
+              debit: 0,
+              credit: ipc.retentionAmount,
+              description: `Retention released — project completed`,
+              projectId: input.projectId,
+            },
+          ],
+        });
+      }
+
+      // Generate journal entries for subcontractor retention release
+      // Dr Retention Payable (no longer held)
+      //    Cr Subcontractor Payables (now due to sub)
+      for (const bill of subsWithRetention) {
+        await createJournalEntry(db, {
+          source: "retention_release",
+          sourceRefId: bill.id,
+          sourceRefType: "SubcontractorBill",
+          description: `Retention released to subcontractor — bill ${bill.number}`,
+          entryDate: new Date(),
+          postedById: ctx.user.id,
+          lines: [
+            {
+              accountCode: "2010",
+              accountName: "Retention Payable (to Subcontractors)",
+              debit: bill.retentionAmount,
+              credit: 0,
+              description: `Retention released — project completed`,
+              projectId: input.projectId,
+              partnerId: bill.subcontractorId ?? undefined,
+            },
+            {
+              accountCode: "2002",
+              accountName: "Subcontractor Payables",
+              debit: 0,
+              credit: bill.retentionAmount,
+              description: `Retention now due to subcontractor`,
+              projectId: input.projectId,
+              partnerId: bill.subcontractorId ?? undefined,
+            },
+          ],
+        });
+      }
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "retention.release",
+        entityType: "project",
+        entityId: input.projectId,
+        metadata: {
+          totalReceivableRetention,
+          totalPayableRetention,
+          ipcCount: ipcsWithRetention.length,
+          subBillCount: subsWithRetention.length,
+          force: input.force,
+          notes: input.notes,
+        },
+      });
+
+      return {
+        released: true,
+        clientRetentionReleased: totalReceivableRetention,
+        subcontractorRetentionReleased: totalPayableRetention,
+        ipcCount: ipcsWithRetention.length,
+        subBillCount: subsWithRetention.length,
+        netCashImpact: totalReceivableRetention - totalPayableRetention,
       };
     }),
 });

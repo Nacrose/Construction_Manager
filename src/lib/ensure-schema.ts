@@ -1227,6 +1227,98 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // Decimal Precision Migration (Float → NUMERIC(15,2))
+  // ═══════════════════════════════════════════════════════════════
+  // Migrate critical financial amount fields from DOUBLE PRECISION
+  // to NUMERIC(15,2) to eliminate floating-point rounding errors.
+  // ALTER TYPE is idempotent — safe to run on already-NUMERIC columns.
+  const decimalMigrationStatements = [
+    `ALTER TABLE "Ipc" ALTER COLUMN "grossAmount" TYPE NUMERIC(15,2) USING "grossAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "netPayable" TYPE NUMERIC(15,2) USING "netPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "vatAmount" TYPE NUMERIC(15,2) USING "vatAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "totalWithVat" TYPE NUMERIC(15,2) USING "totalWithVat"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "tdsAmount" TYPE NUMERIC(15,2) USING "tdsAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "finalPayable" TYPE NUMERIC(15,2) USING "finalPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "retentionAmount" TYPE NUMERIC(15,2) USING "retentionAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "Ipc" ALTER COLUMN "advanceRecovery" TYPE NUMERIC(15,2) USING "advanceRecovery"::NUMERIC(15,2)`,
+    `ALTER TABLE "VendorBill" ALTER COLUMN "grossAmount" TYPE NUMERIC(15,2) USING "grossAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "VendorBill" ALTER COLUMN "vatAmount" TYPE NUMERIC(15,2) USING "vatAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "VendorBill" ALTER COLUMN "tdsAmount" TYPE NUMERIC(15,2) USING "tdsAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "VendorBill" ALTER COLUMN "netPayable" TYPE NUMERIC(15,2) USING "netPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "VendorBill" ALTER COLUMN "paidAmount" TYPE NUMERIC(15,2) USING "paidAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "grossAmount" TYPE NUMERIC(15,2) USING "grossAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "retentionAmount" TYPE NUMERIC(15,2) USING "retentionAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "vatAmount" TYPE NUMERIC(15,2) USING "vatAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "tdsAmount" TYPE NUMERIC(15,2) USING "tdsAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "materialDeduction" TYPE NUMERIC(15,2) USING "materialDeduction"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "advanceRecovery" TYPE NUMERIC(15,2) USING "advanceRecovery"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "netPayable" TYPE NUMERIC(15,2) USING "netPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "paidAmount" TYPE NUMERIC(15,2) USING "paidAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "verifiedGross" TYPE NUMERIC(15,2) USING "verifiedGross"::NUMERIC(15,2)`,
+    `ALTER TABLE "SubcontractorBill" ALTER COLUMN "verifiedNet" TYPE NUMERIC(15,2) USING "verifiedNet"::NUMERIC(15,2)`,
+    `ALTER TABLE "Payment" ALTER COLUMN "amount" TYPE NUMERIC(15,2) USING "amount"::NUMERIC(15,2)`,
+    `ALTER TABLE "Payment" ALTER COLUMN "tdsDeducted" TYPE NUMERIC(15,2) USING "tdsDeducted"::NUMERIC(15,2)`,
+    `ALTER TABLE "Payment" ALTER COLUMN "vatIncluded" TYPE NUMERIC(15,2) USING "vatIncluded"::NUMERIC(15,2)`,
+    `ALTER TABLE "Payment" ALTER COLUMN "netPaid" TYPE NUMERIC(15,2) USING "netPaid"::NUMERIC(15,2)`,
+    `ALTER TABLE "Payment" ALTER COLUMN "retentionReleased" TYPE NUMERIC(15,2) USING "retentionReleased"::NUMERIC(15,2)`,
+    `ALTER TABLE "ProjectCost" ALTER COLUMN "amount" TYPE NUMERIC(15,2) USING "amount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SiteExpense" ALTER COLUMN "amount" TYPE NUMERIC(15,2) USING "amount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SiteExpense" ALTER COLUMN "vatAmount" TYPE NUMERIC(15,2) USING "vatAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "SiteExpense" ALTER COLUMN "totalAmount" TYPE NUMERIC(15,2) USING "totalAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "CompanyBankAccount" ALTER COLUMN "openingBalance" TYPE NUMERIC(15,2) USING "openingBalance"::NUMERIC(15,2)`,
+    `ALTER TABLE "CompanyBankAccount" ALTER COLUMN "currentBalance" TYPE NUMERIC(15,2) USING "currentBalance"::NUMERIC(15,2)`,
+    `ALTER TABLE "HeadOfficeExpense" ALTER COLUMN "amount" TYPE NUMERIC(15,2) USING "amount"::NUMERIC(15,2)`,
+    `ALTER TABLE "JournalEntry" ALTER COLUMN "totalDebit" TYPE NUMERIC(15,2) USING "totalDebit"::NUMERIC(15,2)`,
+    `ALTER TABLE "JournalEntry" ALTER COLUMN "totalCredit" TYPE NUMERIC(15,2) USING "totalCredit"::NUMERIC(15,2)`,
+    `ALTER TABLE "JournalEntryLine" ALTER COLUMN "debit" TYPE NUMERIC(15,2) USING "debit"::NUMERIC(15,2)`,
+    `ALTER TABLE "JournalEntryLine" ALTER COLUMN "credit" TYPE NUMERIC(15,2) USING "credit"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentRental" ALTER COLUMN "rentalRate" TYPE NUMERIC(15,2) USING "rentalRate"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentRental" ALTER COLUMN "totalRentalCost" TYPE NUMERIC(15,2) USING "totalRentalCost"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "rate" TYPE NUMERIC(15,2) USING "rate"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "mobilizationFee" TYPE NUMERIC(15,2) USING "mobilizationFee"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "fuelUnitCost" TYPE NUMERIC(15,2) USING "fuelUnitCost"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "totalGross" TYPE NUMERIC(15,2) USING "totalGross"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "fuelDeduction" TYPE NUMERIC(15,2) USING "fuelDeduction"::NUMERIC(15,2)`,
+    `ALTER TABLE "EquipmentSpotHire" ALTER COLUMN "netPayable" TYPE NUMERIC(15,2) USING "netPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "BankGuarantee" ALTER COLUMN "amount" TYPE NUMERIC(15,2) USING "amount"::NUMERIC(15,2)`,
+    `ALTER TABLE "BankGuarantee" ALTER COLUMN "marginAmount" TYPE NUMERIC(15,2) USING "marginAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "BankGuarantee" ALTER COLUMN "commissionPaid" TYPE NUMERIC(15,2) USING "commissionPaid"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "totalGross" TYPE NUMERIC(15,2) USING "totalGross"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "totalAllowances" TYPE NUMERIC(15,2) USING "totalAllowances"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "totalDeductions" TYPE NUMERIC(15,2) USING "totalDeductions"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "totalAdvancesRecovered" TYPE NUMERIC(15,2) USING "totalAdvancesRecovered"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "totalNetPayable" TYPE NUMERIC(15,2) USING "totalNetPayable"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollRun" ALTER COLUMN "disbursedAmount" TYPE NUMERIC(15,2) USING "disbursedAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "baseRate" TYPE NUMERIC(15,2) USING "baseRate"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "regularPay" TYPE NUMERIC(15,2) USING "regularPay"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "overtimePay" TYPE NUMERIC(15,2) USING "overtimePay"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "allowances" TYPE NUMERIC(15,2) USING "allowances"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "advanceDeduction" TYPE NUMERIC(15,2) USING "advanceDeduction"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "messDeduction" TYPE NUMERIC(15,2) USING "messDeduction"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "otherDeductions" TYPE NUMERIC(15,2) USING "otherDeductions"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "tdsAmount" TYPE NUMERIC(15,2) USING "tdsAmount"::NUMERIC(15,2)`,
+    `ALTER TABLE "PayrollStaffRecord" ALTER COLUMN "netPayable" TYPE NUMERIC(15,2) USING "netPayable"::NUMERIC(15,2)`,
+  ];
+
+  for (const stmt of decimalMigrationStatements) {
+    try {
+      await db.$executeRawUnsafe(stmt);
+      executed++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      // ALTER TYPE failures are non-fatal — the column might already
+      // be NUMERIC or the table might not exist yet on a fresh DB.
+      if (msg.includes("does not exist") || msg.includes("already the right type")) {
+        skipped++;
+      } else {
+        // Log but don't fail — decimal migration is best-effort
+        console.warn(`[decimal-migration] ${msg.slice(0, 100)}`);
+        skipped++;
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // Apply RLS (Row-Level Security) policies
   // ═══════════════════════════════════════════════════════════════
   // RLS policies are idempotent (DROP IF EXISTS + CREATE)

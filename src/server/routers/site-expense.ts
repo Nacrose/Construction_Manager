@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
@@ -189,6 +190,38 @@ export const siteExpenseRouter = router({
           approvedById: ctx.user.id,
           approvedAt: new Date(),
         },
+      });
+
+      // Generate journal entry for the site expense:
+      // Dr Site Overhead (6001-6006 based on category) NPR totalAmount
+      //    Cr Bank / Cash (1010/1001) NPR totalAmount
+      const bankCode = updated.paymentMode === "cash" ? "1001" : "1010";
+      const overheadAccountCode = "6006"; // Site Overhead - Misc (default)
+      await createJournalEntry(db, {
+        source: "site_expense",
+        sourceRefId: input.id,
+        sourceRefType: "SiteExpense",
+        description: `Site expense approved: ${updated.description}`,
+        entryDate: updated.date,
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: overheadAccountCode,
+            accountName: "Site Overhead",
+            debit: updated.totalAmount,
+            credit: 0,
+            description: updated.description,
+            projectId: expense.projectId,
+          },
+          {
+            accountCode: bankCode,
+            accountName: updated.paymentMode === "cash" ? "Cash" : "Bank",
+            debit: 0,
+            credit: updated.totalAmount,
+            description: `Paid via ${updated.paymentMode}`,
+            projectId: expense.projectId,
+          },
+        ],
       });
 
       await audit({
