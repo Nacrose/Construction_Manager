@@ -375,8 +375,14 @@ export const accountingRouter = router({
           orderBy: { paymentDate: "asc" },
         });
 
-        // Filter payments matching vendor by name or ID
-        const matchedVendor = await db.partner.findUnique({ where: { id: input.accountId } });
+        // Filter payments matching vendor by name or ID.
+        // IDOR guard: verify the partner belongs to the project the
+        // caller was authorized on. Previously this used findUnique on
+        // the cuid only — minor cross-tenant info leak (partner name
+        // and PAN from another project).
+        const matchedVendor = await db.partner.findFirst({
+          where: { id: input.accountId, projectId: input.projectId },
+        });
         const vPayments = payments.filter(
           (p) => p.payeeName.toLowerCase().includes(matchedVendor?.name.toLowerCase() || "") || p.partyPan === matchedVendor?.pan
         );
@@ -422,7 +428,9 @@ export const accountingRouter = router({
           where: { projectId: input.projectId, subcontractorId: input.accountId },
           orderBy: { billDate: "asc" },
         });
-        const matchedSub = await db.subcontractor.findUnique({ where: { id: input.accountId } });
+        const matchedSub = await db.subcontractor.findFirst({
+          where: { id: input.accountId, projectId: input.projectId },
+        });
         const payments = await db.payment.findMany({
           where: { projectId: input.projectId, payeeType: "subcontractor" },
           orderBy: { paymentDate: "asc" },

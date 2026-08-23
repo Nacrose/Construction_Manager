@@ -35,10 +35,15 @@ export async function createTRPCContext(opts: Request | { req: Request }): Promi
 
 export const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
-  errorFormatter({ shape }) {
+  errorFormatter({ shape, error }) {
     let message = shape.message;
 
-    // Sanitize raw Prisma and database errors into human-readable messages
+    // Sanitize raw Prisma and database errors into human-readable messages.
+    // In production, we never want to expose Prisma internals (table names,
+    // column names, query fragments) to the client — they can be used for
+    // enumeration attacks. The specific codes below are safe to map to
+    // human messages; everything else falls through to a generic message
+    // in production if it looks like a DB internal.
     if (message.includes("Unique constraint failed") || message.includes("P2002")) {
       message = "An item with this name and specification already exists in this catalog.";
     } else if (message.includes("Foreign key constraint failed") || message.includes("P2003")) {
@@ -47,6 +52,15 @@ export const t = initTRPC.context<TRPCContext>().create({
       message = "The requested record was not found or has already been deleted.";
     } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
       message = "A database error occurred while processing your request. Please try again.";
+    } else if (process.env.NODE_ENV === "production") {
+      // In production, if this is NOT a TRPCError (i.e. it's an unexpected
+      // Prisma/runtime error), scrub the message to prevent leaking DB
+      // internals. TRPCErrors are thrown by our own code with safe messages.
+      const isTrpcError = error && typeof error === "object" && "name" in error && error.name === "TRPCError";
+      if (!isTrpcError) {
+        console.error("[trpc] Unhandled error (scrubbed from client):", error);
+        message = "An internal error occurred. Please try again.";
+      }
     }
 
     return {

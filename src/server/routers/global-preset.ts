@@ -89,7 +89,7 @@ export const globalPresetRouter = router({
   /** Get a single preset with ingredients. */
   get: protectedProcedure
     .input(z.object({ presetId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const preset = await db.globalPresetAnalysis.findUnique({
         where: { id: input.presetId },
         include: {
@@ -100,6 +100,15 @@ export const globalPresetRouter = router({
         },
       });
       if (!preset) throw new TRPCError({ code: "NOT_FOUND", message: "Preset not found." });
+
+      // IDOR guard: org-scoped presets are only readable by members of
+      // that org. Global presets (organizationId == null) are readable
+      // by anyone authenticated. Previously this returned any preset
+      // by cuid — cross-tenant leak of org-scoped rate analyses.
+      if (preset.organizationId && preset.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This preset belongs to a different organization." });
+      }
+
       return { preset: { ...preset, ingredients: preset.ingredients ?? [] } };
     }),
 
@@ -254,6 +263,11 @@ export const globalPresetRouter = router({
       });
       if (!preset) throw new TRPCError({ code: "NOT_FOUND", message: "Preset not found." });
 
+      // IDOR guard: org-scoped preset must belong to the caller's org.
+      if (preset.organizationId && preset.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This preset belongs to a different organization." });
+      }
+
       const analysis = await db.rateAnalysis.findUnique({
         where: { id: input.rateAnalysisId },
         select: { id: true, boqItemId: true },
@@ -365,9 +379,25 @@ export const globalPresetRouter = router({
       }
       const analysis = await db.rateAnalysis.findUnique({
         where: { id: input.rateAnalysisId },
-        include: { ingredients: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          ingredients: { orderBy: { sortOrder: "asc" } },
+          boqItem: { select: { projectId: true } },
+        },
       });
       if (!analysis) throw new TRPCError({ code: "NOT_FOUND", message: "Rate analysis not found." });
+
+      // IDOR guard: the source rate analysis must belong to a project
+      // the caller can access. Without this, an org admin could pull
+      // rate analyses from any project across tenants into their own
+      // org preset library.
+      if (analysis.boqItem?.projectId) {
+        const { assertProjectMember } = await import("@/lib/authz");
+        try {
+          await assertProjectMember(ctx.user, analysis.boqItem.projectId);
+        } catch {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to the project this rate analysis belongs to." });
+        }
+      }
 
       const preset = await db.globalPresetAnalysis.create({
         data: {
@@ -454,6 +484,18 @@ export const globalPresetRouter = router({
       }
       const orgId = input.organizationId ?? ctx.user.organizationId;
       if (!orgId) throw new TRPCError({ code: "BAD_REQUEST", message: "Organization ID required." });
+
+      // IDOR guard: the caller must be an org admin of the target org.
+      // Without this, an org admin of Org A could import a global preset
+      // into Org B by passing `organizationId: orgB_id`.
+      if (!ctx.user.isSuperAdmin) {
+        if (orgId !== ctx.user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You can only import presets into your own organization." });
+        }
+        if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only organization admins can import presets." });
+        }
+      }
 
       const preset = await db.globalPresetAnalysis.create({
         data: {

@@ -505,7 +505,17 @@ export const vatRegisterRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // IDOR guard: every target record must be verified to belong to
+      // input.projectId before mutating. Previously this used
+      // update({where:{id: input.targetId}}) directly — a caller
+      // authorized on project A could mutate scannedBillUrl on records
+      // in project B by their cuid.
       if (input.targetType === "material_grn") {
+        const txn = await db.materialTransaction.findFirst({
+          where: { id: input.targetId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!txn) throw new TRPCError({ code: "NOT_FOUND", message: "Material transaction not found in this project." });
         await db.materialTransaction.update({
           where: { id: input.targetId },
           data: {
@@ -515,6 +525,11 @@ export const vatRegisterRouter = router({
           },
         });
       } else if (input.targetType === "client_ipc") {
+        const ipc = await db.ipc.findFirst({
+          where: { id: input.targetId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!ipc) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found in this project." });
         await db.ipc.update({
           where: { id: input.targetId },
           data: {
@@ -524,6 +539,11 @@ export const vatRegisterRouter = router({
           },
         });
       } else if (input.targetType === "subcontractor_bill") {
+        const sb = await db.subcontractorBill.findFirst({
+          where: { id: input.targetId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!sb) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor bill not found in this project." });
         await db.subcontractorBill.update({
           where: { id: input.targetId },
           data: {
@@ -531,6 +551,11 @@ export const vatRegisterRouter = router({
           },
         });
       } else if (input.targetType === "direct_bill" || input.targetType === "direct_sales") {
+        const vb = await db.vatBill.findFirst({
+          where: { id: input.targetId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!vb) throw new TRPCError({ code: "NOT_FOUND", message: "VAT bill not found in this project." });
         await db.vatBill.update({
           where: { id: input.targetId },
           data: {
@@ -540,6 +565,11 @@ export const vatRegisterRouter = router({
           },
         });
       } else if (input.targetType === "equipment_spot") {
+        const sh = await db.equipmentSpotHire.findFirst({
+          where: { id: input.targetId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!sh) throw new TRPCError({ code: "NOT_FOUND", message: "Spot hire ticket not found in this project." });
         await db.equipmentSpotHire.update({
           where: { id: input.targetId },
           data: {

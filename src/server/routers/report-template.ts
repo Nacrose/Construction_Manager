@@ -147,14 +147,29 @@ export const reportTemplateRouter = router({
       const existing = await db.reportTemplate.findUnique({ where: { id: input.id } });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
 
-      // Only owner, project PM, or org admin can edit
+      // Visibility check (same as get) — caller must be able to see
+      // the template before they can edit it. This also closes the
+      // cross-tenant hole where `isOrgAdmin(ctx.user)` returned true
+      // for ANY org admin (regardless of org), letting Org A admins
+      // edit Org B templates.
+      const canSee =
+        existing.scope === "global" ||
+        (existing.scope === "organization" && existing.organizationId === ctx.user.organizationId) ||
+        (existing.scope === "project" && existing.projectId != null && await canSeeProject(ctx.user.id, existing.projectId)) ||
+        (existing.scope === "user" && existing.ownerId === ctx.user.id);
+      if (!canSee) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this template." });
+      }
+
+      // Edit permission: owner, project PM, or — for org-scoped templates —
+      // an org admin of the SAME org. Global templates require super admin.
       const canEdit =
         existing.ownerId === ctx.user.id ||
-        isOrgAdmin(ctx.user) ||
-        ctx.user.orgRole === "org_admin" ||
-        (existing.projectId && await isProjectManager(ctx.user.id, existing.projectId));
+        (existing.scope === "project" && existing.projectId != null && await isProjectManager(ctx.user.id, existing.projectId)) ||
+        (existing.scope === "organization" && existing.organizationId === ctx.user.organizationId && isOrgAdmin(ctx.user)) ||
+        (existing.scope === "global" && ctx.user.isSuperAdmin);
       if (!canEdit) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only edit templates you own." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only edit templates you own or have admin rights to." });
       }
 
       const updated = await db.reportTemplate.update({
@@ -176,13 +191,23 @@ export const reportTemplateRouter = router({
       const existing = await db.reportTemplate.findUnique({ where: { id: input.id } });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
 
+      // Visibility + edit-permission checks (see update for rationale).
+      const canSee =
+        existing.scope === "global" ||
+        (existing.scope === "organization" && existing.organizationId === ctx.user.organizationId) ||
+        (existing.scope === "project" && existing.projectId != null && await canSeeProject(ctx.user.id, existing.projectId)) ||
+        (existing.scope === "user" && existing.ownerId === ctx.user.id);
+      if (!canSee) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this template." });
+      }
+
       const canDelete =
         existing.ownerId === ctx.user.id ||
-        isOrgAdmin(ctx.user) ||
-        ctx.user.orgRole === "org_admin" ||
-        (existing.projectId && await isProjectManager(ctx.user.id, existing.projectId));
+        (existing.scope === "project" && existing.projectId != null && await isProjectManager(ctx.user.id, existing.projectId)) ||
+        (existing.scope === "organization" && existing.organizationId === ctx.user.organizationId && isOrgAdmin(ctx.user)) ||
+        (existing.scope === "global" && ctx.user.isSuperAdmin);
       if (!canDelete) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete templates you own." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete templates you own or have admin rights to." });
       }
 
       await db.reportTemplate.delete({ where: { id: input.id } });

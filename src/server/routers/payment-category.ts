@@ -263,6 +263,18 @@ export const paymentCategoryRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // IDOR guard: verify the category belongs to the project the
+      // caller was authorized on. Previously this used update({where:{id}})
+      // directly — caller authorized on project A could update categories
+      // in project B by cuid.
+      const existing = await db.paymentCategory.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Category not found in this project." });
+      }
+
       const updated = await db.paymentCategory.update({
         where: { id: input.id },
         data: {
@@ -288,6 +300,16 @@ export const paymentCategoryRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR guard: verify the category belongs to the project the
+      // caller was authorized on.
+      const existing = await db.paymentCategory.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Category not found in this project." });
+      }
 
       // Check if payments are linked
       const count = await db.payment.count({

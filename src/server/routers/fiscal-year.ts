@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 
 export const fiscalYearRouter = router({
   previewFiscalYearSwitch: protectedProcedure
@@ -12,7 +13,11 @@ export const fiscalYearRouter = router({
         district: z.string().optional().default("Morang"),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // IDOR guard: caller must be a member of the project to preview
+      // its fiscal-year switch (which exposes material rates, BOQ items,
+      // and ingredient details).
+      await assertProjectMember(ctx.user, input.projectId);
       const project = await db.project.findUnique({
         where: { id: input.projectId },
         include: {
@@ -133,6 +138,10 @@ export const fiscalYearRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // IDOR guard: executing a fiscal-year switch is a write operation
+      // that updates material rates, BOQ item rates, and creates audit
+      // log entries. Caller must have write access to the project.
+      await assertCanWrite(ctx.user, input.projectId);
       const project = await db.project.findUnique({
         where: { id: input.projectId },
         include: {
@@ -260,7 +269,11 @@ export const fiscalYearRouter = router({
         limit: z.number().min(1).max(100).default(20),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // IDOR guard: caller must be a project member to read its
+      // market-rate revision logs (which contain user emails and rate
+      // change history).
+      await assertProjectMember(ctx.user, input.projectId);
       const logs = await db.marketRateRevisionLog.findMany({
         where: { projectId: input.projectId },
         include: {

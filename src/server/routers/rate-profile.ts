@@ -218,11 +218,11 @@ export const rateProfileRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      const profile = await db.rateProfile.findUnique({
-        where: { id: input.profileId },
+      const profile = await db.rateProfile.findFirst({
+        where: { id: input.profileId, projectId: input.projectId },
         include: { items: true },
       });
-      if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found." });
+      if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found in this project." });
 
       // Build lookup: lowercase material name -> item
       const lookup = new Map<string, { id: string; unit: string; rate: number }>();

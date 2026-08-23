@@ -92,14 +92,47 @@ export const uncatalogedMaterialRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // IDOR guard: fetch the uncataloged material and verify it
+      // belongs to the caller's org (or is global). Previously this
+      // used findUnique on the cuid only — a caller could map or
+      // manipulate uncataloged entries from another org.
       const uncataloged = await db.uncatalogedMaterial.findUnique({ where: { id: input.id } });
       if (!uncataloged) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Uncataloged material not found." });
+      }
+      // Enforce org scoping: org-level entries must match the caller's
+      // org. Global entries (level="global", organizationId=null) are
+      // only mutable by super admins (not enforced here — admin
+      // procedures handle that).
+      if (uncataloged.organizationId && uncataloged.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This uncataloged material belongs to a different organization." });
       }
 
       const targetMaterial = await db.catalogMaterial.findUnique({ where: { id: input.targetId } });
       if (!targetMaterial) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Target catalog material not found." });
+      }
+      // Org-scoped catalog targets must belong to the caller's org.
+      if (
+        targetMaterial.scope === "org" &&
+        targetMaterial.organizationId &&
+        targetMaterial.organizationId !== ctx.user.organizationId
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Target catalog material belongs to a different organization." });
+      }
+      // Project-scoped catalog targets must belong to a project the
+      // caller is a member of.
+      if (
+        targetMaterial.scope === "project" &&
+        targetMaterial.projectId
+      ) {
+        // Lazy import to avoid circular dependency on authz.
+        const { assertProjectMember } = await import("@/lib/authz");
+        try {
+          await assertProjectMember(ctx.user, targetMaterial.projectId);
+        } catch {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Target catalog material belongs to a project you're not a member of." });
+        }
       }
 
       const orgId = uncataloged.organizationId ?? ctx.user.organizationId;
@@ -268,6 +301,14 @@ export const uncatalogedMaterialRouter = router({
       const uncataloged = await db.uncatalogedMaterial.findUnique({ where: { id: input.id } });
       if (!uncataloged) throw new TRPCError({ code: "NOT_FOUND", message: "Item not found." });
 
+      // IDOR guard: the uncataloged entry must belong to the target org
+      // (or be global, in which case it can be promoted into any org).
+      // Previously this used findUnique on the cuid only — a caller could
+      // promote an uncataloged entry from another org into their own.
+      if (uncataloged.organizationId && uncataloged.organizationId !== orgId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This uncataloged material belongs to a different organization." });
+      }
+
       const baseNorm = normalizeMaterialName(input.name);
       const subNorm = input.subCategory ? normalizeMaterialName(input.subCategory) : "";
       const compositeNorm = subNorm ? `${baseNorm} ${subNorm}` : baseNorm;
@@ -375,7 +416,27 @@ export const uncatalogedMaterialRouter = router({
 
   ignore: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // IDOR guard: verify the uncataloged material belongs to the
+      // caller's org before marking it ignored. Previously this had
+      // NO authz check at all — any authed user could mark any
+      // uncataloged material as ignored across tenants.
+      const existing = await db.uncatalogedMaterial.findUnique({
+        where: { id: input.id },
+        select: { organizationId: true, level: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Uncataloged material not found." });
+      }
+      // Org-scoped entries must belong to the caller's org. Global
+      // entries require super admin (consistent with promoteToGlobal).
+      if (existing.organizationId && existing.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This uncataloged material belongs to a different organization." });
+      }
+      if (!existing.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only super admins can ignore global uncataloged materials." });
+      }
+
       const updated = await db.uncatalogedMaterial.update({
         where: { id: input.id },
         data: { status: "ignored" },
