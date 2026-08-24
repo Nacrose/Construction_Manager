@@ -389,11 +389,25 @@ export const financeRouter = router({
       select: { organizationId: true },
     });
 
-    const memberships = await db.projectMember.findMany({
-      where: { userId: ctx.user.id },
-      select: { projectId: true },
-    });
-    const projectIds = memberships.map((m) => m.projectId);
+    // SCOPING FIX: scope by organizationId so all org members see all
+    // org projects (the intended behavior for an "org summary" view).
+    // Previously this used projectMember.findMany({ userId }) which only
+    // returned projects the user is a MEMBER of — an org admin who
+    // isn't a member of every project saw an incomplete summary.
+    let projectIds: string[];
+    if (user.organizationId) {
+      const orgProjects = await db.project.findMany({
+        where: { organizationId: user.organizationId },
+        select: { id: true },
+      });
+      projectIds = orgProjects.map((p) => p.id);
+    } else {
+      const memberships = await db.projectMember.findMany({
+        where: { userId: ctx.user.id },
+        select: { projectId: true },
+      });
+      projectIds = memberships.map((m) => m.projectId);
+    }
 
     const [
       bankAccounts,
@@ -963,11 +977,29 @@ export const financeRouter = router({
   orgPartyStatement: protectedProcedure
     .input(z.object({ partyName: z.string(), partyPan: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const memberships = await db.projectMember.findMany({
-        where: { userId: ctx.user.id },
-        select: { projectId: true },
+      // SCOPING FIX: scope by organizationId so all org members see all
+      // org projects (the intended behavior for an "org party statement").
+      // Previously this used projectMember.findMany({ userId }) which only
+      // returned projects the user is a MEMBER of.
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
       });
-      const projectIds = memberships.map((m) => m.projectId);
+
+      let projectIds: string[];
+      if (user.organizationId) {
+        const orgProjects = await db.project.findMany({
+          where: { organizationId: user.organizationId },
+          select: { id: true },
+        });
+        projectIds = orgProjects.map((p) => p.id);
+      } else {
+        const memberships = await db.projectMember.findMany({
+          where: { userId: ctx.user.id },
+          select: { projectId: true },
+        });
+        projectIds = memberships.map((m) => m.projectId);
+      }
 
       // PARTY NAME MATCHING:
       // Previously this used `contains` (substring match), so searching
@@ -1137,6 +1169,25 @@ export const financeRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "User does not belong to an organization." });
       }
 
+      // UNIQUENESS CHECK: prevent duplicate account numbers within the
+      // same org. Without this, two accounts with the same number can
+      // be created, and orgSettleMultiBill would decrement from whichever
+      // one is specified — making it impossible to know which is "real".
+      const trimmedAccountNumber = input.accountNumber.trim();
+      const existingAccount = await db.companyBankAccount.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          accountNumber: trimmedAccountNumber,
+        },
+        select: { id: true },
+      });
+      if (existingAccount) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A bank account with number ${trimmedAccountNumber} already exists in your organization.`,
+        });
+      }
+
       if (input.isDefault) {
         await db.companyBankAccount.updateMany({
           where: { organizationId: user.organizationId },
@@ -1228,6 +1279,18 @@ export const financeRouter = router({
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "Bill references a project outside your organization.",
+          });
+        }
+        // AMOUNT CONSISTENCY VALIDATION: verify amountToPay = tdsDeducted + netPaid.
+        // Without this, a caller could pass inconsistent amounts that would
+        // create a Payment record with contradictory figures. The JE balance
+        // check would catch the imbalance, but the error message ("Unbalanced
+        // journal entry") is confusing — this gives a clear, actionable message.
+        const expectedNet = b.amountToPay - b.tdsDeducted;
+        if (Math.abs(expectedNet - b.netPaid) > 0.01) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Amount inconsistency for bill ${b.billNumber}: amountToPay (${b.amountToPay}) must equal tdsDeducted (${b.tdsDeducted}) + netPaid (${b.netPaid}). Expected netPaid=${expectedNet}.`,
           });
         }
       }
@@ -1338,10 +1401,21 @@ export const financeRouter = router({
           });
 
           // 2. Auto-settle VendorBill or SubcontractorBill
+          //    Includes OVERPAYMENT CHECK: reject if amountToPay would
+          //    cause paidAmount to exceed netPayable. Previously there
+          //    was no check — overpaying would mark the bill "paid" but
+          //    leave paidAmount > netPayable, corrupting the bill's
+          //    financial state.
           if (b.billType === "vendor") {
             const vb = await tx.vendorBill.findUnique({ where: { id: b.billId } });
             if (vb) {
               const newPaid = vb.paidAmount + b.amountToPay;
+              if (newPaid > vb.netPayable + 0.01) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `Overpayment: bill ${b.billNumber} has remaining balance ${vb.netPayable - vb.paidAmount} but payment amount is ${b.amountToPay}.`,
+                });
+              }
               const isPaid = newPaid >= vb.netPayable - 0.01;
               await tx.vendorBill.update({
                 where: { id: b.billId },
@@ -1355,6 +1429,12 @@ export const financeRouter = router({
             const sb = await tx.subcontractorBill.findUnique({ where: { id: b.billId } });
             if (sb) {
               const newPaid = (sb.paidAmount || 0) + b.amountToPay;
+              if (newPaid > sb.netPayable + 0.01) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `Overpayment: bill ${b.billNumber} has remaining balance ${sb.netPayable - (sb.paidAmount || 0)} but payment amount is ${b.amountToPay}.`,
+                });
+              }
               const isPaid = newPaid >= sb.netPayable - 0.01;
               await tx.subcontractorBill.update({
                 where: { id: b.billId },
@@ -1391,6 +1471,17 @@ export const financeRouter = router({
           totalDisbursement,
           paymentMode: input.paymentMode,
           chequeNo: input.chequeNo,
+          // Per-bill detail so auditors can reconstruct exactly which bills
+          // were settled without querying the Payment table separately.
+          bills: input.bills.map((b) => ({
+            billId: b.billId,
+            billType: b.billType,
+            billNumber: b.billNumber,
+            projectId: b.projectId,
+            amountToPay: b.amountToPay,
+            tdsDeducted: b.tdsDeducted,
+            netPaid: b.netPaid,
+          })),
         },
       });
 
