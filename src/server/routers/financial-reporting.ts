@@ -454,13 +454,17 @@ export const financialReportingRouter = router({
         projectIds = memberships.map((m) => m.projectId);
       }
 
-      // Fetch payments with TDS deducted in the quarter
+      // Fetch payments with TDS deducted in the quarter.
+      // Use `equals` (not `contains`) for partnerName matching —
+      // substring matching causes false positives ("Sharma" matches
+          // "Sharmaji"). Same fix as orgPartyStatement.
+      const normalizedPartner = input.partnerName?.trim();
       const payments = await db.payment.findMany({
         where: {
           projectId: { in: projectIds },
           paymentDate: { gte: fromDate, lte: toDate },
           tdsDeducted: { gt: 0 },
-          ...(input.partnerName ? { payeeName: { contains: input.partnerName, mode: "insensitive" } } : {}),
+          ...(normalizedPartner ? { payeeName: { equals: normalizedPartner, mode: "insensitive" } } : {}),
         },
         include: {
           project: { select: { id: true, name: true, code: true } },
@@ -479,7 +483,9 @@ export const financialReportingRouter = router({
       }>();
 
       for (const p of payments) {
-        const key = p.payeeName.toLowerCase().trim();
+        // Normalize: collapse multiple spaces, trim, lowercase — so
+        // "Sharma  Bahadur" and "Sharma Bahadur" group together.
+        const key = p.payeeName.toLowerCase().replace(/\s+/g, " ").trim();
         const existing = partnerMap.get(key);
         if (existing) {
           existing.totalAmountPaid += p.amount;
@@ -561,6 +567,15 @@ export const financialReportingRouter = router({
 
       // TDS deposited: look for payments with category containing "TDS"
       // or bank transactions with "TDS" in the notes.
+      //
+      // ⚠ KNOWN LIMITATION: this is a heuristic based on free-text matching.
+      // Any payment with "TDS" anywhere in its notes (e.g. "TDS not applicable",
+      // "paid TDS last month") will be counted as a deposit — producing false
+      // positives. The correct long-term fix is to add a dedicated `isTdsDeposit`
+      // boolean field to the Payment model (or a separate TdsDeposit model) so
+      // deposits are tracked explicitly rather than inferred from text. Until
+      // then, users should manually verify the deposit list.
+      //
       // CRITICAL: Exclude payments that have tdsDeducted > 0 — those
       // are the SOURCE of TDS (deducted from vendor), not the DEPOSIT
       // to IRD. Without this exclusion, the same payment would count as
@@ -781,6 +796,10 @@ export const financialReportingRouter = router({
       level: z.number().int().min(1).max(5).default(1),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Cost codes are financial configuration records — restrict creation
+      // to org admins. Previously any authenticated user could create cost
+      // codes, which affect all orgs (cost codes are global, not org-scoped).
+      assertOrgAdmin(ctx.user);
       const existing = await db.costCode.findUnique({ where: { code: input.code } });
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: `Cost code ${input.code} already exists.` });
@@ -1059,11 +1078,24 @@ export const financialReportingRouter = router({
         await assertProjectMember(ctx.user, input.projectId);
         projectIds = [input.projectId];
       } else {
-        const memberships = await db.projectMember.findMany({
-          where: { userId: ctx.user.id },
-          select: { projectId: true },
+        // Use org-wide scoping so org admins see all org projects.
+        const user = await db.user.findUniqueOrThrow({
+          where: { id: ctx.user.id },
+          select: { organizationId: true },
         });
-        projectIds = memberships.map((m) => m.projectId);
+        if (user.organizationId) {
+          const orgProjects = await db.project.findMany({
+            where: { organizationId: user.organizationId },
+            select: { id: true },
+          });
+          projectIds = orgProjects.map((p) => p.id);
+        } else {
+          const memberships = await db.projectMember.findMany({
+            where: { userId: ctx.user.id },
+            select: { projectId: true },
+          });
+          projectIds = memberships.map((m) => m.projectId);
+        }
       }
 
       const dateFilter: any = {};
@@ -1072,7 +1104,9 @@ export const financialReportingRouter = router({
       const hasDate = input.fromDate || input.toDate;
 
       // Query journal entries that have at least one line linked to
-      // a project the caller can access.
+      // a project the caller can access, OR lines with projectId=null
+      // (org-level entries like head-office expenses — these belong to
+      // the org as a whole, not any specific project).
       const entries = await db.journalEntry.findMany({
         where: {
           ...(input.source ? { source: input.source } : {}),
@@ -1080,18 +1114,22 @@ export const financialReportingRouter = router({
           ...(hasDate ? { entryDate: dateFilter } : {}),
           lines: {
             some: {
-              projectId: { in: projectIds },
+              OR: [
+                { projectId: { in: projectIds } },
+                { projectId: null }, // org-level entries (HO expenses, etc.)
+              ],
             },
           },
         },
         include: {
-          // CRITICAL: only include lines for projects the caller can
-          // access. Previously ALL lines were returned — a journal entry
-          // with lines for projects A and B would expose project B's
-          // amounts to a caller who only has access to project A.
+          // Only include lines for projects the caller can access,
+          // plus org-level lines (projectId null).
           lines: {
             where: {
-              projectId: { in: projectIds },
+              OR: [
+                { projectId: { in: projectIds } },
+                { projectId: null },
+              ],
             },
             orderBy: { lineNumber: "asc" },
           },
@@ -1208,8 +1246,22 @@ export const financialReportingRouter = router({
       }
 
       // Verify access: if project-scoped, check membership.
+      // If org-level (projectId null), verify the snapshot belongs to
+      // the caller's org — otherwise any authenticated user could
+      // read any org's report snapshots by cuid.
       if (snapshot.projectId) {
         await assertProjectMember(ctx.user, snapshot.projectId);
+      } else {
+        // Org-level snapshot — check organizationId matches.
+        if (
+          snapshot.organizationId &&
+          snapshot.organizationId !== ctx.user.organizationId
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "You do not have access to this report snapshot.",
+          });
+        }
       }
 
       // Parse the snapshot data safely — if the stored JSON is corrupted
@@ -1372,26 +1424,50 @@ export const financialReportingRouter = router({
         unmatchedPaymentRecords: unmatchedPayments,
       };
 
-      // Persist the reconciliation as a draft so the user can review
-      // and confirm it later. The full match detail is stored as JSON.
-      await db.bankReconciliation.create({
-        data: {
+      // Persist the reconciliation. If a draft already exists for the
+      // same bank account + period, UPDATE it instead of creating a
+      // duplicate. Previously every call created a new record, so calling
+      // the procedure twice for the same period left two conflicting
+      // reconciliation drafts.
+      const existingRecon = await db.bankReconciliation.findFirst({
+        where: {
           bankAccountId: input.bankAccountId,
           periodStart: fromDate,
           periodEnd: toDate,
-          statementClosingBalance,
-          recordedBalance: bankAccount.currentBalance,
-          adjustedBalance,
-          matchedCount,
-          unmatchedStatementCount,
-          unmatchedPaymentCount: unmatchedPayments.length,
-          outstandingPayments,
-          unmatchedDeposits,
-          isReconciled,
-          reconciliationData: JSON.stringify(result),
           status: "draft",
         },
+        select: { id: true },
       });
+
+      const reconData = {
+        statementClosingBalance,
+        recordedBalance: bankAccount.currentBalance,
+        adjustedBalance,
+        matchedCount,
+        unmatchedStatementCount,
+        unmatchedPaymentCount: unmatchedPayments.length,
+        outstandingPayments,
+        unmatchedDeposits,
+        isReconciled,
+        reconciliationData: JSON.stringify(result),
+      };
+
+      if (existingRecon) {
+        await db.bankReconciliation.update({
+          where: { id: existingRecon.id },
+          data: reconData,
+        });
+      } else {
+        await db.bankReconciliation.create({
+          data: {
+            bankAccountId: input.bankAccountId,
+            periodStart: fromDate,
+            periodEnd: toDate,
+            ...reconData,
+            status: "draft",
+          },
+        });
+      }
 
       return result;
     }),
