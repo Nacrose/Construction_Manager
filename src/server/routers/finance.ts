@@ -54,7 +54,7 @@ export const financeRouter = router({
         plannedCost: number;
         actualCost: number;
         ipcPaid: number;
-        netCashFlow: number; // actual + ipcPaid (outflow)
+        netCashFlow: number; // ipcPaid (inflow) - actualCost (outflow)
         cumulativePlanned: number;
         cumulativeActual: number;
       }> = [];

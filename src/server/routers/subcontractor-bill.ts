@@ -257,6 +257,61 @@ export const subcontractorBillRouter = router({
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate bill number after multiple retries." });
     }
 
+    // LIABILITY JOURNAL ENTRY: record the liability when the subcontractor
+    // bill is created, not just when it's paid. Without this, Subcontractor
+    // Payables (2002) only ever gets DEBITED (at payment time) but never
+    // CREDITED — so the Trial Balance won't tie out as long as any sub
+    // bill is outstanding.
+    //
+    // Dr Subcontractor Cost (5020)   = grossAmount
+    // Dr TDS Receivable (1400)       = tdsAmount
+    //    Cr VAT Payable (2021)       = vatAmount
+    //    Cr Subcontractor Payables (2002) = netPayable
+    await createJournalEntry(db, {
+      source: "subcontractor_bill",
+      sourceRefId: bill.id,
+      sourceRefType: "SubcontractorBill",
+      description: `Subcontractor bill ${bill.number} — liability recorded`,
+      entryDate: bill.billDate,
+      postedById: ctx.user.id,
+      lines: [
+        {
+          accountCode: "5020",
+          accountName: "Subcontractor Cost",
+          debit: amounts.grossAmount,
+          credit: 0,
+          description: `Subcontractor work — ${bill.number}`,
+          projectId: input.projectId,
+          partnerId: input.subcontractorId,
+        },
+        ...(amounts.tdsAmount > 0 ? [{
+          accountCode: "1400" as const,
+          accountName: "TDS Receivable",
+          debit: amounts.tdsAmount,
+          credit: 0,
+          description: `TDS deducted on sub bill ${bill.number}`,
+          projectId: input.projectId,
+        }] : []),
+        ...(amounts.vatAmount > 0 ? [{
+          accountCode: "2021" as const,
+          accountName: "VAT Payable",
+          debit: 0,
+          credit: amounts.vatAmount,
+          description: `VAT on sub bill ${bill.number}`,
+          projectId: input.projectId,
+        }] : []),
+        {
+          accountCode: "2002",
+          accountName: "Subcontractor Payables",
+          debit: 0,
+          credit: amounts.netPayable,
+          description: `Payable for ${bill.number}`,
+          projectId: input.projectId,
+          partnerId: input.subcontractorId,
+        },
+      ],
+    });
+
     return { bill };
   }),
 
@@ -947,12 +1002,14 @@ export const subcontractorBillRouter = router({
         const normName = item.name.trim().toLowerCase();
         let theoreticalReq = theoreticalMap.get(normName) || 0;
         if (theoreticalReq === 0) {
-          for (const [tKey, tVal] of theoreticalMap.entries()) {
-            if (normName.includes(tKey) || tKey.includes(normName)) {
-              theoreticalReq = tVal;
-              break;
-            }
-          }
+          // Previously this used substring matching (normName.includes(tKey)
+          // || tKey.includes(normName)) which caused false positives — "Sand"
+          // would match "Sandstone". Now uses exact match only; if no match,
+          // the theoretical requirement stays 0 (which is correct — we don't
+          // know the ingredient's rate analysis, so we can't estimate).
+          // This is a reconciliation dashboard, not a financial posting — the
+          // cost is conservative (shows 0 theoretical, so excess = full issued).
+          theoreticalReq = 0;
         }
         const allowedWastage = theoreticalReq * 0.02; // 2% permissible tolerance
         const totalAllowed = theoreticalReq + allowedWastage;

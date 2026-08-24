@@ -455,6 +455,21 @@ export const payrollRouter = router({
         // the balanced JE — `deductionExcess` adds a debit line ONLY when
         // at least one staff member was clamped (preventing the JE from
         // failing with "Unbalanced journal entry").
+        // IDEMPOTENCY: check for an existing payroll JE before creating.
+        // Re-saving a draft (or using reopen) would otherwise duplicate
+        // the journal entry and double-deduct staff advances. This is
+        // normal workflow, not an edge case.
+        const existingJe = await tx.journalEntry.findFirst({
+          where: { source: "payroll", sourceRefId: run.id },
+          select: { id: true, entryNumber: true },
+        });
+        if (existingJe) {
+          // JE already exists for this payroll run — skip creation.
+          // If the amounts changed, the old JE should be reversed via
+          // reverseJournalEntry BEFORE re-saving (separate workflow).
+          return run;
+        }
+
         await createJournalEntry(tx, {
           source: "payroll",
           sourceRefId: run.id,

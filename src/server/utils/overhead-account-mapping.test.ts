@@ -42,9 +42,19 @@ describe("Overhead Account Mapping", () => {
       expect(siteOverheadCodeForCategory("misc")).toBe("6006");
       expect(siteOverheadCodeForCategory("general")).toBe("6006");
       expect(siteOverheadCodeForCategory("other")).toBe("6006");
-      // Unknown categories fall back to Misc — preserves the previous
-      // behavior for any category string not in the lookup table.
       expect(siteOverheadCodeForCategory("unknown-category")).toBe("6006");
+    });
+
+    it("maps real UI categories from SiteExpense schema correctly", () => {
+      // The schema defines: material | transport | labor | food | accommodation | utility | office | travel | other
+      expect(siteOverheadCodeForCategory("transport")).toBe("6003"); // → Fuel & Vehicle
+      expect(siteOverheadCodeForCategory("travel")).toBe("6003");     // → Fuel & Vehicle
+      expect(siteOverheadCodeForCategory("labor")).toBe("6006");      // → Misc (direct cost, not overhead)
+      expect(siteOverheadCodeForCategory("office")).toBe("6006");     // → Misc
+      expect(siteOverheadCodeForCategory("material")).toBe("6006");   // → Misc (tracked via BOQ)
+      expect(siteOverheadCodeForCategory("accommodation")).toBe("6004"); // → Food & Mess (lodging)
+      expect(siteOverheadCodeForCategory("utility")).toBe("6002");    // → Utilities
+      expect(siteOverheadCodeForCategory("food")).toBe("6004");       // → Food & Mess
     });
 
     it("is case-insensitive and trims whitespace", () => {

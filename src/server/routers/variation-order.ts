@@ -277,78 +277,108 @@ export const variationOrderRouter = router({
           where: { id: input.id },
           data: updateData,
         });
+
+        // VO JE must be ATOMIC with the status update. Previously this
+        // was outside the transaction — a failure between the transaction
+        // committing and the JE being created would leave an "approved"
+        // VO permanently un-journaled with no retry path. Now the JE is
+        // created inside the same transaction so any failure rolls back
+        // the status change too.
+        //
+        // #6 FIX: items without baseline data now use item.newQty * newRate
+        // as a FALLBACK ESTIMATE (instead of being skipped entirely).
+        // The item is still flagged in the audit log so a reviewer knows
+        // the value change is an estimate, not a precise delta.
+        if (input.status === "approved") {
+          const itemsWithoutBaseline: string[] = [];
+          let totalValueChange = 0;
+          for (const item of vo.items) {
+            if (item.boqItemId) {
+              const existing = await tx.boqItem.findUnique({
+                where: { id: item.boqItemId },
+                select: { baselineQty: true, baselineRate: true, code: true, quantity: true, rate: true },
+              });
+              if (
+                !existing ||
+                existing.baselineQty == null ||
+                existing.baselineRate == null
+              ) {
+                // FALLBACK: use current quantity * rate as the baseline
+                // estimate instead of skipping. This ensures the VO's
+                // value change is captured (even if imprecise) rather
+                // than silently vanishing from the JE. Flag the item
+                // so the reviewer knows the delta is estimated.
+                itemsWithoutBaseline.push(existing?.code || item.boqItemId);
+                const estOldQty = existing?.quantity ?? item.newQty;
+                const estOldRate = existing?.rate ?? item.newRate;
+                totalValueChange += (item.newQty * item.newRate) - (estOldQty * estOldRate);
+              } else {
+                const oldQty = existing.baselineQty;
+                const oldRate = existing.baselineRate;
+                totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
+              }
+            } else {
+              // New item added: full value
+              totalValueChange += item.newQty * item.newRate;
+            }
+          }
+
+          if (Math.abs(totalValueChange) > 0.01) {
+            await createJournalEntry(tx, {
+              source: "variation_order",
+              sourceRefId: input.id,
+              sourceRefType: "VariationOrder",
+              description: `Variation Order ${vo.number} approved — contract value change`,
+              entryDate: new Date(),
+              postedById: ctx.user.id,
+              lines: [
+                {
+                  accountCode: "1100",
+                  accountName: "Client Receivables",
+                  debit: Math.max(0, totalValueChange),
+                  credit: Math.max(0, -totalValueChange),
+                  description: `VO ${vo.number} — contract value adjustment`,
+                  projectId: input.projectId,
+                },
+                {
+                  accountCode: "4001",
+                  accountName: "Contract Revenue",
+                  debit: Math.max(0, -totalValueChange),
+                  credit: Math.max(0, totalValueChange),
+                  description: `VO ${vo.number} — variation revenue`,
+                  projectId: input.projectId,
+                },
+              ],
+            });
+          }
+        }
       }); // end of $transaction
 
-      // When approved, generate a journal entry for the contract value change.
-      // VO changes the contract value — this is a financial event:
-      //   Dr Client Receivable (contract value increase)
-      //      Cr Contract Revenue (variation revenue recognized)
-      //
-      // We compute the value change OUTSIDE the transaction above and
-      // re-derive it here. (The transaction already committed the
-      // `updateData` mutation; we just need the totals for the JE.)
-      //
-      // NOTE: `itemsWithoutBaseline` is surfaced to the audit log so a
-      // reviewer knows the JE was skipped for items lacking baseline data.
-      const itemsWithoutBaseline: string[] = [];
-      let totalValueChange = 0;
+      // Audit log (was missing entirely)
+      // Recompute itemsWithoutBaseline for the audit metadata — it was
+      // computed inside the transaction but we need it here too.
+      let itemsWithoutBaselineAudit: string[] = [];
+      let totalValueChangeAudit = 0;
       if (input.status === "approved") {
         for (const item of vo.items) {
           if (item.boqItemId) {
             const existing = await db.boqItem.findUnique({
               where: { id: item.boqItemId },
-              select: { baselineQty: true, baselineRate: true, code: true },
+              select: { baselineQty: true, baselineRate: true, code: true, quantity: true, rate: true },
             });
-            // If baseline is missing on EITHER field, we can't compute
-            // the value change for this item — skip it (and flag it).
-            if (
-              !existing ||
-              existing.baselineQty == null ||
-              existing.baselineRate == null
-            ) {
-              itemsWithoutBaseline.push(existing?.code || item.boqItemId);
-              continue;
+            if (!existing || existing.baselineQty == null || existing.baselineRate == null) {
+              itemsWithoutBaselineAudit.push(existing?.code || item.boqItemId);
+              const estOldQty = existing?.quantity ?? item.newQty;
+              const estOldRate = existing?.rate ?? item.newRate;
+              totalValueChangeAudit += (item.newQty * item.newRate) - (estOldQty * estOldRate);
+            } else {
+              totalValueChangeAudit += (item.newQty * item.newRate) - (existing.baselineQty * existing.baselineRate);
             }
-            const oldQty = existing.baselineQty;
-            const oldRate = existing.baselineRate;
-            totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
           } else {
-            // New item added: full value
-            totalValueChange += item.newQty * item.newRate;
+            totalValueChangeAudit += item.newQty * item.newRate;
           }
         }
-
-        if (Math.abs(totalValueChange) > 0.01) {
-          await createJournalEntry(db, {
-            source: "variation_order",
-            sourceRefId: input.id,
-            sourceRefType: "VariationOrder",
-            description: `Variation Order ${vo.number} approved — contract value change`,
-            entryDate: new Date(),
-            postedById: ctx.user.id,
-            lines: [
-              {
-                accountCode: "1100",
-                accountName: "Client Receivables",
-                debit: Math.max(0, totalValueChange),
-                credit: Math.max(0, -totalValueChange),
-                description: `VO ${vo.number} — contract value adjustment`,
-                projectId: input.projectId,
-              },
-              {
-                accountCode: "4001",
-                accountName: "Contract Revenue",
-                debit: Math.max(0, -totalValueChange),
-                credit: Math.max(0, totalValueChange),
-                description: `VO ${vo.number} — variation revenue`,
-                projectId: input.projectId,
-              },
-            ],
-          });
-        }
       }
-
-      // Audit log (was missing entirely)
       await audit({
         userId: ctx.user.id,
         projectId: input.projectId,
@@ -358,10 +388,8 @@ export const variationOrderRouter = router({
         metadata: {
           number: vo.number,
           status: input.status,
-          // Surface skipped items + total value change so reviewers can
-          // spot VOs that weren't journaled due to missing baseline data.
-          totalValueChange,
-          itemsWithoutBaseline: itemsWithoutBaseline.length > 0 ? itemsWithoutBaseline : undefined,
+          totalValueChange: totalValueChangeAudit,
+          itemsWithoutBaseline: itemsWithoutBaselineAudit.length > 0 ? itemsWithoutBaselineAudit : undefined,
         },
       });
 

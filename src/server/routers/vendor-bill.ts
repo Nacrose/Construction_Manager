@@ -222,6 +222,62 @@ export const vendorBillRouter = router({
         },
       });
 
+      // LIABILITY JOURNAL ENTRY: record the liability when the bill is
+      // created, not just when it's paid. Without this, Sundry Creditors
+      // (2001) only ever gets DEBITED (at payment time) but never CREDITED
+      // — so the Trial Balance won't tie out as long as any bill is
+      // outstanding. This is the most structurally significant finding
+      // in the finance module.
+      //
+      // Dr Purchases / Material (5001)  = grossAmount
+      // Dr TDS Receivable (1400)       = tdsAmount
+      //    Cr VAT Payable (2021)       = vatAmount
+      //    Cr Sundry Creditors (2001)  = netPayable
+      await createJournalEntry(db, {
+        source: "vendor_bill",
+        sourceRefId: bill.id,
+        sourceRefType: "VendorBill",
+        description: `Vendor bill ${bill.billNumber} — liability recorded`,
+        entryDate: new Date(input.billDate),
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: "5001",
+            accountName: "Material / Purchases",
+            debit: input.grossAmount,
+            credit: 0,
+            description: `Purchase from ${bill.partner?.name || bill.billNumber}`,
+            projectId: input.projectId,
+            partnerId: bill.partnerId || undefined,
+          },
+          ...(tdsAmount > 0 ? [{
+            accountCode: "1400" as const,
+            accountName: "TDS Receivable",
+            debit: tdsAmount,
+            credit: 0,
+            description: `TDS deducted on vendor bill ${bill.billNumber}`,
+            projectId: input.projectId,
+          }] : []),
+          ...(vatAmount > 0 ? [{
+            accountCode: "2021" as const,
+            accountName: "VAT Payable",
+            debit: 0,
+            credit: vatAmount,
+            description: `VAT on vendor bill ${bill.billNumber}`,
+            projectId: input.projectId,
+          }] : []),
+          {
+            accountCode: "2001",
+            accountName: "Sundry Creditors",
+            debit: 0,
+            credit: netPayable,
+            description: `Payable to ${bill.partner?.name || bill.billNumber}`,
+            projectId: input.projectId,
+            partnerId: bill.partnerId || undefined,
+          },
+        ],
+      });
+
       return { bill };
     }),
 

@@ -531,6 +531,17 @@ export const ipcRouter = router({
       if (!ipc) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
       await assertCanWrite(ctx.user, ipc.projectId);
 
+      // STATUS LOCK: reject line-item edits on certified/approved/paid IPCs.
+      // Once an IPC is certified, the JE has been posted with the certified
+      // amounts. Changing line items without reversing the JE would make
+      // the IPC record and the GL silently diverge.
+      if (["certified", "approved", "paid"].includes(ipc.status)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Cannot edit line items on an IPC with status "${ipc.status}". Revert to draft first (this will reverse the journal entry).`,
+        });
+      }
+
       const existing = await db.ipcItem.findUnique({ where: { id: input.itemId } });
       if (!existing || existing.ipcId !== input.ipcId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Line item not found." });
@@ -577,10 +588,19 @@ export const ipcRouter = router({
     .mutation(async ({ ctx, input }) => {
       const ipc = await db.ipc.findUnique({
         where: { id: input.ipcId },
-        select: { id: true, projectId: true, number: true, subcontractorId: true },
+        select: { id: true, projectId: true, number: true, subcontractorId: true, status: true },
       });
       if (!ipc) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
       await assertCanWrite(ctx.user, ipc.projectId);
+
+      // STATUS LOCK: same as updateItem — cannot reload BOQ items on a
+      // certified/approved/paid IPC without reversing the JE first.
+      if (["certified", "approved", "paid"].includes(ipc.status)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Cannot reload BOQ on an IPC with status "${ipc.status}". Revert to draft first.`,
+        });
+      }
 
       const boqItems = await db.boqItem.findMany({
         where: { projectId: ipc.projectId },

@@ -16,15 +16,23 @@
 import { CHART_OF_ACCOUNTS } from "@/lib/chart-of-accounts";
 
 // Site Overhead account codes (6001-6006). See chart-of-accounts.ts.
+// Keys match the SiteExpense.category field from the Prisma schema:
+//   material | transport | labor | food | accommodation | utility | office | travel | other | general
 const SITE_OVERHEAD_CODES = {
   rent: "6001",          // Site Overhead - Rent
+  accommodation: "6004",  // accommodation → Food & Mess (lodging)
   utility: "6002",       // Site Overhead - Utilities
   utilities: "6002",
   fuel: "6003",          // Site Overhead - Fuel & Vehicle
   vehicle: "6003",
+  transport: "6003",     // transport → Fuel & Vehicle
+  travel: "6003",        // travel → Fuel & Vehicle
   food: "6004",          // Site Overhead - Food & Mess
   mess: "6004",
-  accommodation: "6004",
+  labor: "6006",         // labor → Misc (labor is a direct cost, not overhead, but
+                          // if categorized as a site expense it defaults to Misc)
+  office: "6006",        // office → Misc (no specific site overhead code for office)
+  material: "6006",      // material → Misc (materials are tracked via BOQ/vendor bills)
   safety: "6005",        // Site Overhead - Safety Equipment
   misc: "6006",          // Site Overhead - Misc
   general: "6006",
