@@ -287,6 +287,19 @@ export const correspondenceRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR FIX: verify the correspondence record actually belongs to
+      // input.projectId before deleting. Without this, a user with write
+      // access to project A could pass projectId=projectA and id=<record
+      // from project B> and delete it.
+      const existing = await db.correspondence.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Correspondence not found in this project." });
+      }
+
       await db.correspondence.delete({ where: { id: input.id } });
       return { ok: true };
     }),

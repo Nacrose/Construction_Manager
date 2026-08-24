@@ -115,7 +115,7 @@ export const equipmentRentalProcedures = {
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId);
+      await assertNotLocked(ctx.user.organizationId, input.startDate ? new Date(input.startDate) : new Date());
 
       const existing = await db.equipmentRental.findFirst({
         where: {

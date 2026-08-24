@@ -2,6 +2,7 @@
 // client-side _assertXxxWriteAccess guards. Every API route that mutates
 // data must call one of these.
 
+import { TRPCError } from "@trpc/server";
 import { db } from "@/lib/db";
 import type { AuthUser } from "@/lib/auth";
 
@@ -28,7 +29,7 @@ export function isOrgAdmin(user: AuthUser | null | undefined): boolean {
 // verify the target belongs to the same organization as the caller.
 export function assertOrgAdmin(user: AuthUser | null | undefined): void {
   if (!isOrgAdmin(user)) {
-    throw new Error("REQUIRES_ORG_ADMIN");
+    throw new TRPCError({ code: "FORBIDDEN", message: "Organization admin access required." });
   }
 }
 
@@ -78,7 +79,7 @@ export async function assertProjectMember(
     organizationId: user.organizationId,
   });
   if (!role) {
-    throw new Error("FORBIDDEN");
+    throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this project." });
   }
   return role;
 }
@@ -92,7 +93,7 @@ export async function assertCanWrite(
 ): Promise<ProjectRole> {
   const role = await assertProjectMember(user, projectId);
   if (role === "client" || role === "inspector") {
-    throw new Error("READ_ONLY");
+    throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
   }
   return role;
 }
@@ -104,7 +105,7 @@ export async function assertProjectAdmin(
 ): Promise<ProjectRole> {
   const role = await assertProjectMember(user, projectId);
   if (role !== "project_manager" && role !== "coordinator") {
-    throw new Error("REQUIRES_ADMIN");
+    throw new TRPCError({ code: "FORBIDDEN", message: "Project admin access required (Project Manager or Coordinator)." });
   }
   return role;
 }
@@ -116,16 +117,40 @@ export async function assertProjectManager(
 ): Promise<ProjectRole> {
   const role = await assertProjectMember(user, projectId);
   if (role !== "project_manager") {
-    throw new Error("REQUIRES_PROJECT_MANAGER");
+    throw new TRPCError({ code: "FORBIDDEN", message: "Project Manager access required." });
   }
   return role;
 }
 
 // Maps a thrown auth error to an HTTP status + message.
+//
+// Handles BOTH the new TRPCError-based throws (used inside tRPC routers)
+// and the legacy raw-Error code strings (for REST route handlers that
+// catch and re-map). The raw-Error path is kept for backwards
+// compatibility — new code should throw TRPCError directly.
 export function authErrorToResponse(err: unknown): {
   status: number;
   message: string;
 } {
+  // TRPCError path — the modern way. tRPC errors carry a `code` property
+  // (UNAUTHORIZED, FORBIDDEN, etc.) that maps directly to HTTP status.
+  if (err && typeof err === "object" && "code" in err && typeof (err as any).code === "string") {
+    const code = (err as any).code as string;
+    const message = (err as any).message || "Authorization error.";
+    switch (code) {
+      case "UNAUTHORIZED":
+        return { status: 401, message };
+      case "FORBIDDEN":
+        return { status: 403, message };
+      case "NOT_FOUND":
+        return { status: 404, message };
+      default:
+        return { status: 500, message };
+    }
+  }
+
+  // Legacy raw-Error path — kept for backwards compat with any code
+  // that still throws `new Error("FORBIDDEN")` etc.
   const code = err instanceof Error ? err.message : "UNKNOWN";
   switch (code) {
     case "UNAUTHENTICATED":

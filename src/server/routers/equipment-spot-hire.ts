@@ -41,7 +41,7 @@ export const equipmentSpotHireProcedures = {
     .input(SpotHireTicketSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId);
+      await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());
 
       const ticketDate = input.date ? new Date(input.date) : new Date();
 

@@ -170,15 +170,12 @@ export const subcontractorBillRouter = router({
     });
     if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found." });
 
-    // Auto-generate collision-free bill number
-    const count = await db.subcontractorBill.count({ where: { projectId: input.projectId } });
-    let nextIndex = count + 1;
-    let number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
-    while (await db.subcontractorBill.findFirst({ where: { projectId: input.projectId, number } })) {
-      nextIndex++;
-      number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
-    }
-
+    // Auto-generate collision-free bill number with retry.
+    //
+    // RACE CONDITION FIX: previously this used `count + 1` then a
+    // `while exists` loop with NO retry on the actual `create`. Two
+    // concurrent creates would both compute the same number and one
+    // would fail on the unique constraint. Now we retry on P2002.
     const amounts = calculateBillAmounts({
       items: input.items,
       retentionPercent: input.retentionPercent ?? 10,
@@ -188,52 +185,77 @@ export const subcontractorBillRouter = router({
       advanceRecovery: input.advanceRecovery ?? 0,
     });
 
-    const bill = await db.$transaction(async (tx) => {
-      const created = await tx.subcontractorBill.create({
-        data: {
-          projectId: input.projectId,
-          subcontractorId: input.subcontractorId,
-          number,
-          period: input.period || null,
-          grossAmount: amounts.grossAmount,
-          retentionPercent: input.retentionPercent ?? 10,
-          retentionAmount: amounts.retentionAmount,
-          vatPercent: input.vatPercent ?? 13,
-          vatAmount: amounts.vatAmount,
-          tdsPercent: input.tdsPercent ?? 1.5,
-          tdsAmount: amounts.tdsAmount,
-          materialDeduction: input.materialDeduction ?? 0,
-          advanceRecovery: input.advanceRecovery ?? 0,
-          netPayable: amounts.netPayable,
-          paidAmount: 0,
-          status: "draft",
-          notes: input.notes || null,
-          createdById: ctx.user.id,
-        },
-      });
-
-      // Create line items with per-item cumulative qty tracking (previousQty + thisQty)
-      for (const item of input.items) {
-        const prev = item.previousQty ?? 0;
-        const cumQty = prev + item.thisQty;
-        await tx.subcontractorBillItem.create({
-          data: {
-            billId: created.id,
-            boqCode: item.boqCode || null,
-            description: item.description,
-            unit: item.unit || null,
-            contractQty: item.contractQty ?? 0,
-            previousQty: prev,
-            thisQty: item.thisQty,
-            cumQty,
-            rate: item.rate,
-            amount: item.thisQty * item.rate,
-          },
-        });
+    const MAX_RETRIES = 5;
+    let bill;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const count = await db.subcontractorBill.count({ where: { projectId: input.projectId } });
+      let nextIndex = count + 1 + attempt;
+      let number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
+      while (await db.subcontractorBill.findFirst({ where: { projectId: input.projectId, number } })) {
+        nextIndex++;
+        number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
       }
 
-      return created;
-    });
+      try {
+        bill = await db.$transaction(async (tx) => {
+          const created = await tx.subcontractorBill.create({
+            data: {
+              projectId: input.projectId,
+              subcontractorId: input.subcontractorId,
+              number,
+              period: input.period || null,
+              grossAmount: amounts.grossAmount,
+              retentionPercent: input.retentionPercent ?? 10,
+              retentionAmount: amounts.retentionAmount,
+              vatPercent: input.vatPercent ?? 13,
+              vatAmount: amounts.vatAmount,
+              tdsPercent: input.tdsPercent ?? 1.5,
+              tdsAmount: amounts.tdsAmount,
+              materialDeduction: input.materialDeduction ?? 0,
+              advanceRecovery: input.advanceRecovery ?? 0,
+              netPayable: amounts.netPayable,
+              paidAmount: 0,
+              status: "draft",
+              notes: input.notes || null,
+              createdById: ctx.user.id,
+            },
+          });
+
+          // Create line items with per-item cumulative qty tracking (previousQty + thisQty)
+          for (const item of input.items) {
+            const prev = item.previousQty ?? 0;
+            const cumQty = prev + item.thisQty;
+            await tx.subcontractorBillItem.create({
+              data: {
+                billId: created.id,
+                boqCode: item.boqCode || null,
+                description: item.description,
+                unit: item.unit || null,
+                contractQty: item.contractQty ?? 0,
+                previousQty: prev,
+                thisQty: item.thisQty,
+                cumQty,
+                rate: item.rate,
+                amount: item.thisQty * item.rate,
+              },
+            });
+          }
+
+          return created;
+        });
+
+        break; // success — exit retry loop
+      } catch (err: any) {
+        if (attempt < MAX_RETRIES - 1 && err?.code === "P2002") {
+          continue; // retry with next number
+        }
+        throw err;
+      }
+    }
+
+    if (!bill) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate bill number after multiple retries." });
+    }
 
     return { bill };
   }),
@@ -376,7 +398,6 @@ export const subcontractorBillRouter = router({
   markPaid: protectedProcedure
     .input(z.object({ projectId: z.string(), billId: z.string(), amount: z.number().positive() }))
     .mutation(async ({ ctx, input }) => {
-      await assertNotLocked(ctx.user.organizationId);
       await assertProjectAdmin(ctx.user, input.projectId);
 
       const bill = await db.subcontractorBill.findFirst({
@@ -384,6 +405,12 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
+
+      // Fiscal year lock enforcement — use the bill's date (the
+      // transaction date) so back-dated payments to locked fiscal years
+      // are correctly rejected. Previously this used new Date() (today).
+      await assertNotLocked(ctx.user.organizationId, bill.billDate);
+
       if (bill.status !== "certified" && bill.status !== "paid") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only certified bills can be marked as paid." });
       }

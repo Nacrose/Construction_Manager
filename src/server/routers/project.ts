@@ -166,9 +166,15 @@ export const projectRouter = router({
       _count: undefined,
     }));
 
+    // Projects the user created but isn't a member of.
+    // myRole is null (not "project_manager") — the user created the
+    // project but hasn't been added as a member, so they have NO role
+    // on it. Previously this auto-assigned "project_manager" which
+    // made the UI show write buttons that would fail at assertCanWrite.
+    // The UI should prompt the user to add themselves as a member.
     const creatorProjects = createdProjects.map((p) => ({
       ...p,
-      myRole: "project_manager",
+      myRole: null as string | null,
       rfiCount: p._count.rfis,
       memberCount: p._count.members,
       _count: undefined,

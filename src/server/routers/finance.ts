@@ -480,11 +480,31 @@ export const financeRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      const memberships = await db.projectMember.findMany({
-        where: { userId: ctx.user.id },
-        select: { projectId: true },
+      // SCOPING FIX: previously this used projectMember.findMany({ userId })
+      // which only returned projects the user is a MEMBER of — an org admin
+      // who isn't a member of every project couldn't see org-wide payables.
+      // Now we scope by organizationId so all org members see all org
+      // projects (the intended behavior for an "org payables" view).
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
       });
-      const projectIds = memberships.map((m) => m.projectId);
+
+      let projectIds: string[];
+      if (user.organizationId) {
+        const orgProjects = await db.project.findMany({
+          where: { organizationId: user.organizationId },
+          select: { id: true },
+        });
+        projectIds = orgProjects.map((p) => p.id);
+      } else {
+        // No org — fall back to membership-based scoping.
+        const memberships = await db.projectMember.findMany({
+          where: { userId: ctx.user.id },
+          select: { projectId: true },
+        });
+        projectIds = memberships.map((m) => m.projectId);
+      }
 
       if (projectIds.length === 0) {
         return { suppliers: [], totalDue: 0, totalBills: 0 };
@@ -667,11 +687,38 @@ export const financeRouter = router({
         select: { organizationId: true },
       });
 
-      const memberships = await db.projectMember.findMany({
-        where: { userId: ctx.user.id },
-        select: { projectId: true },
-      });
-      const projectIds = input?.projectId ? [input.projectId] : memberships.map((m) => m.projectId);
+      // IDOR FIX: if a specific projectId is requested, verify the caller
+      // has access to it BEFORE using it as a filter. Without this check,
+      // any authenticated user could pass any projectId (including from
+      // another org) and see all its payments, vendor bills, sub-bills,
+      // and IPCs — a direct cross-tenant data leak.
+      let projectIds: string[];
+      if (input?.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+        projectIds = [input.projectId];
+      } else {
+        // Org-wide view: scope to projects in the caller's org.
+        // Previously this used projectMember.findMany({ userId }) which
+        // only returned projects the user is a MEMBER of — an org admin
+        // who isn't a member of every project couldn't see org-wide
+        // data. Now we scope by organizationId so all org members see
+        // all org projects (the intended behavior for an "org master
+        // day book").
+        if (user.organizationId) {
+          const orgProjects = await db.project.findMany({
+            where: { organizationId: user.organizationId },
+            select: { id: true },
+          });
+          projectIds = orgProjects.map((p) => p.id);
+        } else {
+          // No org — fall back to membership-based scoping.
+          const memberships = await db.projectMember.findMany({
+            where: { userId: ctx.user.id },
+            select: { projectId: true },
+          });
+          projectIds = memberships.map((m) => m.projectId);
+        }
+      }
 
       const [payments, vendorBills, subBills, ipcs, hoExpenses] = await Promise.all([
         db.payment.findMany({
@@ -688,6 +735,7 @@ export const financeRouter = router({
           },
           include: { project: { select: { id: true, name: true, code: true } } },
           orderBy: { paymentDate: "desc" },
+          take: 5000,
         }),
         db.vendorBill.findMany({
           where: {
@@ -706,6 +754,7 @@ export const financeRouter = router({
             project: { select: { id: true, name: true, code: true } },
           },
           orderBy: { billDate: "desc" },
+          take: 5000,
         }),
         db.subcontractorBill.findMany({
           where: {
@@ -724,6 +773,7 @@ export const financeRouter = router({
             project: { select: { id: true, name: true, code: true } },
           },
           orderBy: { billDate: "desc" },
+          take: 5000,
         }),
         db.ipc.findMany({
           where: {
@@ -1140,7 +1190,10 @@ export const financeRouter = router({
       // SECURITY: org-wide settlement is an admin-tier financial action.
       // Caller must be an org admin AND belong to an organization.
       assertOrgAdmin(ctx.user);
-      await assertNotLocked(ctx.user.organizationId);
+      // Pass the payment date (not today) so back-dated payments to
+      // locked fiscal years are correctly rejected. Previously this
+      // used new Date() which let users bypass the lock by back-dating.
+      await assertNotLocked(ctx.user.organizationId, input.paymentDate ? new Date(input.paymentDate) : new Date());
       const callerOrgId = ctx.user.organizationId;
       if (!callerOrgId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
@@ -1384,7 +1437,9 @@ export const financeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertOrgAdmin(ctx.user);
-      await assertNotLocked(ctx.user.organizationId);
+      // Pass the expense date (not today) so back-dated expenses to
+      // locked fiscal years are correctly rejected.
+      await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
         select: { organizationId: true },
@@ -1405,71 +1460,74 @@ export const financeRouter = router({
         }
       }
 
-      const expense = await db.headOfficeExpense.create({
-        data: {
-          organizationId: user.organizationId,
-          category: input.category,
-          particulars: input.particulars,
-          amount: input.amount,
-          date: new Date(input.date),
-          miti: input.miti || null,
-          paymentMode: input.paymentMode,
-          bankAccountId: input.bankAccountId || null,
-          chequeNo: input.chequeNo || null,
-          notes: input.notes || null,
-        },
-      });
-
-      // Generate the journal entry for the head office expense.
-      // Previously this path recorded the HeadOfficeExpense row and
-      // decremented the bank balance but never called `createJournalEntry`,
-      // so the General Ledger / Trial Balance silently missed every HO
-      // expense. This brings it to parity with site-expense.approve which
-      // does generate a JE.
-      //
-      // Dr Head Office Overhead (6100 series based on category) NPR amount
-      //    Cr Bank (1010) / Cash (1001) NPR amount
-      //
-      // We map the free-text `category` field to a chart-of-accounts code.
-      // Unknown categories fall back to "6199" (Head Office - Misc).
-      const hoAccountCode = hoOverheadCodeForCategory(input.category);
-      const hoAccountName = accountNameForCode(hoAccountCode) || "Head Office Overhead";
-      const bankCode = input.paymentMode === "cash" ? "1001" : "1010";
-      const bankName = input.paymentMode === "cash" ? "Cash" : "Bank";
-
-      await createJournalEntry(db, {
-        source: "head_office_expense",
-        sourceRefId: expense.id,
-        sourceRefType: "HeadOfficeExpense",
-        description: `HO expense: ${input.particulars} (${input.category})`,
-        entryDate: new Date(input.date),
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: hoAccountCode,
-            accountName: hoAccountName,
-            debit: input.amount,
-            credit: 0,
-            description: input.particulars,
+      // Wrap the expense creation + journal entry + bank balance decrement
+      // in a single transaction so they're atomic. Previously these were
+      // separate operations — if the JE failed, the expense was created
+      // with no GL entry; if the bank decrement failed, the JE was posted
+      // with no balance change. Now any failure rolls back all three.
+      const expense = await db.$transaction(async (tx) => {
+        const exp = await tx.headOfficeExpense.create({
+          data: {
+            organizationId: user.organizationId!,
+            category: input.category,
+            particulars: input.particulars,
+            amount: input.amount,
+            date: new Date(input.date),
+            miti: input.miti || null,
+            paymentMode: input.paymentMode,
+            bankAccountId: input.bankAccountId || null,
+            chequeNo: input.chequeNo || null,
+            notes: input.notes || null,
           },
-          {
-            accountCode: bankCode,
-            accountName: bankName,
-            debit: 0,
-            credit: input.amount,
-            description: `Paid via ${input.paymentMode}${input.chequeNo ? ` (cheque #${input.chequeNo})` : ""}`,
-          },
-        ],
-      });
+        });
 
-      // Atomic balance decrement to avoid lost-update race on concurrent expenses.
-      if (input.bankAccountId) {
-        await db.$executeRaw`
-          UPDATE "CompanyBankAccount"
-          SET "currentBalance" = "currentBalance" - ${input.amount}
-          WHERE "id" = ${input.bankAccountId}
-        `;
-      }
+        // Generate the journal entry for the head office expense.
+        // Dr Head Office Overhead (6100 series based on category) NPR amount
+        //    Cr Bank (1010) / Cash (1001) NPR amount
+        //
+        // We map the free-text `category` field to a chart-of-accounts code.
+        // Unknown categories fall back to "6199" (Head Office - Misc).
+        const hoAccountCode = hoOverheadCodeForCategory(input.category);
+        const hoAccountName = accountNameForCode(hoAccountCode) || "Head Office Overhead";
+        const bankCode = input.paymentMode === "cash" ? "1001" : "1010";
+        const bankName = input.paymentMode === "cash" ? "Cash" : "Bank";
+
+        await createJournalEntry(tx, {
+          source: "head_office_expense",
+          sourceRefId: exp.id,
+          sourceRefType: "HeadOfficeExpense",
+          description: `HO expense: ${input.particulars} (${input.category})`,
+          entryDate: new Date(input.date),
+          postedById: ctx.user.id,
+          lines: [
+            {
+              accountCode: hoAccountCode,
+              accountName: hoAccountName,
+              debit: input.amount,
+              credit: 0,
+              description: input.particulars,
+            },
+            {
+              accountCode: bankCode,
+              accountName: bankName,
+              debit: 0,
+              credit: input.amount,
+              description: `Paid via ${input.paymentMode}${input.chequeNo ? ` (cheque #${input.chequeNo})` : ""}`,
+            },
+          ],
+        });
+
+        // Atomic balance decrement inside the same transaction.
+        if (input.bankAccountId) {
+          await tx.$executeRaw`
+            UPDATE "CompanyBankAccount"
+            SET "currentBalance" = "currentBalance" - ${input.amount}
+            WHERE "id" = ${input.bankAccountId}
+          `;
+        }
+
+        return exp;
+      });
 
       await audit({
         userId: ctx.user.id,

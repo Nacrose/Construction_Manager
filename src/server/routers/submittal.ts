@@ -132,6 +132,16 @@ export const submittalRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR FIX: verify the submittal belongs to input.projectId.
+      const existing = await db.submittal.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Submittal not found in this project." });
+      }
+
       await db.submittal.delete({ where: { id: input.id } });
       return { ok: true };
     }),

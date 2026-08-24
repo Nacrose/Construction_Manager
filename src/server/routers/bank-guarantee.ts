@@ -173,7 +173,7 @@ export const bankGuaranteeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertProjectManager(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId);
+      await assertNotLocked(ctx.user.organizationId, input.issuedDate ? new Date(input.issuedDate) : new Date());
 
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);

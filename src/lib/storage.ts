@@ -94,9 +94,49 @@ export async function uploadFile(
 }
 
 /**
- * Delete a file by its storage key.
+ * Delete a file by its storage key OR storage URL.
+ *
+ * Accepts BOTH formats because callers pass `att.storageUrl` (the URL
+ * stored in the DB) rather than the raw key. Previously this function
+ * expected a bare key (e.g. `1234567890-abcdef.bin`) but received a
+ * URL (e.g. `/uploads/1234567890-abcdef.bin`), causing `path.join` to
+ * produce a nested non-existent path — the `try/catch` silently
+ * swallowed the error, so orphaned files were NEVER deleted.
+ *
+ * This function normalizes the input: if it starts with `/uploads/`
+ * (local) or matches the S3/Vercel URL prefix, the prefix is stripped
+ * to recover the bare key.
+ *
+ * SECURITY: rejects keys containing `..` path traversal segments —
+ * defense-in-depth even though `key` is always generated server-side.
  */
-export async function deleteFile(key: string): Promise<void> {
+export async function deleteFile(keyOrUrl: string): Promise<void> {
+  // Normalize: strip URL prefixes to recover the bare key.
+  let key = keyOrUrl;
+
+  // Local storage URLs look like `/uploads/<key>` — strip the prefix.
+  if (key.startsWith("/uploads/")) {
+    key = key.slice("/uploads/".length);
+  }
+
+  // S3 URLs look like `<endpoint>/<bucket>/<key>` — strip everything
+  // up to and including the bucket name. We use the configured bucket
+  // name to find the split point.
+  const bucket = process.env.STORAGE_BUCKET || "uploads";
+  const bucketMarker = `/${bucket}/`;
+  if (key.includes(bucketMarker)) {
+    key = key.slice(key.indexOf(bucketMarker) + bucketMarker.length);
+  }
+
+  // Defense-in-depth: reject path traversal attempts. Even though
+  // `key` is generated server-side by `uploadFile` (and should always
+  // be safe), this guard prevents a future code change from
+  // accidentally introducing a path-traversal vulnerability.
+  if (key.includes("..")) {
+    console.error("[storage] deleteFile: rejecting key with path traversal:", key);
+    return;
+  }
+
   if (PROVIDER === "local" || PROVIDER === "dev") {
     const filePath = path.join(UPLOAD_DIR, key);
     try { await fs.unlink(filePath); } catch { /* file may not exist */ }
@@ -124,7 +164,9 @@ export async function deleteFile(key: string): Promise<void> {
 
   if (PROVIDER === "vercel-blob") {
     const { del } = await importVercelBlob();
-    await del(key);
+    // Vercel Blob's del() accepts the full URL, not the key — pass
+    // the original input (which should be the URL for blob storage).
+    await del(keyOrUrl);
     return;
   }
 }
