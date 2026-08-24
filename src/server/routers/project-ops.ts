@@ -8,6 +8,8 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { createJournalEntry } from "@/lib/journal-entry";
 
 // ─── Payment Router ─────────────────────────────────────────
 const paymentRouter = router({
@@ -66,7 +68,7 @@ const paymentRouter = router({
     .input(
       z.object({
         projectId: z.string(),
-        payeeType: z.string(),
+        payeeType: z.enum(["vendor", "subcontractor", "supplier", "staff", "other"]),
         payeeName: z.string().min(1),
         partyPan: z.string().optional(),
         payeeId: z.string().optional(),
@@ -75,7 +77,7 @@ const paymentRouter = router({
         amount: z.number().positive(),
         tdsDeducted: z.number().default(0),
         vatIncluded: z.number().default(0),
-        netPaid: z.number().default(0),
+        netPaid: z.number().optional(),
         paymentDate: z.string().optional(),
         paymentMiti: z.string().optional(),
         paymentMode: z.enum(["cash", "bank_transfer", "cheque", "mobile_pay", "connectips"]).default("bank_transfer"),
@@ -98,16 +100,28 @@ const paymentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // FISCAL YEAR LOCK: use the payment date (not today) so back-dated
+      // payments to locked fiscal years are correctly rejected.
+      const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date();
+      await assertNotLocked(ctx.user.organizationId, paymentDate);
+
+      // AMOUNT CONSISTENCY: verify amount = tdsDeducted + netPaid.
+      const computedNet = input.amount - input.tdsDeducted;
+      const finalNetPaid = input.netPaid ?? computedNet;
+      if (Math.abs(finalNetPaid - computedNet) > 0.01) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Amount inconsistency: amount (${input.amount}) must equal tdsDeducted (${input.tdsDeducted}) + netPaid (${finalNetPaid}). Expected netPaid=${computedNet}.`,
+        });
+      }
+
       const { projectId, ...data } = input;
 
       let resolvedCategory = data.category;
       let resolvedSubCategory = data.subCategory;
 
       if (data.categoryId && !resolvedCategory) {
-        // IDOR guard: verify the payment category belongs to the
-        // project the caller was authorized on. Previously this used
-        // findUnique on the cuid only — minor cross-tenant info leak
-        // (category name from another project).
         const cat = await db.paymentCategory.findFirst({
           where: { id: data.categoryId, projectId },
         });
@@ -126,11 +140,62 @@ const paymentRouter = router({
           ...data,
           category: resolvedCategory,
           subCategory: resolvedSubCategory,
-          paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
-          netPaid: data.netPaid || (data.amount - data.tdsDeducted),
+          paymentDate,
+          // Use ?? (not ||) so a legitimate netPaid=0 (full TDS deduction)
+          // is preserved instead of being overridden.
+          netPaid: finalNetPaid,
           isBillAttached: Boolean(data.scannedBillUrl),
           createdById: ctx.user.id,
         },
+      });
+
+      // JOURNAL ENTRY: generate the payment JE so the GL reflects this
+      // payment. Previously this route created Payment records and updated
+      // bill statuses but NEVER called createJournalEntry — the GL was
+      // silently missing every payment created via the project-level
+      // Payments tab (the primary payment creation path for most users).
+      //
+      // Dr Sundry Creditors (2001) / Subcontractor Payables (2002) = amount
+      //    Cr TDS Payable (2020) = tdsDeducted (if any)
+      //    Cr Bank (1010) / Cash (1001) = netPaid
+      const creditorAccountCode = data.payeeType === "subcontractor" ? "2002" : "2001";
+      const creditorAccountName = data.payeeType === "subcontractor" ? "Subcontractor Payables" : "Sundry Creditors";
+      const bankCode = data.paymentMode === "cash" ? "1001" : "1010";
+      const bankName = data.paymentMode === "cash" ? "Cash" : "Bank";
+
+      await createJournalEntry(db, {
+        source: "payment",
+        sourceRefId: payment.id,
+        sourceRefType: "Payment",
+        description: `Payment to ${data.payeeName} — ${data.invoiceNumber || "direct"}`,
+        entryDate: paymentDate,
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: creditorAccountCode,
+            accountName: creditorAccountName,
+            debit: input.amount,
+            credit: 0,
+            description: `Payment to ${data.payeeName}`,
+            projectId,
+          },
+          ...(input.tdsDeducted > 0 ? [{
+            accountCode: "2020" as const,
+            accountName: "TDS Payable",
+            debit: 0,
+            credit: input.tdsDeducted,
+            description: `TDS deducted from ${data.payeeName}`,
+            projectId,
+          }] : []),
+          {
+            accountCode: bankCode,
+            accountName: bankName,
+            debit: 0,
+            credit: finalNetPaid,
+            description: `Net payment via ${data.paymentMode}`,
+            projectId,
+          },
+        ],
       });
 
       // If linked to a Vendor Bill, update bill's paidAmount and status
@@ -140,6 +205,13 @@ const paymentRouter = router({
         });
         if (vBill) {
           const newPaid = (vBill.paidAmount || 0) + data.amount;
+          // OVERPAYMENT CHECK: reject if payment exceeds remaining balance.
+          if (newPaid > vBill.netPayable + 0.01) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Overpayment: bill ${vBill.billNumber} has remaining balance ${vBill.netPayable - vBill.paidAmount} but payment amount is ${data.amount}.`,
+            });
+          }
           const isFullyPaid = newPaid >= vBill.netPayable - 0.01;
           await db.vendorBill.update({
             where: { id: vBill.id },
@@ -148,13 +220,12 @@ const paymentRouter = router({
               status: isFullyPaid ? "paid" : "partially_paid",
             },
           });
-          // Also record VendorPayment audit link
           await db.vendorPayment.create({
             data: {
               projectId,
               vendorBillId: vBill.id,
               amount: data.amount,
-              paymentDate: data.paymentDate ? new Date(data.paymentDate) : new Date(),
+              paymentDate,
               paymentMethod: data.paymentMode || "bank_transfer",
               referenceNumber: data.chequeNo || data.accountingVoucherNo || null,
               remarks: data.notes || `Payment Voucher settlement`,
@@ -171,6 +242,13 @@ const paymentRouter = router({
         });
         if (subBill) {
           const newPaid = (subBill.paidAmount || 0) + data.amount;
+          // OVERPAYMENT CHECK
+          if (newPaid > subBill.netPayable + 0.01) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Overpayment: bill ${subBill.number} has remaining balance ${subBill.netPayable - (subBill.paidAmount || 0)} but payment amount is ${data.amount}.`,
+            });
+          }
           const isFullyPaid = newPaid >= subBill.netPayable - 0.01;
           await db.subcontractorBill.update({
             where: { id: subBill.id },
@@ -200,7 +278,7 @@ const paymentRouter = router({
         projectId: z.string(),
         payments: z.array(
           z.object({
-            payeeType: z.string().default("vendor"),
+            payeeType: z.enum(["vendor", "subcontractor", "supplier", "staff", "other"]).default("vendor"),
             payeeName: z.string().min(1),
             partyPan: z.string().optional(),
             amount: z.number().positive(),
@@ -224,18 +302,70 @@ const paymentRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // FISCAL YEAR LOCK: use the earliest payment date so back-dated
+      // bulk imports to locked fiscal years are correctly rejected.
+      const earliestDate = input.payments
+        .map((p) => p.paymentDate ? new Date(p.paymentDate) : new Date())
+        .sort((a, b) => a.getTime() - b.getTime())[0] ?? new Date();
+      await assertNotLocked(ctx.user.organizationId, earliestDate);
+
       const createdPayments: any[] = [];
       for (const p of input.payments) {
+        const paymentDate = p.paymentDate ? new Date(p.paymentDate) : new Date();
         const item = await db.payment.create({
           data: {
             projectId: input.projectId,
             ...p,
-            paymentDate: p.paymentDate ? new Date(p.paymentDate) : new Date(),
+            paymentDate,
             netPaid: p.amount - (p.tdsDeducted || 0),
             createdById: ctx.user.id,
           },
         });
         createdPayments.push(item);
+
+        // JOURNAL ENTRY for each bulk-imported payment — same pattern
+        // as single create. Without this, bulk-imported payments are
+        // missing from the GL.
+        const creditorAccountCode = p.payeeType === "subcontractor" ? "2002" : "2001";
+        const creditorAccountName = p.payeeType === "subcontractor" ? "Subcontractor Payables" : "Sundry Creditors";
+        const bankCode = p.paymentMode === "cash" ? "1001" : "1010";
+        const bankName = p.paymentMode === "cash" ? "Cash" : "Bank";
+        const netPaid = p.amount - (p.tdsDeducted || 0);
+
+        await createJournalEntry(db, {
+          source: "payment",
+          sourceRefId: item.id,
+          sourceRefType: "Payment",
+          description: `Bulk payment to ${p.payeeName}`,
+          entryDate: paymentDate,
+          postedById: ctx.user.id,
+          lines: [
+            {
+              accountCode: creditorAccountCode,
+              accountName: creditorAccountName,
+              debit: p.amount,
+              credit: 0,
+              description: `Payment to ${p.payeeName}`,
+              projectId: input.projectId,
+            },
+            ...((p.tdsDeducted || 0) > 0 ? [{
+              accountCode: "2020" as const,
+              accountName: "TDS Payable",
+              debit: 0,
+              credit: p.tdsDeducted,
+              description: `TDS deducted from ${p.payeeName}`,
+              projectId: input.projectId,
+            }] : []),
+            {
+              accountCode: bankCode,
+              accountName: bankName,
+              debit: 0,
+              credit: netPaid,
+              description: `Net payment via ${p.paymentMode}`,
+              projectId: input.projectId,
+            },
+          ],
+        });
       }
 
       await audit({
@@ -337,6 +467,19 @@ const paymentRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR FIX: verify the payment belongs to input.projectId.
+      const existing = await db.payment.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true, paymentDate: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found in this project." });
+      }
+
+      // FISCAL YEAR LOCK
+      await assertNotLocked(ctx.user.organizationId, existing.paymentDate);
+
       await db.payment.delete({ where: { id: input.id } });
       return { ok: true };
     }),
@@ -353,6 +496,15 @@ const paymentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR FIX: verify the payment belongs to input.projectId.
+      const existing = await db.payment.findFirst({
+        where: { id: input.paymentId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found in this project." });
+      }
 
       await db.payment.update({
         where: { id: input.paymentId },
@@ -592,11 +744,27 @@ const paymentRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date();
+
+      // FISCAL YEAR LOCK
+      await assertNotLocked(ctx.user.organizationId, paymentDate);
+
       const sub = await db.subcontractor.findFirst({
         where: { id: input.subcontractorId, projectId: input.projectId },
         select: { id: true, name: true, totalRetentionHeld: true, totalRetentionReleased: true },
       });
       if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found" });
+
+      // OVER-RELEASE CHECK: reject if the release would exceed the held
+      // retention amount. Without this, a user can release more retention
+      // than was ever held, producing negative "held" balances.
+      const held = (sub.totalRetentionHeld || 0) - (sub.totalRetentionReleased || 0);
+      if (input.amount > held + 0.01) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot release ${input.amount}: only ${held} retention is currently held for ${sub.name}.`,
+        });
+      }
 
       // Create payment record
       const payment = await db.payment.create({
@@ -608,7 +776,7 @@ const paymentRouter = router({
           amount: input.amount,
           netPaid: input.amount,
           retentionReleased: input.amount,
-          paymentDate: input.paymentDate ? new Date(input.paymentDate) : new Date(),
+          paymentDate,
           paymentMode: input.paymentMode,
           chequeNo: input.chequeNo,
           bankRef: input.bankRef,
@@ -616,6 +784,36 @@ const paymentRouter = router({
           status: "paid",
           createdById: ctx.user.id,
         },
+      });
+
+      // JOURNAL ENTRY: retention release to subcontractor.
+      // Dr Retention Payable (2010) = amount
+      //    Cr Subcontractor Payables (2002) = amount
+      await createJournalEntry(db, {
+        source: "retention_release",
+        sourceRefId: payment.id,
+        sourceRefType: "Payment",
+        description: `Retention release to ${sub.name}`,
+        entryDate: paymentDate,
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: "2010",
+            accountName: "Retention Payable (to Subcontractors)",
+            debit: input.amount,
+            credit: 0,
+            description: `Retention released to ${sub.name}`,
+            projectId: input.projectId,
+          },
+          {
+            accountCode: "2002",
+            accountName: "Subcontractor Payables",
+            debit: 0,
+            credit: input.amount,
+            description: `Retention now due to ${sub.name}`,
+            projectId: input.projectId,
+          },
+        ],
       });
 
       // Update subcontractor's released total

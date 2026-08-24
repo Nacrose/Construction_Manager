@@ -34,7 +34,7 @@ type _Project = {
   status: string;
   startDate: Date | null;
   endDate: Date | null;
-  myRole: string;
+  myRole: string | null;
   rfiCount: number;
   memberCount: number;
 };
@@ -175,7 +175,7 @@ export default function ProjectsPage() {
                       <span className="font-mono">{p.rfiCount}</span>
                     </span>
                     <span className="ml-auto rounded-full bg-muted px-3 py-1 text-foreground/70 font-medium capitalize">
-                      {p.myRole.replace("_", " ")}
+                      {(p.myRole || "no role").replace("_", " ")}
                     </span>
                   </div>
                 </CardContent>

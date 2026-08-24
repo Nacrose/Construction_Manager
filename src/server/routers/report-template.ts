@@ -214,9 +214,15 @@ export const reportTemplateRouter = router({
       return { ok: true };
     }),
 
-  /** List all global templates (super admin). */
+  /** List all global templates (super admin only). */
   listGlobal: protectedProcedure
-    .query(async () => {
+    .query(async ({ ctx }) => {
+      // Global templates are platform-wide configuration — restrict
+      // to superadmins. Previously any authenticated user could list
+      // all global report template layouts.
+      if (!ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin access required." });
+      }
       const templates = await db.reportTemplate.findMany({
         where: { scope: "global" },
         orderBy: [{ isDefault: "desc" }, { name: "asc" }],

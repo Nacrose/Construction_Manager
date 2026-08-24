@@ -97,9 +97,9 @@ describe("Authorization Status Mapping & Security Guards", () => {
     const mkUser = (orgRole: string | undefined) =>
       ({ orgRole }) as any;
 
-    it("throws REQUIRES_ORG_ADMIN for non-admin users", () => {
-      expect(() => assertOrgAdmin(mkUser("member"))).toThrow(/REQUIRES_ORG_ADMIN/);
-      expect(() => assertOrgAdmin(mkUser(undefined))).toThrow(/REQUIRES_ORG_ADMIN/);
+    it("throws for non-admin users", () => {
+      expect(() => assertOrgAdmin(mkUser("member"))).toThrow(/Organization admin access required/);
+      expect(() => assertOrgAdmin(mkUser(undefined))).toThrow(/Organization admin access required/);
     });
 
     it("does not throw for org_admin", () => {
@@ -111,8 +111,8 @@ describe("Authorization Status Mapping & Security Guards", () => {
     });
 
     it("throws for null/undefined user", () => {
-      expect(() => assertOrgAdmin(null)).toThrow(/REQUIRES_ORG_ADMIN/);
-      expect(() => assertOrgAdmin(undefined)).toThrow(/REQUIRES_ORG_ADMIN/);
+      expect(() => assertOrgAdmin(null)).toThrow(/Organization admin access required/);
+      expect(() => assertOrgAdmin(undefined)).toThrow(/Organization admin access required/);
     });
   });
 });

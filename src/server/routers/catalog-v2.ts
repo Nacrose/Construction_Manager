@@ -35,21 +35,21 @@ async function assertOrgAdmin(ctx: { user: any }, orgId: string) {
   const isOrgAdm =
     ctx.user.orgRole === "org_admin" ||
     isOrgAdmin(ctx.user) ||
-    ctx.user.isSuperAdmin ||
-    ctx.user.role === "admin";
+    ctx.user.isSuperAdmin;
   if (!isOrgAdm) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Org admin access required." });
   }
+  // Cross-org check: a non-superadmin can only manage their own org.
   if (ctx.user.organizationId && ctx.user.organizationId !== orgId && !ctx.user.isSuperAdmin) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cannot modify another organization's catalog." });
   }
 }
 
 async function assertProjectMember(ctx: { user: any }, projectId: string) {
-  const membership = await db.projectMember.findFirst({
-    where: { projectId, userId: ctx.user.id },
+  const membership = await db.projectMember.findUnique({
+    where: { projectId_userId: { projectId, userId: ctx.user.id } },
   });
-  if (!membership && !ctx.user.isSuperAdmin && ctx.user.role !== "admin") {
+  if (!membership && !ctx.user.isSuperAdmin) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Not a member of this project." });
   }
   return membership;
@@ -59,13 +59,26 @@ async function assertProjectWriter(ctx: { user: any }, projectId: string) {
   const membership = await assertProjectMember(ctx, projectId);
   const role = membership?.role ?? "";
   const canWrite =
-    ["project_manager", "engineer", "coordinator", "owner", "admin", "manager"].includes(role) ||
-    ctx.user.isSuperAdmin ||
-    ctx.user.role === "admin";
+    ["project_manager", "engineer", "coordinator"].includes(role) ||
+    ctx.user.isSuperAdmin;
   if (!canWrite) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Write access required." });
   }
   return membership;
+}
+
+/**
+ * Verify that the caller belongs to the specified org (or is a superadmin).
+ * Used for READ procedures that accept client-supplied organizationId —
+ * without this check, any authenticated user could query any org's data
+ * by passing a different orgId.
+ */
+function assertOrgMember(ctx: { user: any }, orgId: string | null | undefined) {
+  if (!orgId) return;
+  if (ctx.user.isSuperAdmin) return;
+  if (ctx.user.organizationId !== orgId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "You can only access your own organization's data." });
+  }
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────────
@@ -98,10 +111,14 @@ export const catalogV2Router = router({
       } else if (input.scope === "org") {
         const orgId = input.organizationId ?? ctx.user.organizationId;
         if (!orgId) throw new TRPCError({ code: "BAD_REQUEST", message: "Organization ID required." });
+        // Cross-org guard: verify caller belongs to this org.
+        assertOrgMember(ctx, orgId);
         where.organizationId = orgId;
         where.projectId = null;
       } else {
         if (!input.projectId) throw new TRPCError({ code: "BAD_REQUEST", message: "Project ID required." });
+        // Project-scoped read: verify membership.
+        await assertProjectMember(ctx, input.projectId);
         where.projectId = input.projectId;
       }
 
@@ -128,7 +145,7 @@ export const catalogV2Router = router({
   /** Get a single material with its rate entries */
   getMaterial: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const material = await db.catalogMaterial.findUnique({
         where: { id: input.id },
         include: {
@@ -137,6 +154,18 @@ export const catalogV2Router = router({
         },
       });
       if (!material) throw new TRPCError({ code: "NOT_FOUND", message: "Material not found." });
+
+      // SCOPING CHECK: verify the caller has access to this material's scope.
+      // Global materials are readable by anyone. Org-scoped materials require
+      // the caller to be in the same org. Project-scoped materials require
+      // project membership. Without this, any user could read any org's or
+      // project's material details by cuid — cross-tenant data leak.
+      if (material.scope === "org" && material.organizationId) {
+        assertOrgMember(ctx, material.organizationId);
+      } else if (material.scope === "project" && material.projectId) {
+        await assertProjectMember(ctx, material.projectId);
+      }
+
       return { material };
     }),
 
@@ -543,8 +572,14 @@ export const catalogV2Router = router({
       const where: any = { category: input.category };
       if (input.subCategory) where.subCategory = input.subCategory;
       if (input.scope) where.scope = input.scope;
-      if (input.organizationId) where.organizationId = input.organizationId;
-      if (input.projectId) where.projectId = input.projectId;
+      if (input.organizationId) {
+        assertOrgMember(ctx, input.organizationId);
+        where.organizationId = input.organizationId;
+      }
+      if (input.projectId) {
+        await assertProjectMember(ctx, input.projectId);
+        where.projectId = input.projectId;
+      }
 
       const materials = await db.catalogMaterial.findMany({
         where,
@@ -595,7 +630,19 @@ export const catalogV2Router = router({
         search: z.string().optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // SCOPING CHECK: verify the caller has access to the catalog's scope.
+      const catalog = await db.rateBook.findUnique({
+        where: { id: input.rateCatalogId },
+        select: { scope: true, organizationId: true, projectId: true },
+      });
+      if (!catalog) throw new TRPCError({ code: "NOT_FOUND", message: "Rate catalog not found." });
+      if (catalog.scope === "org" && catalog.organizationId) {
+        assertOrgMember(ctx, catalog.organizationId);
+      } else if (catalog.scope === "project" && catalog.projectId) {
+        await assertProjectMember(ctx, catalog.projectId);
+      }
+
       const where: any = { rateCatalogId: input.rateCatalogId };
       if (input.district) where.district = input.district;
 
@@ -1133,9 +1180,16 @@ export const catalogV2Router = router({
     .query(async ({ ctx, input }) => {
       const where: any = {};
       if (input.scope) where.scope = input.scope;
-      if (input.organizationId) where.organizationId = input.organizationId;
-      else if (!input.scope) where.organizationId = ctx.user.organizationId;
-      if (input.projectId) where.projectId = input.projectId;
+      if (input.organizationId) {
+        // Cross-org guard: verify caller belongs to this org.
+        assertOrgMember(ctx, input.organizationId);
+        where.organizationId = input.organizationId;
+      } else if (!input.scope) where.organizationId = ctx.user.organizationId;
+      if (input.projectId) {
+        // Project-scoped: verify membership.
+        await assertProjectMember(ctx, input.projectId);
+        where.projectId = input.projectId;
+      }
 
       const catalogs = await db.rateBook.findMany({
         where,
@@ -1297,6 +1351,20 @@ export const catalogV2Router = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      // SCOPING CHECK: verify the caller has access to each catalog's scope.
+      // Without this, any user can resolve rates using another org's catalog.
+      const catalogIds = [input.globalCatalogId, input.orgCatalogId, input.projectCatalogId].filter(Boolean) as string[];
+      if (catalogIds.length > 0) {
+        const catalogs = await db.rateBook.findMany({
+          where: { id: { in: catalogIds } },
+          select: { id: true, scope: true, organizationId: true, projectId: true },
+        });
+        for (const c of catalogs) {
+          if (c.scope === "org" && c.organizationId) assertOrgMember(ctx, c.organizationId);
+          else if (c.scope === "project" && c.projectId) await assertProjectMember(ctx, c.projectId);
+        }
+      }
+
       // Start with global rates
       const globalRates = input.globalCatalogId
         ? await db.rateEntry.findMany({
@@ -1500,6 +1568,8 @@ export const catalogV2Router = router({
     )
     .query(async ({ ctx, input }) => {
       const orgId = input.organizationId ?? ctx.user.organizationId;
+      // Cross-org guard: verify caller belongs to this org.
+      if (input.organizationId) assertOrgMember(ctx, input.organizationId);
       const q = normalize(input.q);
 
       const where: any = {
@@ -1547,6 +1617,9 @@ export const catalogV2Router = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      // Cross-org guard: verify caller belongs to this org.
+      if (input.organizationId) assertOrgMember(ctx, input.organizationId);
+      if (input.projectId) await assertProjectMember(ctx, input.projectId);
       const { findSimilarMaterials } = await import("@/lib/fuzzy-match");
       const matches = await findSimilarMaterials({
         name: input.name,
@@ -1863,6 +1936,17 @@ export const catalogV2Router = router({
     )
     .mutation(async ({ ctx, input }) => {
       const orgId = input.organizationId ?? ctx.user.organizationId;
+      // Authz: org scope requires org admin + cross-org guard.
+      // Global scope requires superadmin.
+      if (input.scope === "org" && orgId) {
+        assertOrgMember(ctx, orgId);
+        if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin" && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Org admin access required." });
+        }
+      }
+      if (input.scope === "global" && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin access required for global catalog." });
+      }
       if (input.scope === "org" && !orgId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Organization ID is required." });
       }
