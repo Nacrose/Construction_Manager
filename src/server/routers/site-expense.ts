@@ -84,35 +84,58 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      // Auto-generate expense number with collision prevention
-      const count = await db.siteExpense.count({ where: { projectId: input.projectId } });
-      let seq = count + 1;
-      let number = `EXP-${String(seq).padStart(3, "0")}`;
-      while (await db.siteExpense.findFirst({ where: { projectId: input.projectId, number } })) {
-        seq++;
-        number = `EXP-${String(seq).padStart(3, "0")}`;
+      // Auto-generate expense number with collision-prevention retry.
+      //
+      // RACE CONDITION FIX: previously this used `count + 1` then a
+      // `while exists` loop with NO retry on the actual `create`. Two
+      // concurrent creates would both compute the same number, both
+      // pass the `findFirst` check (neither has inserted yet), and
+      // both try to `create` — one would fail on the unique constraint
+      // and the error would bubble to the user. Now we retry on P2002
+      // (unique constraint violation), re-counting each time.
+      const totalAmount = input.amount + input.vatAmount;
+      const MAX_RETRIES = 5;
+      let expense;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const count = await db.siteExpense.count({ where: { projectId: input.projectId } });
+        let seq = count + 1 + attempt; // offset by attempt to avoid same number
+        let number = `EXP-${String(seq).padStart(3, "0")}`;
+        while (await db.siteExpense.findFirst({ where: { projectId: input.projectId, number } })) {
+          seq++;
+          number = `EXP-${String(seq).padStart(3, "0")}`;
+        }
+
+        try {
+          expense = await db.siteExpense.create({
+            data: {
+              projectId: input.projectId,
+              number,
+              date: input.date ? new Date(input.date) : new Date(),
+              category: input.category,
+              description: input.description,
+              amount: input.amount,
+              vatAmount: input.vatAmount,
+              totalAmount,
+              paymentMode: input.paymentMode,
+              referenceNo: input.referenceNo,
+              vendorName: input.vendorName,
+              receiptData: input.receiptData,
+              receiptName: input.receiptName,
+              createdById: ctx.user.id,
+            },
+          });
+          break; // success
+        } catch (err: any) {
+          if (attempt < MAX_RETRIES - 1 && err?.code === "P2002") {
+            continue; // retry with next number
+          }
+          throw err;
+        }
       }
 
-      const totalAmount = input.amount + input.vatAmount;
-
-      const expense = await db.siteExpense.create({
-        data: {
-          projectId: input.projectId,
-          number,
-          date: input.date ? new Date(input.date) : new Date(),
-          category: input.category,
-          description: input.description,
-          amount: input.amount,
-          vatAmount: input.vatAmount,
-          totalAmount,
-          paymentMode: input.paymentMode,
-          referenceNo: input.referenceNo,
-          vendorName: input.vendorName,
-          receiptData: input.receiptData,
-          receiptName: input.receiptName,
-          createdById: ctx.user.id,
-        },
-      });
+      if (!expense) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to generate expense number after multiple retries." });
+      }
 
       await audit({
         userId: ctx.user.id,
@@ -172,13 +195,16 @@ export const siteExpenseRouter = router({
   approve: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await assertNotLocked(ctx.user.organizationId);
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true },
+        select: { projectId: true, status: true, date: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertProjectAdmin(ctx.user, expense.projectId);
+
+      // Fiscal year lock — use the expense's date (not today) so
+      // back-dated expenses to locked fiscal years are rejected.
+      await assertNotLocked(ctx.user.organizationId, expense.date ?? new Date());
 
       if (expense.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending expenses can be approved." });

@@ -173,7 +173,11 @@ export const payrollRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId);
+      // Parse input.month (format "YYYY-MM") into a Date for fiscal-year
+      // lock checking. Previously this used new Date() (today), so
+      // back-dating a payroll run to a locked fiscal year bypassed the lock.
+      const _payrollDate = input.month ? new Date(input.month + "-01") : new Date();
+      await assertNotLocked(ctx.user.organizationId, _payrollDate);
 
       // ── Server-side recomputation ──────────────────────────────
       // Fetch fresh staff + attendance + advances data and recompute

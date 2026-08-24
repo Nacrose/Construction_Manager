@@ -180,13 +180,15 @@ export const ipcRouter = router({
       const { ipcId, ...data } = input;
       const item = await db.ipc.findUnique({
         where: { id: ipcId },
-        select: { projectId: true, subcontractorId: true, status: true },
+        select: { projectId: true, subcontractorId: true, status: true, issueDate: true },
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "IPC not found." });
       await assertCanWrite(ctx.user, item.projectId);
 
-      // Fiscal year lock enforcement
-      await assertNotLocked(ctx.user.organizationId);
+      // Fiscal year lock enforcement — use the IPC's issueDate (the
+      // transaction date) so back-dated IPCs to locked fiscal years are
+      // correctly rejected. Falls back to today if issueDate is null.
+      await assertNotLocked(ctx.user.organizationId, item.issueDate ?? new Date());
 
       // Status transition validation: prevent skipping certification.
       // Valid transitions:

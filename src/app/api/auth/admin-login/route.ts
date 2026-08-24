@@ -46,10 +46,15 @@ export async function POST(req: NextRequest) {
 
     // Platform admin login is a separate identity plane: only superadmins may
     // use it. Everyone else must use the standard /api/auth/login.
+    //
+    // SECURITY: return the SAME error message as the "user not found /
+    // wrong password" case so an attacker can't enumerate which emails
+    // belong to non-superadmin accounts via the admin login endpoint.
+    // Previously this returned a distinct "This login is for platform
+    // administrators only" message, which leaked that the email exists
+    // but is not a superadmin.
     if (!user.isSuperAdmin) {
-      return forbidden(
-        "This login is for platform administrators only. Use the standard sign-in.",
-      );
+      return badRequest("Invalid email or password.");
     }
 
     // Short-lived, kind-tagged admin session.

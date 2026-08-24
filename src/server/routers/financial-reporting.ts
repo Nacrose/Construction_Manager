@@ -965,6 +965,41 @@ export const financialReportingRouter = router({
         });
       }
 
+      // CROSS-VALIDATION: verify startDate and endDate actually fall
+      // within the stated fiscalYear. Without this, a user could create
+      // a lock with `fiscalYear: "2081/82"` but
+      // `startDate: 2000-01-01, endDate: 2100-12-31` — locking the
+      // entire century. We parse the fiscalYear (BS format "2081/82")
+      // and compute the expected AD date range using bsToAd, then
+      // verify the provided dates fall within ±2 days of that range
+      // (to allow for the BS calendar's ±1 day shift).
+      const [bsStart] = input.fiscalYear.split("/");
+      const bsStartYear = parseInt(bsStart, 10);
+      let expectedStart: Date;
+      let expectedEnd: Date;
+      try {
+        // Nepal fiscal year: Shrawan 1 of bsStartYear → Asarh end of bsStartYear+1
+        expectedStart = bsToAd(bsStartYear, 4, 1); // Shrawan 1
+        expectedEnd = bsToAd(bsStartYear + 1, 3, 32); // Asarh end (day 32 = last day)
+      } catch {
+        // bsToAd throws if year is outside supported range — skip
+        // cross-validation and trust the user-provided dates.
+        expectedStart = startDate;
+        expectedEnd = endDate;
+      }
+
+      // Allow ±3 days tolerance for the BS calendar shift.
+      const TOLERANCE_MS = 3 * 24 * 60 * 60 * 1000;
+      if (
+        Math.abs(startDate.getTime() - expectedStart.getTime()) > TOLERANCE_MS ||
+        Math.abs(endDate.getTime() - expectedEnd.getTime()) > TOLERANCE_MS
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Start/end dates don't match fiscal year ${input.fiscalYear}. Expected: ${expectedStart.toISOString().slice(0, 10)} to ${expectedEnd.toISOString().slice(0, 10)}.`,
+        });
+      }
+
       const lock = await db.fiscalYearLock.upsert({
         where: {
           organizationId_fiscalYear: {

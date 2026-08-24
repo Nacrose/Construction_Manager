@@ -36,9 +36,10 @@ function assertVersionBelongsToProject(
 export async function cloneDependencies(
   idMap: Map<string, string>,
   tx: any
-): Promise<void> {
+): Promise<{ cloned: number; failed: number; errors: string[] }> {
   const oldIds = Array.from(idMap.keys());
-  if (oldIds.length === 0) return;
+  const result = { cloned: 0, failed: 0, errors: [] as string[] };
+  if (oldIds.length === 0) return result;
   const deps = await tx.taskDependency.findMany({
     where: { OR: [{ predecessorId: { in: oldIds } }, { successorId: { in: oldIds } }] },
   });
@@ -46,17 +47,36 @@ export async function cloneDependencies(
     const newPred = idMap.get(dep.predecessorId);
     const newSucc = idMap.get(dep.successorId);
     if (!newPred || !newSucc) continue;
-    await tx.taskDependency
-      .create({
+
+    // ERROR LOGGING FIX: previously this used `.catch(() => {})` which
+    // silently swallowed ALL errors. If a dependency failed to clone
+    // (DB constraint, validation error), the new Gantt version was
+    // created with MISSING dependencies and the user had no idea —
+    // tasks that should cascade didn't. Now we log the error and track
+    // the count so the caller can surface it.
+    try {
+      await tx.taskDependency.create({
         data: {
           predecessorId: newPred,
           successorId: newSucc,
           type: dep.type,
           offset: dep.offset,
         },
-      })
-      .catch(() => {});
+      });
+      result.cloned++;
+    } catch (err: any) {
+      result.failed++;
+      // P2002 = unique constraint violation (dependency already exists).
+      // This is expected if the same dependency is cloned twice (e.g.
+      // during a re-clone) — skip silently but count it.
+      if (err?.code !== "P2002") {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.errors.push(`Failed to clone dependency ${dep.predecessorId}→${dep.successorId}: ${msg}`);
+        console.error("[cloneDependencies] Failed to clone dependency:", msg);
+      }
+    }
   }
+  return result;
 }
 
 export async function cloneResourceAssignments(
