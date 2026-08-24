@@ -18,6 +18,9 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { audit } from "@/lib/audit";
+import { createJournalEntry } from "@/lib/journal-entry";
+import { hoOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 
 export const financeRouter = router({
   /**
@@ -135,21 +138,38 @@ export const financeRouter = router({
         }
       }
 
-      // ── IPC payments by date ──
-      const payments = await db.payment.findMany({
+      // ── Client inflows: IPCs that have been paid by the client ──
+      //
+      // CRITICAL FIX: previously this block queried the `Payment` table
+      // (`db.payment.findMany({ status: "paid", ... })`) and labeled the
+      // result `ipcPaid`. But the Payment model is exclusively for
+      // OUTGOING payments (vendor / subcontractor / supplier / staff) —
+      // there is no "client" payeeType. So the old code was treating
+      // outgoing vendor payments as client inflows, and `netCashFlow`
+      // was effectively `outflow - outflow` instead of `inflow - outflow`.
+      //
+      // The correct source for client inflows is the IPC model itself:
+      // IPCs go `draft → submitted → certified → approved → paid`, where
+      // `paid` means the client has paid the IPC's net payable. We use
+      // `issueDate` (when the IPC was issued / billing raised) as the
+      // period marker, since that's the closest available proxy for
+      // "when the cash was received" (the schema doesn't yet have a
+      // dedicated `clientPaidAt` field — TODO for a future migration).
+      const paidIpcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
           status: "paid",
-          paymentDate: { gte: startMonth },
+          issueDate: { gte: startMonth, not: null },
         },
-        select: { amount: true, paymentDate: true },
+        select: { netPayable: true, issueDate: true },
       });
 
-      for (const payment of payments) {
-        const monthKey = `${payment.paymentDate.getFullYear()}-${String(payment.paymentDate.getMonth() + 1).padStart(2, "0")}`;
+      for (const ipc of paidIpcs) {
+        if (!ipc.issueDate) continue;
+        const monthKey = `${ipc.issueDate.getFullYear()}-${String(ipc.issueDate.getMonth() + 1).padStart(2, "0")}`;
         const entry = monthMap.get(monthKey);
         if (entry) {
-          entry.month.ipcPaid += payment.amount;
+          entry.month.ipcPaid += ipc.netPayable;
         }
       }
 
@@ -899,12 +919,22 @@ export const financeRouter = router({
       });
       const projectIds = memberships.map((m) => m.projectId);
 
+      // PARTY NAME MATCHING:
+      // Previously this used `contains` (substring match), so searching
+      // for "Sharma" would match "Sharma", "Sharma Bahadur", "Bishnu
+      // Sharma", AND "Sharmaji" — false positives everywhere. Switched
+      // to `equals` with `mode: "insensitive"` so only exact (case-
+      // insensitive) name matches are returned. If the caller wants
+      // substring matching, they can use the dedicated `search` endpoint.
+      // We also normalize by trimming the input so "  Sharma  " matches
+      // a stored "Sharma".
+      const normalizedName = input.partyName.trim();
       const [vendorBills, subBills, payments] = await Promise.all([
         db.vendorBill.findMany({
           where: {
             projectId: { in: projectIds },
             OR: [
-              { partner: { name: { contains: input.partyName, mode: "insensitive" } } },
+              { partner: { name: { equals: normalizedName, mode: "insensitive" } } },
               ...(input.partyPan ? [{ partner: { pan: input.partyPan } }] : []),
             ],
           },
@@ -915,7 +945,7 @@ export const financeRouter = router({
           where: {
             projectId: { in: projectIds },
             OR: [
-              { subcontractor: { name: { contains: input.partyName, mode: "insensitive" } } },
+              { subcontractor: { name: { equals: normalizedName, mode: "insensitive" } } },
               ...(input.partyPan ? [{ subcontractor: { pan: input.partyPan } }] : []),
             ],
           },
@@ -926,7 +956,7 @@ export const financeRouter = router({
           where: {
             projectId: { in: projectIds },
             OR: [
-              { payeeName: { contains: input.partyName, mode: "insensitive" } },
+              { payeeName: { equals: normalizedName, mode: "insensitive" } },
               ...(input.partyPan ? [{ partyPan: input.partyPan }] : []),
             ],
           },
@@ -1179,7 +1209,7 @@ export const financeRouter = router({
       await db.$transaction(async (tx) => {
         for (const b of input.bills) {
           // 1. Record payment for each bill linked to its specific project
-          await tx.payment.create({
+          const payment = await tx.payment.create({
             data: {
               projectId: b.projectId,
               payeeType: b.billType,
@@ -1200,6 +1230,58 @@ export const financeRouter = router({
                 : `Central Cheque #${input.chequeNo || "Direct"} payment`,
               status: "paid",
             },
+          });
+
+          // 1b. Generate the journal entry for THIS bill's payment.
+          // Previously the multi-bill settlement path recorded Payment
+          // rows and updated bill statuses but never called
+          // `createJournalEntry`, so the General Ledger / Trial Balance
+          // silently missed every central cheque-run payment. The
+          // single-bill paths (vendor-bill.ts, subcontractor-bill.ts)
+          // already generate JEs — this brings the bulk path to parity.
+          //
+          // Dr Sundry Creditors (2001) / Subcontractor Payables (2002) = amountToPay
+          //    Cr TDS Payable (2020) = tdsDeducted
+          //    Cr Bank (1010) / Cash (1001) = netPaid
+          const creditorAccountCode = b.billType === "vendor" ? "2001" : "2002";
+          const creditorAccountName =
+            b.billType === "vendor" ? "Sundry Creditors" : "Subcontractor Payables";
+          const bankCode = input.paymentMode === "cash" ? "1001" : "1010";
+          const bankName = input.paymentMode === "cash" ? "Cash" : "Bank";
+
+          await createJournalEntry(tx, {
+            source: "payment",
+            sourceRefId: payment.id,
+            sourceRefType: "Payment",
+            description: `Central cheque run — ${b.billType} payment to ${b.supplierName} (${b.billNumber})`,
+            entryDate: new Date(input.paymentDate),
+            postedById: ctx.user.id,
+            lines: [
+              {
+                accountCode: creditorAccountCode,
+                accountName: creditorAccountName,
+                debit: b.amountToPay,
+                credit: 0,
+                description: `Payment to ${b.supplierName} — bill ${b.billNumber}`,
+                projectId: b.projectId,
+              },
+              ...(b.tdsDeducted > 0 ? [{
+                accountCode: "2020" as const,
+                accountName: "TDS Payable",
+                debit: 0,
+                credit: b.tdsDeducted,
+                description: `TDS deducted on payment to ${b.supplierName}`,
+                projectId: b.projectId,
+              }] : []),
+              {
+                accountCode: bankCode,
+                accountName: bankName,
+                debit: 0,
+                credit: b.netPaid,
+                description: `Net payment via ${input.paymentMode}${input.chequeNo ? ` (cheque #${input.chequeNo})` : ""}`,
+                projectId: b.projectId,
+              },
+            ],
           });
 
           // 2. Auto-settle VendorBill or SubcontractorBill
@@ -1243,6 +1325,20 @@ export const financeRouter = router({
             WHERE "id" = ${input.companyBankAccountId}
           `;
         }
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: undefined,
+        action: "finance.orgSettleMultiBill",
+        entityType: "organization",
+        entityId: callerOrgId,
+        metadata: {
+          billCount: input.bills.length,
+          totalDisbursement,
+          paymentMode: input.paymentMode,
+          chequeNo: input.chequeNo,
+        },
       });
 
       return {
@@ -1324,6 +1420,48 @@ export const financeRouter = router({
         },
       });
 
+      // Generate the journal entry for the head office expense.
+      // Previously this path recorded the HeadOfficeExpense row and
+      // decremented the bank balance but never called `createJournalEntry`,
+      // so the General Ledger / Trial Balance silently missed every HO
+      // expense. This brings it to parity with site-expense.approve which
+      // does generate a JE.
+      //
+      // Dr Head Office Overhead (6100 series based on category) NPR amount
+      //    Cr Bank (1010) / Cash (1001) NPR amount
+      //
+      // We map the free-text `category` field to a chart-of-accounts code.
+      // Unknown categories fall back to "6199" (Head Office - Misc).
+      const hoAccountCode = hoOverheadCodeForCategory(input.category);
+      const hoAccountName = accountNameForCode(hoAccountCode) || "Head Office Overhead";
+      const bankCode = input.paymentMode === "cash" ? "1001" : "1010";
+      const bankName = input.paymentMode === "cash" ? "Cash" : "Bank";
+
+      await createJournalEntry(db, {
+        source: "head_office_expense",
+        sourceRefId: expense.id,
+        sourceRefType: "HeadOfficeExpense",
+        description: `HO expense: ${input.particulars} (${input.category})`,
+        entryDate: new Date(input.date),
+        postedById: ctx.user.id,
+        lines: [
+          {
+            accountCode: hoAccountCode,
+            accountName: hoAccountName,
+            debit: input.amount,
+            credit: 0,
+            description: input.particulars,
+          },
+          {
+            accountCode: bankCode,
+            accountName: bankName,
+            debit: 0,
+            credit: input.amount,
+            description: `Paid via ${input.paymentMode}${input.chequeNo ? ` (cheque #${input.chequeNo})` : ""}`,
+          },
+        ],
+      });
+
       // Atomic balance decrement to avoid lost-update race on concurrent expenses.
       if (input.bankAccountId) {
         await db.$executeRaw`
@@ -1332,6 +1470,20 @@ export const financeRouter = router({
           WHERE "id" = ${input.bankAccountId}
         `;
       }
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: undefined,
+        action: "finance.createHeadOfficeExpense",
+        entityType: "head_office_expense",
+        entityId: expense.id,
+        metadata: {
+          category: input.category,
+          amount: input.amount,
+          paymentMode: input.paymentMode,
+          bankAccountId: input.bankAccountId || null,
+        },
+      });
 
       return { expense };
     }),

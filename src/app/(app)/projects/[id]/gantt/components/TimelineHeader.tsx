@@ -179,6 +179,16 @@ export function TimelineHeader({
             }
 
             const isSaturday = d.isWeekend;
+            // Holiday styling takes precedence over Saturday styling —
+            // a festival that lands on a Sun-Fri should still be visually
+            // distinct from a working day.
+            const isHolidayDay = !!d.isHoliday;
+            const dayFill = isHolidayDay
+              ? "fill-rose-400 font-bold"
+              : isSaturday
+                ? "fill-slate-300 font-bold"
+                : "fill-slate-400";
+            const dayWeight = isHolidayDay ? 700 : isSaturday ? 700 : 500;
 
             return (
               <g key={`dh-${i}`}>
@@ -187,11 +197,38 @@ export function TimelineHeader({
                   y={36}
                   textAnchor="middle"
                   fontSize={9}
-                  fontWeight={isSaturday ? 700 : 500}
-                  className={isSaturday ? "fill-slate-300 font-bold" : "fill-slate-400"}
+                  fontWeight={dayWeight}
+                  className={dayFill}
                 >
                   {dayNumber}
                 </text>
+                {/* Small dot below the day number for holidays — gives a
+                    quick visual cue even when zoomed out / many days shown.
+                    Hovering the dot or the day cell shows the holiday name. */}
+                {isHolidayDay && (
+                  <g>
+                    <circle
+                      cx={xPos + dayWidth / 2}
+                      cy={42}
+                      r={1.8}
+                      className="fill-rose-500"
+                    />
+                    <rect
+                      x={xPos}
+                      y={22}
+                      width={dayWidth}
+                      height={22}
+                      fill="transparent"
+                      className="cursor-help"
+                    >
+                      <title>
+                        {d.holidayName
+                          ? `${d.date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} — ${d.holidayName} (Nepal public holiday)`
+                          : `${d.date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} — Nepal public holiday`}
+                      </title>
+                    </rect>
+                  </g>
+                )}
                 {i > 0 && (
                   <line
                     x1={xPos}

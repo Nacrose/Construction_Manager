@@ -154,6 +154,200 @@ describe("Gantt CPM Engine & Cycle Detection", () => {
     });
   });
 
+  describe("Calendar-Aware CPM Cascade (Nepal weekends + holidays)", () => {
+    /**
+     * Calendar fixture notes (verified against nepal-calendar.ts):
+     *  - 2026-09-04 (Fri)  → working day
+     *  - 2026-09-05 (Sat)  → Nepal weekend
+     *  - 2026-09-06 (Sun)  → working day
+     *  - 2026-09-07 (Mon)  → working day
+     *  - 2026-09-08 (Tue)  → working day
+     *  - 2026-09-09 (Wed)  → working day
+     *  - Dashain 2026: Oct 11-20 are all festival holidays.
+     *  - 2026-10-21 (Wed)  → first working day after Dashain
+     *  - 2026-10-26 (Mon)  → working day
+     *
+     * Conventions used by computeCpmSchedule (calendar mode):
+     *  - `addWorkingDays(start, N)` returns the first working day *after* N
+     *    working days have elapsed. So a task with start=Mon, duration=4
+     *    ends on the next working day after Mon+3 working days = Fri's
+     *    successor = next Mon (if Sat/Sun weekend, here only Sat is weekend).
+     *  - Task end dates are always working days in calendar mode (when the
+     *    task has at least one dependency and does not ignore the calendar).
+     *  - Tasks with NO dependencies preserve their input start/end verbatim
+     *    (matching legacy behavior — user-authored dates are sacred).
+     *  - ignoreResourceCalendar=true forces 24h arithmetic for that task.
+     */
+    const DAY = 24 * 60 * 60 * 1000;
+
+    it("snaps successor forward when predecessor ends on a Saturday", () => {
+      // Task A: no deps, user-supplied end on Saturday Sept 5 2026.
+      //   → preserved as-is (no-dep branch).
+      // Task B: FS dep on A, offset 0, duration 2.
+      //   candidate = a.end (Sept 5 Sat) → snap forward → Sept 6 (Sun).
+      //   b.end = addWorkingDays(Sept 6, 2) = Sept 8 (Tue).
+      const tasks = [
+        {
+          id: "A",
+          name: "Pre",
+          startDate: new Date("2026-08-31T00:00:00Z"),
+          endDate: new Date("2026-09-05T00:00:00Z"), // Saturday
+          duration: 5,
+        },
+        {
+          id: "B",
+          name: "Post",
+          startDate: new Date("2026-08-01T00:00:00Z"),
+          endDate: new Date("2026-08-02T00:00:00Z"),
+          duration: 2,
+        },
+      ];
+
+      const deps = [
+        { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 0 },
+      ];
+
+      const { newDates, changedTasks } = computeCpmSchedule(tasks, deps, { useCalendar: true });
+
+      const a = newDates.get("A")!;
+      // A has no deps → preserved as-is.
+      expect(a.start.toISOString()).toBe(new Date("2026-08-31T00:00:00Z").toISOString());
+      expect(a.end.toISOString()).toBe(new Date("2026-09-05T00:00:00Z").toISOString());
+
+      const b = newDates.get("B")!;
+      expect(b.start.toISOString()).toBe(new Date("2026-09-06T00:00:00Z").toISOString());
+      expect(b.end.toISOString()).toBe(new Date("2026-09-08T00:00:00Z").toISOString());
+
+      // Only B should be in changedTasks (A was preserved).
+      expect(changedTasks.map((t) => t.id)).toEqual(["B"]);
+    });
+
+    it("FS with positive lag skips Saturday in the lag", () => {
+      // Task A: user sets end=Sept 4 (Fri). Task B: FS+1 lag.
+      //   candidate = addDaysFn(Sept 4, 1, false) = addWorkingDays(Sept 4, 1)
+      //            = Sept 5 (Sat, skip) → Sept 6 (Sun).
+      //   b.start = Sept 6 (Sun).
+      const tasks = [
+        {
+          id: "A",
+          name: "Pre",
+          startDate: new Date("2026-09-01T00:00:00Z"),
+          endDate: new Date("2026-09-04T00:00:00Z"), // Fri
+          duration: 3,
+        },
+        {
+          id: "B",
+          name: "Post",
+          startDate: new Date("2026-08-01T00:00:00Z"),
+          endDate: new Date("2026-08-02T00:00:00Z"),
+          duration: 2,
+        },
+      ];
+      const deps = [
+        { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 1 },
+      ];
+      const { newDates } = computeCpmSchedule(tasks, deps, { useCalendar: true });
+      const b = newDates.get("B")!;
+      expect(b.start.toISOString()).toBe(new Date("2026-09-06T00:00:00Z").toISOString());
+    });
+
+    it("projects task end across the entire Dashain festival block", () => {
+      // Task A: FS dep on a base task with end=Sept 28 (Mon).
+      //   candidate = Sept 28, snap (Mon, working) → Sept 28.
+      //   b.end = addWorkingDays(Sept 28, 15) = the 15th working day *after*
+      //   Sept 28. Counting: Sept 29,30,Oct 1,2 (4); Oct 4-9 (6, total 10);
+      //   Oct 10 (Sat skip); Oct 11-20 (Dashain skip); Oct 21,22,23 (3, total 13);
+      //   Oct 24 (Sat skip); Oct 25 (Sun, working, total 14);
+      //   Oct 26 (Mon, working, total 15) → end = Oct 26.
+      const tasks = [
+        {
+          id: "BASE",
+          name: "Base",
+          startDate: new Date("2026-09-25T00:00:00Z"),
+          endDate: new Date("2026-09-28T00:00:00Z"),
+          duration: 3,
+        },
+        {
+          id: "A",
+          name: "Long Task Across Dashain",
+          startDate: new Date("2026-09-20T00:00:00Z"),
+          endDate: new Date("2026-10-15T00:00:00Z"),
+          duration: 15,
+        },
+      ];
+      const deps = [
+        { predecessorId: "BASE", successorId: "A", type: "FS" as const, offset: 0 },
+      ];
+      const { newDates } = computeCpmSchedule(tasks, deps, { useCalendar: true });
+      const a = newDates.get("A")!;
+      expect(a.start.toISOString()).toBe(new Date("2026-09-28T00:00:00Z").toISOString());
+      expect(a.end.toISOString()).toBe(new Date("2026-10-26T00:00:00Z").toISOString());
+    });
+
+    it("respects ignoreResourceCalendar: true (task works through weekend)", () => {
+      // Task B has ignoreResourceCalendar=true. Even in calendar mode it
+      // uses raw 24h arithmetic: predecessor ends Sept 4 (Fri, user-set),
+      // offset 0 → candidate = Sept 4 (no shift, no snap).
+      //   b.start = Sept 4 (Fri).
+      //   b.end = Sept 4 + 2*DAY = Sept 6 (Sun, NOT a working day — by design,
+      //           because ignoreResourceCalendar means we use raw 24h math).
+      const tasks = [
+        {
+          id: "A",
+          name: "Pre",
+          startDate: new Date("2026-09-01T00:00:00Z"),
+          endDate: new Date("2026-09-04T00:00:00Z"), // Fri
+          duration: 3,
+        },
+        {
+          id: "B",
+          name: "Post (24h calendar)",
+          startDate: new Date("2026-08-01T00:00:00Z"),
+          endDate: new Date("2026-08-02T00:00:00Z"),
+          duration: 2,
+          ignoreResourceCalendar: true,
+        },
+      ];
+      const deps = [
+        { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 0 },
+      ];
+      const { newDates } = computeCpmSchedule(tasks, deps, { useCalendar: true });
+      const b = newDates.get("B")!;
+      expect(b.start.toISOString()).toBe(new Date("2026-09-04T00:00:00Z").toISOString());
+      expect(b.end.toISOString()).toBe(new Date("2026-09-06T00:00:00Z").toISOString());
+    });
+
+    it("legacy mode (useCalendar=false) still produces raw 24h cascade", () => {
+      // Sanity check: explicit useCalendar=false must reproduce the
+      // original behavior even though the implementation routes through
+      // the same helpers.
+      const baseDate = new Date("2026-09-01T00:00:00Z");
+      const tasks = [
+        {
+          id: "A",
+          name: "Earthwork",
+          startDate: baseDate,
+          endDate: new Date(baseDate.getTime() + 5 * DAY), // Sept 6
+          duration: 5,
+        },
+        {
+          id: "B",
+          name: "PCC",
+          startDate: new Date("2026-08-01T00:00:00Z"),
+          endDate: new Date("2026-08-04T00:00:00Z"),
+          duration: 3,
+        },
+      ];
+      const deps = [
+        { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 0 },
+      ];
+      const { newDates } = computeCpmSchedule(tasks, deps, { useCalendar: false });
+      const b = newDates.get("B")!;
+      expect(b.start.toISOString()).toBe(new Date("2026-09-06T00:00:00Z").toISOString());
+      expect(b.end.toISOString()).toBe(new Date("2026-09-09T00:00:00Z").toISOString());
+    });
+  });
+
   describe("Critical Path & Float Map with Lead/Lag Offsets", () => {
     it("correctly calculates critical path and float with FS lag", async () => {
       const { computeCriticalPath, computeFloatMap } = await import("@/app/(app)/projects/[id]/gantt/utils");

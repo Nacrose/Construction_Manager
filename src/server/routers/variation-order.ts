@@ -277,60 +277,76 @@ export const variationOrderRouter = router({
           where: { id: input.id },
           data: updateData,
         });
+      }); // end of $transaction
 
-        // When approved, generate a journal entry for the contract value change.
-        // VO changes the contract value — this is a financial event:
-        //   Dr Client Receivable (contract value increase)
-        //      Cr Contract Revenue (variation revenue recognized)
-        if (input.status === "approved") {
-          // Calculate the total contract value change from VO items
-          let totalValueChange = 0;
-          for (const item of vo.items) {
-            if (item.boqItemId) {
-              // Existing item modified: value change = (newQty * newRate) - (oldQty * oldRate)
-              const existing = await tx.boqItem.findUnique({
-                where: { id: item.boqItemId },
-                select: { baselineQty: true, baselineRate: true },
-              });
-              const oldQty = existing?.baselineQty ?? item.newQty;
-              const oldRate = existing?.baselineRate ?? item.newRate;
-              totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
-            } else {
-              // New item added: full value
-              totalValueChange += item.newQty * item.newRate;
-            }
-          }
-
-          if (Math.abs(totalValueChange) > 0.01) {
-            await createJournalEntry(tx, {
-              source: "variation_order",
-              sourceRefId: input.id,
-              sourceRefType: "VariationOrder",
-              description: `Variation Order ${vo.number} approved — contract value change`,
-              entryDate: new Date(),
-              postedById: ctx.user.id,
-              lines: [
-                {
-                  accountCode: "1100",
-                  accountName: "Client Receivables",
-                  debit: Math.max(0, totalValueChange),
-                  credit: Math.max(0, -totalValueChange),
-                  description: `VO ${vo.number} — contract value adjustment`,
-                  projectId: input.projectId,
-                },
-                {
-                  accountCode: "4001",
-                  accountName: "Contract Revenue",
-                  debit: Math.max(0, -totalValueChange),
-                  credit: Math.max(0, totalValueChange),
-                  description: `VO ${vo.number} — variation revenue`,
-                  projectId: input.projectId,
-                },
-              ],
+      // When approved, generate a journal entry for the contract value change.
+      // VO changes the contract value — this is a financial event:
+      //   Dr Client Receivable (contract value increase)
+      //      Cr Contract Revenue (variation revenue recognized)
+      //
+      // We compute the value change OUTSIDE the transaction above and
+      // re-derive it here. (The transaction already committed the
+      // `updateData` mutation; we just need the totals for the JE.)
+      //
+      // NOTE: `itemsWithoutBaseline` is surfaced to the audit log so a
+      // reviewer knows the JE was skipped for items lacking baseline data.
+      const itemsWithoutBaseline: string[] = [];
+      let totalValueChange = 0;
+      if (input.status === "approved") {
+        for (const item of vo.items) {
+          if (item.boqItemId) {
+            const existing = await db.boqItem.findUnique({
+              where: { id: item.boqItemId },
+              select: { baselineQty: true, baselineRate: true, code: true },
             });
+            // If baseline is missing on EITHER field, we can't compute
+            // the value change for this item — skip it (and flag it).
+            if (
+              !existing ||
+              existing.baselineQty == null ||
+              existing.baselineRate == null
+            ) {
+              itemsWithoutBaseline.push(existing?.code || item.boqItemId);
+              continue;
+            }
+            const oldQty = existing.baselineQty;
+            const oldRate = existing.baselineRate;
+            totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
+          } else {
+            // New item added: full value
+            totalValueChange += item.newQty * item.newRate;
           }
         }
-      });
+
+        if (Math.abs(totalValueChange) > 0.01) {
+          await createJournalEntry(db, {
+            source: "variation_order",
+            sourceRefId: input.id,
+            sourceRefType: "VariationOrder",
+            description: `Variation Order ${vo.number} approved — contract value change`,
+            entryDate: new Date(),
+            postedById: ctx.user.id,
+            lines: [
+              {
+                accountCode: "1100",
+                accountName: "Client Receivables",
+                debit: Math.max(0, totalValueChange),
+                credit: Math.max(0, -totalValueChange),
+                description: `VO ${vo.number} — contract value adjustment`,
+                projectId: input.projectId,
+              },
+              {
+                accountCode: "4001",
+                accountName: "Contract Revenue",
+                debit: Math.max(0, -totalValueChange),
+                credit: Math.max(0, totalValueChange),
+                description: `VO ${vo.number} — variation revenue`,
+                projectId: input.projectId,
+              },
+            ],
+          });
+        }
+      }
 
       // Audit log (was missing entirely)
       await audit({
@@ -339,7 +355,14 @@ export const variationOrderRouter = router({
         action: `variation_order.${input.status}`,
         entityType: "variation_order",
         entityId: input.id,
-        metadata: { number: vo.number, status: input.status },
+        metadata: {
+          number: vo.number,
+          status: input.status,
+          // Surface skipped items + total value change so reviewers can
+          // spot VOs that weren't journaled due to missing baseline data.
+          totalValueChange,
+          itemsWithoutBaseline: itemsWithoutBaseline.length > 0 ? itemsWithoutBaseline : undefined,
+        },
       });
 
       return { success: true };

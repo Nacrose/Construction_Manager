@@ -4,13 +4,70 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { DEFAULT_COST_RATES, getLaborWage, getEquipmentRate, resolveProjectRates } from "@/lib/cost-rates";
 import { router, protectedProcedure } from "@/server/trpc";
-import { db, getFreshDb } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
+
+/**
+ * IDOR guard for daily-program task operations.
+ *
+ * Verifies that the referenced `taskId` belongs to a `DailyProgramTask`
+ * whose `program.projectId` matches the caller's `projectId`. Without
+ * this check, a user with write access to project B could pass a `taskId`
+ * from project A and mutate / cancel / delete that task — the
+ * `assertCanWrite(ctx.user, input.projectId)` call alone does not catch
+ * the cross-project reference.
+ *
+ * Throws FORBIDDEN on mismatch (or NOT_FOUND if the task doesn't exist
+ * at all, to avoid leaking existence).
+ */
+async function assertTaskBelongsToProject(
+  taskId: string,
+  projectId: string
+): Promise<void> {
+  const task = await db.dailyProgramTask.findUnique({
+    where: { id: taskId },
+    select: { id: true, program: { select: { projectId: true } } },
+  });
+  if (!task) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
+  }
+  if (task.program.projectId !== projectId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Task does not belong to this project.",
+    });
+  }
+}
+
+/**
+ * IDOR guard for daily-program operations.
+ *
+ * Verifies that the referenced `programId` belongs to the caller's
+ * `projectId`. Same rationale as `assertTaskBelongsToProject`.
+ */
+async function assertProgramBelongsToProject(
+  programId: string,
+  projectId: string
+): Promise<void> {
+  const program = await db.dailyProgram.findUnique({
+    where: { id: programId },
+    select: { id: true, projectId: true },
+  });
+  if (!program) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Daily program not found." });
+  }
+  if (program.projectId !== projectId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Daily program does not belong to this project.",
+    });
+  }
+}
+
 
 const TaskSchema = z.object({
   rfiId: z.string().nullable().optional(),
@@ -563,6 +620,15 @@ export const dailyProgramRouter = router({
         include: { tasks: true },
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.create",
+        entityType: "daily_program",
+        entityId: program.id,
+        metadata: { programDate: date.toISOString(), taskCount: input.tasks.length },
+      });
+
       return { program };
     }),
 
@@ -570,7 +636,7 @@ export const dailyProgramRouter = router({
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const database = getFreshDb();
+      const database = db;
 
       // Use the project's default library instead of hardcoded client_estimate
       const defaultLibId = await getDefaultLibraryId(input.projectId);
@@ -659,13 +725,29 @@ export const dailyProgramRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // IDOR guards: verify both the target program and every source
+      // task actually belong to this project. Without this, a user with
+      // write access to project B could pass a `programId` from project A
+      // and have carry-over tasks created in project A's program.
+      await assertProgramBelongsToProject(input.programId, input.projectId);
+
       const tasks = await db.dailyProgramTask.findMany({
         where: { id: { in: input.taskIds } },
-        include: { program: { select: { programDate: true } } },
+        include: { program: { select: { programDate: true, projectId: true } } },
       });
 
       if (!tasks.length) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No tasks found." });
+      }
+
+      // Reject any source task that doesn't belong to this project.
+      for (const t of tasks) {
+        if (t.program.projectId !== input.projectId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Task ${t.id} does not belong to this project.`,
+          });
+        }
       }
 
       const carryOverTasks = tasks.map(t => {
@@ -693,16 +775,34 @@ export const dailyProgramRouter = router({
 
       await db.dailyProgramTask.createMany({ data: carryOverTasks });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.addBacklog",
+        entityType: "daily_program",
+        entityId: input.programId,
+        metadata: { taskCount: carryOverTasks.length, sourceTaskIds: input.taskIds },
+      });
+
       return { success: true, count: carryOverTasks.length };
     }),
+
+  // NOTE: `listBacklog` (above) and `listBacklogTasks` (below) have
+  // intentionally different filter semantics — both are used by the UI:
+  //   - `listBacklog` returns past-program tasks that are
+  //     partially_completed / uncompleted / postponed (used by the
+  //     program page's backlog carry-over panel).
+  //   - `listBacklogTasks` returns ANY-date tasks that are explicitly
+  //     `postponed` (used by the add-program dialog's task picker).
+  // Keep both. The previous comment saying `listBacklogTasks` was dead
+  // code was incorrect — `add-program-dialog.tsx` uses it.
 
   listBacklogTasks: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const database = getFreshDb();
 
-      const backlogTasks = await database.dailyProgramTask.findMany({
+      const backlogTasks = await db.dailyProgramTask.findMany({
         where: {
           program: { projectId: input.projectId },
           executionStatus: "postponed",
@@ -732,12 +832,15 @@ export const dailyProgramRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      
+
+      // IDOR guard: verify the task belongs to this project before mutating.
+      await assertTaskBelongsToProject(input.taskId, input.projectId);
+
       const task = await db.dailyProgramTask.findUnique({
         where: { id: input.taskId },
         include: { program: true }
       });
-      
+
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
 
       const batched = input.batchedQty !== undefined ? input.batchedQty : (input.actualQty ?? 0);
@@ -806,6 +909,19 @@ export const dailyProgramRouter = router({
         data: updateData
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.updateTaskExecution",
+        entityType: "daily_program_task",
+        entityId: input.taskId,
+        metadata: {
+          executionStatus: input.executionStatus,
+          actualQty: input.actualQty ?? null,
+          carryOverAction: input.carryOverAction ?? null,
+        },
+      });
+
       return { task: updatedTask };
     }),
 
@@ -819,9 +935,11 @@ export const dailyProgramRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      const database = getFreshDb();
 
-      const existing = await database.dailyProgram.findUnique({
+      // IDOR guard: verify the program belongs to this project.
+      await assertProgramBelongsToProject(input.programId, input.projectId);
+
+      const existing = await db.dailyProgram.findUnique({
         where: { id: input.programId },
       });
       if (!existing) {
@@ -831,7 +949,7 @@ export const dailyProgramRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Approved programs cannot be edited. Delete and recreate." });
       }
 
-      await database.$transaction(async (tx) => {
+      await db.$transaction(async (tx) => {
         // Delete all old tasks first
         await tx.dailyProgramTask.deleteMany({
           where: { programId: input.programId },
@@ -850,6 +968,18 @@ export const dailyProgramRouter = router({
         });
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.update",
+        entityType: "daily_program",
+        entityId: input.programId,
+        metadata: {
+          programDate: input.programDate,
+          taskCount: input.tasks.length,
+        },
+      });
+
       return { success: true };
     }),
 
@@ -857,18 +987,30 @@ export const dailyProgramRouter = router({
     .input(z.object({ programId: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      const database = getFreshDb();
 
-      const existing = await database.dailyProgram.findUnique({
+      // IDOR guard: verify the program belongs to this project.
+      await assertProgramBelongsToProject(input.programId, input.projectId);
+
+      const existing = await db.dailyProgram.findUnique({
         where: { id: input.programId },
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Daily program not found." });
       }
 
-      await database.dailyProgram.delete({
+      await db.dailyProgram.delete({
         where: { id: input.programId },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.delete",
+        entityType: "daily_program",
+        entityId: input.programId,
+        metadata: { programDate: existing.programDate.toISOString() },
+      });
+
       return { success: true };
     }),
 
@@ -876,6 +1018,9 @@ export const dailyProgramRouter = router({
     .input(z.object({ programId: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR guard: verify the program belongs to this project.
+      await assertProgramBelongsToProject(input.programId, input.projectId);
 
       const program = await db.dailyProgram.findUnique({
         where: { id: input.programId },
@@ -984,9 +1129,13 @@ export const dailyProgramRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // IDOR guard: verify the task belongs to this project.
+      await assertTaskBelongsToProject(input.taskId, input.projectId);
+
       const task = await db.dailyProgramTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, cancellationStatus: true },
+        select: { id: true, taskName: true, cancellationStatus: true, program: { select: { programDate: true } } },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       if (task.cancellationStatus === "pending") {
@@ -1002,13 +1151,24 @@ export const dailyProgramRouter = router({
         },
       });
 
-      // Notify PMs and coordinators that a cancellation request needs review
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.requestCancellation",
+        entityType: "daily_program_task",
+        entityId: input.taskId,
+        metadata: { reason: input.reason ?? null },
+      });
+
+      // Notify PMs and coordinators that a cancellation request needs review.
+      // Include task name + program date so recipients have context without
+      // having to click through.
       await notifyProjectMembers({
         projectId: input.projectId,
         type: "task_cancellation_requested",
         title: "Task cancellation requested",
-        message: `A field team requested cancellation of a daily program task. Reason: ${input.reason}`,
-        metadata: { taskId: input.taskId },
+        message: `Cancellation requested for "${task.taskName}" (program: ${task.program.programDate.toLocaleDateString()}). Reason: ${input.reason ?? "Not specified"}`,
+        metadata: { taskId: input.taskId, taskName: task.taskName },
         excludeUserId: ctx.user.id,
       });
 
@@ -1027,9 +1187,13 @@ export const dailyProgramRouter = router({
       if (role !== "project_manager" && role !== "coordinator") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Only PM or coordinator can review cancellations." });
       }
+
+      // IDOR guard: verify the task belongs to this project.
+      await assertTaskBelongsToProject(input.taskId, input.projectId);
+
       const task = await db.dailyProgramTask.findUnique({
         where: { id: input.taskId },
-        select: { id: true, cancellationStatus: true, taskName: true, cancellationRequestedBy: true },
+        select: { id: true, taskName: true, cancellationStatus: true, cancellationRequestedBy: true },
       });
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       if (task.cancellationStatus !== "pending") {
@@ -1049,6 +1213,15 @@ export const dailyProgramRouter = router({
         data: updateData,
       });
 
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "daily_program.reviewCancellation",
+        entityType: "daily_program_task",
+        entityId: input.taskId,
+        metadata: { approved: input.approved, response: input.response ?? null },
+      });
+
       // Notify the requester of the decision
       if (task.cancellationRequestedBy && task.cancellationRequestedBy !== ctx.user.id) {
         await createNotification({
@@ -1057,7 +1230,7 @@ export const dailyProgramRouter = router({
           type: `task_cancellation_${input.approved ? "approved" : "rejected"}`,
           title: `Cancellation ${input.approved ? "approved" : "rejected"}`,
           message: `Your cancellation request for "${task.taskName}" was ${input.approved ? "approved" : "rejected"}.${input.response ? ` Note: ${input.response}` : ""}`,
-          metadata: { taskId: input.taskId },
+          metadata: { taskId: input.taskId, taskName: task.taskName },
         });
       }
 

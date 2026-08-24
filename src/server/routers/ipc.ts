@@ -7,7 +7,6 @@ import { router, protectedProcedure } from "@/server/trpc";
 import {db} from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { notifyProject } from "@/server/utils/notify";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry, ipcBillingEntry } from "@/lib/journal-entry";
 
@@ -264,17 +263,37 @@ export const ipcRouter = router({
             },
           });
           if (certifiedIpc && certifiedIpc.grossAmount > 0) {
-            const jeInput = ipcBillingEntry({
-              ipcId,
-              ipcNumber: certifiedIpc.number,
-              grossAmount: certifiedIpc.grossAmount,
-              vatAmount: certifiedIpc.vatAmount || 0,
-              retentionAmount: certifiedIpc.retentionAmount || 0,
-              tdsAmount: certifiedIpc.tdsAmount || 0,
-              projectId: certifiedIpc.projectId,
-              date: new Date(),
+            // IDEMPOTENCY: the IPC status machine allows
+            //   approved → certified (revision sent back) → approved → certified
+            // (a legitimate revision cycle). Without this check, every
+            // transition to "certified" would fire the revenue-recognition
+            // journal entry again — doubling contract revenue, VAT
+            // payable, client receivables, and retention/TDS receivables
+            // for that IPC. We look for an existing JE with
+            // `source="ipc"` and `sourceRefId=ipcId` and skip if present.
+            //
+            // If a genuine re-certification is needed (e.g. the IPC's
+            // gross amount was changed), the prior JE should be reversed
+            // via `reverseJournalEntry` BEFORE the new certification —
+            // that's a separate workflow that should be triggered
+            // explicitly, not silently by re-clicking "certify".
+            const existingJe = await tx.journalEntry.findFirst({
+              where: { source: "ipc", sourceRefId: ipcId },
+              select: { id: true, entryNumber: true },
             });
-            await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
+            if (!existingJe) {
+              const jeInput = ipcBillingEntry({
+                ipcId,
+                ipcNumber: certifiedIpc.number,
+                grossAmount: certifiedIpc.grossAmount,
+                vatAmount: certifiedIpc.vatAmount || 0,
+                retentionAmount: certifiedIpc.retentionAmount || 0,
+                tdsAmount: certifiedIpc.tdsAmount || 0,
+                projectId: certifiedIpc.projectId,
+                date: new Date(),
+              });
+              await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
+            }
           }
         }
 

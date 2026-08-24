@@ -18,6 +18,7 @@ import {
   getDayWidth,
 } from "./utils";
 import type { Task, ZoomLevel } from "./types";
+import { getHolidayName } from "@/server/utils/nepal-calendar";
 import { Gantt } from "./components/Gantt";
 import { ResourcePage } from "./components/ResourcePage";
 import { SCurveChart } from "./components/SCurveChart";
@@ -328,6 +329,11 @@ function GanttChartContent({
       const dow = d.getDay();
       const isFirstOfMonth = d.getDate() === 1;
       const isMonday = dow === 1;
+      // Look up Nepal public holidays (Dashain, Tihar, etc.) from the
+      // static nepal-calendar.ts table. getHolidayName returns null for
+      // working days. isHoliday is a fast Set-based lookup.
+      const holidayName = getHolidayName(d);
+      const dayIsHoliday = holidayName !== null;
       let label: string;
       if (zoom === "day") label = format(d, "dd MMM");
       else if (zoom === "week") label = isMonday ? format(d, "MMM d") : "";
@@ -339,6 +345,8 @@ function GanttChartContent({
         isFirstOfMonth,
         isMonday,
         isFirstOfYear: d.getMonth() === 0 && d.getDate() === 1,
+        isHoliday: dayIsHoliday,
+        holidayName: holidayName ?? undefined,
       };
     });
   }, [rangeStart, days, zoom]);

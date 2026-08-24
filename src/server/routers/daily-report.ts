@@ -9,6 +9,7 @@ import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { createNotification, notifyProject } from "@/server/utils/notify";
 import { escapeHtml } from "@/server/utils/email";
+import { deleteFile } from "@/lib/storage";
 import { dailyReportAttachmentsRouter } from "./daily-report-attachments";
 import {
   syncNormalizedTables,
@@ -29,6 +30,12 @@ const CreateReportSchema = z.object({
   workProgress: z.string().optional(),
   equipmentUsed: z.string().optional(),
   materialReceived: z.string().optional(),
+  // Include materialConsumed in the CREATE schema so callers don't have to
+  // issue a follow-up PATCH immediately after create. Previously this was
+  // missing, and `syncNormalizedTables` was called with
+  // `materialConsumed: (input as any).materialConsumed` which always
+  // passed `undefined`.
+  materialConsumed: z.string().optional(),
   siteVisits: z.string().optional(),
   meetings: z.string().optional(),
   problems: z.string().optional(),
@@ -124,6 +131,24 @@ const dailyReportCoreRouter = router({
           createdBy: { select: { id: true, name: true, role: true } },
           attachments: {
             orderBy: { uploadedAt: "desc" },
+            // Select only metadata columns — NOT the `data` base64 column.
+            // Previously Prisma returned ALL columns including `data`, so
+            // a report with 20 site photos would return ~200MB on every
+            // getReport call. The `data` column is now fetched lazily via
+            // the dedicated `attachments.getAttachmentData` route.
+            select: {
+              id: true,
+              reportId: true,
+              fileName: true,
+              fileType: true,
+              fileSize: true,
+              storageUrl: true,
+              uploadedById: true,
+              latitude: true,
+              longitude: true,
+              takenAt: true,
+              uploadedAt: true,
+            },
           },
           workforce: { orderBy: { sortOrder: "asc" } },
           workProgress: { orderBy: { sortOrder: "asc" } },
@@ -254,7 +279,10 @@ const dailyReportCoreRouter = router({
         workProgress: input.workProgress,
         equipmentUsed: input.equipmentUsed,
         materialReceived: input.materialReceived,
-        materialConsumed: (input as any).materialConsumed,
+        // Previously this was `(input as any).materialConsumed` because the
+        // CreateReportSchema didn't include the field. Now that the schema
+        // includes it, we can pass it through directly.
+        materialConsumed: input.materialConsumed,
         siteVisits: input.siteVisits,
         meetings: input.meetings,
       });
@@ -584,12 +612,21 @@ const dailyReportCoreRouter = router({
       return { report: updated };
     }),
 
-  /** Send daily report via email. */
+  /** Send daily report via email.
+   *
+   *  Accepts either a single email address or an array of addresses so a
+   *  report can be sent to multiple stakeholders (client + supervisor + PM)
+   *  in a single call. Previously only a single `to: z.string().email()`
+   *  was accepted.
+   */
   emailReport: protectedProcedure
     .input(
       z.object({
         reportId: z.string(),
-        to: z.string().email(),
+        to: z.union([
+          z.string().email(),
+          z.array(z.string().email()).min(1).max(20),
+        ]),
         subject: z.string().optional(),
         message: z.string().optional(),
       })
@@ -604,6 +641,9 @@ const dailyReportCoreRouter = router({
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
       await assertProjectMember(ctx.user, report.projectId);
+
+      // Normalize `to` to an array for uniform processing downstream.
+      const recipients = Array.isArray(input.to) ? input.to : [input.to];
 
       const subject =
         input.subject ||
@@ -632,16 +672,38 @@ const dailyReportCoreRouter = router({
       `;
 
       const { sendEmail } = await import("@/server/utils/email");
-      const sent = await sendEmail({ to: input.to, subject, html });
-
-      if (!sent) {
+      // Send to each recipient sequentially — sendEmail takes a single
+      // `to` address. Failures on one recipient do not block others.
+      const results = await Promise.all(
+        recipients.map((to) =>
+          sendEmail({ to, subject, html }).then((ok) => ({ to, ok }))
+        )
+      );
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length === results.length) {
+        // All recipients failed — surface the error to the caller.
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to send email. Please check SMTP configuration.",
+          message: `Failed to send email to any of the ${recipients.length} recipient(s). Please check SMTP configuration.`,
         });
       }
 
-      return { sent: true };
+      await audit({
+        userId: ctx.user.id,
+        projectId: report.projectId,
+        action: "daily_report.email",
+        entityType: "daily_report",
+        entityId: input.reportId,
+        metadata: { recipients, subject },
+      });
+
+      // If some recipients failed but others succeeded, return a partial-success
+      // result so the caller knows which addresses to retry.
+      return {
+        sent: true,
+        recipientCount: recipients.length,
+        failedRecipients: failed.map((r) => r.to),
+      };
     }),
 
   /** Delete daily report. */
@@ -677,6 +739,21 @@ const dailyReportCoreRouter = router({
           code: "BAD_REQUEST",
           message: "Only draft reports can be deleted.",
         });
+      }
+
+      // Clean up attachment files in object storage before deleting the
+      // report row. The cascade delete on DailyReportAttachment rows would
+      // otherwise leave the uploaded files orphaned in public/uploads/ or S3.
+      const attachments = await db.dailyReportAttachment.findMany({
+        where: { reportId: input.reportId },
+        select: { storageUrl: true },
+      });
+      for (const att of attachments) {
+        if (att.storageUrl) {
+          await deleteFile(att.storageUrl).catch(() => {
+            /* best-effort — don't block the delete if storage cleanup fails */
+          });
+        }
       }
 
       await db.dailyReport.delete({ where: { id: input.reportId } });

@@ -1,8 +1,28 @@
 /**
  * Gantt CPM Scheduling Engine & Cycle Detection
  * Provides graph cycle validation and automatic downstream forward-pass date cascading.
+ *
+ * Calendar Awareness
+ * ------------------
+ * When `useCalendar: true` is passed, all forward-pass date arithmetic routes
+ * through the Nepal working-day calendar (`nepal-calendar.ts`):
+ *   - Saturdays are non-working (Nepal weekend).
+ *   - Public holidays (Dashain, Tihar, etc.) are non-working.
+ *   - `addWorkingDays` is used to project task end dates from duration, and
+ *     to honor dependency offsets.
+ * Tasks with `ignoreResourceCalendar: true` keep the legacy 24h-calendar
+ * arithmetic (matches MS Project's "ignore resource calendar" semantics).
+ *
+ * Backward compatibility: `useCalendar` defaults to `false` so existing callers
+ * and unit tests that assert raw millisecond offsets (e.g. Sept 6 → Sept 9)
+ * keep passing. The DB-aware `recalculateProjectSchedule` enables it by default
+ * because that is the production behavior we want on the live schedule.
  */
 import { db } from "@/lib/db";
+import {
+  isWorkingDay,
+  addWorkingDays,
+} from "./nepal-calendar";
 
 export interface TaskDependencyEdge {
   predecessorId: string;
@@ -18,6 +38,24 @@ export interface TaskScheduleData {
   endDate: Date;
   duration: number;
   isMilestone?: boolean;
+  /**
+   * If true, this task uses 24h calendar arithmetic and ignores Nepal
+   * weekends/holidays (mirrors MS Project's "ignore resource calendar" flag).
+   * Only meaningful when `useCalendar: true` is passed to `computeCpmSchedule`.
+   */
+  ignoreResourceCalendar?: boolean;
+}
+
+/**
+ * Options for `computeCpmSchedule`.
+ */
+export interface CpmScheduleOptions {
+  /**
+   * When true, schedule arithmetic routes through `nepal-calendar.ts`
+   * (Saturdays + public holidays are non-working). Default: false
+   * (legacy 24h-calendar arithmetic).
+   */
+  useCalendar?: boolean;
 }
 
 /**
@@ -107,16 +145,77 @@ export function detectCycle(
 /**
  * Pure Forward Pass CPM Calculation
  * Recalculates start and end dates for all tasks in topological order.
+ *
+ * Calendar-awareness: pass `{ useCalendar: true }` to make the cascade
+ * honor Nepal Saturdays and public holidays via `nepal-calendar.ts`.
+ * Tasks with `ignoreResourceCalendar: true` always use 24h arithmetic.
  */
 export function computeCpmSchedule(
   tasks: TaskScheduleData[],
-  dependencies: TaskDependencyEdge[]
+  dependencies: TaskDependencyEdge[],
+  options: CpmScheduleOptions = {}
 ): {
   newDates: Map<string, { start: Date; end: Date }>;
   changedTasks: Array<{ id: string; startDate: Date; endDate: Date }>;
   cycleDetected: boolean;
   cyclicTaskIds: string[];
 } {
+  const useCalendar = options.useCalendar === true;
+
+  // Calendar-aware helpers. When useCalendar is off, these reduce to
+  // the legacy raw-millisecond arithmetic, preserving backward compat
+  // for existing unit tests.
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  /**
+   * Add N calendar days to a date. If calendar mode is on and the task
+   * does NOT ignore the resource calendar, N is interpreted as N *working*
+   * days (skipping Saturdays and public holidays).
+   */
+  function addDaysFn(date: Date, days: number, ignoreCalendar: boolean): Date {
+    if (!useCalendar || ignoreCalendar) {
+      return new Date(date.getTime() + days * DAY_MS);
+    }
+    // Positive offsets use addWorkingDays (forward, skipping non-working).
+    // Negative offsets mirror that: subtract working days going backward.
+    if (days >= 0) {
+      return addWorkingDays(date, days);
+    }
+    const result = new Date(date);
+    let remaining = -days;
+    while (remaining > 0) {
+      result.setDate(result.getDate() - 1);
+      if (isWorkingDay(result)) remaining--;
+    }
+    return result;
+  }
+
+  /**
+   * Project a task's end date given its start and duration in days.
+   * In calendar mode, duration is interpreted as working days.
+   * Milestones have zero duration.
+   */
+  function projectEndDate(start: Date, duration: number, isMilestone: boolean, ignoreCalendar: boolean): Date {
+    const dur = Math.max(duration, isMilestone ? 0 : 1);
+    if (!useCalendar || ignoreCalendar || (isMilestone && dur === 0)) {
+      return new Date(start.getTime() + dur * DAY_MS);
+    }
+    return addWorkingDays(start, dur);
+  }
+
+  /**
+   * If a date lands on a non-working day in calendar mode, push it
+   * forward to the next working day. Used to "snap" candidate start
+   * dates that land on a Saturday/holiday.
+   */
+  function snapToWorkingDay(date: Date, ignoreCalendar: boolean): Date {
+    if (!useCalendar || ignoreCalendar) return date;
+    const d = new Date(date);
+    while (!isWorkingDay(d)) {
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  }
   const taskMap = new Map(tasks.map((t) => [t.id, t]));
   const inDegree = new Map<string, number>();
   const successors = new Map<string, string[]>();
@@ -168,6 +267,12 @@ export function computeCpmSchedule(
   for (const task of sorted) {
     const deps = predMap.get(task.id) || [];
     if (deps.length === 0) {
+      // No dependencies: keep the task's existing start AND end as the user
+      // set them. We deliberately do NOT snap or reproject here — the legacy
+      // 24h-calendar behavior is preserved for tasks the user has manually
+      // authored. Calendar-aware cascading only kicks in for tasks that
+      // have at least one dependency (i.e., tasks whose dates are derived
+      // from a predecessor via the forward pass).
       newDates.set(task.id, {
         start: new Date(task.startDate),
         end: new Date(task.endDate),
@@ -189,32 +294,37 @@ export function computeCpmSchedule(
       // predecessor ends by N days). This is the standard MS Project /
       // Primavera convention.
       //
-      // The previous code treated offset as a raw number of days to ADD
-      // to the predecessor's end date. A negative offset (lead) was
-      // correctly subtracted, but the semantic was unclear. This is now
-      // documented explicitly.
-      const offsetMs = (dep.offset || 0) * 24 * 60 * 60 * 1000;
-      const taskDurMs = task.duration * 24 * 60 * 60 * 1000;
+      // In calendar mode, the offset is interpreted as working days.
+      const successorIgnoresCalendar = !!task.ignoreResourceCalendar;
+      const offset = dep.offset || 0;
+      const taskDur = task.duration;
       let candidate: Date;
 
       if (dep.type === "FS" || !dep.type) {
         // Finish-to-Start: successor starts after predecessor finishes.
         // Positive offset = lag (delay), negative = lead (overlap).
-        candidate = new Date(predDates.end.getTime() + offsetMs);
+        candidate = addDaysFn(predDates.end, offset, successorIgnoresCalendar);
       } else if (dep.type === "SS") {
         // Start-to-Start: successor starts after predecessor starts.
-        candidate = new Date(predDates.start.getTime() + offsetMs);
+        candidate = addDaysFn(predDates.start, offset, successorIgnoresCalendar);
       } else if (dep.type === "FF") {
         // Finish-to-Finish: successor finishes after predecessor finishes.
         // Successor start = predecessor end + offset - successor duration.
-        candidate = new Date(predDates.end.getTime() + offsetMs - taskDurMs);
+        const successorEnd = addDaysFn(predDates.end, offset, successorIgnoresCalendar);
+        candidate = addDaysFn(successorEnd, -taskDur, successorIgnoresCalendar);
       } else if (dep.type === "SF") {
         // Start-to-Finish: successor finishes after predecessor starts.
         // Successor start = predecessor start + offset - successor duration.
-        candidate = new Date(predDates.start.getTime() + offsetMs - taskDurMs);
+        const successorEnd = addDaysFn(predDates.start, offset, successorIgnoresCalendar);
+        candidate = addDaysFn(successorEnd, -taskDur, successorIgnoresCalendar);
       } else {
-        candidate = new Date(predDates.end.getTime() + offsetMs);
+        candidate = addDaysFn(predDates.end, offset, successorIgnoresCalendar);
       }
+
+      // Snap candidate forward to next working day if it landed on a
+      // non-working day in calendar mode (matches MS Project behavior:
+      // a task scheduled to start on a holiday moves to next work day).
+      candidate = snapToWorkingDay(candidate, successorIgnoresCalendar);
 
       // Take the LATEST candidate (most constrained start date).
       // This is the standard CPM forward-pass: a task starts when ALL
@@ -226,8 +336,13 @@ export function computeCpmSchedule(
     }
 
     if (newStart) {
-      const dur = Math.max(task.duration, task.isMilestone ? 0 : 1);
-      const end = new Date(newStart.getTime() + dur * 24 * 60 * 60 * 1000);
+      const ignoreCalendar = !!task.ignoreResourceCalendar;
+      const end = projectEndDate(
+        newStart,
+        task.duration,
+        !!task.isMilestone,
+        ignoreCalendar
+      );
       newDates.set(task.id, { start: newStart, end });
     } else {
       newDates.set(task.id, {
@@ -263,10 +378,15 @@ export function computeCpmSchedule(
 /**
  * Database-Aware Recalculation & Cascade Runner
  * Fetches all tasks and dependencies for the project / version, recalculates schedule, and persists updates.
+ *
+ * `useCalendar` defaults to `true` — production schedule cascades honor
+ * Nepal Saturdays and public holidays. Pass `false` to fall back to raw
+ * 24h-calendar arithmetic (used by legacy callers and some tests).
  */
 export async function recalculateProjectSchedule(
   projectId: string,
-  versionId?: string | null
+  versionId?: string | null,
+  options: CpmScheduleOptions = { useCalendar: true }
 ): Promise<{
   updatedCount: number;
   cycleDetected: boolean;
@@ -285,6 +405,7 @@ export async function recalculateProjectSchedule(
         endDate: true,
         duration: true,
         isMilestone: true,
+        ignoreResourceCalendar: true,
       },
       orderBy: { sortOrder: "asc" },
     }),
@@ -315,7 +436,8 @@ export async function recalculateProjectSchedule(
       successorId: d.successorId,
       type: d.type as any,
       offset: d.offset,
-    }))
+    })),
+    options
   );
 
   if (changedTasks.length > 0) {

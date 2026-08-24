@@ -3,6 +3,7 @@
  */
 import { db } from "@/lib/db";
 import { getLaborWage, getEquipmentRate, resolveProjectRates } from "@/lib/cost-rates";
+import { dailyReportDeductionMarker } from "@/server/utils/workflow-helpers";
 
 type Row = { sortOrder: number; [key: string]: any };
 
@@ -376,6 +377,16 @@ async function deductInventoryForReport(
     boqCode: string;
   }> = [];
 
+  // IMPORTANT: the idempotency guard in `daily-report.ts`'s approval block
+  // searches for `remarks contains "Auto-deducted from Daily Report
+  // ${report.number}"` to detect whether materials have already been
+  // deducted for this report. To stay consistent with that guard (and
+  // avoid a double-deduction bug where submit deducts with one remarks
+  // format and approve re-deducts because it can't find its marker),
+  // every transaction we create here MUST contain that exact substring.
+  // The shared helper centralizes the format so it can be unit-tested.
+  const IDEMPOTENCY_PREFIX = dailyReportDeductionMarker(report.number);
+
   for (const prog of progressItems) {
     const actualQty = Number(prog.actualQty) || 0;
     if (actualQty <= 0) continue;
@@ -400,7 +411,7 @@ async function deductInventoryForReport(
         materialId: material.id,
         quantity: consumed,
         unit: material.unit,
-        remarks: `${consumed.toFixed(2)} ${material.unit} of ${material.name} used for ${taskDesc} (BOQ ${boqCode})`,
+        remarks: `${IDEMPOTENCY_PREFIX} — ${consumed.toFixed(2)} ${material.unit} of ${material.name} used for ${taskDesc} (BOQ ${boqCode})`,
         taskDesc,
         boqCode,
       });
