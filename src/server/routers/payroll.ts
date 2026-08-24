@@ -277,6 +277,39 @@ export const payrollRouter = router({
       const totalTds = computedRecords.reduce((sum, { computed }) => sum + computed.tdsAmount, 0);
       const totalNetPayable = computedRecords.reduce((sum, { computed }) => sum + computed.netPayable, 0);
 
+      // CRITICAL: payroll-calc.ts clamps `netPayable = Math.max(0, gross - totalDeductions)`.
+      // When a staff member's deductions exceed their gross (a real situation
+      // — e.g. advance recovery after a big Dashain/Tihar advance, combined
+      // with a low-attendance period), the clamp silently drops the
+      // shortfall. The journal entry balance is then broken:
+      //
+      //   Dr Direct Labor = totalGross
+      //   Cr Salary Payable + TDS + Advances + Mess/Other
+      //      = totalNetPayable + totalTds + totalAdvancesRecovered + totalMessAndOther
+      //
+      // Without any clamp, those are equal. With clamp:
+      //   credits > debits by exactly Σ(max(0, totalDeductions - gross))
+      //   for each clamped staff member.
+      //
+      // `createJournalEntry`'s own balance check then throws
+      // "Unbalanced journal entry", failing the entire payroll run for
+      // every staff member, not just the one edge case.
+      //
+      // Fix: track the clamped shortfall (`deductionExcess`) and add it
+      // as an extra DEBIT line in the JE — "Staff Advance Recoverable"
+      // (account 2040) is the right place to track the un-recovered
+      // amount, since the shortfall represents an amount we still owe
+      // the staff member / that they owe us back. This keeps the entry
+      // balanced and surfaces the shortfall in the GL so the org can
+      // see the cumulative deduction-excess in one place.
+      const totalMessAndOther = computedRecords.reduce(
+        (s, { computed }) => s + computed.messDeduction + computed.otherDeductions, 0,
+      );
+      const deductionExcess = computedRecords.reduce((s, { computed }) => {
+        const shortfall = computed.totalDeductions - computed.gross;
+        return s + (shortfall > 0 ? shortfall : 0);
+      }, 0);
+
       const payrollRun = await db.$transaction(async (tx) => {
         // Upsert the main run
         const run = await tx.payrollRun.upsert({
@@ -411,9 +444,13 @@ export const payrollRouter = router({
         //    Cr TDS Payable (2020) = totalTds
         //    Cr Staff Advance Recoverable (2040) = totalAdvancesRecovered
         //    Cr Cash (1001) = totalMessDeductions + totalOtherDeductions
-        const totalMessAndOther = computedRecords.reduce(
-          (s, { computed }) => s + computed.messDeduction + computed.otherDeductions, 0,
-        );
+        //    (Dr Staff Advance Recoverable (2040) = deductionExcess if any clamp)
+        //
+        // The `totalMessAndOther` and `deductionExcess` are computed above
+        // the transaction so they're available here. We use them to build
+        // the balanced JE — `deductionExcess` adds a debit line ONLY when
+        // at least one staff member was clamped (preventing the JE from
+        // failing with "Unbalanced journal entry").
         await createJournalEntry(tx, {
           source: "payroll",
           sourceRefId: run.id,
@@ -460,6 +497,26 @@ export const payrollRouter = router({
               debit: 0,
               credit: totalMessAndOther,
               description: `Mess & other deductions retained — ${input.month}`,
+              projectId: input.projectId,
+            }] : []),
+            // Extra DEBIT line for the clamp shortfall — only added when
+            // at least one staff member's deductions exceeded their gross
+            // (so their netPayable was clamped to 0). Without this line,
+            // credits > debits by exactly the clamped amount and
+            // createJournalEntry throws "Unbalanced journal entry", failing
+            // the ENTIRE payroll run for every staff member.
+            //
+            // The shortfall is posted to "Staff Advance Recoverable"
+            // (account 2040) as a debit — representing an amount we
+            // attempted to recover but couldn't because the staff member's
+            // gross pay was insufficient. This keeps the entry balanced
+            // and surfaces the cumulative shortfall in the GL.
+            ...(deductionExcess > 0 ? [{
+              accountCode: "2040" as const,
+              accountName: "Staff Advance Recoverable",
+              debit: deductionExcess,
+              credit: 0,
+              description: `Deduction excess (clamp shortfall) — ${input.month}`,
               projectId: input.projectId,
             }] : []),
           ],

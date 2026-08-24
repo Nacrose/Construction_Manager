@@ -41,11 +41,19 @@ export default function WorkflowLayout({
           const href = (tab as any).absolute
             ? `/projects/${id}${tab.href}`
             : basePath + tab.href;
-          const active = (tab as any).absolute
-            ? pathname === `/projects/${id}${tab.href}` || pathname.startsWith(`/projects/${id}${tab.href}/`)
-            : tab.href === "/rfi"
-              ? pathname === href
-              : pathname.startsWith(href);
+          // Unify the active-tab detection: always use startsWith so that
+          // detail/sub pages (e.g. /workflow/rfi/[rfiId]/...) correctly
+          // highlight their parent tab. Previously the RFI tab was
+          // special-cased to use exact-match (`pathname === href`), which
+          // meant visiting an RFI detail page left the RFIs tab
+          // unhighlighted.
+          const tabPath = (tab as any).absolute
+            ? `/projects/${id}${tab.href}`
+            : basePath + tab.href;
+          const active =
+            tabPath === `${basePath}/rfi`
+              ? pathname === tabPath || pathname.startsWith(`${tabPath}/`)
+              : pathname === tabPath || pathname.startsWith(`${tabPath}/`);
           return (
             <Link
               key={tab.href}

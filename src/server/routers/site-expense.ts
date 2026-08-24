@@ -9,6 +9,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { siteOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
@@ -195,8 +196,15 @@ export const siteExpenseRouter = router({
       // Generate journal entry for the site expense:
       // Dr Site Overhead (6001-6006 based on category) NPR totalAmount
       //    Cr Bank / Cash (1010/1001) NPR totalAmount
+      //
+      // Previously this hardcoded `overheadAccountCode = "6006"` (Site
+      // Overhead - Misc) regardless of `updated.category`, so every
+      // site expense ledgered as "Misc" — defeating the chart-of-accounts
+      // breakdown (Rent, Utilities, Fuel & Vehicle, Food & Mess, Safety).
+      // Now we map the category to the proper code via the shared helper.
       const bankCode = updated.paymentMode === "cash" ? "1001" : "1010";
-      const overheadAccountCode = "6006"; // Site Overhead - Misc (default)
+      const overheadAccountCode = siteOverheadCodeForCategory(updated.category);
+      const overheadAccountName = accountNameForCode(overheadAccountCode) || "Site Overhead";
       await createJournalEntry(db, {
         source: "site_expense",
         sourceRefId: input.id,
@@ -207,7 +215,7 @@ export const siteExpenseRouter = router({
         lines: [
           {
             accountCode: overheadAccountCode,
-            accountName: "Site Overhead",
+            accountName: overheadAccountName,
             debit: updated.totalAmount,
             credit: 0,
             description: updated.description,

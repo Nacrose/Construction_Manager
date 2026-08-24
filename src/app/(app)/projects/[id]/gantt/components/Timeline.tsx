@@ -18,6 +18,17 @@ export type DayLabel = {
   isFirstOfMonth: boolean;
   isMonday: boolean;
   isFirstOfYear: boolean;
+  /**
+   * True if this date is a Nepal public holiday (Dashain, Tihar, etc.).
+   * Holidays are mutually exclusive with working days — a holiday always
+   * renders as a non-working day, even if it lands on a Sunday-Friday.
+   */
+  isHoliday?: boolean;
+  /**
+   * Holiday display name (e.g. "Dashain Day 9 (Vijaya Dashami)").
+   * Present iff isHoliday is true.
+   */
+  holidayName?: string;
 };
 
 type FlattenedRow = { task: Task; depth: number };
@@ -338,6 +349,53 @@ export function Timeline(props: TimelineProps) {
               fill="rgba(255, 255, 255, 0.02)"
               className="pointer-events-none"
             />
+          );
+        })}
+
+      {/* Nepal public holiday bands (Dashain, Tihar, etc.).
+          Rendered ABOVE weekend bands so they take visual precedence.
+          Red-ish tint with hover tooltip showing the holiday name. */}
+      {zoom === "day" &&
+        dayLabels.map((d, i) => {
+          if (!d.isHoliday) return null;
+          const xPos = i * dayWidth + 10;
+          return (
+            <g key={`holiday-bg-${i}`}>
+              <rect
+                x={xPos}
+                y={0}
+                width={dayWidth}
+                height={totalHeight}
+                fill="rgba(239, 68, 68, 0.12)"
+                className="pointer-events-none"
+              />
+              {/* Thin top-edge stripe to make multi-day festivals (e.g. Dashain)
+                  visually obvious as a contiguous block. */}
+              <rect
+                x={xPos}
+                y={0}
+                width={dayWidth}
+                height={2}
+                fill="rgba(239, 68, 68, 0.55)"
+                className="pointer-events-none"
+              />
+              {/* Hover-only tooltip rect — captures mouse events and shows
+                  the holiday name via an SVG <title> element. */}
+              <rect
+                x={xPos}
+                y={0}
+                width={dayWidth}
+                height={totalHeight}
+                fill="transparent"
+                className="pointer-events-auto cursor-help"
+              >
+                <title>
+                  {d.holidayName
+                    ? `${format(d.date, "dd MMM yyyy")} — ${d.holidayName} (Nepal public holiday)`
+                    : `${format(d.date, "dd MMM yyyy")} — Nepal public holiday`}
+                </title>
+              </rect>
+            </g>
           );
         })}
 

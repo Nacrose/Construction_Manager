@@ -2053,6 +2053,16 @@ model Ipc {
   finalPayable    Float          @default(0) // totalWithVat - retention - advance - tds
   issueDate       DateTime?
 
+  // Retention release tracking — set by `releaseRetention` mutation.
+  // Prevents duplicate journal entries on re-run: the query filters
+  // `retentionReleasedAt: null` so already-released IPCs are skipped.
+  // Without this field, re-running releaseRetention (double-click,
+  // accidental re-trigger) would generate the same release journal
+  // entries a second time, double-crediting revenue.
+  retentionReleasedAt DateTime?
+  retentionReleasedById String?
+
+
   // Official Nepal Tax Invoice & Client Metadata
   taxInvoiceNo    String?        // Client Tax Invoice number
   taxInvoiceDate  DateTime?
@@ -3427,6 +3437,12 @@ model SubcontractorBill {
   verifiedAt        DateTime?
   certifiedById     String?
   certifiedAt       DateTime?
+
+  // Retention release tracking — set by `releaseRetention` mutation.
+  // Prevents duplicate journal entries on re-run, mirroring the IPC
+  // field above.
+  retentionReleasedAt DateTime?
+  retentionReleasedById String?
 
   // Scanned Bill Attachment
   scannedBillUrl    String?

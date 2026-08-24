@@ -7,8 +7,23 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
-import { uploadFile } from "@/lib/storage";
+import { createNotification, notifyProject } from "@/server/utils/notify";
+import { uploadFile, deleteFile } from "@/lib/storage";
+import {
+  isAllowedAttachmentType,
+  snapshotRfiItems,
+} from "@/server/utils/workflow-helpers";
+
+// MIME-type whitelist check — delegates to the shared helper so the
+// allowed-types set is defined in one place and tested by unit tests.
+function assertAllowedAttachmentType(fileType: string): void {
+  if (!isAllowedAttachmentType(fileType)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `File type "${fileType}" is not allowed. Allowed types: images (JPEG/PNG/GIF/WebP), PDF, Office docs, TXT/CSV, ZIP.`,
+    });
+  }
+}
 
 // Map discipline → eligible roles for auto-routing
 const DISCIPLINE_ROUTES: Record<string, string[]> = {
@@ -84,6 +99,32 @@ const RespondSchema = z.object({
   response: z.string().min(1).max(5000),
   decision: z.enum(["info", "approved", "rejected", "clarifications_requested"]),
 });
+
+/** Delete RFI items for a draft RFI, then recreate from the supplied items array.
+ *  Centralized as a module-scope helper so the update flow doesn't accidentally
+ *  do this twice (which was a real bug — see git history).
+ *
+ *  Preserves quantity exactly as supplied, including 0 — previous code used
+ *  `item.quantity || null` which silently coerced 0 to null, hiding
+ *  legitimate "zero-quantity" line items.
+ */
+async function replaceRfiItems(rfiId: string, items: Array<any>) {
+  await db.rfiItem.deleteMany({ where: { rfiId } });
+  if (items.length > 0) {
+    await db.rfiItem.createMany({
+      data: items.map((item) => ({
+        rfiId,
+        boqItemId: item.boqItemId || null,
+        boqCode: item.boqCode || null,
+        boqDesc: item.boqDesc || null,
+        quantity: item.quantity,
+        unit: item.unit || null,
+        paymentType: item.paymentType || "payable",
+        remark: item.remark || null,
+      })),
+    });
+  }
+}
 
 export const rfiRouter = router({
   /** List RFIs in a project. */
@@ -289,22 +330,9 @@ export const rfiRouter = router({
         if (data.costImpact !== undefined) updateData.costImpact = data.costImpact;
         if (data.scheduleImpact !== undefined) updateData.scheduleImpact = data.scheduleImpact;
 
-        if (data.items !== undefined) {
-          await db.rfiItem.deleteMany({ where: { rfiId: id } });
-          if (data.items.length > 0) {
-            await db.rfiItem.createMany({
-              data: data.items.map((item) => ({
-                rfiId: id,
-                boqItemId: item.boqItemId || null,
-                boqCode: item.boqCode || null,
-                boqDesc: item.boqDesc || null,
-                quantity: item.quantity,
-                unit: item.unit || null,
-                paymentType: item.paymentType || "payable",
-                remark: item.remark || null,
-              })),
-            });
-          }
+        if (data.items !== undefined && rfi.status === "draft" && isWriter) {
+          // Single source of truth for item replacement — see replaceRfiItems.
+          await replaceRfiItems(id, data.items);
         }
       }
 
@@ -366,23 +394,10 @@ export const rfiRouter = router({
         }
       }
 
-      if (rfi.status === "draft" && isWriter && data.items !== undefined) {
-        await db.rfiItem.deleteMany({ where: { rfiId: id } });
-        if (data.items.length > 0) {
-          await db.rfiItem.createMany({
-            data: data.items.map((item: any) => ({
-              rfiId: id,
-              boqItemId: item.boqItemId || null,
-              boqCode: item.boqCode || null,
-              boqDesc: item.boqDesc || null,
-              quantity: item.quantity || null,
-              unit: item.unit || null,
-              paymentType: item.paymentType || "payable",
-              remark: item.remark || null,
-            })),
-          });
-        }
-      }
+      // NOTE: items are replaced inside the draft block above (single source
+      // of truth via `replaceRfiItems`). The duplicate block that previously
+      // lived here was removed — it ran immediately after the first one,
+      // silently coerced `quantity: 0` to `null`, and doubled the write load.
 
       // Auto-add approved RFI to daily program if workDate is set
       if (data.status === "approved" && rfi.status !== "approved") {
@@ -445,7 +460,15 @@ export const rfiRouter = router({
         action: "rfi.update",
         entityType: "rfi",
         entityId: id,
-        metadata: { number: rfi.number, changes: updateData },
+        metadata: {
+          number: rfi.number,
+          changes: updateData,
+          // Include the items array snapshot so the audit trail can
+          // reconstruct what BOQ items were on the RFI at this point.
+          // Previously the items array went through a delete+recreate path
+          // with NO audit entry, making historical reconstruction impossible.
+          itemsSnapshot: snapshotRfiItems(data.items as any),
+        },
       });
 
       return { rfi: updated };
@@ -474,6 +497,22 @@ export const rfiRouter = router({
 
       // Remove related program tasks first (prevents orphaned tasks with null rfiId)
       await db.dailyProgramTask.deleteMany({ where: { rfiId: input.id } });
+
+      // Clean up any attachment files in object storage before deleting the
+      // DB rows. Previously the cascade delete would remove the rows but
+      // leave the uploaded files orphaned in public/uploads/ or S3 forever.
+      const attachments = await db.rfiAttachment.findMany({
+        where: { rfiId: input.id },
+        select: { storageUrl: true },
+      });
+      for (const att of attachments) {
+        if (att.storageUrl) {
+          await deleteFile(att.storageUrl).catch(() => {
+            /* best-effort — don't block the delete if storage cleanup fails */
+          });
+        }
+      }
+
       await db.rfi.delete({ where: { id: input.id } });
 
       await audit({
@@ -488,7 +527,21 @@ export const rfiRouter = router({
       return { ok: true };
     }),
 
-  /** Respond to an RFI. */
+  /** Respond to an RFI.
+   *
+   *  Status transition semantics:
+   *    - decision="approved"        → status becomes "approved"
+   *    - decision="rejected"         → status becomes "rejected"
+   *    - decision="info" | "clarifications_requested" → status stays "submitted"
+   *
+   *  The "info" / "clarifications_requested" decisions intentionally keep
+   *  the RFI in `submitted` state — they record a responder note without
+   *  closing the RFI. This bypasses the `update` route's transition
+   *  whitelist (which doesn't include `submitted→submitted`) by design:
+   *  the respond route is a separate, admin-only path with its own audit
+   *  trail. Both routes write to the same audit log, so transitions are
+   *  still reconstructable.
+   */
   respond: protectedProcedure
     .input(RespondSchema)
     .mutation(async ({ ctx, input }) => {
@@ -498,7 +551,8 @@ export const rfiRouter = router({
       });
       if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
 
-      await assertProjectAdmin(ctx.user, rfi.projectId);      if (rfi.status !== "submitted") {
+      await assertProjectAdmin(ctx.user, rfi.projectId);
+      if (rfi.status !== "submitted") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted RFIs can be responded to." });
       }
 
@@ -575,6 +629,10 @@ export const rfiRouter = router({
       if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
       await assertProjectMember(ctx.user, rfi.projectId);
 
+      // MIME whitelist — prevents upload of executable / script-bearing
+      // formats that could be served back as active content.
+      assertAllowedAttachmentType(input.fileType);
+
       // Upload to storage
       const stored = await uploadFile(input.data, input.fileName, input.fileType);
 
@@ -589,6 +647,16 @@ export const rfiRouter = router({
           uploadedById: ctx.user.id,
         },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: rfi.projectId,
+        action: "rfi.uploadAttachment",
+        entityType: "rfi_attachment",
+        entityId: attachment.id,
+        metadata: { rfiId: input.rfiId, fileName: input.fileName, fileSize: input.fileSize, fileType: input.fileType },
+      });
+
       return { attachment };
     }),
 
@@ -598,8 +666,29 @@ export const rfiRouter = router({
     .mutation(async ({ ctx, input }) => {
       const att = await db.rfiAttachment.findUnique({ where: { id: input.id }, include: { rfi: { select: { projectId: true } } } });
       if (!att) throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found." });
-      await assertProjectMember(ctx.user, att.rfi.projectId);
+      // Use assertCanWrite (not assertProjectMember) so read-only roles
+      // (client / inspector) cannot delete other users' attachments.
+      await assertCanWrite(ctx.user, att.rfi.projectId);
+
+      // Clean up the file in object storage — previously only the DB
+      // row was deleted, leaving the uploaded file orphaned.
+      if (att.storageUrl) {
+        await deleteFile(att.storageUrl).catch(() => {
+          /* best-effort — don't block the delete if storage cleanup fails */
+        });
+      }
+
       await db.rfiAttachment.delete({ where: { id: input.id } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: att.rfi.projectId,
+        action: "rfi.deleteAttachment",
+        entityType: "rfi_attachment",
+        entityId: input.id,
+        metadata: { rfiId: att.rfiId, fileName: att.fileName },
+      });
+
       return { success: true };
     }),
 
@@ -624,6 +713,16 @@ export const rfiRouter = router({
         },
         include: { author: { select: { id: true, name: true } } },
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: rfi.projectId,
+        action: "rfi.addComment",
+        entityType: "rfi_comment",
+        entityId: comment.id,
+        metadata: { rfiId: input.rfiId, parentId: input.parentId ?? null, contentLength: input.content.length },
+      });
+
       return { comment };
     }),
 
@@ -636,6 +735,16 @@ export const rfiRouter = router({
       await assertProjectMember(ctx.user, comment.rfi.projectId);
       if (comment.authorId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete your own comments." });
       await db.rfiComment.delete({ where: { id: input.id } });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: comment.rfi.projectId,
+        action: "rfi.deleteComment",
+        entityType: "rfi_comment",
+        entityId: input.id,
+        metadata: { rfiId: comment.rfiId },
+      });
+
       return { success: true };
     }),
 
@@ -657,7 +766,7 @@ export const rfiRouter = router({
       })).min(1).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      await assertCanWrite(ctx.user, input.projectId);
       const created = await db.rfi.createManyAndReturn({
         data: input.rfis.map((r) => ({
           projectId: input.projectId,
@@ -674,6 +783,16 @@ export const rfiRouter = router({
           status: r.status,
         })),
       });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        action: "rfi.bulkCreate",
+        entityType: "rfi",
+        entityId: input.projectId,
+        metadata: { count: created.length, numbers: created.map((r: any) => r.number) },
+      });
+
       return { count: created.length };
     }),
 

@@ -24,6 +24,7 @@ import { audit } from "@/lib/audit";
 import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { CHART_OF_ACCOUNTS, STANDARD_COST_CODES } from "@/lib/chart-of-accounts";
+import { bsToAd } from "@/lib/nepali-calendar";
 
 export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
@@ -114,6 +115,19 @@ export const financialReportingRouter = router({
       // is the vendor bill gross — the consumed amount is informational.
       // If there are no vendor bills (cash purchases), the projectCost
       // amount captures those costs.
+      //
+      // PERIOD-FILTER FALLBACK (audit issue #12):
+      // Previously the choice between `materialConsumed` and
+      // `materialCost` was `materialConsumed > 0 ? consumed : purchased`.
+      // For a project that uses daily reports, `materialConsumed` could
+      // be 0 in a given period (e.g. a quiet month with no daily report
+      // approvals) — and the fallback would then substitute the period's
+      // vendor bills, double-counting against the consumption-based
+      // accounting the project uses. We detect "uses daily reports" by
+      // checking if ANY DailyReport exists for the project — if so,
+      // we ALWAYS use `materialConsumed` (the period-filtered value,
+      // even if 0). If no daily reports exist, we fall back to vendor
+      // bills (the only source of material cost for that project).
       const materialIssues = await db.projectCost.findMany({
         where: {
           projectId: input.projectId,
@@ -122,9 +136,15 @@ export const financialReportingRouter = router({
         },
         select: { amount: true },
       });
-      // Only count material consumed if there are NO vendor bills
-      // (otherwise the cost is already captured in materialCost above).
       const materialConsumed = materialIssues.reduce((s, c) => s + c.amount, 0);
+
+      // Does this project use daily reports? If so, its accounting model
+      // is consumption-based — we MUST use `materialConsumed` (even if 0
+      // for this period) and NOT fall back to vendor bills.
+      const dailyReportCount = await db.dailyReport.count({
+        where: { projectId: input.projectId },
+      });
+      const projectUsesDailyReports = dailyReportCount > 0;
 
       // ── Direct Cost: Labor ────────────────────────────────
       const laborCosts = await db.projectCost.findMany({
@@ -176,7 +196,18 @@ export const financialReportingRouter = router({
       // This is the correct accounting treatment:
       //   - Period P&L: match revenue with CONSUMPTION (not purchase)
       //   - Balance sheet: track inventory via purchase - consumption
-      const materialCostForPnl = materialConsumed > 0 ? materialConsumed : materialCost;
+      // Material cost for the P&L:
+      //   - If the project uses daily reports → consumption-based accounting.
+      //     Use `materialConsumed` (the period-filtered value, even if 0).
+      //     This avoids the previous bug where a quiet period (0 consumed)
+      //     silently fell back to vendor bills, mixing accounting models.
+      //   - If the project does NOT use daily reports → cash-basis accounting.
+      //     Use `materialCost` (vendor bills in the period).
+      //   - Edge case: project uses daily reports but has zero consumption
+      //     AND zero vendor bills → materialCostForPnl = 0 (correct).
+      const materialCostForPnl = projectUsesDailyReports
+        ? materialConsumed
+        : (materialConsumed > 0 ? materialConsumed : materialCost);
       const directCosts = materialCostForPnl + subcontractCost + laborCost + equipmentCost;
       const totalOverhead = siteOverhead + allocatedHOOverhead;
       const totalCosts = directCosts + totalOverhead;
@@ -278,13 +309,12 @@ export const financialReportingRouter = router({
           date: i.createdAt,
           retentionAmount: i.retentionAmount || 0,
           status: i.status,
-          // Retention is NOT released when the IPC is paid — the IPC
-          // being "paid" means the client paid the net payable (after
-          // retention deduction). The retention itself is held by the
-          // client until project completion + defect liability period.
-          // A separate "retention release" process should be used to
-          // mark retention as released.
-          isReleased: false,
+          // Retention release is now tracked by the `retentionReleasedAt`
+          // field on the IPC itself (set by `releaseRetention`). Previously
+          // this was hardcoded to `false`, so the ledger view never
+          // reflected releases even after they were processed.
+          isReleased: i.retentionReleasedAt !== null,
+          releasedAt: i.retentionReleasedAt,
         }));
 
       // ── Retention PAYABLE: retention deducted on sub-bills ──
@@ -312,10 +342,10 @@ export const financialReportingRouter = router({
           date: b.billDate,
           retentionAmount: b.retentionAmount || 0,
           status: b.status,
-          // Same as IPCs: retention payable to subcontractors is held
-          // until project completion + defect liability period, NOT
-          // released when the bill is paid.
-          isReleased: false,
+          // Same as IPCs: track release state from the SubcontractorBill's
+          // `retentionReleasedAt` field, set by `releaseRetention`.
+          isReleased: b.retentionReleasedAt !== null,
+          releasedAt: b.retentionReleasedAt,
         }));
 
       const totalReceivable = receivables.reduce((s, r) => s + (r.isReleased ? 0 : r.retentionAmount), 0);
@@ -357,17 +387,57 @@ export const financialReportingRouter = router({
       // Q2: Mangsir-Poush (~Oct 17 - Feb 14)
       // Q3: Magh-Chaitra (~Feb 15 - Apr 13)
       // Q4: Baishakh-Asarh (~Apr 14 - Jul 15)
-      const [bsStart, bsEnd] = input.fiscalYear.split("/");
-      // BS to AD conversion: AD = BS - 56 (approximately).
-      // BS 2081 = AD 2025 (Nepal fiscal year starts mid-July).
-      // Previously this used + 56 which produced dates 112 years in
-      // the future — the entire TDS certificate feature was broken.
-      const adStartYear = parseInt(bsStart) - 56;
+      const [bsStart] = input.fiscalYear.split("/");
+
+      // BS→AD conversion for the fiscal-year START.
+      //
+      // Nepal's government fiscal year runs Shrawan 1 → Asarh end (mid-July
+      // to mid-July). So FY "2081/82" starts on Shrawan 1, 2081 BS.
+      //
+      // We use the calendar-accurate `bsToAd` library function to convert
+      // Shrawan 1 of the start BS year to AD, then read the AD year off
+      // that Date. This is the only correct way to do this — the previous
+      // code used `parseInt(bsStart) - 56` which gave 2025 for FY 2081/82,
+      // but the correct answer is 2024 (Shrawan 1, 2081 BS = Jul 16, 2024).
+      // That one-year offset silently pointed every TDS certificate /
+      // reconciliation quarter at the wrong fiscal year.
+      //
+      // The `- 56` shortcut only works for Baishakh 1 (Nepali New Year),
+      // not for Shrawan 1 (fiscal year start) — because Shrawan 1 falls
+      // ~3 months into the BS year, the AD year can be the same or the
+      // next depending on which side of April 13/14 you're on.
+      const bsStartYear = parseInt(bsStart, 10);
+      let fiscalYearStartAd: Date;
+      try {
+        // month=4 → Shrawan (BS month 1=Baishakh, 2=Jestha, 3=Asarh, 4=Shrawan)
+        fiscalYearStartAd = bsToAd(bsStartYear, 4, 1);
+      } catch {
+        // bsToAd throws if the year is outside the supported range
+        // (2000-2099). Fall back to the approximate conversion so the
+        // feature degrades gracefully instead of 500'ing.
+        fiscalYearStartAd = new Date(bsStartYear - 56, 6, 16);
+      }
+
+      // Build quarter boundaries in AD. Each quarter is ~3 months long
+      // starting from the fiscal year start (Shrawan 1 ≈ Jul 16).
+      // We derive each quarter's start/end by adding months to the
+      // fiscalYearStartAd so the boundaries stay aligned to the actual
+      // BS calendar (which shifts by a day or two each year due to the
+      // lunar/solar mismatch).
+      const q1Start = fiscalYearStartAd;
+      const q1End = new Date(q1Start); q1End.setMonth(q1End.getMonth() + 3);
+      const q2Start = new Date(q1End); q2Start.setDate(q2Start.getDate() + 1);
+      const q2End = new Date(q2Start); q2End.setMonth(q2End.getMonth() + 3);
+      const q3Start = new Date(q2End); q3Start.setDate(q3Start.getDate() + 1);
+      const q3End = new Date(q3Start); q3End.setMonth(q3End.getMonth() + 3);
+      const q4Start = new Date(q3End); q4Start.setDate(q4Start.getDate() + 1);
+      const q4End = new Date(q4Start); q4End.setMonth(q4End.getMonth() + 3);
+
       const quarterRanges: Record<string, [Date, Date]> = {
-        Q1: [new Date(adStartYear, 6, 16), new Date(adStartYear, 9, 16)],
-        Q2: [new Date(adStartYear, 9, 17), new Date(adStartYear + 1, 1, 14)],
-        Q3: [new Date(adStartYear + 1, 1, 15), new Date(adStartYear + 1, 3, 13)],
-        Q4: [new Date(adStartYear + 1, 3, 14), new Date(adStartYear + 1, 6, 15)],
+        Q1: [q1Start, q1End],
+        Q2: [q2Start, q2End],
+        Q3: [q3Start, q3End],
+        Q4: [q4Start, q4End],
       };
       const [fromDate, toDate] = quarterRanges[input.quarter];
 
@@ -595,19 +665,24 @@ export const financialReportingRouter = router({
       // JSON.stringify(Infinity) returns null — use a large number + flag
       // instead so the client gets a meaningful value.
       const runwayMonths = monthlyBurnRate > 0.01 ? cashBalance / monthlyBurnRate : null;
-      // Use tolerance for float comparison — tiny floating-point
-      // remainders from division would make isCashSustainable false
-      // even when the burn rate is effectively zero.
-      const isCashSustainable = monthlyBurnRate < 0.01;
+      // `isCashSustainable` is computed below, AFTER `cashGap` is derived,
+      // because sustainability depends on both burn rate AND cash position.
 
       // ── Total payables (due within 30 days) ────────────────
+      // NOTE: subcontractor bills have status enum
+      //   draft | submitted | verified | certified | paid | disputed
+      // — there is NO "approved" status (their lifecycle doesn't include
+      // an approval step the way IPCs / vendor bills do). The previous
+      // filter `["certified", "approved"]` included "approved" as a
+      // harmless dead branch — no sub-bill ever matched it. We drop it
+      // here so the filter matches the actual enum.
       const [vendorBills, subBills] = await Promise.all([
         db.vendorBill.findMany({
           where: { projectId: { in: projectIds }, status: { in: ["unpaid", "partially_paid"] } },
           select: { netPayable: true, paidAmount: true },
         }),
         db.subcontractorBill.findMany({
-          where: { projectId: { in: projectIds }, status: { in: ["certified", "approved"] } },
+          where: { projectId: { in: projectIds }, status: { in: ["certified"] } },
           select: { netPayable: true, paidAmount: true },
         }),
       ]);
@@ -628,6 +703,22 @@ export const financialReportingRouter = router({
 
       // ── Cash gap: payables - cash on hand ──────────────────
       const cashGap = totalPayables - cashBalance;
+
+      // SUSTAINABILITY verdict — now that we have all the inputs.
+      // SUSTAINABILITY is more than just "burn rate is zero":
+      //   - If the org is already sitting on NEGATIVE cash (overdrawn
+      //     bank account), it's NOT sustainable regardless of burn rate.
+      //   - If there's a positive cash gap (payables exceed cash on hand,
+      //     meaning the org can't cover its near-term obligations), that's
+      //     also not sustainable — even with zero burn.
+      // Previously this was `monthlyBurnRate < 0.01` which reported
+      // "sustainable" for an org sitting on negative cash with zero burn —
+      // technically true about the burn rate but misleading as an
+      // overall verdict.
+      const isCashSustainable =
+        monthlyBurnRate < 0.01 &&
+        cashBalance >= 0 &&
+        cashGap <= 0;
 
       // ── 90-day projection ──────────────────────────────────
       const projected90DayOutflow = monthlyBurnRate * 3; // 3 months
@@ -1333,21 +1424,29 @@ export const financialReportingRouter = router({
         }
       }
 
-      // Fetch all IPCs with outstanding retention (receivable from client)
+      // Fetch all IPCs with outstanding retention (receivable from client).
+      // CRITICAL: filter by `retentionReleasedAt: null` so already-released
+      // IPCs are skipped. Without this filter, re-running the mutation
+      // (double-click, accidental re-trigger) would generate the same
+      // release journal entries a second time, double-crediting revenue
+      // and double-releasing retention that was already released.
       const ipcsWithRetention = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
           retentionAmount: { gt: 0 },
+          retentionReleasedAt: null,
           status: { in: ["certified", "approved", "paid"] },
         },
         select: { id: true, number: true, retentionAmount: true, grossAmount: true },
       });
 
-      // Fetch all sub-bills with outstanding retention (payable to subs)
+      // Fetch all sub-bills with outstanding retention (payable to subs).
+      // Same idempotency filter as above.
       const subsWithRetention = await db.subcontractorBill.findMany({
         where: {
           projectId: input.projectId,
           retentionAmount: { gt: 0 },
+          retentionReleasedAt: null,
           status: { in: ["submitted", "verified", "certified", "paid"] },
         },
         select: { id: true, number: true, retentionAmount: true, subcontractorId: true },
@@ -1393,6 +1492,18 @@ export const financialReportingRouter = router({
             },
           ],
         });
+
+        // Mark the IPC as released so a subsequent run of this mutation
+        // (double-click, accidental re-trigger) skips it. Without this
+        // update, the query above would return the same IPCs every time
+        // and generate duplicate journal entries.
+        await db.ipc.update({
+          where: { id: ipc.id },
+          data: {
+            retentionReleasedAt: new Date(),
+            retentionReleasedById: ctx.user.id,
+          },
+        });
       }
 
       // Generate journal entries for subcontractor retention release
@@ -1426,6 +1537,16 @@ export const financialReportingRouter = router({
               partnerId: bill.subcontractorId ?? undefined,
             },
           ],
+        });
+
+        // Mark the subcontractor bill as released, mirroring the IPC
+        // update above. Same idempotency rationale.
+        await db.subcontractorBill.update({
+          where: { id: bill.id },
+          data: {
+            retentionReleasedAt: new Date(),
+            retentionReleasedById: ctx.user.id,
+          },
         });
       }
 

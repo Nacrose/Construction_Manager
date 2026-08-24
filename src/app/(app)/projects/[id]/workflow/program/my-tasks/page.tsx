@@ -83,10 +83,25 @@ export default function MyTasksPage({
   }, [allPrograms, selectedDate]);
 
   const myTasks = useMemo(() => {
+    // ⚠ TODO(migration): `DailyProgramTask.assignedTo` is a free-text String?,
+    // not a user ID. We currently match by display name (case-insensitive,
+    // trimmed), which is fragile:
+    //   - Two users with the same name (common in Nepal — e.g. multiple
+    //     "Bishnu Kumar Shrestha" employees) will see each other's tasks.
+    //   - A user rename silently orphans all their historical task
+    //     assignments.
+    // Migration plan: add `assignedToUserId String?` to DailyProgramTask,
+    // backfill from `assignedTo` (matched against User.name), update the
+    // program create/update routes to accept user IDs, and switch this
+    // filter to `t.assignedToUserId === user.id`. The free-text `assignedTo`
+    // can stay as a denormalized display name for read paths.
     if (!currentProgram?.tasks || !user?.name) return [];
-    return currentProgram.tasks.filter(
-      (t) => t.assignedTo?.toLowerCase() === user.name.toLowerCase()
-    );
+    const myName = user.name.trim().toLowerCase();
+    if (!myName) return [];
+    return currentProgram.tasks.filter((t) => {
+      const assigned = t.assignedTo?.trim().toLowerCase();
+      return !!assigned && assigned === myName;
+    });
   }, [currentProgram, user]);
 
   const completedCount = myTasks.filter(
