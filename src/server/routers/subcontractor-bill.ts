@@ -263,10 +263,23 @@ export const subcontractorBillRouter = router({
     // CREDITED — so the Trial Balance won't tie out as long as any sub
     // bill is outstanding.
     //
-    // Dr Subcontractor Cost (5020)   = grossAmount
-    // Dr TDS Receivable (1400)       = tdsAmount
-    //    Cr VAT Payable (2021)       = vatAmount
-    //    Cr Subcontractor Payables (2002) = netPayable
+    // Correct Nepal double-entry for a subcontractor bill:
+    //   Dr Subcontractor Cost (5020)          = grossAmount
+    //   Dr Input VAT Receivable (1400)         = vatAmount     (recoverable)
+    //      Cr TDS Payable (2020)               = tdsAmount     (deposit to IRD)
+    //      Cr Retention Payable (2010)         = retentionAmount (held back)
+    //      Cr Material Deduction (2003)        = materialDeduction (recovered)
+    //      Cr Advance Recovery (2040)          = advanceRecovery (recovered)
+    //      Cr Subcontractor Payables (2002)    = netPayable    (what we owe sub)
+    //
+    // Balance: Dr = grossAmount + vatAmount
+    //          Cr = tds + retention + matDed + advRec
+    //             + (gross - retention + vat - tds - matDed - advRec)
+    //             = gross + vat ✓
+    //
+    // FISCAL YEAR LOCK: use the bill date so back-dated bills are rejected.
+    await assertNotLocked(ctx.user.organizationId, bill.billDate);
+
     await createJournalEntry(db, {
       source: "subcontractor_bill",
       sourceRefId: bill.id,
@@ -284,20 +297,45 @@ export const subcontractorBillRouter = router({
           projectId: input.projectId,
           partnerId: input.subcontractorId,
         },
-        ...(amounts.tdsAmount > 0 ? [{
+        ...(amounts.vatAmount > 0 ? [{
           accountCode: "1400" as const,
-          accountName: "TDS Receivable",
-          debit: amounts.tdsAmount,
+          accountName: "Input VAT Receivable",
+          debit: amounts.vatAmount,
           credit: 0,
-          description: `TDS deducted on sub bill ${bill.number}`,
+          description: `Input VAT on sub bill ${bill.number}`,
           projectId: input.projectId,
         }] : []),
-        ...(amounts.vatAmount > 0 ? [{
-          accountCode: "2021" as const,
-          accountName: "VAT Payable",
+        ...(amounts.tdsAmount > 0 ? [{
+          accountCode: "2020" as const,
+          accountName: "TDS Payable",
           debit: 0,
-          credit: amounts.vatAmount,
-          description: `VAT on sub bill ${bill.number}`,
+          credit: amounts.tdsAmount,
+          description: `TDS to deposit on sub bill ${bill.number}`,
+          projectId: input.projectId,
+        }] : []),
+        ...(amounts.retentionAmount > 0 ? [{
+          accountCode: "2010" as const,
+          accountName: "Retention Payable (to Subcontractors)",
+          debit: 0,
+          credit: amounts.retentionAmount,
+          description: `Retention held on sub bill ${bill.number}`,
+          projectId: input.projectId,
+          partnerId: input.subcontractorId,
+        }] : []),
+        ...((input.materialDeduction ?? 0) > 0 ? [{
+          accountCode: "2003" as const,
+          accountName: "Material Deductions",
+          debit: 0,
+          credit: input.materialDeduction ?? 0,
+          description: `Material deduction on sub bill ${bill.number}`,
+          projectId: input.projectId,
+        }] : []),
+        ...((input.advanceRecovery ?? 0) > 0 ? [{
+          accountCode: "2040" as const,
+          accountName: "Staff Advance Recoverable",
+          debit: 0,
+          credit: input.advanceRecovery ?? 0,
+          description: `Advance recovery on sub bill ${bill.number}`,
           projectId: input.projectId,
         }] : []),
         {
@@ -491,13 +529,19 @@ export const subcontractorBillRouter = router({
         WHERE "id" = ${input.billId}
       `;
 
-      // Generate journal entry for subcontractor payment:
-      // Dr Subcontractor Payable (2002) NPR input.amount
-      //    Cr Bank / Cash (1010/1001) NPR input.amount
+      // Generate journal entry for subcontractor payment.
+      //
+      // SOURCE COLLISION FIX: use `source: "subcontractor_payment"` (NOT
+      // `"subcontractor_bill"`) so this JE is distinguishable from the
+      // liability-creation JE. Both previously used the same source +
+      // sourceRefId, making idempotency checks impossible.
+      //
+      // Dr Subcontractor Payables (2002) = input.amount
+      //    Cr Bank (1010)               = input.amount
       const subName = bill.subcontractor?.name || "Subcontractor";
-      const bankCode = "1010"; // subcontractor payments are typically bank
+      const bankCode = "1010";
       await createJournalEntry(db, {
-        source: "subcontractor_bill",
+        source: "subcontractor_payment",
         sourceRefId: input.billId,
         sourceRefType: "SubcontractorBill",
         description: `Subcontractor payment to ${subName} — ${bill.number}`,

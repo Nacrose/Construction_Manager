@@ -226,13 +226,21 @@ export const vendorBillRouter = router({
       // created, not just when it's paid. Without this, Sundry Creditors
       // (2001) only ever gets DEBITED (at payment time) but never CREDITED
       // — so the Trial Balance won't tie out as long as any bill is
-      // outstanding. This is the most structurally significant finding
-      // in the finance module.
+      // outstanding.
       //
-      // Dr Purchases / Material (5001)  = grossAmount
-      // Dr TDS Receivable (1400)       = tdsAmount
-      //    Cr VAT Payable (2021)       = vatAmount
-      //    Cr Sundry Creditors (2001)  = netPayable
+      // Correct Nepal double-entry for a vendor bill:
+      //   Dr Purchases / Material (5001)     = grossAmount
+      //   Dr Input VAT Receivable (1400)     = vatAmount   (recoverable from IRD)
+      //      Cr TDS Payable (2020)           = tdsAmount   (must deposit to IRD)
+      //      Cr Sundry Creditors (2001)      = netPayable  (what we owe vendor)
+      //
+      // Balance check: Dr = grossAmount + vatAmount
+      //                Cr = tdsAmount + (grossAmount + vatAmount - tdsAmount) = grossAmount + vatAmount ✓
+      //
+      // FISCAL YEAR LOCK: use the bill date (not today) so back-dated bills
+      // to locked fiscal years are correctly rejected.
+      await assertNotLocked(ctx.user.organizationId, new Date(input.billDate));
+
       await createJournalEntry(db, {
         source: "vendor_bill",
         sourceRefId: bill.id,
@@ -250,20 +258,20 @@ export const vendorBillRouter = router({
             projectId: input.projectId,
             partnerId: bill.partnerId || undefined,
           },
-          ...(tdsAmount > 0 ? [{
+          ...(vatAmount > 0 ? [{
             accountCode: "1400" as const,
-            accountName: "TDS Receivable",
-            debit: tdsAmount,
+            accountName: "Input VAT Receivable",
+            debit: vatAmount,
             credit: 0,
-            description: `TDS deducted on vendor bill ${bill.billNumber}`,
+            description: `Input VAT on vendor bill ${bill.billNumber}`,
             projectId: input.projectId,
           }] : []),
-          ...(vatAmount > 0 ? [{
-            accountCode: "2021" as const,
-            accountName: "VAT Payable",
+          ...(tdsAmount > 0 ? [{
+            accountCode: "2020" as const,
+            accountName: "TDS Payable",
             debit: 0,
-            credit: vatAmount,
-            description: `VAT on vendor bill ${bill.billNumber}`,
+            credit: tdsAmount,
+            description: `TDS to deposit on behalf of ${bill.partner?.name || bill.billNumber}`,
             projectId: input.projectId,
           }] : []),
           {
