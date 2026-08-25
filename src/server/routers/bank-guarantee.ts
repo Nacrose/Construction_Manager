@@ -12,19 +12,32 @@ import { adToBs, bsToAd } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
 
 export const bankGuaranteeRouter = router({
-  /** List all bank guarantees and insurance policies for a project */
+  /** List all bank guarantees (Organization wide or Project scoped) */
   list: protectedProcedure
     .input(
       z.object({
-        projectId: z.string(),
+        projectId: z.string().optional(),
+        organizationId: z.string().optional(),
         status: z.enum(["all", "active", "extended", "released", "expired"]).optional(),
         type: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      const orgId = input.organizationId || ctx.user.organizationId;
+      if (input.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+      }
 
-      const where: any = { projectId: input.projectId };
+      const where: any = {};
+      if (input.projectId) {
+        where.projectId = input.projectId;
+      } else if (orgId) {
+        where.OR = [
+          { organizationId: orgId },
+          { project: { organizationId: orgId } },
+        ];
+      }
+
       if (input.status && input.status !== "all") {
         where.status = input.status;
       }
@@ -34,6 +47,11 @@ export const bankGuaranteeRouter = router({
 
       const rawItems = await db.bankGuarantee.findMany({
         where,
+        include: {
+          project: {
+            select: { id: true, name: true, code: true },
+          },
+        },
         orderBy: { expiryDate: "asc" },
       });
 
@@ -53,11 +71,7 @@ export const bankGuaranteeRouter = router({
         };
       });
 
-      // Auto-update expired guarantees: if a guarantee's expiry date has
-      // passed but its status is still "active" or "extended", mark it as
-      // "expired" in the database. Previously the status was never
-      // auto-updated, so expired guarantees continued to show as "active"
-      // in reports and inflated the totalActiveExposure KPI.
+      // Auto-update expired guarantees
       const expiredIds = items.filter((g) => g.isExpired).map((g) => g.id);
       if (expiredIds.length > 0) {
         await db.bankGuarantee.updateMany({
@@ -66,8 +80,6 @@ export const bankGuaranteeRouter = router({
         });
       }
 
-      // Recompute the active set AFTER marking expired ones — otherwise
-      // the just-expired guarantees would still be counted in the KPIs.
       const activeGuarantees = items.filter(
         (g) => (g.status === "active" || g.status === "extended") && !g.isExpired,
       );
@@ -91,59 +103,12 @@ export const bankGuaranteeRouter = router({
       };
     }),
 
-  /** Cross-project alerts for the main executive dashboard */
-  portfolioAlerts: protectedProcedure.query(async ({ ctx }) => {
-    const memberships = await db.projectMember.findMany({
-      where: { userId: ctx.user.id },
-      select: { projectId: true },
-    });
-    const projectIds = memberships.map((m) => m.projectId);
-
-    if (projectIds.length === 0) {
-      return { expiringSoon: [], totalActiveExposure: 0 };
-    }
-
-    const now = new Date();
-    // 45 days lookahead threshold
-    const lookaheadDate = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
-
-    const activeGuarantees = await db.bankGuarantee.findMany({
-      where: {
-        projectId: { in: projectIds },
-        status: { in: ["active", "extended"] },
-      },
-      include: {
-        project: {
-          select: { id: true, name: true, code: true },
-        },
-      },
-      orderBy: { expiryDate: "asc" },
-    });
-
-    const expiringSoon = activeGuarantees
-      .map((g) => {
-        const diffMs = new Date(g.expiryDate).getTime() - now.getTime();
-        const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-        return {
-          ...g,
-          daysRemaining,
-        };
-      })
-      .filter((g) => g.daysRemaining <= 45);
-
-    const totalActiveExposure = activeGuarantees.reduce((s, g) => s + g.amount, 0);
-
-    return {
-      expiringSoon,
-      totalActiveExposure,
-    };
-  }),
-
   /** Create a new Bank Guarantee or Insurance Policy */
   create: protectedProcedure
     .input(
       z.object({
-        projectId: z.string(),
+        projectId: z.string().optional(),
+        organizationId: z.string().optional(),
         type: z.enum([
           "performance_bond",
           "advance_payment",
@@ -172,8 +137,11 @@ export const bankGuaranteeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertProjectManager(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId, input.issuedDate ? new Date(input.issuedDate) : new Date());
+      const orgId = input.organizationId || ctx.user.organizationId;
+      if (input.projectId) {
+        await assertProjectManager(ctx.user, input.projectId);
+      }
+      await assertNotLocked(orgId, input.issuedDate ? new Date(input.issuedDate) : new Date());
 
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);
@@ -204,7 +172,8 @@ export const bankGuaranteeRouter = router({
 
       const guarantee = await db.bankGuarantee.create({
         data: {
-          projectId: input.projectId,
+          organizationId: orgId,
+          projectId: input.projectId || null,
           type: input.type,
           guaranteeNumber: input.guaranteeNumber.trim(),
           issuingBank: input.issuingBank.trim(),
@@ -230,7 +199,7 @@ export const bankGuaranteeRouter = router({
 
       await audit({
         userId: ctx.user.id,
-        projectId: input.projectId,
+        projectId: input.projectId || undefined,
         action: "guarantee.create",
         entityType: "bank_guarantee",
         entityId: guarantee.id,
@@ -260,7 +229,9 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      await assertProjectManager(ctx.user, existing.projectId);
+      if (existing.projectId) {
+        await assertProjectManager(ctx.user, existing.projectId);
+      }
 
       const newExpiryD = new Date(input.newExpiryDate);
       if (isNaN(newExpiryD.getTime())) {
@@ -307,7 +278,7 @@ export const bankGuaranteeRouter = router({
 
       await audit({
         userId: ctx.user.id,
-        projectId: existing.projectId,
+        projectId: existing.projectId || undefined,
         action: "guarantee.extend",
         entityType: "bank_guarantee",
         entityId: guarantee.id,
@@ -334,7 +305,9 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      await assertProjectManager(ctx.user, existing.projectId);
+      if (existing.projectId) {
+        await assertProjectManager(ctx.user, existing.projectId);
+      }
 
       const guarantee = await db.bankGuarantee.update({
         where: { id: input.id },
@@ -348,7 +321,7 @@ export const bankGuaranteeRouter = router({
 
       await audit({
         userId: ctx.user.id,
-        projectId: existing.projectId,
+        projectId: existing.projectId || undefined,
         action: "guarantee.release",
         entityType: "bank_guarantee",
         entityId: guarantee.id,
@@ -382,7 +355,9 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      await assertProjectManager(ctx.user, existing.projectId);
+      if (existing.projectId) {
+        await assertProjectManager(ctx.user, existing.projectId);
+      }
 
       const { id, ...data } = input;
       const guarantee = await db.bankGuarantee.update({
@@ -392,7 +367,7 @@ export const bankGuaranteeRouter = router({
 
       await audit({
         userId: ctx.user.id,
-        projectId: existing.projectId,
+        projectId: existing.projectId || undefined,
         action: "guarantee.update",
         entityType: "bank_guarantee",
         entityId: guarantee.id,
@@ -411,16 +386,21 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      await assertProjectManager(ctx.user, existing.projectId);
+      if (existing.projectId) {
+        await assertProjectManager(ctx.user, existing.projectId);
+      }
 
       await db.bankGuarantee.delete({ where: { id: input.id } });
 
       await audit({
         userId: ctx.user.id,
-        projectId: existing.projectId,
+        projectId: existing.projectId || undefined,
         action: "guarantee.delete",
         entityType: "bank_guarantee",
         entityId: input.id,
+        metadata: {
+          number: existing.guaranteeNumber,
+        },
       });
 
       return { ok: true };

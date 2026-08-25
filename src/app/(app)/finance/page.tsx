@@ -12,15 +12,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import PaymentsPage from "@/app/(app)/projects/[id]/payments/page";
 import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
 import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
+import { OrgBankAccountsTab } from "@/app/(app)/finance/components/org-bank-accounts-tab";
+import { OrgGuaranteesTab } from "@/app/(app)/finance/components/org-guarantees-tab";
 
 export const FIN_TABS = [
   { label: "Day Book & Cashbook", key: "accounting" },
+  { label: "Bank Accounts & Wallets", key: "bank-accounts" },
+  { label: "Guarantees & Bid Bonds", key: "guarantees" },
   { label: "Parties & Payables", key: "payments" },
   { label: "Reports & Compliance", key: "tax-summary" },
 ];
 
 export default function OrganizationFinancePage() {
-  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "payments" | "tax-summary">("accounting");
+  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
   const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance">("daybook");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
@@ -55,8 +59,8 @@ export default function OrganizationFinancePage() {
           })}
         </div>
 
-        {/* Project Selector for Multi-Site Scoping */}
-        {projects.length > 0 && (
+        {/* Project Selector for Multi-Site Scoping (only when on site-scoped tabs) */}
+        {projects.length > 0 && (activeMainTab === "accounting" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-mono">Project:</span>
             <Select value={currentProjectId} onValueChange={setSelectedProjectId}>
@@ -75,8 +79,18 @@ export default function OrganizationFinancePage() {
         )}
       </div>
 
-      {/* Empty State when Organization has no projects yet */}
-      {projects.length === 0 && (
+      {/* Tab: Organization Bank Accounts & Wallets */}
+      {activeMainTab === "bank-accounts" && (
+        <OrgBankAccountsTab />
+      )}
+
+      {/* Tab: Organization Bank Guarantees & Bid Bonds */}
+      {activeMainTab === "guarantees" && (
+        <OrgGuaranteesTab />
+      )}
+
+      {/* Empty State when Organization has no projects yet for site-scoped tabs */}
+      {projects.length === 0 && (activeMainTab === "accounting" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 my-4 space-y-4">
           <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_16px_rgba(0,255,102,0.15)]">
             <BookOpen className="h-6 w-6" />
@@ -95,7 +109,7 @@ export default function OrganizationFinancePage() {
         </div>
       )}
 
-      {/* Tab 1: Day Book & Cashbook (renders exactly the project accounting tab views) */}
+      {/* Tab 1: Day Book & Cashbook */}
       {projects.length > 0 && activeMainTab === "accounting" && (
         <div className="space-y-4">
           {/* Compact Sub-Tabs Navigation */}

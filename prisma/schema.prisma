@@ -71,6 +71,7 @@ model Organization {
   ganttTemplates       GanttTaskTemplate[]
   companyBankAccounts  CompanyBankAccount[]
   headOfficeExpenses   HeadOfficeExpense[]
+  bankGuarantees       BankGuarantee[]
   delegationRules      DelegationRule[]
 
   @@index([status])
@@ -3609,7 +3610,8 @@ model MaterialSubstitute {
 
 model BankGuarantee {
   id               String    @id @default(cuid())
-  projectId        String
+  organizationId   String?   // Organization level tracking for Bid Bonds / Pre-award guarantees
+  projectId        String?   // Optional project link (null for pre-award tender bid bonds)
   type             String    // performance_bond | advance_payment | car_insurance | retention_bond | bid_bond | other
   guaranteeNumber  String    // BG Number or Policy Number (e.g. BG/NABIL/2081/042)
   issuingBank      String    // e.g. Nabil Bank, Global IME Bank, Shikhar Insurance
@@ -3624,7 +3626,7 @@ model BankGuarantee {
   claimPeriodDays  Int       @default(30) // standard 30 days under PPA
   claimExpiryDate  DateTime?
   status           String    @default("active") // active | extended | released | claimed | expired
-  purpose          String?   // e.g. "5% Performance Security for Package DOR-01"
+  purpose          String?   // e.g. "5% Performance Security for Package DOR-01" or "Bid Security for Tender IFB-02"
   marginAmount     Float     @default(0) // Cash margin held by bank
   commissionRate   Float     @default(0) // % p.a.
   commissionPaid   Float     @default(0) // Total commission cost
@@ -3635,8 +3637,10 @@ model BankGuarantee {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId, status, expiryDate])
   @@index([projectId, status, expiryDate])
 }
 
