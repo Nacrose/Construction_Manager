@@ -197,7 +197,7 @@ export function getCategorySortRank(categoryName: string): number {
   const norm = categoryName.toLowerCase().trim();
 
   // Exact standard category matches
-  const exactIdx = STANDARD_CATEGORIES.findIndex((sc) => sc.toLowerCase() === norm);
+  const exactIdx = (STANDARD_CATEGORIES as readonly string[]).findIndex((sc) => sc.toLowerCase() === norm);
   if (exactIdx !== -1) return exactIdx + 1;
 
   // Fuzzy keyword rank
