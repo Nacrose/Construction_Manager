@@ -83,7 +83,7 @@ export default function AdminOrganizations() {
                     </span>
                   </DialogTitle>
                   <DialogDescription className="text-xs text-gray-400 mt-0.5">
-                    Configure contractor operating scale, financial authority, and physical stock procurement models.
+                    Create the contractor company workspace. Roles and operating structure are configured inside the organization.
                   </DialogDescription>
                 </div>
               </div>
@@ -208,211 +208,50 @@ export default function AdminOrganizations() {
   );
 }
 
-const OPERATING_MODELS = [
-  {
-    id: "centralized",
-    title: "1. HQ-Centralized Imprest",
-    subtitle: "केन्द्रीय खरिद र लेखा",
-    finance: "HQ controls all bank payouts. Site receives petty cash advances for daily site expenses.",
-    inventory: "HQ contracts all bulk materials centrally. Site receives & verifies delivery challans.",
-  },
-  {
-    id: "imprest_only",
-    title: "2. Hybrid Delegation",
-    subtitle: "संयुक्त साइट र मुख्य कार्यालय",
-    finance: "Site logs daily Day Book cash & wages. HQ disburses major contractor & vendor bills.",
-    inventory: "Site procures local materials directly. HQ manages major long-lead supply contracts.",
-  },
-  {
-    id: "site_autonomous",
-    title: "3. Autonomous Site Office",
-    subtitle: "पूर्ण साइट अधिकार",
-    finance: "Site manages project bank accounts, direct vendor payments, and local VAT/TDS.",
-    inventory: "Site manages 100% of its own procurement, local vendor quotes, and central site store.",
-  },
-] as const;
+
 
 function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrganization.useMutation> }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState("active");
-  const [orgScale, setOrgScale] = useState<"single_project_jv" | "multi_project">("multi_project");
-  const [partnershipType, setPartnershipType] = useState<"sole" | "lead_partner_jv" | "joint_jv">("sole");
-  const [financeLocation, setFinanceLocation] = useState<"centralized" | "site_autonomous" | "imprest_only">("centralized");
-
-  const [adminName, setAdminName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
 
   return (
-    <div className="space-y-4 pt-2 font-sans text-xs">
-      {/* 2-Column Horizontal Split Layout: Left = Identity & Scale, Right = Admin Setup */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
-        {/* Left 7 Columns: Company Details & Structure */}
-        <div className="md:col-span-7 space-y-3">
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="col-span-2 space-y-1">
-              <Label className="text-[11px] font-semibold text-gray-300">Company Name (कम्पनीको नाम)</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Anturam Construction Pvt. Ltd."
-                className="h-8 text-xs bg-[#121820] border-white/10 text-white"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-gray-300">Code</Label>
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="e.g. ACPL"
-                className="h-8 text-xs bg-[#121820] border-white/10 text-white font-mono uppercase"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-gray-300">Organization Scale</Label>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setOrgScale("multi_project")}
-                  className={cn(
-                    "p-2 rounded-lg border text-left transition",
-                    orgScale === "multi_project"
-                      ? "border-emerald-500 bg-emerald-500/10 text-white"
-                      : "border-white/10 bg-[#121820] text-gray-400 hover:text-white"
-                  )}
-                >
-                  <div className="font-bold text-[11px]">🏢 Multi-Site</div>
-                  <div className="text-[9px] text-gray-400">Multiple sites</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrgScale("single_project_jv")}
-                  className={cn(
-                    "p-2 rounded-lg border text-left transition",
-                    orgScale === "single_project_jv"
-                      ? "border-emerald-500 bg-emerald-500/10 text-white"
-                      : "border-white/10 bg-[#121820] text-gray-400 hover:text-white"
-                  )}
-                >
-                  <div className="font-bold text-[11px]">🤝 Single Project</div>
-                  <div className="text-[9px] text-gray-400">Dedicated contract</div>
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-gray-300">Partnership Type</Label>
-              <Select value={partnershipType} onValueChange={(v: any) => setPartnershipType(v)}>
-                <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-white/10 text-xs">
-                  <SelectItem value="sole">Sole Contractor / Private Firm</SelectItem>
-                  <SelectItem value="lead_partner_jv">Lead Managing Partner in JV</SelectItem>
-                  <SelectItem value="joint_jv">Jointly Operated JV</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+    <div className="space-y-4 pt-3 font-sans text-xs">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-200">Company Name (कम्पनीको नाम) *</Label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Anturam Construction Pvt. Ltd."
+            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-medium"
+            autoFocus
+          />
         </div>
-
-        {/* Right 5 Columns: Initial Org Administrator */}
-        <div className="md:col-span-5 space-y-2 bg-[#121820]/60 p-3 rounded-xl border border-white/5">
-          <Label className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
-            Initial Org Admin Account (ऐच्छिक)
-          </Label>
-          <div className="space-y-1.5">
-            <Input
-              value={adminName}
-              onChange={(e) => setAdminName(e.target.value)}
-              placeholder="Admin Full Name"
-              className="h-8 text-xs bg-[#0b0f17] border-white/10 text-white"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="email"
-                value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@company.com"
-                className="h-8 text-xs bg-[#0b0f17] border-white/10 text-white"
-              />
-              <Input
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Password (8+ chars)"
-                className="h-8 text-xs bg-[#0b0f17] border-white/10 text-white"
-              />
-            </div>
-          </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-200">Company Code (ऐच्छिक)</Label>
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Auto-generated"
+            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-mono uppercase"
+          />
         </div>
       </div>
 
-      {/* Bottom Wide Section: Operating & Procurement Model Cards (Width >> Height) */}
-      <div className="space-y-1.5 pt-2 border-t border-white/10">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-bold text-white">
-            Contractor Financial Authority &amp; Material Procurement Model (लेखा र खरिद मोडेल)
-          </Label>
-          <span className="text-[10px] text-gray-400">Controls how money and materials flow across all sites</span>
-        </div>
+      <p className="text-[11px] text-gray-400">
+        ℹ️ All contractor operating models, project structures, partner sharing, and member roles are configured directly inside the organization dashboard.
+      </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {OPERATING_MODELS.map((model) => {
-            const isSelected = financeLocation === model.id;
-            return (
-              <button
-                key={model.id}
-                type="button"
-                onClick={() => setFinanceLocation(model.id as any)}
-                className={cn(
-                  "p-3 rounded-xl border text-left flex flex-col justify-between transition relative",
-                  isSelected
-                    ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/60"
-                    : "border-white/10 bg-[#121820]/70 text-gray-400 hover:border-white/20 hover:text-gray-200"
-                )}
-              >
-                <div>
-                  <div className="flex items-baseline justify-between gap-1 mb-1">
-                    <span className="font-bold text-xs text-white leading-tight">{model.title}</span>
-                    <span className="text-[9px] text-emerald-400 font-mono">{model.subtitle}</span>
-                  </div>
-                  <div className="space-y-1 text-[11px] leading-snug mt-1.5">
-                    <div className="text-gray-300">
-                      <span className="text-emerald-400 font-semibold font-mono">💰 Finance:</span> {model.finance}
-                    </div>
-                    <div className="text-gray-300">
-                      <span className="text-blue-400 font-semibold font-mono">📦 Stock:</span> {model.inventory}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <DialogFooter className="pt-2 flex items-center justify-between sm:justify-between border-t border-white/10 mt-3">
-        <div className="text-[10px] text-gray-400 font-mono">
-          Ready to bootstrap contractor workspace
+      <DialogFooter className="pt-3 border-t border-white/10 mt-2 flex items-center justify-between sm:justify-between">
+        <div className="text-[10px] text-gray-500 font-mono">
+          Ready to provision workspace
         </div>
         <Button
-          disabled={mut.isPending || !name}
+          disabled={mut.isPending || !name.trim()}
           onClick={() =>
             mut.mutate({
-              name,
-              code: code || undefined,
-              status,
-              orgScale,
-              partnershipType,
-              financeLocation,
-              adminName: adminName || undefined,
-              adminEmail: adminEmail || undefined,
-              adminPassword: adminPassword || undefined,
+              name: name.trim(),
+              code: code.trim() || undefined,
             })
           }
           className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-6 h-9"
@@ -432,39 +271,27 @@ function EditOrgForm({
     id: string;
     name: string;
     status: string;
-    orgScale?: string;
-    partnershipType?: string;
-    financeLocation?: string;
   };
   mut: ReturnType<typeof trpc.admin.updateOrganization.useMutation>;
 }) {
   const [name, setName] = useState(org.name);
   const [status, setStatus] = useState(org.status);
-  const [orgScale, setOrgScale] = useState<"single_project_jv" | "multi_project">(
-    (org.orgScale as any) || "multi_project"
-  );
-  const [partnershipType, setPartnershipType] = useState<"sole" | "lead_partner_jv" | "joint_jv">(
-    (org.partnershipType as any) || "sole"
-  );
-  const [financeLocation, setFinanceLocation] = useState<"centralized" | "site_autonomous" | "imprest_only">(
-    (org.financeLocation as any) || "centralized"
-  );
 
   return (
-    <div className="space-y-4 pt-2 font-sans text-xs">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs font-semibold text-gray-300">Company Name</Label>
+    <div className="space-y-4 pt-3 font-sans text-xs">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <div className="md:col-span-2 space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-200">Company Name *</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-8 text-xs bg-[#121820] border-white/10 text-white"
+            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-medium"
           />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs font-semibold text-gray-300">Status</Label>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-200">Status</Label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white">
+            <SelectTrigger className="h-10 text-xs bg-[#121820] border-white/10 text-white">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-[#0f141c] border-white/10 text-xs">
@@ -475,56 +302,14 @@ function EditOrgForm({
         </div>
       </div>
 
-      <div className="space-y-1.5 pt-2 border-t border-white/10">
-        <Label className="text-xs font-bold text-white block">
-          Operating &amp; Procurement Model
-        </Label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {OPERATING_MODELS.map((model) => {
-            const isSelected = financeLocation === model.id;
-            return (
-              <button
-                key={model.id}
-                type="button"
-                onClick={() => setFinanceLocation(model.id as any)}
-                className={cn(
-                  "p-3 rounded-xl border text-left flex flex-col justify-between transition",
-                  isSelected
-                    ? "border-emerald-500 bg-emerald-500/10 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500/60"
-                    : "border-white/10 bg-[#121820]/70 text-gray-400 hover:border-white/20 hover:text-gray-200"
-                )}
-              >
-                <div>
-                  <div className="flex items-baseline justify-between gap-1 mb-1">
-                    <span className="font-bold text-xs text-white leading-tight">{model.title}</span>
-                    <span className="text-[9px] text-emerald-400 font-mono">{model.subtitle}</span>
-                  </div>
-                  <div className="space-y-1 text-[11px] leading-snug mt-1.5">
-                    <div className="text-gray-300">
-                      <span className="text-emerald-400 font-semibold font-mono">💰 Finance:</span> {model.finance}
-                    </div>
-                    <div className="text-gray-300">
-                      <span className="text-blue-400 font-semibold font-mono">📦 Stock:</span> {model.inventory}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <DialogFooter className="pt-2 border-t border-white/10 mt-3">
+      <DialogFooter className="pt-3 border-t border-white/10 mt-2">
         <Button
-          disabled={mut.isPending}
+          disabled={mut.isPending || !name.trim()}
           onClick={() =>
             mut.mutate({
               id: org.id,
-              name,
+              name: name.trim(),
               status,
-              orgScale,
-              partnershipType,
-              financeLocation,
             })
           }
           className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-6 h-9"
@@ -535,3 +320,5 @@ function EditOrgForm({
     </div>
   );
 }
+
+
