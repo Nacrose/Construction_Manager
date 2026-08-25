@@ -40,6 +40,7 @@ interface MaterialNameInputProps {
   scope?: "global" | "org" | "project" | "all";
   organizationId?: string;
   projectId?: string;
+  availableSubCategories?: string[];
   className?: string;
   disabled?: boolean;
   required?: boolean;
@@ -55,6 +56,7 @@ export function MaterialNameInput({
   scope = "all",
   organizationId,
   projectId,
+  availableSubCategories = [],
   className,
   disabled = false,
   required = false,
@@ -64,6 +66,14 @@ export function MaterialNameInput({
   const [debouncedQuery, setDebouncedQuery] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Filter available sub-categories based on input query
+  const filteredSubCategories = React.useMemo(() => {
+    const q = value.trim().toLowerCase();
+    const unique = Array.from(new Set(availableSubCategories.filter(Boolean)));
+    if (!q) return unique;
+    return unique.filter((s) => s.toLowerCase().includes(q));
+  }, [value, availableSubCategories]);
 
   // Debounce input by 250ms
   useEffect(() => {
@@ -162,85 +172,71 @@ export function MaterialNameInput({
       </div>
 
       {/* Live Suggestions & Typo Warning Dropdown */}
-      {isOpen && matches.length > 0 && (
+      {isOpen && (matches.length > 0 || filteredSubCategories.length > 0) && (
         <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
-          <div className="flex items-center justify-between pb-1.5 mb-1 px-1 border-b border-border/60 text-[11px] text-muted-foreground font-medium">
-            <span className="flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-amber-500" />
-              Similar Materials in Catalog ({matches.length})
-            </span>
-            <span>Confidence</span>
-          </div>
+          {filteredSubCategories.length > 0 && matches.length === 0 && (
+            <div className="pb-1 mb-1 px-1 border-b border-border/60 text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-emerald-400" />
+              Existing Sub-Categories in Catalog ({filteredSubCategories.length})
+            </div>
+          )}
 
-          <div className="space-y-1">
-            {matches.map((match) => {
-              const scorePct = Math.round(match.score * 100);
-              const isExact = match.matchType === "exact" || scorePct >= 98;
-              const isHigh = scorePct >= 80;
-
-              return (
+          {/* Sub-Category Options */}
+          {filteredSubCategories.length > 0 && (
+            <div className="space-y-1 mb-1.5">
+              {filteredSubCategories.map((subCat) => (
                 <div
-                  key={`${match.scope}-${match.id}`}
+                  key={subCat}
                   className="group flex items-center justify-between p-2 rounded-md hover:bg-accent/80 transition-colors cursor-pointer text-xs"
                   onClick={() => {
-                    if (onSelectMatch) {
-                      onSelectMatch(match);
-                    } else {
-                      onChange(match.name);
-                    }
+                    onChange(subCat);
                     setIsOpen(false);
                   }}
                 >
-                  <div className="min-w-0 flex-1 pr-3">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-foreground truncate">
-                        {match.name}
-                      </span>
-                      {match.scope === "global" ? (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 gap-0.5">
-                          <Globe className="h-2 w-2" /> Global
-                        </Badge>
-                      ) : match.scope === "org" ? (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-0.5">
-                          <Building2 className="h-2 w-2" /> Org
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-0.5">
-                          <Shield className="h-2 w-2" /> Project
-                        </Badge>
-                      )}
-                      {match.category && (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.2 rounded">
-                          {match.category}
-                        </span>
-                      )}
-                    </div>
-                    {match.defaultUnit && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Unit: <span className="font-medium text-foreground/80">{match.defaultUnit}</span>
-                        {match.defaultRate ? ` • Rate: NPR ${match.defaultRate.toLocaleString()}` : ""}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-[10px] font-mono px-1.5 py-0",
-                        isExact && "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 font-bold",
-                        !isExact && isHigh && "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 font-medium",
-                        !isExact && !isHigh && "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {scorePct}% {match.matchType === "alias" ? "Alias" : match.matchType === "token_sort" ? "Tokens" : ""}
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-foreground">{subCat}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                      Sub-Category
                     </Badge>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[10px] opacity-80 group-hover:opacity-100 gap-1 bg-background/80 hover:bg-primary hover:text-primary-foreground border border-border/80"
-                      onClick={(e) => {
-                        e.stopPropagation();
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-[10px] opacity-80 group-hover:opacity-100 gap-1 bg-background/80 hover:bg-primary hover:text-primary-foreground border border-border/80"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange(subCat);
+                      setIsOpen(false);
+                    }}
+                  >
+                    Select <ArrowRight className="h-2.5 w-2.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {matches.length > 0 && (
+            <>
+              <div className="flex items-center justify-between pb-1.5 mb-1 px-1 border-b border-border/60 text-[11px] text-muted-foreground font-medium">
+                <span className="flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-amber-500" />
+                  Similar Materials in Catalog ({matches.length})
+                </span>
+                <span>Confidence</span>
+              </div>
+
+              <div className="space-y-1">
+                {matches.map((match) => {
+                  const scorePct = Math.round(match.score * 100);
+                  const isExact = match.matchType === "exact" || scorePct >= 98;
+                  const isHigh = scorePct >= 80;
+
+                  return (
+                    <div
+                      key={`${match.scope}-${match.id}`}
+                      className="group flex items-center justify-between p-2 rounded-md hover:bg-accent/80 transition-colors cursor-pointer text-xs"
+                      onClick={() => {
                         if (onSelectMatch) {
                           onSelectMatch(match);
                         } else {
@@ -249,13 +245,73 @@ export function MaterialNameInput({
                         setIsOpen(false);
                       }}
                     >
-                      Use <ArrowRight className="h-2.5 w-2.5" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                      <div className="min-w-0 flex-1 pr-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-foreground truncate">
+                            {match.name}
+                          </span>
+                          {match.scope === "global" ? (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 gap-0.5">
+                              <Globe className="h-2 w-2" /> Global
+                            </Badge>
+                          ) : match.scope === "org" ? (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-0.5">
+                              <Building2 className="h-2 w-2" /> Org
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-0.5">
+                              <Shield className="h-2 w-2" /> Project
+                            </Badge>
+                          )}
+                          {match.category && (
+                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.2 rounded">
+                              {match.category}
+                            </span>
+                          )}
+                        </div>
+                        {match.defaultUnit && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            Unit: <span className="font-medium text-foreground/80">{match.defaultUnit}</span>
+                            {match.defaultRate ? ` • Rate: NPR ${match.defaultRate.toLocaleString()}` : ""}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] font-mono px-1.5 py-0",
+                            isExact && "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 font-bold",
+                            !isExact && isHigh && "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 font-medium",
+                            !isExact && !isHigh && "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {scorePct}% {match.matchType === "alias" ? "Alias" : match.matchType === "token_sort" ? "Tokens" : ""}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-[10px] opacity-80 group-hover:opacity-100 gap-1 bg-background/80 hover:bg-primary hover:text-primary-foreground border border-border/80"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectMatch) {
+                              onSelectMatch(match);
+                            } else {
+                              onChange(match.name);
+                            }
+                            setIsOpen(false);
+                          }}
+                        >
+                          Use <ArrowRight className="h-2.5 w-2.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

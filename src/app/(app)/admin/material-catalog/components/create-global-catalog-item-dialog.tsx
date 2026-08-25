@@ -207,11 +207,20 @@ export function CreateGlobalCatalogItemDialog({
           )}
 
           {/* Sub-Category / Material Name with Live Search & Match suggestions */}
+          {/* Sub-Category / Material Name with Live Search & Match suggestions */}
           <div className="space-y-1">
             <Label className="text-xs font-semibold">Sub-Category / Material Name *</Label>
             <MaterialNameInput
               value={name}
               onChange={setName}
+              availableSubCategories={Array.from(
+                new Set(
+                  existingMaterials
+                    .filter((m) => !activeCategory || (m.category || "").toLowerCase() === activeCategory.toLowerCase())
+                    .map((m) => m.name || m.subCategory || "")
+                    .filter(Boolean)
+                )
+              )}
               onSelectMatch={(match: MaterialMatchItem) => {
                 setName(match.name);
                 if (match.category && !customCategory && categoryOptions.includes(match.category)) {
@@ -231,7 +240,7 @@ export function CreateGlobalCatalogItemDialog({
               autoFocus
             />
             <p className="text-[10px] text-muted-foreground">
-              Type to check similarity or select from canonical catalog materials.
+              Type or select from existing catalog sub-categories with live similarity check.
             </p>
           </div>
 
