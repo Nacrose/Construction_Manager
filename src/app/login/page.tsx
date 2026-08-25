@@ -165,16 +165,16 @@ function LoginCard() {
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Username or Email</Label>
                 <Input
                   id="email"
-                  type="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  placeholder="username@domain or name@company.com"
                   required
-                  className="h-11 bg-background/60 backdrop-blur-sm border-border/50 transition-all focus:border-amber-500/50 focus:ring-amber-500/20"
+                  className="h-11 bg-background/60 backdrop-blur-sm border-border/50 transition-all focus:border-amber-500/50 focus:ring-amber-500/20 font-sans"
                 />
               </motion.div>
               <motion.div

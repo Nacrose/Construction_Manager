@@ -208,11 +208,25 @@ export default function AdminOrganizations() {
 function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrganization.useMutation> }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [domain, setDomain] = useState("");
   const [adminName, setAdminName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
+  const [username, setUsername] = useState("admin");
   const [adminPassword, setAdminPassword] = useState("");
 
-  const isFormValid = name.trim() && adminName.trim() && adminEmail.trim() && adminPassword.length >= 8;
+  // Auto-generate domain slug when name changes if domain hasn't been manually set
+  const handleNameChange = (val: string) => {
+    setName(val);
+    const slug = val
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")
+      .slice(0, 16);
+    if (!domain || domain === name.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16)) {
+      setDomain(slug);
+    }
+  };
+
+  const fullAdminEmail = `${username.trim().toLowerCase()}@${(domain.trim() || "company").toLowerCase()}`;
+  const isFormValid = name.trim() && domain.trim() && adminName.trim() && username.trim() && adminPassword.length >= 8;
 
   return (
     <div className="space-y-5 pt-3 font-sans text-xs">
@@ -231,34 +245,49 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
             <Label className="text-xs font-semibold text-gray-200">Company Name (कम्पनीको नाम) *</Label>
             <Input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g. Anturam Construction Pvt. Ltd."
               className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-medium focus:border-emerald-500"
               autoFocus
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Company Code (संक्षिप्त कोड)</Label>
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Auto-generated (e.g. ACPL)"
-              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-mono uppercase"
-            />
-            <p className="text-[10px] text-gray-400">
-              Short prefix for purchase orders, IPCs, and delivery challans.
-            </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-200">Workspace Domain *</Label>
+              <div className="flex items-center rounded-md border border-white/10 bg-[#0b0f17] px-2.5 h-9 focus-within:border-emerald-500">
+                <span className="text-gray-500 font-mono text-xs mr-0.5">@</span>
+                <input
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
+                  placeholder="anturam"
+                  className="w-full bg-transparent text-xs text-emerald-400 font-mono focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-200">Company Code</Label>
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="e.g. ACPL"
+                className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-mono uppercase"
+              />
+            </div>
           </div>
+          <p className="text-[10px] text-gray-400">
+            Team members will log in using <code className="text-emerald-400 font-mono font-bold">username@{domain || "domain"}</code>
+          </p>
         </div>
 
         {/* Right Column: Organization Administrator Account */}
         <div className="space-y-3 bg-[#121820]/40 p-4 rounded-xl border border-white/5">
           <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
             <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-              2. Org Administrator (प्रशासक खाता)
+              2. Primary Admin Login
             </span>
-            <span className="text-[10px] text-blue-400 font-mono">Initial Login</span>
+            <span className="text-[10px] text-blue-400 font-mono">प्रशासक खाता</span>
           </div>
 
           <div className="space-y-1.5">
@@ -272,14 +301,18 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Admin Email Address *</Label>
-            <Input
-              type="email"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              placeholder="admin@anturam.com"
-              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
-            />
+            <Label className="text-xs font-semibold text-gray-200">Admin Login Identity *</Label>
+            <div className="flex items-center rounded-md border border-white/10 bg-[#0b0f17] px-2.5 h-9 focus-within:border-blue-500">
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
+                placeholder="admin"
+                className="w-1/2 bg-transparent text-xs text-white font-medium focus:outline-none"
+              />
+              <span className="text-gray-400 font-mono text-[11px] border-l border-white/10 pl-2 ml-auto">
+                @{domain || "domain"}
+              </span>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -297,7 +330,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
 
       <DialogFooter className="pt-3 border-t border-white/10 mt-3 flex items-center justify-between sm:justify-between">
         <div className="text-[11px] text-gray-400">
-          This admin will manage users, projects, and finance inside this organization.
+          Admin will sign in as <span className="text-emerald-400 font-mono font-bold">{fullAdminEmail}</span>
         </div>
         <Button
           disabled={mut.isPending || !isFormValid}
@@ -306,7 +339,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
               name: name.trim(),
               code: code.trim() || undefined,
               adminName: adminName.trim(),
-              adminEmail: adminEmail.trim(),
+              adminEmail: fullAdminEmail,
               adminPassword: adminPassword,
             })
           }

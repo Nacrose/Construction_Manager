@@ -122,7 +122,7 @@ export const adminRouter = router({
         financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).default("centralized"),
         // Optional initial org-admin account
         adminName: z.string().optional(),
-        adminEmail: z.string().email().optional(),
+        adminEmail: z.string().min(3).optional(),
         adminPassword: z.string().min(8).optional(),
       }),
     )

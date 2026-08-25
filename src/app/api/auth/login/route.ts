@@ -6,7 +6,7 @@ import { setSessionCookie } from "@/lib/auth";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
 
 const LoginSchema = z.object({
-  email: z.string().email().toLowerCase(),
+  email: z.string().min(3).toLowerCase().trim(),
   password: z.string().min(1),
 });
 
