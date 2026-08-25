@@ -103,6 +103,50 @@ export const bankGuaranteeRouter = router({
       };
     }),
 
+  /** Cross-project alerts for the main executive dashboard */
+  portfolioAlerts: protectedProcedure.query(async ({ ctx }) => {
+    const memberships = await db.projectMember.findMany({
+      where: { userId: ctx.user.id },
+      select: { projectId: true },
+    });
+    const projectIds = memberships.map((m) => m.projectId);
+
+    const activeGuarantees = await db.bankGuarantee.findMany({
+      where: {
+        OR: [
+          { projectId: { in: projectIds } },
+          { organizationId: ctx.user.organizationId || undefined },
+        ],
+        status: { in: ["active", "extended"] },
+      },
+      include: {
+        project: {
+          select: { id: true, name: true, code: true },
+        },
+      },
+      orderBy: { expiryDate: "asc" },
+    });
+
+    const now = new Date();
+    const expiringSoon = activeGuarantees
+      .map((g) => {
+        const diffMs = new Date(g.expiryDate).getTime() - now.getTime();
+        const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        return {
+          ...g,
+          daysRemaining,
+        };
+      })
+      .filter((g) => g.daysRemaining <= 45);
+
+    const totalActiveExposure = activeGuarantees.reduce((s, g) => s + g.amount, 0);
+
+    return {
+      expiringSoon,
+      totalActiveExposure,
+    };
+  }),
+
   /** Create a new Bank Guarantee or Insurance Policy */
   create: protectedProcedure
     .input(

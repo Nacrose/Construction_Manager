@@ -53,13 +53,13 @@ export function OrgBankAccountsTab() {
   const [openingBalance, setOpeningBalance] = useState("");
   const [isDefault, setIsDefault] = useState(false);
 
-  const { data, isLoading } = trpc.finance.listBankAccounts.useQuery();
+  const { data, isLoading } = trpc.finance.orgBankAccounts.useQuery();
   const accounts = data?.accounts || [];
 
   const createMutation = trpc.finance.createBankAccount.useMutation({
     onSuccess: () => {
       toast.success("Bank / Wallet Account added successfully");
-      utils.finance.listBankAccounts.invalidate();
+      utils.finance.orgBankAccounts.invalidate();
       setCreateDialogOpen(false);
       // Reset form
       setBankName("");

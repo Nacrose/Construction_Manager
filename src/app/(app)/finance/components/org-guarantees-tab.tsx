@@ -585,8 +585,11 @@ export function OrgGuaranteesTab() {
                   onChange={(e) => {
                     setIssuedMiti(e.target.value);
                     try {
-                      const ad = bsToAd(e.target.value);
-                      if (ad) setIssuedDate(format(ad, "yyyy-MM-dd"));
+                      const parts = e.target.value.split("-").map(Number);
+                      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                        const ad = bsToAd(parts[0], parts[1], parts[2]);
+                        if (ad) setIssuedDate(format(ad, "yyyy-MM-dd"));
+                      }
                     } catch {}
                   }}
                   className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
@@ -602,8 +605,11 @@ export function OrgGuaranteesTab() {
                   onChange={(e) => {
                     setExpiryMiti(e.target.value);
                     try {
-                      const ad = bsToAd(e.target.value);
-                      if (ad) setExpiryDate(format(ad, "yyyy-MM-dd"));
+                      const parts = e.target.value.split("-").map(Number);
+                      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                        const ad = bsToAd(parts[0], parts[1], parts[2]);
+                        if (ad) setExpiryDate(format(ad, "yyyy-MM-dd"));
+                      }
                     } catch {}
                   }}
                   className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
