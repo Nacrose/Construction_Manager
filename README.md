@@ -4,7 +4,12 @@
 > **ALWAYS consult and get explicit user approval before editing, adding, or removing files.**
 > Run discovery, audit, and planning first. Present your findings and the exact proposed changes to the user for confirmation BEFORE modifying any code or files in the repository.
 
-A comprehensive, self-hosted construction project management system tailored for personal use and contractor workflows in the Nepal Department of Roads / DUDBC context — BOQ & rate analysis, Gantt scheduling, RFI workflow, daily reports, IPC (interim payment certificates), variations, materials, equipment, HR, documents, and drawings.
+> **⚠️ Core System Scope & Positioning**:
+> **This platform is built EXCLUSIVELY for Construction Contractors, Joint Ventures (JVs), and Builders.**
+> **This is NOT a Client / Consultant / Owner portal.**
+> Every workflow is engineered around contractor reality: site material deliveries, subcontractor labor bills, Bahi Khata Day Books, VAT & TDS compliance, BOQ rate analysis, plant & equipment fleet logs, and Joint Venture royalty/equity sharing.
+
+A comprehensive construction enterprise management platform tailored for contractor and JV operations in Nepal (DoR / DUDBC / NEA standards) — encompassing BOQ & rate analysis, Day Book & cash-basis accounting, centralized finance & payables, Gantt scheduling, RFI workflows, site daily reports, IPC progress claims, variations, equipment fleet, staff HR, and multi-site inventory.
 
 Built with Next.js 16 (App Router), React 19, TypeScript, tRPC v11, Prisma 6, PostgreSQL, and Tailwind CSS.
 

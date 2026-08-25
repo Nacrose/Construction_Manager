@@ -41,10 +41,32 @@ import {
   Receipt,
   RotateCcw,
   CreditCard,
+  ChevronsUpDown,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  User,
+  Truck,
+  HardHat,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
+import { NepaliDatePicker } from "@/components/ui/nepali-date-picker";
 import { CategoryManagerDialog } from "./category-manager-dialog";
 import { BulkImportDialog } from "./bulk-import-dialog";
 
@@ -57,11 +79,13 @@ export function PaymentsTab({
   canWrite = true,
   initialPayable,
   onClearInitialPayable,
+  isDialogOpen,
+  onDialogOpenChange,
 }: {
   projectId: string;
   canWrite?: boolean;
   initialPayable?: {
-    entityType: "vendor" | "subcontractor";
+    entityType: "vendor" | "subcontractor" | "staff";
     entityId: string;
     entityName: string;
     entityPan?: string | null;
@@ -71,11 +95,15 @@ export function PaymentsTab({
     category: string;
   } | null;
   onClearInitialPayable?: () => void;
+  isDialogOpen?: boolean;
+  onDialogOpenChange?: (open: boolean) => void;
 }) {
   const utils = trpc.useUtils();
 
   // Dialog states
-  const [addOpen, setAddOpen] = useState(false);
+  const [internalAddOpen, setInternalAddOpen] = useState(false);
+  const addOpen = isDialogOpen !== undefined ? isDialogOpen : internalAddOpen;
+  const setAddOpen = onDialogOpenChange !== undefined ? onDialogOpenChange : setInternalAddOpen;
   const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [viewScanUrl, setViewScanUrl] = useState<string | null>(null);
@@ -104,14 +132,50 @@ export function PaymentsTab({
   const pendingPayables = payablesData?.payables || [];
   const payments = listData?.payments ?? [];
 
+  // Registered Entities in project for Searchable Payee Dropdown
+  const { data: suppliersData } = trpc.partner.listSuppliers.useQuery({ projectId });
+  const { data: subcontractorsData } = trpc.partner.listSubcontractors.useQuery({ projectId });
+  const { data: staffData } = trpc.hr.list.useQuery({ projectId, status: "active" });
+
+  const registeredPayees = [
+    ...(suppliersData?.suppliers || []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      pan: s.pan || "",
+      type: "vendor" as const,
+      typeLabel: "Supplier / Vendor",
+      contact: s.phone || s.contact || "",
+    })),
+    ...(subcontractorsData?.subcontractors || []).map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      pan: sub.pan || "",
+      type: "subcontractor" as const,
+      typeLabel: "Subcontractor",
+      contact: sub.phone || sub.contact || "",
+    })),
+    ...(staffData && "staff" in staffData ? staffData.staff : []).map((st) => ({
+      id: st.id,
+      name: st.name,
+      pan: st.pan || "",
+      type: "staff" as const,
+      typeLabel: "Staff / Worker",
+      contact: st.phone || st.designation || "",
+    })),
+  ];
+
   // Form states for Record Payment
   const [allocationType, setAllocationType] = useState<"specific_payee" | "bulk_category" | "advance">("specific_payee");
-  const [payeeType, setPayeeType] = useState("vendor");
+  const [payeeType, setPayeeType] = useState<"vendor" | "subcontractor" | "supplier" | "staff" | "other">("vendor");
   const [payeeName, setPayeeName] = useState("");
   const [partyPan, setPartyPan] = useState("");
+  const [payeePopoverOpen, setPayeePopoverOpen] = useState(false);
+  const [payeeSearchQuery, setPayeeSearchQuery] = useState("");
+  const [showErpSync, setShowErpSync] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [tds, setTds] = useState("0");
+  const [tdsPercent, setTdsPercent] = useState("");
   const [mode, setMode] = useState<"cash" | "bank_transfer" | "cheque" | "mobile_pay" | "connectips">("bank_transfer");
   const [bankAccount, setBankAccount] = useState("Nabil Bank Site A/C");
   const [chequeNo, setChequeNo] = useState("");
@@ -228,6 +292,7 @@ export function PaymentsTab({
     setInvoiceNumber("");
     setAmount("");
     setTds("0");
+    setTdsPercent("");
     setChequeNo("");
     setAccountingVoucherNo("");
     setNotes("");
@@ -481,408 +546,542 @@ export function PaymentsTab({
                   </Button>
                 </DialogTrigger>
 
-                <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden font-sans">
-                  <DialogHeader className="p-4 border-b bg-muted/20">
-                    <DialogTitle className="text-base font-bold text-foreground">
-                      Record Project Payment / Disbursement
+                <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col p-0 gap-0 bg-[#0c1015] border border-emerald-500/20 shadow-[0_0_60px_rgba(0,255,102,0.08)] rounded-3xl font-sans overflow-hidden">
+                  {/* Premium Header */}
+                  <div className="px-6 pt-6 pb-4 shrink-0 text-center relative border-b border-white/5">
+                    <DialogTitle className="text-xl font-bold text-white tracking-tight">
+                      Record Payment
                     </DialogTitle>
-                    <DialogDescription className="text-xs text-muted-foreground">
-                      Log bill-by-bill payments or bulk category journal entries with Tally & Swastik sync.
+                    <DialogDescription className="text-xs text-gray-400 mt-0.5">
+                      Log daily site expenses, vendor payments, or contractor advances.
                     </DialogDescription>
-                  </DialogHeader>
+                    {miti && (
+                      <span className="absolute right-6 top-6 text-xs font-mono font-medium text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-[0_0_10px_rgba(0,255,102,0.2)]">
+                        {miti} BS
+                      </span>
+                    )}
+                  </div>
 
-                  <div className="p-4 space-y-3 overflow-y-auto flex-1 text-xs">
-                    {/* Allocation Mode Selector Pills */}
-                    <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/30 rounded border text-center font-semibold">
-                      <button
-                        type="button"
-                        onClick={() => setAllocationType("specific_payee")}
-                        className={`py-1 rounded text-xs transition ${
-                          allocationType === "specific_payee"
-                            ? "bg-primary text-primary-foreground shadow-sm font-bold"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        🎯 Against Payee / Bill
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAllocationType("bulk_category")}
-                        className={`py-1 rounded text-xs transition ${
-                          allocationType === "bulk_category"
-                            ? "bg-primary text-primary-foreground shadow-sm font-bold"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        📊 Bulk Category (Tally/Swastik)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAllocationType("advance")}
-                        className={`py-1 rounded text-xs transition ${
-                          allocationType === "advance"
-                            ? "bg-primary text-primary-foreground shadow-sm font-bold"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        💵 Advance Payment
-                      </button>
-                    </div>
-
-                    {/* Category & Subcategory Cascading Grid */}
-                    <div className="p-3 rounded border bg-card space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-foreground flex items-center gap-1.5">
-                          <FolderTree className="h-3.5 w-3.5 text-primary" />
-                          Cost Head & Subcategory (Chart of Accounts)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setCatManagerOpen(true)}
-                          className="text-[11px] text-primary hover:underline"
-                        >
-                          Manage Heads
-                        </button>
+                  {/* Scrollable Form Body */}
+                  <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 text-xs custom-scrollbar">
+                    {/* Row 1: Date & Paid To */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Date (First Field) */}
+                      <div className="space-y-1.5 min-w-0">
+                        <Label className="text-xs font-medium text-gray-300">Date (मिति)</Label>
+                        <NepaliDatePicker
+                          value={date}
+                          onChange={(d, dateStr) => {
+                            if (dateStr) {
+                              setDate(dateStr);
+                              try {
+                                setMiti(adToBs(dateStr).formatted);
+                              } catch {}
+                            }
+                          }}
+                          placeholder="Select Nepali date (BS)"
+                          className="w-full h-11 text-xs font-mono rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white transition-all shadow-[0_0_15px_rgba(0,255,102,0.03)]"
+                        />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Main Category</Label>
-                          <Select
-                            value={selectedCatId}
-                            onValueChange={(val) => {
-                              setSelectedCatId(val);
-                              setSelectedSubId("");
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs font-medium">
-                              <SelectValue placeholder="Select Category Head" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name} {c.nameNp ? `(${c.nameNp})` : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-[11px] text-muted-foreground">Subcategory</Label>
-                            {!isCreatingSub && selectedCategoryObj && (
-                              <button
-                                type="button"
-                                onClick={() => setIsCreatingSub(true)}
-                                className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                              >
-                                <Plus className="h-2.5 w-2.5" /> New Sub
-                              </button>
-                            )}
-                          </div>
-
-                          {isCreatingSub ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                placeholder="Subcategory name (e.g. Food/Mess)"
-                                value={newSubName}
-                                onChange={(e) => setNewSubName(e.target.value)}
-                                className="h-8 text-xs"
-                                autoFocus
-                              />
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  if (!newSubName.trim() || !selectedCategoryObj) return;
-                                  createSubMut.mutate({
-                                    projectId,
-                                    name: newSubName.trim(),
-                                    parentId: selectedCategoryObj.id,
-                                  });
-                                }}
-                                disabled={createSubMut.isPending || !newSubName.trim()}
-                                className="h-8 text-xs px-2"
-                              >
-                                {createSubMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setIsCreatingSub(false)}
-                                className="h-8 text-xs px-2"
-                              >
-                                ✕
-                              </Button>
-                            </div>
-                          ) : (
-                            <Select value={selectedSubId} onValueChange={setSelectedSubId}>
-                              <SelectTrigger className="h-8 text-xs font-medium">
-                                <SelectValue placeholder="Select Subcategory" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {subcategoryList.map((s) => (
-                                  <SelectItem key={s.id} value={s.id}>
-                                    {s.name} {s.nameNp ? `(${s.nameNp})` : ""}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                      {/* Paid To (Payee) */}
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-300">Paid To</Label>
+                          {partyPan && (
+                            <span className="text-[10px] font-mono text-emerald-400/80">
+                              PAN: {partyPan}
+                            </span>
                           )}
                         </div>
+
+                        <Popover open={payeePopoverOpen} onOpenChange={setPayeePopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <div className="relative flex items-center w-full">
+                              <Input
+                                value={payeeName}
+                                onChange={(e) => {
+                                  setPayeeName(e.target.value);
+                                  setPayeeSearchQuery(e.target.value);
+                                  if (!payeePopoverOpen) setPayeePopoverOpen(true);
+                                }}
+                                onFocus={() => setPayeePopoverOpen(true)}
+                                placeholder="Search payee or type..."
+                                className="w-full h-11 text-xs pr-8 rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white truncate shadow-[0_0_15px_rgba(0,255,102,0.03)] transition-all"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setPayeePopoverOpen(!payeePopoverOpen);
+                                }}
+                                className="absolute right-0 h-11 w-8 p-0 text-gray-400 hover:text-white"
+                              >
+                                <ChevronsUpDown className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </PopoverTrigger>
+
+                          <PopoverContent
+                            className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-emerald-500/30 bg-[#0f141c] rounded-2xl"
+                            align="start"
+                            sideOffset={6}
+                            onOpenAutoFocus={(e) => e.preventDefault()}
+                          >
+                            <div className="max-h-48 overflow-y-auto space-y-1 text-xs custom-scrollbar">
+                              {registeredPayees
+                                .filter((p) =>
+                                  !payeeSearchQuery.trim() ||
+                                  p.name.toLowerCase().includes(payeeSearchQuery.toLowerCase()) ||
+                                  (p.pan && p.pan.includes(payeeSearchQuery))
+                                )
+                                .map((p) => (
+                                  <button
+                                    key={`${p.type}-${p.id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setPayeeName(p.name);
+                                      if (p.pan) setPartyPan(p.pan);
+                                      setPayeeType(p.type);
+                                      setPayeePopoverOpen(false);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left hover:bg-emerald-500/15 hover:text-emerald-400 transition cursor-pointer group"
+                                  >
+                                    <div className="truncate">
+                                      <p className="font-medium text-white group-hover:text-emerald-400 truncate">
+                                        {p.name}
+                                      </p>
+                                      <p className="text-[10px] text-gray-400">
+                                        {p.typeLabel} {p.pan ? `• PAN: ${p.pan}` : ""}
+                                      </p>
+                                    </div>
+                                    {payeeName === p.name && (
+                                      <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    )}
+                                  </button>
+                                ))}
+
+                              {registeredPayees.filter((p) =>
+                                !payeeSearchQuery.trim() ||
+                                p.name.toLowerCase().includes(payeeSearchQuery.toLowerCase()) ||
+                                (p.pan && p.pan.includes(payeeSearchQuery))
+                              ).length === 0 && (
+                                <div className="py-2.5 px-3 text-center text-xs text-gray-400">
+                                  Use <span className="text-emerald-400 font-semibold">"{payeeName}"</span> as one-time payee
+                                </div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                     </div>
 
-                    {/* Quick Settle from Outstanding Bill helper */}
-                    {allocationType === "specific_payee" && pendingPayables.length > 0 && (
-                      <div className="p-2.5 rounded bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-                          <span className="flex items-center gap-1.5 font-bold">
-                            <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
-                            Quick Settle Outstanding Bill ({pendingPayables.length} Unpaid)
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">Select to auto-fill</span>
+                    {/* Row 2: Category & Subcategory */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Category */}
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-300">Category</Label>
+                          <button
+                            type="button"
+                            onClick={() => setCatManagerOpen(true)}
+                            className="text-[10px] text-emerald-400 hover:underline"
+                          >
+                            + Manage
+                          </button>
                         </div>
                         <Select
+                          value={selectedCatId}
                           onValueChange={(val) => {
-                            const item = pendingPayables.find((p) => p.id === val);
-                            if (!item) return;
-                            setPayeeType(item.entityType);
-                            setPayeeName(item.entityName);
-                            setPartyPan(item.entityPan || "");
-                            setInvoiceNumber(item.billNumber);
-                            setAmount(item.balanceDue.toString());
-                            setTds(((item.balanceDue * (item.tdsPercent || 1.5)) / 100).toFixed(2));
-                            const matchedCat = categories.find((c) =>
-                              c.name.toLowerCase().includes(item.category.toLowerCase())
-                            );
-                            if (matchedCat) setSelectedCatId(matchedCat.id);
+                            setSelectedCatId(val);
+                            setSelectedSubId("");
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs font-medium bg-background">
-                            <SelectValue placeholder="-- Select an Outstanding Bill to Pay --" />
+                          <SelectTrigger className="w-full min-w-0 h-11 text-xs rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)]">
+                            <SelectValue placeholder="Select Category" className="truncate" />
                           </SelectTrigger>
-                          <SelectContent>
-                            {pendingPayables.map((p) => (
-                              <SelectItem key={p.id} value={p.id} className="text-xs">
-                                {p.entityName} — Bill #{p.billNumber} (Due: NPR {fmt(p.balanceDue)})
+                          <SelectContent className="max-h-60 bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs text-gray-200 focus:bg-emerald-500/20 focus:text-white">
+                                {c.name} {c.nameNp ? `(${c.nameNp})` : ""}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
 
-                    {/* Date (Dual BS & AD), Payee Type & Name, PAN, Bill # */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Date (AD / BS)</Label>
-                        <Input
-                          type="date"
-                          value={date}
-                          onChange={(e) => handleDateChange(e.target.value)}
-                          className="h-8 text-xs font-mono"
-                        />
-                        {miti && <span className="text-[10px] text-muted-foreground font-mono">Miti: {miti}</span>}
-                      </div>
+                      {/* Subcategory */}
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-300">Subcategory</Label>
+                          {selectedCategoryObj && !isCreatingSub && (
+                            <button
+                              type="button"
+                              onClick={() => setIsCreatingSub(true)}
+                              className="text-[10px] text-emerald-400 hover:underline"
+                            >
+                              + New Sub
+                            </button>
+                          )}
+                        </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">
-                          {allocationType === "bulk_category" ? "Expense Description / Batch" : "Payee / Ledger Name"}
-                        </Label>
-                        <Input
-                          value={payeeName}
-                          onChange={(e) => setPayeeName(e.target.value)}
-                          placeholder={
-                            allocationType === "bulk_category"
-                              ? "e.g. August Mess & Worker Food Batch"
-                              : "e.g. ABC Suppliers / Subcontractor"
-                          }
-                          className="h-8 text-xs"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Bill / Invoice # (Optional)</Label>
-                        <Input
-                          value={invoiceNumber}
-                          onChange={(e) => setInvoiceNumber(e.target.value)}
-                          placeholder="e.g. SC-042 or SUB-001"
-                          className="h-8 text-xs font-mono"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Payee PAN (9-digit)</Label>
-                        <Input
-                          value={partyPan}
-                          onChange={(e) => setPartyPan(e.target.value)}
-                          placeholder="e.g. 300123456"
-                          maxLength={9}
-                          className="h-8 text-xs font-mono"
-                        />
+                        {isCreatingSub ? (
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              placeholder="e.g. Fuel / Mess / Repair"
+                              value={newSubName}
+                              onChange={(e) => setNewSubName(e.target.value)}
+                              className="h-11 text-xs bg-[#121820] border-emerald-500/30 text-white rounded-xl flex-1"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                if (!newSubName.trim() || !selectedCategoryObj) return;
+                                createSubMut.mutate({
+                                  projectId,
+                                  name: newSubName.trim(),
+                                  parentId: selectedCategoryObj.id,
+                                });
+                              }}
+                              disabled={createSubMut.isPending || !newSubName.trim()}
+                              className="h-11 text-xs px-3 bg-[#00ff66] hover:bg-[#00e65c] text-black font-bold rounded-xl shadow-[0_0_12px_rgba(0,255,102,0.4)]"
+                            >
+                              {createSubMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsCreatingSub(false)}
+                              className="h-11 text-xs px-2 text-gray-400 hover:text-white"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        ) : (
+                          <Select
+                            value={selectedSubId}
+                            onValueChange={setSelectedSubId}
+                            disabled={!selectedCategoryObj || subcategoryList.length === 0}
+                          >
+                            <SelectTrigger className="w-full min-w-0 h-11 text-xs rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)] disabled:opacity-40">
+                              <SelectValue
+                                placeholder={
+                                  !selectedCategoryObj
+                                    ? "Select Category First"
+                                    : subcategoryList.length === 0
+                                    ? "No subcategories (Optional)"
+                                    : "-- Select Subcategory --"
+                                }
+                                className="truncate"
+                              />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-56 bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                              {subcategoryList.map((s) => (
+                                <SelectItem key={s.id} value={s.id} className="text-xs text-gray-200 focus:bg-emerald-500/20 focus:text-white">
+                                  {s.name} {s.nameNp ? `(${s.nameNp})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
 
-                    {/* Amount, TDS Deducted, Net Calculation */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-2.5 rounded bg-muted/20 border">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Gross Amount (NPR)</Label>
+                    {/* Row 3: Amount & Payment Mode */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                      {/* Amount */}
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-medium text-gray-300">Amount (NPR)</Label>
+                          {amount && parseFloat(tds) > 0 && (
+                            <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                              Net: NPR {fmt(computedNet)}
+                            </span>
+                          )}
+                        </div>
                         <Input
                           type="number"
                           value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="50000"
-                          className="h-8 text-xs font-mono font-bold"
+                          onChange={(e) => {
+                            const newAmt = e.target.value;
+                            setAmount(newAmt);
+                            const gross = parseFloat(newAmt) || 0;
+                            const pVal = parseFloat(tdsPercent) || 0;
+                            if (pVal > 0) {
+                              setTds(((gross * pVal) / 100).toFixed(2));
+                            }
+                          }}
+                          placeholder="e.g. 50000"
+                          className="w-full h-11 text-xs font-mono font-bold rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)]"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">TDS Deducted (NPR)</Label>
-                        <Input
-                          type="number"
-                          value={tds}
-                          onChange={(e) => setTds(e.target.value)}
-                          placeholder="750"
-                          className="h-8 text-xs font-mono text-red-600"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Net Disbursed (NPR)</Label>
-                        <div className="h-8 flex items-center px-3 rounded border bg-background font-mono font-bold text-emerald-600">
-                          NPR {fmt(computedNet)}
+                      {/* Payment Mode Selector */}
+                      <div className="space-y-1.5 min-w-0">
+                        <Label className="text-xs font-medium text-gray-300">Payment Mode</Label>
+                        <div className="flex items-center justify-between p-2 h-11 rounded-xl border border-emerald-500/30 bg-[#121820]">
+                          {[
+                            { value: "cash", label: "Cash" },
+                            { value: "bank_transfer", label: "Bank" },
+                            { value: "cheque", label: "Cheque" },
+                            { value: "connectips", label: "Digital" },
+                          ].map((item) => (
+                            <label
+                              key={item.value}
+                              onClick={() => setMode(item.value as any)}
+                              className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-300 hover:text-white"
+                            >
+                              <div
+                                className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center transition-all ${
+                                  mode === item.value
+                                    ? "border-emerald-400 bg-emerald-500/20 shadow-[0_0_8px_rgba(0,255,102,0.5)]"
+                                    : "border-gray-600"
+                                }`}
+                              >
+                                {mode === item.value && (
+                                  <div className="h-1.5 w-1.5 rounded-full bg-[#00ff66]" />
+                                )}
+                              </div>
+                              <span className={mode === item.value ? "font-bold text-white" : "text-gray-400"}>
+                                {item.label}
+                              </span>
+                            </label>
+                          ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* Tally / Swastik Accounting Software Section */}
-                    <div className="p-3 rounded border bg-card space-y-2">
-                      <span className="font-bold text-foreground flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-purple-600" />
-                        Accounting Software (Tally / Swastik) Voucher Sync
-                      </span>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Software</Label>
-                          <Select value={accountingSoftware} onValueChange={(val: any) => setAccountingSoftware(val)}>
-                            <SelectTrigger className="h-7 text-xs font-mono">
-                              <SelectValue />
+                    {/* Contextual Bank / Cheque / Digital Details */}
+                    {mode !== "cash" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-2xl border border-emerald-500/30 bg-[#121820] shadow-[0_0_20px_rgba(0,255,102,0.04)] transition-all">
+                        <div className="space-y-1 min-w-0">
+                          <Label className="text-[11px] font-medium text-gray-300">
+                            {mode === "cheque"
+                              ? "Cheque Number"
+                              : mode === "connectips"
+                              ? "Digital Txn / Ref No."
+                              : "Bank Reference / Txn No."}
+                          </Label>
+                          <Input
+                            value={chequeNo}
+                            onChange={(e) => setChequeNo(e.target.value)}
+                            placeholder={
+                              mode === "cheque"
+                                ? "e.g. CHQ-99104"
+                                : mode === "connectips"
+                                ? "e.g. TXN-881923"
+                                : "e.g. REF-44120"
+                            }
+                            className="h-10 text-xs font-mono bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/20"
+                          />
+                        </div>
+                        <div className="space-y-1 min-w-0 w-full">
+                          <Label className="text-[11px] font-medium text-gray-300">
+                            {mode === "connectips" ? "Digital Wallet / Channel" : "Bank Account Used"}
+                          </Label>
+                          <Select value={bankAccount} onValueChange={setBankAccount}>
+                            <SelectTrigger className="w-full min-w-0 h-10 text-xs font-mono bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400">
+                              <SelectValue placeholder="Select Bank / Channel" className="truncate" />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="tally">TallyPrime</SelectItem>
-                              <SelectItem value="swastik">Swastik ERP</SelectItem>
-                              <SelectItem value="other">General / Other</SelectItem>
+                            <SelectContent className="max-h-60 text-xs bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                              {mode === "connectips" ? (
+                                <>
+                                  <SelectItem value="connectIPS (NCHL)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">connectIPS (NCHL)</SelectItem>
+                                  <SelectItem value="eSewa Wallet" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">eSewa Wallet</SelectItem>
+                                  <SelectItem value="Khalti Digital Wallet" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Khalti Digital Wallet</SelectItem>
+                                  <SelectItem value="Corporate Mobile Banking" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Corporate Mobile Banking</SelectItem>
+                                </>
+                              ) : (
+                                <>
+                                  <SelectItem value="Nabil Bank Site A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Nabil Bank Site A/C</SelectItem>
+                                  <SelectItem value="Global IME Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Global IME Bank Ltd</SelectItem>
+                                  <SelectItem value="NIC Asia Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">NIC Asia Bank Ltd</SelectItem>
+                                  <SelectItem value="Rastriya Banijya Bank (RBB)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Rastriya Banijya Bank (RBB)</SelectItem>
+                                  <SelectItem value="Nepal Investment Mega Bank (NIMB)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Nepal Investment Mega Bank (NIMB)</SelectItem>
+                                  <SelectItem value="Prabhu Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Prabhu Bank Ltd</SelectItem>
+                                  <SelectItem value="Himalayan Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Himalayan Bank Ltd</SelectItem>
+                                  <SelectItem value="Siddhartha Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Siddhartha Bank Ltd</SelectItem>
+                                  <SelectItem value="Sanima Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Sanima Bank Ltd</SelectItem>
+                                  <SelectItem value="Everest Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Everest Bank Ltd</SelectItem>
+                                  <SelectItem value="Laxmi Sunrise Bank" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Laxmi Sunrise Bank</SelectItem>
+                                  <SelectItem value="Kumari Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Kumari Bank Ltd</SelectItem>
+                                  <SelectItem value="Prime Commercial Bank" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Prime Commercial Bank</SelectItem>
+                                  <SelectItem value="Agriculture Development Bank (ADBL)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">ADBL</SelectItem>
+                                  <SelectItem value="Main Operating Project A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Main Operating Project A/C</SelectItem>
+                                  <SelectItem value="Petty Cash Site A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Petty Cash Site A/C</SelectItem>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+                    )}
 
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Voucher Type</Label>
-                          <Select value={voucherType} onValueChange={(val: any) => setVoucherType(val)}>
-                            <SelectTrigger className="h-7 text-xs font-mono">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="payment">Payment (PV)</SelectItem>
-                              <SelectItem value="bank_payment">Bank Payment (BP)</SelectItem>
-                              <SelectItem value="cash_payment">Cash Payment (CP)</SelectItem>
-                              <SelectItem value="journal">Journal (JV)</SelectItem>
-                            </SelectContent>
-                          </Select>
+                    {/* Discreet Optional Details Toggle */}
+                    <div className="pt-1">
+                      {!showErpSync ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowErpSync(true)}
+                          className="text-xs text-gray-400 hover:text-emerald-400 flex items-center gap-1.5 transition font-medium"
+                        >
+                          <Plus className="h-3.5 w-3.5 text-emerald-400" /> Add TDS, Payment Voucher / Slip, or Notes (Optional)
+                        </button>
+                      ) : (
+                        <div className="space-y-3.5 p-4 rounded-2xl border border-emerald-500/20 bg-[#121820]/90">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-white">Additional Details & Attachments</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowErpSync(false)}
+                              className="text-[10px] text-gray-400 hover:text-white"
+                            >
+                              ✕ Close
+                            </button>
+                          </div>
+
+                          {/* TDS Withholding Section */}
+                          <div className="space-y-2 p-3 rounded-xl border border-emerald-500/20 bg-[#0c1015]">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-[11px] font-medium text-gray-300">
+                                TDS Withholding (कर कट्टी)
+                              </Label>
+                              {parseFloat(tds) > 0 && (
+                                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                                  Deduct: NPR {fmt(parseFloat(tds))}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {/* TDS Percentage with Quick Presets */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] text-gray-400">TDS Rate (%)</span>
+                                  <div className="flex items-center gap-1">
+                                    {[
+                                      { label: "1.5%", val: 1.5 },
+                                      { label: "10%", val: 10 },
+                                      { label: "15%", val: 15 },
+                                    ].map((preset) => (
+                                      <button
+                                        key={preset.val}
+                                        type="button"
+                                        onClick={() => {
+                                          setTdsPercent(preset.val.toString());
+                                          const gross = parseFloat(amount) || 0;
+                                          setTds(((gross * preset.val) / 100).toFixed(2));
+                                        }}
+                                        className={`px-2 py-0.5 text-[10px] font-mono rounded-lg border transition ${
+                                          tdsPercent === preset.val.toString()
+                                            ? "bg-[#00ff66] text-black font-bold border-[#00ff66] shadow-[0_0_8px_rgba(0,255,102,0.4)]"
+                                            : "bg-[#121820] border-white/10 text-gray-400 hover:text-white hover:border-white/20"
+                                        }`}
+                                      >
+                                        {preset.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={tdsPercent}
+                                    onChange={(e) => {
+                                      const p = e.target.value;
+                                      setTdsPercent(p);
+                                      const gross = parseFloat(amount) || 0;
+                                      const pVal = parseFloat(p) || 0;
+                                      setTds(pVal > 0 ? ((gross * pVal) / 100).toFixed(2) : "0");
+                                    }}
+                                    placeholder="e.g. 1.5"
+                                    className="h-9 text-xs font-mono bg-[#121820] text-white pr-6 rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                                  />
+                                  <span className="absolute right-2.5 top-2.5 text-[10px] text-gray-400 font-bold">%</span>
+                                </div>
+                              </div>
+
+                              {/* Direct TDS Amount (NPR) */}
+                              <div className="space-y-1">
+                                <span className="text-[10px] text-gray-400">TDS Amount (NPR)</span>
+                                <Input
+                                  type="number"
+                                  value={tds}
+                                  onChange={(e) => {
+                                    const a = e.target.value;
+                                    setTds(a);
+                                    const gross = parseFloat(amount) || 0;
+                                    const aVal = parseFloat(a) || 0;
+                                    if (gross > 0 && aVal > 0) {
+                                      setTdsPercent(((aVal / gross) * 100).toFixed(2));
+                                    } else {
+                                      setTdsPercent("");
+                                    }
+                                  }}
+                                  placeholder="0.00"
+                                  className="h-9 text-xs font-mono bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Upload Payment Voucher */}
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-gray-300">
+                              Upload Payment Voucher / Slip / Cheque
+                            </Label>
+                            <label className="flex items-center justify-center gap-2 h-10 px-3 border border-dashed border-emerald-500/40 rounded-xl cursor-pointer hover:bg-emerald-500/10 text-xs text-gray-300 hover:text-white transition">
+                              <Paperclip className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <span className="truncate">
+                                {fileName || "Attach signed voucher, cheque copy, or transfer slip (PDF/Image)"}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {/* Notes */}
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-gray-300">Narration / Notes (कैफियत)</Label>
+                            <Input
+                              value={notes}
+                              onChange={(e) => setNotes(e.target.value)}
+                              placeholder="e.g. Being payment disbursed for site expenses..."
+                              className="h-9 text-xs bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                            />
+                          </div>
                         </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Voucher No.</Label>
-                          <Input
-                            value={accountingVoucherNo}
-                            onChange={(e) => setAccountingVoucherNo(e.target.value)}
-                            placeholder="PV-2081-0104"
-                            className="h-7 text-xs font-mono font-bold"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Bank / Cash Account</Label>
-                          <Input
-                            value={bankAccount}
-                            onChange={(e) => setBankAccount(e.target.value)}
-                            placeholder="Nabil Bank Site A/C"
-                            className="h-7 text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Payment Mode, Cheque No, Notes & Scanned Copy */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Payment Mode</Label>
-                        <Select value={mode} onValueChange={(val: any) => setMode(val)}>
-                          <SelectTrigger className="h-8 text-xs font-mono">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                            <SelectItem value="connectips">connectIPS / Digital</SelectItem>
-                            <SelectItem value="cheque">Cheque</SelectItem>
-                            <SelectItem value="cash">Cash</SelectItem>
-                            <SelectItem value="mobile_pay">Mobile Pay</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Cheque / connectIPS Ref No.</Label>
-                        <Input
-                          value={chequeNo}
-                          onChange={(e) => setChequeNo(e.target.value)}
-                          placeholder="e.g. CHQ-99104"
-                          className="h-8 text-xs font-mono"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Scanned Voucher / Receipt</Label>
-                        <label className="flex items-center justify-center gap-1.5 h-8 px-2 border border-dashed rounded cursor-pointer hover:bg-muted/40 text-xs text-muted-foreground">
-                          <Paperclip className="h-3.5 w-3.5" />
-                          <span className="truncate">{fileName || "Attach Slip / Cheque"}</span>
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">Narration / Notes</Label>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Accounting narration or notes for payment voucher..."
-                        rows={2}
-                        className="text-xs"
-                      />
+                      )}
                     </div>
                   </div>
 
-                  <DialogFooter className="p-3 border-t bg-muted/10 flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="h-7 text-xs">
+                  {/* Sticky Footer with Glowing Pill Buttons */}
+                  <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5 bg-[#0c1015] shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAddOpen(false)}
+                      className="h-10 text-xs rounded-xl px-5 text-gray-400 hover:text-white hover:bg-white/5"
+                    >
                       Cancel
                     </Button>
                     <Button
                       size="sm"
                       onClick={handleRecordPayment}
                       disabled={createMut.isPending || !amount}
-                      className="h-7 text-xs px-5 font-bold"
+                      className="h-10 text-xs px-6 font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] shadow-[0_0_25px_rgba(0,255,102,0.4)] rounded-xl transition-all"
                     >
-                      {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Record Payment
+                      {createMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Record Payment
                     </Button>
-                  </DialogFooter>
+                  </div>
                 </DialogContent>
               </Dialog>
             </>

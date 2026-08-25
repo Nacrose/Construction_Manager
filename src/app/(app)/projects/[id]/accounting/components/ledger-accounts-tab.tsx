@@ -27,10 +27,11 @@ function fmt(n: number) {
 
 export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   const [searchAccount, setSearchAccount] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "suppliers" | "subcontractors" | "staff" | "bank_cash">("all");
   const [selectedAccount, setSelectedAccount] = useState<{
     id: string;
     name: string;
-    type: "vendor" | "subcontractor" | "bank" | "cash" | "expense_head";
+    type: "vendor" | "subcontractor" | "staff" | "bank" | "cash";
     group: string;
     pan?: string | null;
   } | null>(null);
@@ -41,8 +42,25 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
 
   const accounts = accountsData?.accounts || [];
 
-  // Default to first account if none selected
-  const activeAccount = selectedAccount || accounts[0] || null;
+  const filteredAccounts = accounts.filter((a) => {
+    // Category Filter
+    if (categoryFilter === "suppliers") {
+      if (a.type !== "vendor") return false;
+    } else if (categoryFilter === "subcontractors") {
+      if (a.type !== "subcontractor") return false;
+    } else if (categoryFilter === "staff") {
+      if (a.type !== "staff") return false;
+    } else if (categoryFilter === "bank_cash") {
+      if (a.type !== "bank" && a.type !== "cash") return false;
+    }
+
+    if (!searchAccount) return true;
+    const q = searchAccount.toLowerCase();
+    return a.name.toLowerCase().includes(q) || a.group.toLowerCase().includes(q) || a.pan?.includes(q);
+  });
+
+  // Default to first account if none selected or selected account is filtered out
+  const activeAccount = filteredAccounts.find((a) => a.id === selectedAccount?.id) || filteredAccounts[0] || null;
 
   const { data: statementData, isLoading: statementLoading } = trpc.accounting.ledgerStatement.useQuery(
     {
@@ -58,12 +76,6 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   const closingBalance = statementData?.closingBalance || 0;
   const totalDebit = statementData?.totalDebit || 0;
   const totalCredit = statementData?.totalCredit || 0;
-
-  const filteredAccounts = accounts.filter((a) => {
-    if (!searchAccount) return true;
-    const q = searchAccount.toLowerCase();
-    return a.name.toLowerCase().includes(q) || a.group.toLowerCase().includes(q) || a.pan?.includes(q);
-  });
 
   const handleExportStatement = () => {
     if (!activeAccount) return;
@@ -109,18 +121,82 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Left Pane: Ledger Accounts Directory */}
-      <div className="rounded-xl border bg-card p-3 space-y-3">
+      <div className="rounded-xl border border-white/10 bg-[#0c1015] p-3 space-y-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search party or account..."
-            className="pl-8 h-8 text-xs"
+            className="pl-8 h-8 text-xs bg-[#121820] text-white border-white/10"
             value={searchAccount}
             onChange={(e) => setSearchAccount(e.target.value)}
           />
         </div>
 
-        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
+        {/* Category Pill Filters */}
+        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-white/5 text-[11px] font-medium">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("all")}
+            className={cn(
+              "px-2.5 py-0.5 rounded-md transition",
+              categoryFilter === "all"
+                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            All Ledgers
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("suppliers")}
+            className={cn(
+              "px-2 py-0.5 rounded-md transition",
+              categoryFilter === "suppliers"
+                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            Suppliers
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("subcontractors")}
+            className={cn(
+              "px-2 py-0.5 rounded-md transition",
+              categoryFilter === "subcontractors"
+                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            Subs
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("staff")}
+            className={cn(
+              "px-2 py-0.5 rounded-md transition",
+              categoryFilter === "staff"
+                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            Staff
+          </button>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("bank_cash")}
+            className={cn(
+              "px-2 py-0.5 rounded-md transition",
+              categoryFilter === "bank_cash"
+                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            Bank/Cash
+          </button>
+        </div>
+
+        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
           {filteredAccounts.map((acc) => {
             const isSelected = activeAccount?.id === acc.id;
             return (

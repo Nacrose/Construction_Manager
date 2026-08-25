@@ -152,7 +152,7 @@ export function MaterialsTabHeader({
                 <ChevronRight className="h-2.5 w-2.5 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60 p-1.5 rounded-xl shadow-xl">
+            <DropdownMenuContent align="end" className="w-64 p-1.5 rounded-xl shadow-xl">
               <DropdownMenuLabel className="text-[11px] text-muted-foreground font-semibold px-2 py-1">
                 Stock & Procurement Actions
               </DropdownMenuLabel>
@@ -160,11 +160,11 @@ export function MaterialsTabHeader({
                 onClick={onOpenReceiveTxn}
                 className="cursor-pointer gap-2 text-xs py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium rounded-lg"
               >
-                <Plus className="h-4 w-4 text-emerald-600" />
+                <Truck className="h-4 w-4 text-emerald-500" />
                 <div>
-                  <div className="font-semibold text-foreground">Receive Stock (Inward)</div>
+                  <div className="font-semibold text-foreground">Log Material Delivery (दाखिला)</div>
                   <div className="text-[10px] text-muted-foreground">
-                    Log incoming material directly
+                    1-Click site drop &amp; auto-stock update
                   </div>
                 </div>
               </DropdownMenuItem>

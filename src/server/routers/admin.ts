@@ -117,6 +117,9 @@ export const adminRouter = router({
         name: z.string().min(1),
         code: z.string().optional(),
         status: z.string().default("active"),
+        orgScale: z.enum(["single_project_jv", "multi_project"]).default("multi_project"),
+        partnershipType: z.enum(["sole", "lead_partner_jv", "joint_jv"]).default("sole"),
+        financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).default("centralized"),
         // Optional initial org-admin account
         adminName: z.string().optional(),
         adminEmail: z.string().email().optional(),
@@ -126,7 +129,14 @@ export const adminRouter = router({
     .mutation(async ({ ctx, input }) => {
       const code = input.code?.trim() || (await generateOrgCode(input.name));
       const org = await db.organization.create({
-        data: { name: input.name, code, status: input.status },
+        data: {
+          name: input.name,
+          code,
+          status: input.status,
+          orgScale: input.orgScale,
+          partnershipType: input.partnershipType,
+          financeLocation: input.financeLocation,
+        },
       });
 
       // Seed default delegation rules for the new org
@@ -150,9 +160,29 @@ export const adminRouter = router({
           },
         });
         adminUser = { id: user.id, email: user.email };
+
+        // If single_project_jv, auto-create the primary project immediately
+        if (input.orgScale === "single_project_jv") {
+          const project = await db.project.create({
+            data: {
+              name: input.name,
+              code: `${code}-PRJ`,
+              organizationId: org.id,
+              createdById: user.id,
+              financeMode: "autonomous",
+            },
+          });
+          await db.projectMember.create({
+            data: {
+              projectId: project.id,
+              userId: user.id,
+              role: "project_manager",
+            },
+          });
+        }
       }
 
-      await audit({ userId: ctx.user.id, action: "admin.org.create", entityType: "organization", entityId: org.id, metadata: { name: org.name, code: org.code }, ...impersonationMeta(ctx) });
+      await audit({ userId: ctx.user.id, action: "admin.org.create", entityType: "organization", entityId: org.id, metadata: { name: org.name, code: org.code, orgScale: org.orgScale }, ...impersonationMeta(ctx) });
       return { org, adminUser };
     }),
 
@@ -163,6 +193,9 @@ export const adminRouter = router({
         name: z.string().min(1).optional(),
         status: z.string().optional(),
         logoUrl: z.string().optional(),
+        orgScale: z.enum(["single_project_jv", "multi_project"]).optional(),
+        partnershipType: z.enum(["sole", "lead_partner_jv", "joint_jv"]).optional(),
+        financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

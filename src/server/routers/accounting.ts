@@ -32,6 +32,8 @@ export const accountingRouter = router({
         source: "payment" | "vendor_bill" | "subcontractor_bill" | "ipc" | "site_expense";
         voucherNo: string;
         voucherType: string;
+        projectCode?: string;
+        projectName?: string;
         date: string;
         miti: string;
         accountHead: string;
@@ -44,6 +46,12 @@ export const accountingRouter = router({
         accountingSoftware?: string | null;
         scannedBillUrl?: string | null;
       }> = [];
+
+      // Fetch project info
+      const proj = await db.project.findUnique({
+        where: { id: input.projectId },
+        select: { code: true, name: true },
+      });
 
       // 1. Payments / Disbursements
       const payments = await db.payment.findMany({
@@ -79,6 +87,8 @@ export const accountingRouter = router({
           source: "payment",
           voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5).toUpperCase()}`,
           voucherType: (p.voucherType || "payment").toUpperCase(),
+          projectCode: proj?.code || "SITE",
+          projectName: proj?.name || "Project",
           date: p.paymentDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: p.category || "General Expense",
@@ -121,6 +131,8 @@ export const accountingRouter = router({
           source: "vendor_bill",
           voucherNo: b.billNumber,
           voucherType: "PURCHASE BILL",
+          projectCode: proj?.code || "SITE",
+          projectName: proj?.name || "Project",
           date: b.billDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: "Materials & Supplies",
@@ -163,6 +175,8 @@ export const accountingRouter = router({
           source: "subcontractor_bill",
           voucherNo: b.number,
           voucherType: "SUB BILL",
+          projectCode: proj?.code || "SITE",
+          projectName: proj?.name || "Project",
           date: b.billDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: "Subcontractor Work",
@@ -208,6 +222,8 @@ export const accountingRouter = router({
           source: "ipc",
           voucherNo: i.number,
           voucherType: isSubcontractor ? "SUB IPC" : "CLIENT IPC",
+          projectCode: proj?.code || "SITE",
+          projectName: proj?.name || "Project",
           date: entryDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: isSubcontractor ? "Subcontractor Work (IPC)" : "Project Revenue / IPC",
@@ -258,16 +274,17 @@ export const accountingRouter = router({
       };
     }),
 
-  /**
-   * Ledger Accounts List (खाता सूची)
-   * Retrieves all parties, banks, expense heads, and revenue accounts.
-   */
   ledgerAccounts: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      const [partners, subcontractors, categories] = await Promise.all([
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+
+      const [partners, subcontractors, members, equipmentVendors, orgBanks] = await Promise.all([
         db.partner.findMany({
           where: { projectId: input.projectId },
           select: { id: true, name: true, pan: true, phone: true },
@@ -278,14 +295,54 @@ export const accountingRouter = router({
           select: { id: true, name: true, pan: true, phone: true },
           orderBy: { name: "asc" },
         }),
-        db.paymentCategory.findMany({
+        db.projectMember.findMany({
           where: { projectId: input.projectId },
-          select: { id: true, name: true, nameNp: true, code: true },
+          include: { user: { select: { id: true, name: true, email: true } } },
+        }),
+        db.equipmentVendor.findMany({
+          where: { projectId: input.projectId },
+          select: { id: true, name: true, pan: true, phone: true },
           orderBy: { name: "asc" },
         }),
+        user.organizationId
+          ? db.companyBankAccount.findMany({
+              where: { organizationId: user.organizationId, status: "active" },
+              orderBy: { isDefault: "desc" },
+            })
+          : Promise.resolve([]),
       ]);
 
+      const bankAccountsList =
+        orgBanks.length > 0
+          ? orgBanks.map((b) => ({
+              id: b.id,
+              name: `${b.bankName} (${b.accountNumber})${b.branch ? ` - ${b.branch}` : ""}`,
+              type: (b.accountType === "petty_cash" ? "cash" : "bank") as "bank" | "cash",
+              group: b.accountType === "petty_cash" ? "Cash-inHand" : "Bank Accounts",
+              pan: null,
+              phone: null,
+            }))
+          : [
+              {
+                id: "bank_nabil",
+                name: "Nabil Bank Site A/C",
+                type: "bank" as const,
+                group: "Bank Accounts",
+                pan: null,
+                phone: null,
+              },
+              {
+                id: "cash_petty",
+                name: "Site Petty Cash",
+                type: "cash" as const,
+                group: "Cash-inHand",
+                pan: null,
+                phone: null,
+              },
+            ];
+
       const accounts = [
+        ...bankAccountsList,
         ...partners.map((p) => ({
           id: p.id,
           name: p.name,
@@ -294,36 +351,29 @@ export const accountingRouter = router({
           pan: p.pan,
           phone: p.phone,
         })),
+        ...equipmentVendors
+          .filter((ev) => !partners.some((p) => p.name.toLowerCase() === ev.name.toLowerCase()))
+          .map((ev) => ({
+            id: ev.id,
+            name: ev.name,
+            type: "vendor" as const,
+            group: "Sundry Creditors (Equipment Suppliers)",
+            pan: ev.pan,
+            phone: ev.phone,
+          })),
         ...subcontractors.map((s) => ({
           id: s.id,
           name: s.name,
           type: "subcontractor" as const,
-          group: "Sundry Creditors (Subcontractors)",
+          group: "Sundry Creditors (Subcontractors & Labor Teams)",
           pan: s.pan,
           phone: s.phone,
         })),
-        {
-          id: "bank_nabil",
-          name: "Nabil Bank Site A/C",
-          type: "bank" as const,
-          group: "Bank Accounts",
-          pan: null,
-          phone: null,
-        },
-        {
-          id: "cash_petty",
-          name: "Site Petty Cash",
-          type: "cash" as const,
-          group: "Cash-in-Hand",
-          pan: null,
-          phone: null,
-        },
-        ...categories.map((c) => ({
-          id: c.id,
-          name: c.name,
-          nameNp: c.nameNp,
-          type: "expense_head" as const,
-          group: "Direct Construction Costs",
+        ...members.map((m) => ({
+          id: m.user.id,
+          name: m.user.name || m.user.email,
+          type: "staff" as const,
+          group: "Sundry Creditors (Staff & Employees)",
           pan: null,
           phone: null,
         })),
@@ -341,7 +391,7 @@ export const accountingRouter = router({
       z.object({
         projectId: z.string(),
         accountId: z.string(),
-        accountType: z.enum(["vendor", "subcontractor", "bank", "cash", "expense_head"]),
+        accountType: z.enum(["vendor", "subcontractor", "staff", "bank", "cash", "expense_head"]),
         accountName: z.string().optional(),
         fromDate: z.string().optional(),
         toDate: z.string().optional(),
@@ -469,6 +519,59 @@ export const accountingRouter = router({
             voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5)}`,
             voucherType: "Payment Voucher",
             particulars: `Paid via ${p.paymentMode} ${p.chequeNo ? `(Cheque #${p.chequeNo})` : ""}`,
+            debit: p.amount,
+            credit: 0,
+            runningBalance: 0,
+          });
+        });
+      } else if (input.accountType === "staff") {
+        // Staff Member: Expense Claims/Bills are Credits, Reimbursements are Debits
+        const staffBills = await db.vatBill.findMany({
+          where: {
+            projectId: input.projectId,
+            partyName: { contains: input.accountName || "", mode: "insensitive" },
+          },
+          orderBy: { billDate: "asc" },
+        });
+
+        const payments = await db.payment.findMany({
+          where: {
+            projectId: input.projectId,
+            payeeName: { contains: input.accountName || "", mode: "insensitive" },
+          },
+          orderBy: { paymentDate: "asc" },
+        });
+
+        staffBills.forEach((b) => {
+          let miti = "";
+          try {
+            miti = adToBs(new Date(b.billDate)).formatted;
+          } catch {}
+          txns.push({
+            id: b.id,
+            date: b.billDate.toISOString(),
+            miti,
+            voucherNo: b.billNumber || `EXP-${b.id.slice(-5)}`,
+            voucherType: "Expense Claim",
+            particulars: `Approved Claim: ${b.description || b.category || "Site Expense"} (Amount: ${b.netPayable})`,
+            debit: 0,
+            credit: b.netPayable,
+            runningBalance: 0,
+          });
+        });
+
+        payments.forEach((p) => {
+          let miti = "";
+          try {
+            miti = adToBs(new Date(p.paymentDate)).formatted;
+          } catch {}
+          txns.push({
+            id: p.id,
+            date: p.paymentDate.toISOString(),
+            miti,
+            voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5)}`,
+            voucherType: "Reimbursement",
+            particulars: `Reimbursement via ${p.paymentMode} (${p.category})`,
             debit: p.amount,
             credit: 0,
             runningBalance: 0,
@@ -662,5 +765,44 @@ export const accountingRouter = router({
         difference,
         isBalanced: difference < 1.0,
       };
+    }),
+
+  /**
+   * Log Manual Journal / Inflow Entry (जर्नल भौचर / आम्दानी प्रविष्टि)
+   */
+  logJournalEntry: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        date: z.string(),
+        debitAccountId: z.string(),
+        creditAccountId: z.string(),
+        amount: z.number().positive(),
+        narration: z.string(),
+        source: z.string().default("manual"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
+
+      // Create Payment entry as Inflow / Receipt
+      const payment = await db.payment.create({
+        data: {
+          projectId: input.projectId,
+          amount: input.amount,
+          netPaid: input.amount,
+          paymentDate: new Date(input.date),
+          paymentMode: input.debitAccountId.includes("cash") ? "cash" : "bank_transfer",
+          payeeName: input.creditAccountId.includes("revenue") ? "Client Billing / Deposit" : "Direct Inflow",
+          payeeType: "other",
+          category: "Project Inflow / Capital",
+          notes: input.narration,
+          status: "paid",
+          accountingVoucherNo: `CR-${Date.now().toString().slice(-6)}`,
+          createdById: ctx.user.id,
+        },
+      });
+
+      return { success: true, paymentId: payment.id };
     }),
 });

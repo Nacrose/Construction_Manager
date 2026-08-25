@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Receipt,
   FileSpreadsheet,
@@ -22,12 +23,9 @@ import { MissingScansTab } from "./components/missing-scans-tab";
 import { LogVatBillDialog } from "./dialogs/log-vat-bill-dialog";
 
 const FIN_TABS = [
-  { label: "Payments", href: "/payments" },
-  { label: "Accounting & Day Book", href: "/accounting" },
-  { label: "IPC Certificates", href: "/ipc" },
-  { label: "Tax Summary & VAT Registers", href: "/tax-summary" },
-  { label: "Cash Flow", href: "/cash-flow" },
-  { label: "Budget vs Actual", href: "/budget-variance" },
+  { label: "Day Book & Cashbook", href: "/accounting" },
+  { label: "Parties & Payables", href: "/payments" },
+  { label: "Reports & Compliance", href: "/tax-summary" },
 ];
 
 export default function TaxSummaryPage({ params }: { params: Promise<{ id: string }> }) {
@@ -39,110 +37,92 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data: pData } = trpc.vatRegister.getPurchaseRegister.useQuery({ projectId: id });
   const { data: sData } = trpc.vatRegister.getSalesRegister.useQuery({ projectId: id });
-
   const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
   const missingCount = (pData?.totals.missingScansCount || 0) + (sData?.totals.missingScansCount || 0);
 
   return (
-    <AnimatedPage className="space-y-3 font-sans">
-      {/* Top Breadcrumb & Financial Module Sub-Tabs */}
-      <div className="flex flex-col gap-2">
-        <ModuleTabs projectId={id} tabs={FIN_TABS} />
+    <AnimatedPage className="space-y-2.5 font-sans">
+      <ModuleTabs projectId={id} tabs={FIN_TABS} />
 
-        {/* Page Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
-              Nepal Statutory Tax &amp; VAT Registers
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Official Anusuchi 8 (Purchase), Anusuchi 9 (Sales), and Anusuchi 10 (Return) ledgers compliant with Nepal IRD.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {canWrite && (
-              <Button
-                size="sm"
-                onClick={() => setLogDialogOpen(true)}
-                className="h-8 text-xs font-semibold gap-1.5 shadow-xs"
-              >
-                <Plus className="h-3.5 w-3.5" /> Log Direct VAT Bill
-              </Button>
+      {/* Ultra-Clean Single-Line Sub-Tab Switcher & Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-1">
+        <div className="flex items-center gap-1 text-xs font-semibold overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab("purchase")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
+              activeTab === "purchase"
+                ? "bg-[#141a23] text-emerald-400 border border-emerald-500/30 font-bold"
+                : "text-gray-400 hover:text-white"
             )}
-          </div>
-        </div>
-      </div>
+          >
+            <Layers className="h-3.5 w-3.5" />
+            खरिद खाता (Purchase Sch-8)
+            {pData?.rows.length ? (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-mono">
+                {pData.rows.length}
+              </span>
+            ) : null}
+          </button>
 
-      {/* Zero-Waste High-Density Sub-Tab Switcher */}
-      <div className="flex items-center gap-1 border-b pb-1 text-xs font-semibold overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab("purchase")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-            activeTab === "purchase"
-              ? "bg-primary text-primary-foreground font-bold shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          खरिद खाता (Purchase Register - Sch 8)
-          {pData?.rows.length ? (
-            <span className={`text-[10px] px-1 py-0.2 rounded-full ${activeTab === "purchase" ? "bg-primary-foreground/20 text-white" : "bg-muted text-muted-foreground"}`}>
-              {pData.rows.length}
-            </span>
-          ) : null}
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("sales")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
+              activeTab === "sales"
+                ? "bg-[#141a23] text-emerald-400 border border-emerald-500/30 font-bold"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            बिक्री खाता (Sales Sch-9)
+            {sData?.rows.length ? (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-mono">
+                {sData.rows.length}
+              </span>
+            ) : null}
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("sales")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-            activeTab === "sales"
-              ? "bg-primary text-primary-foreground font-bold shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <FileCheck className="h-3.5 w-3.5" />
-          बिक्री खाता (Sales Register - Sch 9)
-          {sData?.rows.length ? (
-            <span className={`text-[10px] px-1 py-0.2 rounded-full ${activeTab === "sales" ? "bg-primary-foreground/20 text-white" : "bg-muted text-muted-foreground"}`}>
-              {sData.rows.length}
-            </span>
-          ) : null}
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("vat_return")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
+              activeTab === "vat_return"
+                ? "bg-[#141a23] text-emerald-400 border border-emerald-500/30 font-bold"
+                : "text-gray-400 hover:text-white"
+            )}
+          >
+            <Scale className="h-3.5 w-3.5" />
+            अनुसूची १० (VAT Return)
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("vat_return")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-            activeTab === "vat_return"
-              ? "bg-primary text-primary-foreground font-bold shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Scale className="h-3.5 w-3.5" />
-          अनुसूची १० (VAT Return &amp; Reconciliation)
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("missing_scans")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors ${
-            activeTab === "missing_scans"
-              ? "bg-amber-600 text-white font-bold shadow-xs"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-          ⚠️ Missing Scans Audit
           {missingCount > 0 && (
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border-amber-300 ${activeTab === "missing_scans" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"}`}>
-              {missingCount}
-            </Badge>
+            <button
+              type="button"
+              onClick={() => setActiveTab("missing_scans")}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors text-amber-400 hover:bg-amber-500/10",
+                activeTab === "missing_scans" && "bg-amber-500/20 font-bold"
+              )}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Missing Scans ({missingCount})
+            </button>
           )}
-        </button>
+        </div>
+
+        {canWrite && (
+          <Button
+            size="sm"
+            onClick={() => setLogDialogOpen(true)}
+            className="h-8 px-3.5 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_15px_rgba(0,255,102,0.3)] transition gap-1.5"
+          >
+            <Plus className="h-3.5 w-3.5" /> + Log Direct VAT Bill
+          </Button>
+        )}
       </div>
 
       {/* Tab Panels */}

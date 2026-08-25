@@ -2,176 +2,145 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { trpc } from "@/lib/trpc-client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  CreditCard,
-  BookOpen,
-  Users,
-  Wallet,
-  Building,
-  TrendingUp,
-  ReceiptText,
-  Building2,
-  FileSpreadsheet,
-} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { OrgPayablesTab } from "./components/org-payables-tab";
-import { OrgDayBookTab } from "./components/org-day-book-tab";
-import { OrgPartyStatementTab } from "./components/org-party-statement-tab";
-import { OrgBanksTab } from "./components/org-banks-tab";
-import { OrgHeadOfficeTab } from "./components/org-head-office-tab";
+import { BookOpen, Users, Scale } from "lucide-react";
+import { DayBookTab } from "@/app/(app)/projects/[id]/accounting/components/day-book-tab";
+import { LedgerAccountsTab } from "@/app/(app)/projects/[id]/accounting/components/ledger-accounts-tab";
+import { TrialBalanceTab } from "@/app/(app)/projects/[id]/accounting/components/trial-balance-tab";
+import { trpc } from "@/lib/trpc-client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import PaymentsPage from "@/app/(app)/projects/[id]/payments/page";
+import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
+import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtShort(n: number) {
-  if (Math.abs(n) >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (Math.abs(n) >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  return `Rs. ${fmt(n)}`;
-}
-
-type FinanceTab = "payables" | "day-book" | "statements" | "banks" | "head-office";
-
-const TABS: { key: FinanceTab; label: string; labelNp: string; icon: any }[] = [
-  { key: "payables", label: "Consolidated Payables", labelNp: "बाँकी भुक्तानी", icon: CreditCard },
-  { key: "day-book", label: "Master Day Book", labelNp: "कम्पनी दैनिक खाता", icon: BookOpen },
-  { key: "statements", label: "Party Statements", labelNp: "केन्द्रीय खाता पाना", icon: Users },
-  { key: "banks", label: "Bank & Cash Accounts", labelNp: "बैंक तथा नगद", icon: Wallet },
-  { key: "head-office", label: "Head Office Expenses", labelNp: "मुख्यालय खर्च", icon: Building },
+export const FIN_TABS = [
+  { label: "Day Book & Cashbook", key: "accounting" },
+  { label: "Parties & Payables", key: "payments" },
+  { label: "Reports & Compliance", key: "tax-summary" },
 ];
 
 export default function OrganizationFinancePage() {
-  const [activeTab, setActiveTab] = useState<FinanceTab>("payables");
+  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "payments" | "tax-summary">("accounting");
+  const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance">("daybook");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
-  const { data: summary, isLoading } = trpc.finance.orgSummary.useQuery();
+  const { data: projectsData } = trpc.project.list.useQuery();
+  const projects = projectsData?.projects || [];
+
+  // Active project ID fallback to first project
+  const currentProjectId = selectedProjectId || projects[0]?.id || "";
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href="/dashboard" className="hover:text-foreground">
-              Dashboard
-            </Link>
-            <span>/</span>
-            <span>Finance & Accounts</span>
-          </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight">
-            Organization Financial Desk (कम्पनी केन्द्रीय वित्त तथा लेखा)
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Centralized supplier payables, master day book, company bank accounts & multi-project cheque settlements.
-          </p>
+    <div className="space-y-4 pb-8">
+      {/* 1. ModuleTabs Style Bar at Organization Level */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-1 rounded border border-border bg-card/90 p-1 w-fit max-w-full shadow-sm">
+          {FIN_TABS.map((tab) => {
+            const active = activeMainTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveMainTab(tab.key as any)}
+                className={cn(
+                  "rounded px-3 py-1 text-xs font-mono transition-all duration-150 shrink-0",
+                  active
+                    ? "bg-primary/15 text-primary border border-primary/40 font-semibold shadow-[0_0_8px_rgba(0,255,102,0.15)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Project Selector for Multi-Site Scoping */}
+        {projects.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-mono">Project:</span>
+            <Select value={currentProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger className="h-8 text-xs font-mono w-52 bg-[#121820] border-white/10 text-white rounded-lg">
+                <SelectValue placeholder="Select Project" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* Top Executive KPI Strip */}
-      {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {/* Total Liquid Balances */}
-          <Card className="shadow-sm border-l-4 border-l-primary bg-card">
-            <CardContent className="p-4 space-y-1">
-              <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                Company Cash & Bank Balance
-              </div>
-              <div className="text-xl font-bold font-mono text-foreground">
-                {fmtShort(summary?.totalCashBankBalance || 0)}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                {summary?.bankAccountsCount || 0} active accounts
-              </div>
-            </CardContent>
-          </Card>
+      {/* Tab 1: Day Book & Cashbook (renders exactly the project accounting tab views) */}
+      {activeMainTab === "accounting" && (
+        <div className="space-y-4">
+          {/* Compact Sub-Tabs Navigation */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-0">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setSubTab("daybook")}
+                className={cn(
+                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                  subTab === "daybook"
+                    ? "border-emerald-500 text-emerald-400 font-bold"
+                    : "border-transparent text-gray-400 hover:text-white"
+                )}
+              >
+                <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+                Day Book (रोजकट्टी)
+              </button>
 
-          {/* Total Accounts Payable */}
-          <Card className="shadow-sm border-l-4 border-l-amber-500 bg-card">
-            <CardContent className="p-4 space-y-1">
-              <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                Total Company Payables (तिर्न बाँकी)
-              </div>
-              <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
-                {fmtShort(summary?.totalPayables || 0)}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Vendors & subcontractors
-              </div>
-            </CardContent>
-          </Card>
+              <button
+                onClick={() => setSubTab("ledgers")}
+                className={cn(
+                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                  subTab === "ledgers"
+                    ? "border-emerald-500 text-emerald-400 font-bold"
+                    : "border-transparent text-gray-400 hover:text-white"
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Ledger Accounts (खाता सूची)
+              </button>
 
-          {/* Client Receivables */}
-          <Card className="shadow-sm border-l-4 border-l-blue-500 bg-card">
-            <CardContent className="p-4 space-y-1">
-              <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                Govt Client Receivables (उठ्न बाँकी)
-              </div>
-              <div className="text-xl font-bold font-mono text-foreground">
-                {fmtShort(summary?.totalClientReceivables || 0)}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                Certified IPC bills due
-              </div>
-            </CardContent>
-          </Card>
+              <button
+                onClick={() => setSubTab("trial_balance")}
+                className={cn(
+                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                  subTab === "trial_balance"
+                    ? "border-emerald-500 text-emerald-400 font-bold"
+                    : "border-transparent text-gray-400 hover:text-white"
+                )}
+              >
+                <Scale className="h-3.5 w-3.5" />
+                Trial Balance (वासलात)
+              </button>
+            </div>
+          </div>
 
-          {/* Active Sites */}
-          <Card className="shadow-sm border-l-4 border-l-slate-400 bg-card">
-            <CardContent className="p-4 space-y-1">
-              <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                TDS Withheld (कट्टी भएको कर)
-              </div>
-              <div className="text-xl font-bold font-mono text-foreground">
-                {fmtShort(summary?.totalTdsWithheld || 0)}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                1.5% TDS deposited / deducted
-              </div>
-            </CardContent>
-          </Card>
+          {currentProjectId && (
+            <>
+              {subTab === "daybook" && <DayBookTab projectId={currentProjectId} />}
+              {subTab === "ledgers" && <LedgerAccountsTab projectId={currentProjectId} />}
+              {subTab === "trial_balance" && <TrialBalanceTab projectId={currentProjectId} />}
+            </>
+          )}
         </div>
       )}
 
-      {/* Sub-Navigation Tabs */}
-      <div className="flex items-center gap-1.5 border-b overflow-x-auto pb-2">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
+      {/* Tab 2: Parties & Payables */}
+      {activeMainTab === "payments" && currentProjectId && (
+        <PaymentsPage params={Promise.resolve({ id: currentProjectId })} />
+      )}
 
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-              <span className="text-[10px] opacity-75 font-sans">({tab.labelNp})</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tab Panels */}
-      {activeTab === "payables" && <OrgPayablesTab />}
-      {activeTab === "day-book" && <OrgDayBookTab />}
-      {activeTab === "statements" && <OrgPartyStatementTab />}
-      {activeTab === "banks" && <OrgBanksTab />}
-      {activeTab === "head-office" && <OrgHeadOfficeTab />}
+      {/* Tab 3: Reports & Compliance */}
+      {activeMainTab === "tax-summary" && currentProjectId && (
+        <TaxSummaryPage params={Promise.resolve({ id: currentProjectId })} />
+      )}
     </div>
   );
 }

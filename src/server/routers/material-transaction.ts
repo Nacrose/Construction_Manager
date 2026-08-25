@@ -629,4 +629,321 @@ export const materialTransactionProcedures = {
         byMonth: Array.from(byMonthMap.values()).sort((a, b) => a.month.localeCompare(b.month)),
       };
     }),
+
+  /**
+   * Fast Direct Material Delivery Log (सामग्री दाखिला / रेकर्ड)
+   * Designed for contractors without warehouses/gatekeepers:
+   * 1. Finds or auto-creates Material on the target project.
+   * 2. Auto-increments project inventory stock immediately.
+   * 3. If credit: creates/updates vendor ledger (Bahi Khata).
+   * 4. If paid now: debits chosen company bank/cash account & logs voucher.
+   */
+  logDirectDelivery: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        materialName: z.string().min(1),
+        category: z.string().optional().nullable(),
+        subCategory: z.string().optional().nullable(),
+        company: z.string().optional().nullable(),
+        spec: z.string().optional().nullable(),
+        catalogMaterialId: z.string().optional().nullable(),
+        unit: z.string().default("pcs"),
+        quantity: z.number().positive(),
+        rate: z.number().nonnegative(),
+        totalAmount: z.number().nonnegative(),
+        date: z.string(), // ISO or YYYY-MM-DD
+        miti: z.string().optional(),
+        supplierName: z.string().min(1),
+        supplierPan: z.string().optional().nullable(),
+        // VAT & Tax specifications
+        isVatBill: z.boolean().default(false),
+        billStatus: z.enum(["received", "pending", "non_vat"]).default("pending"),
+        vatPercent: z.number().nonnegative().default(13),
+        vatAmount: z.number().nonnegative().default(0),
+        taxableAmount: z.number().nonnegative().optional(),
+        // TDS specifications (customizable %: 1.5%, 15%, etc.)
+        isTdsDeductible: z.boolean().default(false),
+        tdsPercent: z.number().nonnegative().default(1.5),
+        tdsAmount: z.number().nonnegative().default(0),
+        // Invoicing & Attachments
+        invoiceNumber: z.string().optional().nullable(),
+        challanNo: z.string().optional().nullable(),
+        fileUrl: z.string().optional().nullable(),
+        // Landing & Incidental Costs with independent payments & VAT option
+        transportationCost: z.number().nonnegative().default(0),
+        transportIsVat: z.boolean().default(false),
+        transportInvoiceNo: z.string().optional().nullable(),
+        transportFileUrl: z.string().optional().nullable(),
+        transportPaidStatus: z.enum(["credit", "paid_now"]).default("credit"),
+        transportBankAccountId: z.string().optional().nullable(),
+        loadingUnloadingCost: z.number().nonnegative().default(0),
+        incidentalCost: z.number().nonnegative().default(0),
+        incidentalPaidStatus: z.enum(["credit", "paid_now"]).default("credit"),
+        incidentalBankAccountId: z.string().optional().nullable(),
+        incidentalRemarks: z.string().optional().nullable(),
+        paymentStatus: z.enum(["credit", "paid_now"]).default("credit"),
+        bankAccountId: z.string().optional().nullable(),
+        remarks: z.string().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(input.projectId);
+
+      const targetDate = new Date(input.date);
+
+      return await db.$transaction(async (tx) => {
+        // Construct detailed formatted title if subCategory/spec/company provided
+        const fullDetails = [input.company, input.materialName, input.subCategory, input.spec]
+          .filter(Boolean)
+          .join(" ");
+
+        // 1. Find or auto-create material in project
+        let material = await tx.material.findFirst({
+          where: {
+            projectId: input.projectId,
+            OR: [
+              { name: { equals: input.materialName.trim(), mode: "insensitive" } },
+              { name: { equals: fullDetails.trim(), mode: "insensitive" } },
+            ],
+          },
+        });
+
+        if (!material) {
+          material = await tx.material.create({
+            data: {
+              projectId: input.projectId,
+              name: fullDetails.trim() || input.materialName.trim(),
+              code: `MAT-${Date.now().toString().slice(-4)}`,
+              category: input.category || null,
+              subCategory: input.subCategory || input.spec || null,
+              unit: input.unit,
+              catalogMaterialId: input.catalogMaterialId || null,
+              currentStock: 0,
+            },
+          });
+        }
+
+        // 2. Increment stock
+        const updatedMaterial = await tx.material.update({
+          where: { id: material.id },
+          data: {
+            currentStock: { increment: input.quantity },
+          },
+        });
+
+        // 3. Log Material Transaction
+        const taxableAmount = input.taxableAmount || (input.isVatBill ? input.totalAmount / (1 + input.vatPercent / 100) : input.totalAmount);
+        const vatAmount = input.isVatBill ? input.vatAmount || (input.totalAmount - taxableAmount) : 0;
+        const tdsAmount = input.isTdsDeductible ? input.tdsAmount || (taxableAmount * (input.tdsPercent / 100)) : 0;
+        const netPayable = input.totalAmount - tdsAmount;
+
+        const txn = await tx.materialTransaction.create({
+          data: {
+            projectId: input.projectId,
+            materialId: material.id,
+            type: "receive",
+            quantity: input.quantity,
+            unit: input.unit,
+            rate: input.rate,
+            date: targetDate,
+            reference: input.invoiceNumber ? `Invoice #${input.invoiceNumber}` : (input.challanNo ? `Challan #${input.challanNo}` : "Direct Site Delivery"),
+            remarks: input.remarks || `Direct delivery from ${input.supplierName}`,
+            supplierInvoiceNo: input.invoiceNumber || input.challanNo || null,
+            supplierPan: input.supplierPan || null,
+            vatPercent: input.isVatBill ? input.vatPercent : 0,
+            vatAmount,
+            tdsPercent: input.isTdsDeductible ? input.tdsPercent : 0,
+            tdsAmount,
+            totalWithVat: input.totalAmount,
+            netPayable,
+            paymentType: input.paymentStatus === "credit" ? "payable" : "unpayable",
+            createdById: ctx.user.id,
+          },
+        });
+
+        // 4. Find or create Vendor Partner
+        let partner = await tx.partner.findFirst({
+          where: {
+            projectId: input.projectId,
+            name: { equals: input.supplierName.trim(), mode: "insensitive" },
+          },
+        });
+
+        if (!partner) {
+          partner = await tx.partner.create({
+            data: {
+              projectId: input.projectId,
+              name: input.supplierName.trim(),
+              pan: input.supplierPan || null,
+              type: "material_supplier",
+            },
+          });
+        } else if (input.supplierPan && !partner.pan) {
+          await tx.partner.update({
+            where: { id: partner.id },
+            data: { pan: input.supplierPan },
+          });
+        }
+
+        // 5. Handle Material Payment vs Bahi Khata
+        if (input.paymentStatus === "paid_now" && input.bankAccountId) {
+          await tx.payment.create({
+            data: {
+              projectId: input.projectId,
+              paymentDate: targetDate,
+              paymentMiti: input.miti || null,
+              payeeType: "vendor",
+              payeeName: input.supplierName.trim(),
+              partyPan: input.supplierPan || partner?.pan || null,
+              amount: input.totalAmount,
+              tdsDeducted: tdsAmount,
+              vatIncluded: vatAmount,
+              netPaid: netPayable,
+              paymentMode: input.bankAccountId.includes("cash") ? "cash" : "bank_transfer",
+              bankAccount: input.bankAccountId,
+              notes: `Direct Material: ${input.quantity} ${input.unit} ${fullDetails || input.materialName} from ${input.supplierName}`,
+              invoiceNumber: input.invoiceNumber || input.challanNo || null,
+              scannedBillUrl: input.fileUrl || null,
+              isBillAttached: !!input.fileUrl,
+              createdById: ctx.user.id,
+            },
+          });
+
+          const compBank = await tx.companyBankAccount.findUnique({
+            where: { id: input.bankAccountId },
+          });
+          if (compBank) {
+            await tx.companyBankAccount.update({
+              where: { id: compBank.id },
+              data: { currentBalance: { decrement: netPayable } },
+            });
+          }
+        } else {
+          // Material is Credit / Due: Log VAT Bill / Payable with bill status
+          await tx.vatBill.create({
+            data: {
+              projectId: input.projectId,
+              billType: "purchase",
+              billNumber: input.invoiceNumber || input.challanNo || `MAT-DEL-${Date.now().toString().slice(-4)}`,
+              billDate: targetDate,
+              billMiti: input.miti || null,
+              partyName: input.supplierName.trim(),
+              partyPan: input.supplierPan || partner?.pan || "000000000",
+              taxableAmount: Math.round(taxableAmount * 100) / 100,
+              vatPercent: input.isVatBill ? input.vatPercent : 0,
+              vatAmount: Math.round(vatAmount * 100) / 100,
+              totalAmount: input.totalAmount,
+              tdsPercent: input.isTdsDeductible ? input.tdsPercent : 0,
+              tdsAmount: Math.round(tdsAmount * 100) / 100,
+              netPayable: Math.round(netPayable * 100) / 100,
+              category: "material",
+              materialTxnId: txn.id,
+              scannedBillUrl: input.fileUrl || null,
+              isBillAttached: input.billStatus === "received" && !!input.fileUrl,
+              description: `[${input.billStatus === "received" ? "VAT BILL" : input.billStatus === "pending" ? "BILL PENDING / CHALLAN" : "NON-VAT"}] ${input.quantity} ${input.unit} ${fullDetails || input.materialName}`,
+              createdById: ctx.user.id,
+            },
+          });
+        }
+
+        // 6. Handle Independent Transportation Payment if Paid Now
+        if (input.transportationCost > 0) {
+          if (input.transportPaidStatus === "paid_now" && input.transportBankAccountId) {
+            await tx.payment.create({
+              data: {
+                projectId: input.projectId,
+                paymentDate: targetDate,
+                paymentMiti: input.miti || null,
+                payeeType: "vendor",
+                payeeName: `Transportation (${input.supplierName.trim()})`,
+                amount: input.transportationCost,
+                netPaid: input.transportationCost,
+                vatIncluded: input.transportIsVat ? Math.round((input.transportationCost - input.transportationCost / 1.13) * 100) / 100 : 0,
+                invoiceNumber: input.transportInvoiceNo || null,
+                scannedBillUrl: input.transportFileUrl || null,
+                isBillAttached: !!input.transportFileUrl,
+                paymentMode: input.transportBankAccountId.includes("cash") ? "cash" : "bank_transfer",
+                bankAccount: input.transportBankAccountId,
+                notes: `Freight for ${input.quantity} ${input.unit} ${input.materialName}`,
+                createdById: ctx.user.id,
+              },
+            });
+
+            const tBank = await tx.companyBankAccount.findUnique({
+              where: { id: input.transportBankAccountId },
+            });
+            if (tBank) {
+              await tx.companyBankAccount.update({
+                where: { id: tBank.id },
+                data: { currentBalance: { decrement: input.transportationCost } },
+              });
+            }
+          } else if (input.transportIsVat) {
+            // Freight is VAT Bill on Credit
+            const tTaxable = input.transportationCost / 1.13;
+            const tVat = input.transportationCost - tTaxable;
+            await tx.vatBill.create({
+              data: {
+                projectId: input.projectId,
+                billType: "purchase",
+                billNumber: input.transportInvoiceNo || `FRT-${Date.now().toString().slice(-4)}`,
+                billDate: targetDate,
+                billMiti: input.miti || null,
+                partyName: `Freight (${input.supplierName.trim()})`,
+                partyPan: "000000000",
+                taxableAmount: Math.round(tTaxable * 100) / 100,
+                vatPercent: 13,
+                vatAmount: Math.round(tVat * 100) / 100,
+                totalAmount: input.transportationCost,
+                netPayable: input.transportationCost,
+                category: "other",
+                scannedBillUrl: input.transportFileUrl || null,
+                isBillAttached: !!input.transportFileUrl,
+                description: `[FREIGHT VAT BILL] Freight for ${input.quantity} ${input.unit} ${input.materialName}`,
+                createdById: ctx.user.id,
+              },
+            });
+          }
+        }
+
+        // 7. Handle Independent Incidental / Unloading Payment if Paid Now
+        const totalIncidental = input.incidentalCost + input.loadingUnloadingCost;
+        if (totalIncidental > 0 && input.incidentalPaidStatus === "paid_now" && input.incidentalBankAccountId) {
+          await tx.payment.create({
+            data: {
+              projectId: input.projectId,
+              paymentDate: targetDate,
+              paymentMiti: input.miti || null,
+              payeeType: "staff",
+              payeeName: "Site Unloading / Spot Labor",
+              amount: totalIncidental,
+              netPaid: totalIncidental,
+              paymentMode: input.incidentalBankAccountId.includes("cash") ? "cash" : "bank_transfer",
+              bankAccount: input.incidentalBankAccountId,
+              notes: `Unloading / Spot Expense: ${input.incidentalRemarks || "Material drop labor"}`,
+              createdById: ctx.user.id,
+            },
+          });
+
+          const iBank = await tx.companyBankAccount.findUnique({
+            where: { id: input.incidentalBankAccountId },
+          });
+          if (iBank) {
+            await tx.companyBankAccount.update({
+              where: { id: iBank.id },
+              data: { currentBalance: { decrement: totalIncidental } },
+            });
+          }
+        }
+
+        return {
+          success: true,
+          materialId: material.id,
+          txnId: txn.id,
+          currentStock: updatedMaterial.currentStock,
+        };
+      });
+    }),
 };

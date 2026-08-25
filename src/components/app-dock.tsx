@@ -37,6 +37,7 @@ type NavItem = {
 const TOP_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Inventory", href: "/inventory", icon: Boxes },
   { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
   { label: "Team", href: "/team", icon: Users },
   { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
@@ -54,7 +55,6 @@ const PROJECT_MODULES: NavItem[] = [
   { label: "Quality & Safety", href: "/quality", icon: ShieldCheck },
   { label: "Variation Orders", href: "/variations", icon: FileSignature },
   { label: "Resources", href: "/materials", icon: Boxes },
-  { label: "Financials", href: "/payments", icon: ReceiptText },
 ];
 
 const PROJECT_ADMIN_MODULES: NavItem[] = [

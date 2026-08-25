@@ -23,6 +23,7 @@ import { MaterialsOrdersTab } from "./components/materials-orders-tab";
 import { MaterialsGateTab, type GateEntry } from "./components/materials-gate-tab";
 import { MaterialsTransactionsTab } from "./components/materials-transactions-tab";
 import { MaterialsDialogs } from "./components/materials-dialogs";
+import { LogDirectMaterialDialog } from "@/components/materials/log-direct-material-dialog";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -46,6 +47,7 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   const [createReqOpen, setCreateReqOpen] = useState(false);
   const [createPOOpen, setCreatePOOpen] = useState(false);
   const [txnOpen, setTxnOpen] = useState(false);
+  const [directDeliveryOpen, setDirectDeliveryOpen] = useState(false);
   const [selectedPoForPrint, setSelectedPoForPrint] = useState<any | null>(null);
   const [poPrintOpen, setPoPrintOpen] = useState(false);
 
@@ -177,12 +179,7 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
             pendingGateCount={pendingGateCount}
             unpaidBillsCount={unpaidBillsCount}
             canWrite={canWrite}
-            onOpenReceiveTxn={() => {
-              setTxnDefaultMaterial("");
-              setTxnDefaultType("receive");
-              setTxnDefaultGateId("");
-              setTxnOpen(true);
-            }}
+            onOpenReceiveTxn={() => setDirectDeliveryOpen(true)}
             onOpenIssueTxn={() => {
               setTxnDefaultMaterial("");
               setTxnDefaultType("issue");
@@ -193,6 +190,13 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
             onOpenCreateReq={() => setCreateReqOpen(true)}
             onOpenCreatePO={() => setCreatePOOpen(true)}
             onOpenAddMaterial={() => setAddMaterialOpen(true)}
+          />
+
+          <LogDirectMaterialDialog
+            open={directDeliveryOpen}
+            onOpenChange={setDirectDeliveryOpen}
+            defaultProjectId={id}
+            onSuccess={() => utils.material.invalidate()}
           />
 
           {/* 1. INVENTORY DIRECTORY */}

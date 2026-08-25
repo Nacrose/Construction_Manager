@@ -576,7 +576,52 @@ const paymentRouter = router({
 
       const activeSubBills = subBills.filter((b) => b.netPayable > (b.paidAmount || 0) + 0.01);
 
-      // 3. Format unified payables list
+      // 3. Staff Expense Claims / Internal Payables (Logged as VatBill/Expense with pending balance)
+      const staffBills = await db.vatBill.findMany({
+        where: {
+          projectId: input.projectId,
+          category: { in: ["site_expense", "office_overhead", "food_mess", "travel_fuel", "staff_claim"] },
+        },
+        orderBy: { billDate: "desc" },
+      });
+
+      // Find matching payments for staff bills
+      const staffPayments = await db.payment.findMany({
+        where: {
+          projectId: input.projectId,
+        },
+        select: { payeeName: true, amount: true },
+      });
+
+      const staffPayables = staffBills.map((sb) => {
+        const totalPaidForStaff = staffPayments
+          .filter((sp) => sp.payeeName.toLowerCase().trim() === sb.partyName.toLowerCase().trim())
+          .reduce((sum, sp) => sum + sp.amount, 0);
+
+        return {
+          id: sb.id,
+          entityType: "staff" as const,
+          entityId: sb.id,
+          entityName: sb.partyName || "Site Staff",
+          entityPan: sb.partyPan || null,
+          entityPhone: null,
+          billNumber: sb.billNumber,
+          billDate: sb.billDate.toISOString(),
+          dueDate: null,
+          grossAmount: sb.totalAmount || sb.netPayable,
+          vatAmount: sb.vatAmount,
+          tdsAmount: sb.tdsAmount,
+          tdsPercent: sb.tdsPercent || 0,
+          netPayable: sb.netPayable,
+          paidAmount: 0,
+          balanceDue: sb.netPayable,
+          status: "pending",
+          poNumber: null,
+          category: "Staff Claim",
+        };
+      });
+
+      // 4. Format unified payables list
       const payables = [
         ...vendorBills.map((b) => ({
           id: b.id,
@@ -620,20 +665,24 @@ const paymentRouter = router({
           poNumber: null,
           category: "Subcontractor",
         })),
+        ...staffPayables,
       ];
 
       const totalVendorDue = vendorBills.reduce((sum, b) => sum + Math.max(0, b.netPayable - b.paidAmount), 0);
       const totalSubcontractorDue = activeSubBills.reduce((sum, b) => sum + Math.max(0, b.netPayable - (b.paidAmount || 0)), 0);
-      const totalDue = totalVendorDue + totalSubcontractorDue;
+      const totalStaffDue = staffPayables.reduce((sum, b) => sum + b.balanceDue, 0);
+      const totalDue = totalVendorDue + totalSubcontractorDue + totalStaffDue;
 
       return {
         payables,
         summary: {
           totalVendorDue,
           totalSubcontractorDue,
+          totalStaffDue,
           totalDue,
           vendorBillsCount: vendorBills.length,
           subBillsCount: activeSubBills.length,
+          staffBillsCount: staffPayables.length,
           totalCount: payables.length,
         },
       };

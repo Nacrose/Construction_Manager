@@ -29,7 +29,7 @@ function fmt(n: number) {
 interface OutstandingPayablesTabProps {
   projectId: string;
   onPayNow: (payable: {
-    entityType: "vendor" | "subcontractor";
+    entityType: "vendor" | "subcontractor" | "staff";
     entityId: string;
     entityName: string;
     entityPan?: string | null;
@@ -41,7 +41,7 @@ interface OutstandingPayablesTabProps {
 }
 
 export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayablesTabProps) {
-  const [filterType, setFilterType] = useState<"all" | "vendor" | "subcontractor">("all");
+  const [filterType, setFilterType] = useState<"all" | "vendor" | "subcontractor" | "staff">("all");
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = trpc.projectOps.payment.outstandingPayables.useQuery({ projectId });

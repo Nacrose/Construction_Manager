@@ -55,7 +55,10 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   // ── Core (cannot be disabled) ─────────────────────────────────
   { key: "dashboard",       label: "Dashboard",                core: true,  group: "Core",                description: "Project overview, costs & activity feed" },
   { key: "boq",             label: "BOQ & Rate Analysis",      core: true,  group: "Core",                description: "Bill of Quantities & rate analysis library" },
-  { key: "payments",        label: "Payments",                 core: true,  group: "Core",                description: "Payment ledger, categories & outstanding balances" },
+
+  // ── Financial Management ──────────────────────────────────────
+  { key: "payments",        label: "Site Payables & Bahi Khata", core: false, group: "Core",              description: "Site vendor ledgers, party claims & outstanding balances" },
+  { key: "accounting",      label: "Site Day Book & Cashbook", core: false, group: "Core",                description: "Day Book (रोजकट्टी), Site Cash Inflow/Outflow & Vouchers" },
 
   // ── Contract Management ───────────────────────────────────────
   { key: "guarantees",      label: "Bank Guarantees & Insurance", core: false, group: "Contract Management", description: "Performance Bonds, APG, CAR Insurance & Expiry alerts" },
@@ -86,7 +89,6 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
 
   // ── Advanced ──────────────────────────────────────────────────
   { key: "production",      label: "Plant & Production",       core: false, group: "Advanced",            description: "Concrete & asphalt batching, mix JMF & batch tickets" },
-  { key: "accounting",      label: "Accounting Module",        core: false, group: "Advanced",            description: "Day Book, Party Ledger, Trial Balance & P&L (coming soon)" },
 ];
 
 // ── Preset Templates ─────────────────────────────────────────────

@@ -33,9 +33,32 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = LoginSchema.parse(body);
 
-    const user = await db.user.findUnique({
+    let user = await db.user.findUnique({
       where: { email: data.email },
     });
+
+    // Vercel / Environment Auto-Provisioning:
+    // If user doesn't exist but matches SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD from Vercel environment vars,
+    // automatically provision the superadmin JIT (Just-In-Time) securely.
+    const envSuperEmail = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
+    const envSuperPassword = process.env.SUPERADMIN_PASSWORD;
+    const envSuperName = process.env.SUPERADMIN_NAME || "Platform Administrator";
+
+    if (!user && envSuperEmail && envSuperPassword && data.email === envSuperEmail && data.password === envSuperPassword) {
+      const passwordHash = await bcrypt.hash(envSuperPassword, 12);
+      user = await db.user.create({
+        data: {
+          email: envSuperEmail,
+          name: envSuperName,
+          passwordHash,
+          role: "project_manager",
+          isSuperAdmin: true,
+          orgRole: "org_admin",
+        },
+      });
+      console.log(`[admin-login] JIT provisioned superadmin from Vercel env: ${user.email}`);
+    }
+
     if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) {
       return badRequest("Invalid email or password.");
     }

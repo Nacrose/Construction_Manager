@@ -142,6 +142,65 @@ export const catalogV2Router = router({
       return { materials };
     }),
 
+  /** Get catalog 3-tier hierarchy (Categories -> Subcategories -> Specs/Items) */
+  getCatalogTaxonomy: protectedProcedure
+    .input(
+      z.object({
+        scope: z.enum(["global", "org", "project"]).default("global"),
+        projectId: z.string().optional(),
+        organizationId: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const where: any = { isActive: true };
+      if (input.scope === "global") {
+        where.scope = "global";
+      } else if (input.scope === "org") {
+        const orgId = input.organizationId ?? ctx.user.organizationId;
+        where.organizationId = orgId;
+      } else if (input.scope === "project" && input.projectId) {
+        where.projectId = input.projectId;
+      }
+
+      const items = await db.catalogMaterial.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          subCategory: true,
+          defaultUnit: true,
+          defaultRate: true,
+        },
+        orderBy: [{ category: "asc" }, { subCategory: "asc" }, { name: "asc" }],
+      });
+
+      // Build hierarchical tree:
+      // Tier 1: Category (e.g. "Cement", "Steel & Reinforcement", "Aggregates & Sand")
+      // Tier 2: Material Name (e.g. "Ordinary Portland Cement (OPC)", "Pozzolana Portland Cement (PPC)", "TMT Steel Bar")
+      // Tier 3: Specification / Grade (e.g. "53 Grade", "43 Grade", "12mm dia", "20mm down")
+      const categoriesMap: Record<string, Record<string, Array<{ id: string; name: string; spec: string; unit: string; rate: number }>>> = {};
+
+      for (const item of items) {
+        const cat = item.category || "General Materials";
+        const matName = item.name || "Standard Material";
+        const specName = item.subCategory || item.name;
+
+        if (!categoriesMap[cat]) categoriesMap[cat] = {};
+        if (!categoriesMap[cat][matName]) categoriesMap[cat][matName] = [];
+
+        categoriesMap[cat][matName].push({
+          id: item.id,
+          name: matName,
+          spec: specName,
+          unit: item.defaultUnit || "pcs",
+          rate: item.defaultRate || 0,
+        });
+      }
+
+      return { taxonomy: categoriesMap };
+    }),
+
   /** Get a single material with its rate entries */
   getMaterial: protectedProcedure
     .input(z.object({ id: z.string() }))

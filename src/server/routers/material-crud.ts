@@ -212,4 +212,77 @@ export const materialCrudProcedures = {
 
       return { ok: true, count: items.length };
     }),
+
+  /**
+   * List Multi-Project Stock Inventory across all organization projects
+   */
+  listOrgInventory: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string().optional(),
+        search: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const user = await db.user.findUnique({
+        where: { id: ctx.user.id },
+        select: { organizationId: true, role: true },
+      });
+
+      if (!user?.organizationId) {
+        return { inventory: [], projects: [] };
+      }
+
+      const where: any = {
+        project: { organizationId: user.organizationId },
+        resourceType: "material",
+      };
+
+      if (input.projectId && input.projectId !== "all") {
+        where.projectId = input.projectId;
+      }
+
+      if (input.search?.trim()) {
+        where.name = { contains: input.search.trim(), mode: "insensitive" };
+      }
+
+      const [materials, projects] = await Promise.all([
+        db.material.findMany({
+          where,
+          include: {
+            project: { select: { id: true, name: true, code: true } },
+            transactions: {
+              take: 1,
+              orderBy: { date: "desc" },
+              select: { date: true, rate: true },
+            },
+          },
+          orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
+        }),
+        db.project.findMany({
+          where: { organizationId: user.organizationId, status: "active" },
+          select: { id: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        }),
+      ]);
+
+      const inventory = materials.map((m) => ({
+        id: m.id,
+        name: m.name,
+        code: m.code,
+        category: m.category || "General Materials",
+        subCategory: m.subCategory || "",
+        unit: m.unit,
+        currentStock: m.currentStock,
+        minStock: m.minStock,
+        reorderLevel: m.reorderLevel,
+        projectId: m.projectId,
+        projectName: m.project.name,
+        projectCode: m.project.code,
+        lastRate: m.transactions[0]?.rate ?? 0,
+        lastDeliveredDate: m.transactions[0]?.date ?? null,
+      }));
+
+      return { inventory, projects };
+    }),
 };

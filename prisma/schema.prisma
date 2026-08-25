@@ -41,6 +41,10 @@ model Organization {
   code      String   @unique
   logoUrl   String?
   status    String   @default("active") // active | archived
+  // Setup Wizard & Operating Model Fields
+  orgScale        String   @default("multi_project") // "single_project_jv" | "multi_project"
+  partnershipType String   @default("sole")          // "sole" | "lead_partner_jv" | "joint_jv"
+  financeLocation String   @default("centralized")   // "centralized" | "site_autonomous" | "imprest_only"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -454,6 +458,7 @@ model Project {
   rateBooks            RateBook[]
   activeFiscalYear     String?
   rateLockDate         DateTime?
+  financeMode          String    @default("autonomous") // "lean" | "imprest_only" | "autonomous"
   enabledModules       Json      @default("{}")  // per-project module toggle map; missing key = enabled
   marketRateRevisions  MarketRateRevisionLog[]
   plants               Plant[]

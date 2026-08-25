@@ -26,6 +26,8 @@ import { getToken, clearAuth, fetchWithAuth } from "@/lib/client-auth";
 import { SiteTelemetryTicker } from "@/components/site-telemetry-ticker";
 import { CommandPalette } from "@/components/command-palette";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { useUserPreferences } from "@/components/user-preferences-provider";
+import type { DockPosition } from "@/components/app-dock";
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -109,6 +111,21 @@ export function AppGuard({ children }: { children: ReactNode }) {
     return null;
   }
 
+  const { getPref } = useUserPreferences();
+  const dockPosition = getPref<DockPosition>("dockPosition", "bottom");
+  const dockAutoHide = getPref<boolean>("dockAutoHide", false);
+
+  // When auto-hide is off, allocate gutter so the dock never overlays main content
+  const dockPadding = dockAutoHide
+    ? "pb-24"
+    : dockPosition === "left"
+    ? "pl-20 sm:pl-24 pr-3 sm:pr-5 lg:pr-6 pb-12"
+    : dockPosition === "right"
+    ? "pr-20 sm:pr-24 pl-3 sm:pl-5 lg:pl-6 pb-12"
+    : dockPosition === "top"
+    ? "pt-20 px-3 sm:px-5 lg:px-6 pb-12"
+    : "px-3 sm:px-5 lg:px-6 pb-24";
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-transparent relative z-10">
       {/* Top Telemetry & Status Ticker */}
@@ -122,7 +139,7 @@ export function AppGuard({ children }: { children: ReactNode }) {
 
       {/* Full-screen scrollable content area */}
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1920px] px-3 sm:px-5 lg:px-6 py-4 pb-24">
+        <div className={`mx-auto w-full max-w-[1920px] py-4 ${dockPadding}`}>
           {children}
         </div>
       </main>

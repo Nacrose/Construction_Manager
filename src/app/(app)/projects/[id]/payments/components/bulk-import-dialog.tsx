@@ -27,7 +27,7 @@ import { toast } from "sonner";
 interface ParsedPaymentRow {
   payeeName: string;
   partyPan?: string;
-  payeeType: string;
+  payeeType: "vendor" | "subcontractor" | "supplier" | "staff" | "other";
   category?: string;
   subCategory?: string;
   amount: number;

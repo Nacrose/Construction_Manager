@@ -1,11 +1,48 @@
-// Seed DoR norms as global presets.
-// Run with: npm run db:seed
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { DOR_PRESETS } from "../src/lib/dor-norms-data";
 
 const db = new PrismaClient();
 
+async function seedSuperAdmin() {
+  const superAdminEmail = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
+  const superAdminPassword = process.env.SUPERADMIN_PASSWORD;
+  const superAdminName = process.env.SUPERADMIN_NAME || "Platform Administrator";
+
+  if (!superAdminEmail || !superAdminPassword) {
+    console.log("ℹ️ No SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD in environment. Skipping superadmin provisioning.");
+    return;
+  }
+
+  const existing = await db.user.findFirst({
+    where: { OR: [{ email: superAdminEmail }, { isSuperAdmin: true }] },
+  });
+
+  if (existing) {
+    console.log(`✓ Superadmin account already exists (${existing.email}).`);
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(superAdminPassword, 12);
+  const user = await db.user.create({
+    data: {
+      email: superAdminEmail,
+      name: superAdminName,
+      passwordHash,
+      role: "project_manager",
+      isSuperAdmin: true,
+      orgRole: "org_admin",
+    },
+  });
+
+  console.log(`✅ Platform Superadmin created: ${user.email} (${user.name})`);
+}
+
 async function main() {
+  // 1. Provision Superadmin from Vercel / Environment variables
+  await seedSuperAdmin();
+
+  // 2. Seed DoR Norms
   const existingCount = await db.globalPresetAnalysis.count({
     where: { source: "DoR 2075" },
   });
