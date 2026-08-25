@@ -72,7 +72,7 @@ export default function AdminOrganizations() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> New Organization</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-5xl w-[92vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
+          <DialogContent className="!max-w-5xl sm:!max-w-5xl md:!max-w-6xl w-[95vw] max-h-[85vh] overflow-y-auto border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
             <DialogHeader className="pb-3 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <div>
@@ -168,7 +168,7 @@ export default function AdminOrganizations() {
       </Card>
 
       <Dialog open={!!editOrg} onOpenChange={(o) => !o && setEditOrg(null)}>
-        <DialogContent className="max-w-5xl w-[92vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
+        <DialogContent className="!max-w-5xl sm:!max-w-5xl md:!max-w-6xl w-[95vw] max-h-[85vh] overflow-y-auto border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
           <DialogHeader className="pb-3 border-b border-white/10">
             <DialogTitle className="text-lg font-bold tracking-tight text-white">Edit Organization Profile</DialogTitle>
           </DialogHeader>
