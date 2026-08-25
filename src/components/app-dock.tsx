@@ -198,9 +198,10 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
     window.location.href = "/login";
   }
 
-  const adminItem: NavItem | null = user?.isSuperAdmin
-    ? { label: "Admin", href: "/admin", icon: ShieldAlert }
-    : null;
+  const adminItem: NavItem | null =
+    user?.isSuperAdmin || user?.sessionKind === "admin"
+      ? { label: "Platform Admin", href: "/admin", icon: ShieldAlert }
+      : null;
 
   const navItems: NavItem[] = projectId
     ? [
@@ -474,11 +475,18 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
               <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-xs text-muted-foreground capitalize">
-              {user?.role?.replace("_", " ")}
-            </DropdownMenuItem>
+            {(user?.isSuperAdmin || user?.sessionKind === "admin") && (
+              <>
+                <DropdownMenuSeparator />
+                <Link href="/admin">
+                  <DropdownMenuItem className="gap-2 text-amber-400 focus:text-amber-300 font-semibold cursor-pointer">
+                    <ShieldAlert className="h-4 w-4" /> Platform Admin Console
+                  </DropdownMenuItem>
+                </Link>
+              </>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" onClick={logout}>
+            <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive cursor-pointer" onClick={logout}>
               <LogOut className="h-4 w-4" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
