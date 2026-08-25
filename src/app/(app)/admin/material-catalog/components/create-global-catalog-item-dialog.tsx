@@ -67,7 +67,7 @@ export function CreateGlobalCatalogItemDialog({
   }, [availableCategories]);
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Road Works");
+  const [category, setCategory] = useState("Custom");
   const [customCategory, setCustomCategory] = useState("");
   const [spec, setSpec] = useState("");
   const [defaultUnit, setDefaultUnit] = useState("cum");
@@ -78,6 +78,8 @@ export function CreateGlobalCatalogItemDialog({
   useEffect(() => {
     if (categoryOptions.length > 0 && !categoryOptions.includes(category) && category !== "Custom") {
       setCategory(categoryOptions[0]);
+    } else if (categoryOptions.length === 0) {
+      setCategory("Custom");
     }
   }, [categoryOptions]);
 

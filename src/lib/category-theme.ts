@@ -1,24 +1,6 @@
-export const STANDARD_CATEGORIES = [
-  "Road Works",
-  "Cement",
-  "Aggregate",
-  "Steel",
-  "Masonry",
-  "Timber",
-  "Tiles",
-  "Finishes",
-  "Plumbing",
-  "Electrical",
-  "Waterproofing",
-  "Chemicals",
-  "Consumables",
-  "Hydropower & Tunneling",
-  "Labor",
-  "Equipment",
-  "General Hardware",
-] as const;
+export const STANDARD_CATEGORIES = [] as const;
 
-export type StandardCategory = (typeof STANDARD_CATEGORIES)[number];
+export type StandardCategory = string;
 
 export interface CategoryTheme {
   name: string;
