@@ -213,7 +213,7 @@ const OPERATING_MODELS = [
     id: "centralized",
     title: "1. HQ-Centralized Imprest",
     subtitle: "केन्द्रीय खरिद र लेखा",
-    finance: "HQ controls all bank payouts. Site gets petty cash (₹25,000 max) for daily site mess.",
+    finance: "HQ controls all bank payouts. Site gets petty cash advance for daily tea/mess.",
     inventory: "HQ contracts all cement/steel in bulk. Site only receives & verifies delivery challans.",
   },
   {
