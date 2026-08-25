@@ -83,6 +83,21 @@ export async function POST(req: NextRequest) {
     // Short-lived, kind-tagged admin session.
     const token = await createAdminSession(user.id);
 
+    // Set cookie for proxy/middleware navigation
+    try {
+      const { cookies } = await import("next/headers");
+      const store = await cookies();
+      store.set("cf_session", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60, // 1 hour
+      });
+    } catch {
+      // cookies() not available in some contexts
+    }
+
     return ok({
       user: {
         id: user.id,
