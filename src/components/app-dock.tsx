@@ -323,140 +323,16 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
 
         <DockDivider position={position} />
 
-        {/* Settings */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex h-12 w-12 items-center justify-center rounded-2xl hover:bg-white/10 transition-colors group">
-              <Settings className="h-5 w-5 text-white/60 group-hover:text-white transition-colors" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side={tooltipSide} align="center" className="w-52">
-            <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">Dock Position</DropdownMenuLabel>
-            {(["bottom", "top", "left", "right"] as DockPosition[]).map((pos) => {
-              const icons: Record<DockPosition, React.ReactNode> = {
-                bottom: <span className="text-base">⬇</span>,
-                top: <span className="text-base">⬆</span>,
-                left: <span className="text-base">⬅</span>,
-                right: <span className="text-base">➡</span>,
-              };
-              return (
-                <DropdownMenuItem
-                  key={pos}
-                  onClick={() => setPref("dockPosition", pos)}
-                  className={cn("gap-2 capitalize", position === pos && "bg-accent font-semibold")}
-                >
-                  {icons[pos]} {pos}
-                  {position === pos && <span className="ml-auto text-primary text-xs">✓</span>}
-                </DropdownMenuItem>
-              );
-            })}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider font-mono">Calendar System</DropdownMenuLabel>
-            {[
-              { id: "BS", label: "Nepali (Bikram Sambat)", sub: "Default" },
-              { id: "DUAL", label: "Dual (BS + AD)", sub: "Dual" },
-              { id: "AD", label: "Gregorian (AD)", sub: "AD" },
-            ].map((cal) => {
-              const currentCal = getPref<string>("calendarType", "BS");
-              const isSelected = currentCal === cal.id;
-              return (
-                <DropdownMenuItem
-                  key={cal.id}
-                  onClick={() => setPref("calendarType", cal.id)}
-                  className={cn("gap-2 text-xs", isSelected && "bg-accent font-semibold text-primary")}
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  <span>{cal.label}</span>
-                  {isSelected && <span className="ml-auto text-primary text-xs font-bold">✓</span>}
-                </DropdownMenuItem>
-              );
-            })}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-primary font-mono uppercase tracking-wider flex items-center justify-between">
-              <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Atmospheric FX</span>
-              <button
-                onClick={() => setFxDialogOpen(true)}
-                className="text-[10px] text-primary hover:underline font-bold"
-              >
-                OPEN SLIDERS ↗
-              </button>
-            </DropdownMenuLabel>
-            
-            <DropdownMenuItem onClick={() => fx.setMatrixRain(!fx.matrixRainEnabled)} className="gap-2 font-mono text-xs">
-              <Terminal className="h-4 w-4 text-emerald-400" />
-              Matrix Stream
-              <span className={cn("ml-auto text-[10px] font-bold rounded px-1.5 py-0.5",
-                fx.matrixRainEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {fx.matrixRainEnabled ? "ON" : "OFF"}
-              </span>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={() => fx.setWaterDroplets(!fx.waterDropletsEnabled)} className="gap-2 font-mono text-xs">
-              <CloudRain className="h-4 w-4 text-emerald-400" />
-              Glass Droplets ({fx.dropletCount})
-              <span className={cn("ml-auto text-[10px] font-bold rounded px-1.5 py-0.5",
-                fx.waterDropletsEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {fx.waterDropletsEnabled ? "ON" : "OFF"}
-              </span>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={() => fx.setStormWind(!fx.stormWindEnabled)} className="gap-2 font-mono text-xs">
-              <Wind className="h-4 w-4 text-emerald-400" />
-              Storm Wind Streaks
-              <span className={cn("ml-auto text-[10px] font-bold rounded px-1.5 py-0.5",
-                fx.stormWindEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {fx.stormWindEnabled ? "ON" : "OFF"}
-              </span>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={() => fx.setLightning(!fx.lightningEnabled)} className="gap-2 font-mono text-xs">
-              <Zap className="h-4 w-4 text-emerald-400" />
-              Lightning Simulator
-              <span className={cn("ml-auto text-[10px] font-bold rounded px-1.5 py-0.5",
-                fx.lightningEnabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {fx.lightningEnabled ? "ON" : "OFF"}
-              </span>
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={() => setFxDialogOpen(true)} className="gap-2 font-mono text-xs text-primary font-bold bg-primary/10 hover:bg-primary/20">
-              <Sparkles className="h-4 w-4" />
-              FX SLIDERS & AUDIO CONTROLS…
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider font-mono flex items-center justify-between">
-              <span>Glass Transparency</span>
-              <span className="text-primary font-bold">{Math.round(fx.panelOpacity * 100)}%</span>
-            </DropdownMenuLabel>
-            <div className="px-2 py-1">
-              <input
-                type="range"
-                min="30"
-                max="100"
-                step="1"
-                value={Math.round(fx.panelOpacity * 100)}
-                onChange={(e) => fx.setPanelOpacity(Number(e.target.value) / 100)}
-                className="w-full h-1.5 bg-muted-foreground/30 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-            </div>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider font-mono">Behavior</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => setPref("dockAutoHide", !autoHide)} className="gap-2 font-mono text-xs">
-              <EyeOff className="h-4 w-4" />
-              Auto-hide
-              <span className={cn("ml-auto text-[10px] font-bold rounded px-1.5 py-0.5",
-                autoHide ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-              )}>
-                {autoHide ? "ON" : "OFF"}
-              </span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Settings as a standard clean Tab */}
+        <DockIcon
+          item={{ label: "Settings", href: "/settings", icon: Settings }}
+          active={pathname === "/settings"}
+          position={position}
+          mousePos={mousePos}
+          iconRef={() => {}}
+          onNavigate={onNavigate}
+          tooltipSide={tooltipSide}
+        />
 
         {/* User avatar */}
         <DropdownMenu>
