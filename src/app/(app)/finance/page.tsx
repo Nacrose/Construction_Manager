@@ -75,8 +75,28 @@ export default function OrganizationFinancePage() {
         )}
       </div>
 
+      {/* Empty State when Organization has no projects yet */}
+      {projects.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 my-4 space-y-4">
+          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_16px_rgba(0,255,102,0.15)]">
+            <BookOpen className="h-6 w-6" />
+          </div>
+          <div className="space-y-1 max-w-sm">
+            <h3 className="text-base font-bold text-white">No Projects Created Yet</h3>
+            <p className="text-xs text-muted-foreground">
+              Accounting ledgers, Day Book vouchers, and cashbooks are scoped to project sites. Create your first project to begin recording daily site transactions.
+            </p>
+          </div>
+          <Link href="/projects">
+            <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-[0_0_12px_rgba(0,255,102,0.25)] flex items-center gap-2">
+              <span>+ Create First Project</span>
+            </button>
+          </Link>
+        </div>
+      )}
+
       {/* Tab 1: Day Book & Cashbook (renders exactly the project accounting tab views) */}
-      {activeMainTab === "accounting" && (
+      {projects.length > 0 && activeMainTab === "accounting" && (
         <div className="space-y-4">
           {/* Compact Sub-Tabs Navigation */}
           <div className="flex items-center justify-between border-b border-white/10 pb-0">
@@ -133,12 +153,12 @@ export default function OrganizationFinancePage() {
       )}
 
       {/* Tab 2: Parties & Payables */}
-      {activeMainTab === "payments" && currentProjectId && (
+      {projects.length > 0 && activeMainTab === "payments" && currentProjectId && (
         <PaymentsPage params={Promise.resolve({ id: currentProjectId })} />
       )}
 
       {/* Tab 3: Reports & Compliance */}
-      {activeMainTab === "tax-summary" && currentProjectId && (
+      {projects.length > 0 && activeMainTab === "tax-summary" && currentProjectId && (
         <TaxSummaryPage params={Promise.resolve({ id: currentProjectId })} />
       )}
     </div>
