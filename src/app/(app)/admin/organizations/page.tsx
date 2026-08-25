@@ -213,15 +213,15 @@ const OPERATING_MODELS = [
     id: "centralized",
     title: "1. HQ-Centralized Imprest",
     subtitle: "केन्द्रीय खरिद र लेखा",
-    finance: "HQ controls all bank payouts. Site gets petty cash advance for daily tea/mess.",
-    inventory: "HQ contracts all cement/steel in bulk. Site only receives & verifies delivery challans.",
+    finance: "HQ controls all bank payouts. Site receives petty cash advances for daily site expenses.",
+    inventory: "HQ contracts all bulk materials centrally. Site receives & verifies delivery challans.",
   },
   {
     id: "imprest_only",
     title: "2. Hybrid Delegation",
     subtitle: "संयुक्त साइट र मुख्य कार्यालय",
     finance: "Site logs daily Day Book cash & wages. HQ disburses major contractor & vendor bills.",
-    inventory: "Site procures local sand/diesel locally. HQ manages major long-lead supply contracts.",
+    inventory: "Site procures local materials directly. HQ manages major long-lead supply contracts.",
   },
   {
     id: "site_autonomous",
