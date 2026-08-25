@@ -11,8 +11,9 @@
   - Forms must be clean, spacious, frameless/borderless layouts with natural flow, crisp subtle field labels, and zero visual clutter.
 - **Background Blur on Modals**:
   - Whenever a modal or form is open, the background must ALWAYS have a strong dark glass backdrop blur (`backdrop-blur-md bg-black/75`).
-- **Zero Scroll Preference**:
-  - Wide screen layouts where all inputs and actions are visible on screen without vertical scrollbars.
+- **Zero Scroll & 16:10 Aspect Ratio Preference (Strict Directive)**:
+  - All dialogs, forms, and modals MUST strictly follow a landscape **16:10 aspect ratio (width > height, aspect-[16/10] / widescreen proportional)** unless explicitly stated otherwise by the user.
+  - Wide screen layouts where all inputs and actions fit comfortably on screen with zero vertical scrollbars.
 
 ## Core Construction Domain Rules
 
