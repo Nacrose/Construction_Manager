@@ -21,15 +21,18 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Construction Manager",
+  title: {
+    default: "Contractor",
+    template: "%s | Contractor",
+  },
   description:
-    "Construction project management — projects, RFIs, daily reports, BOQ, IPC and more.",
+    "Enterprise Operating Platform exclusively for Construction Contractors, Joint Ventures & Builders.",
   manifest: "/manifest.json",
-  applicationName: "Construction Manager",
+  applicationName: "Contractor",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Construction Manager",
+    title: "Contractor",
   },
   icons: {
     icon: [

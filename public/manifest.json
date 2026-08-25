@@ -1,7 +1,7 @@
 {
-  "name": "Construction Manager",
-  "short_name": "CM",
-  "description": "Construction project management — daily reports, BOQ, IPC, equipment, drawings and more. Works offline once loaded.",
+  "name": "Contractor",
+  "short_name": "Contractor",
+  "description": "Enterprise Operating Platform exclusively for Construction Contractors, Joint Ventures & Builders.",
   "id": "/",
   "start_url": "/dashboard",
   "scope": "/",

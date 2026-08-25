@@ -119,8 +119,8 @@ export default function SignupPage() {
             >
               <HardHat className="h-7 w-7" style={{ color: "oklch(0.22 0.07 258)" }} />
             </motion.div>
-            <h1 className="text-3xl font-bold tracking-tight text-white mb-4">
-              Construction <span className="text-gradient-amber">Manager</span>
+            <h1 className="text-3xl font-bold tracking-tight text-white mb-4 font-sans">
+              Contractor
             </h1>
             <Card className="border-0 bg-white/5 backdrop-blur-md">
               <CardContent className="pt-6 pb-6 px-6">
@@ -161,8 +161,8 @@ export default function SignupPage() {
             >
               <HardHat className="h-7 w-7" style={{ color: "oklch(0.22 0.07 258)" }} />
             </motion.div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">
-              Construction <span className="text-gradient-amber">Manager</span>
+            <h1 className="text-3xl font-bold tracking-tight text-white font-sans">
+              Contractor <span className="text-emerald-400 font-mono text-sm tracking-widest font-normal">OS</span>
             </h1>
             <p className="mt-2 text-sm text-white/60">
               {isFirstUser === true
