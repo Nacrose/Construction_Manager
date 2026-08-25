@@ -79,6 +79,10 @@ export async function uploadFile(
         ContentType: mimeType,
       }),
     );
+    const publicBase = process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, "");
+    if (publicBase) {
+      return { url: `${publicBase}/${key}`, key };
+    }
     const endpoint = process.env.STORAGE_ENDPOINT?.replace(/\/+$/, "");
     return { url: `${endpoint}/${process.env.STORAGE_BUCKET || "uploads"}/${key}`, key };
   }
