@@ -17,11 +17,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Users, Plus, Loader2, KeyRound, Trash2, ShieldCheck, Mail,
+  Users, Plus, Loader2, KeyRound, Trash2, ShieldCheck, Mail, Building2, Sliders, Shield, Save
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ROLE_LABELS: Record<string, string> = {
   project_manager: "Project Manager",
@@ -41,7 +42,9 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function TeamPage() {
   const utils = trpc.useUtils();
+  const [activeTab, setActiveTab] = useState<"members" | "organization">("members");
   const { data, isLoading } = trpc.project.listOrgUsers.useQuery();
+  const { data: orgData, isLoading: orgLoading } = trpc.project.getOrgProfile.useQuery();
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,6 +55,30 @@ export default function TeamPage() {
   const [newPassword, setNewPassword] = useState("");
   const [editUserId, setEditUserId] = useState<string | null>(null);
   const [editRole, setEditRole] = useState("");
+
+  // Organization configuration state
+  const [orgScale, setOrgScale] = useState<string>("multi_project");
+  const [partnershipType, setPartnershipType] = useState<string>("sole");
+  const [operatingModel, setOperatingModel] = useState<string>("decentralized_site_and_hq");
+  const [pettyCashLimit, setPettyCashLimit] = useState<number>(50000);
+
+  // Sync state when orgData loads
+  useEffect(() => {
+    if (orgData?.org) {
+      setOrgScale(orgData.org.orgScale || "multi_project");
+      setPartnershipType(orgData.org.partnershipType || "sole");
+      setOperatingModel(orgData.org.operatingModel || "decentralized_site_and_hq");
+      setPettyCashLimit(orgData.org.sitePettyCashLimit ?? 50000);
+    }
+  }, [orgData]);
+
+  const updateOrgMut = trpc.project.updateOrgProfile.useMutation({
+    onSuccess: () => {
+      utils.project.getOrgProfile.invalidate();
+      toast.success("Organization operating model and configuration updated!");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const createMut = trpc.project.createOrgUser.useMutation({
     onSuccess: () => {
@@ -93,173 +120,345 @@ export default function TeamPage() {
   const users = data?.users ?? [];
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-4 pb-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-6 w-6" /> Team Management
+            <Users className="h-6 w-6 text-primary" /> Team &amp; Workspace
           </h1>
           <p className="text-sm text-muted-foreground">
-            Create and manage users within your organization.
+            Manage organization members, workspace operating model, and contractor delegation rules.
           </p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Add User</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>Create a new account for a team member in your organization.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Full Name</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Email</Label>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="john@company.com" type="email" className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Temporary Password</Label>
-                <Input value={password} onChange={(e) => setPassword(e.target.value)} type="text" placeholder="At least 8 characters" className="h-9 text-sm" />
-                <p className="text-[10px] text-muted-foreground">Share this password with the user. They can change it after logging in.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Role</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="project_manager">Project Manager</SelectItem>
-                    <SelectItem value="engineer">Engineer</SelectItem>
-                    <SelectItem value="coordinator">Coordinator</SelectItem>
-                    <SelectItem value="client">Client (Read-only)</SelectItem>
-                    <SelectItem value="inspector">Inspector</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button
-                onClick={() => createMut.mutate({ name, email, password, role: role as any })}
-                disabled={createMut.isPending || !name || !email || !password}
-              >
-                {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                Create User
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {/* Users table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : users.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
-              No users yet. Click "Add User" to create your first team member.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Name</TableHead>
-                  <TableHead className="text-xs">Email</TableHead>
-                  <TableHead className="text-xs">Role</TableHead>
-                  <TableHead className="text-xs">Joined</TableHead>
-                  <TableHead className="text-xs">Org Role</TableHead>
-                  <TableHead className="text-center text-xs">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium text-sm">{u.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
-                    <TableCell>
-                      {editUserId === u.id ? (
-                        <Select value={editRole} onValueChange={setEditRole}>
-                          <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="project_manager">Project Manager</SelectItem>
-                            <SelectItem value="engineer">Engineer</SelectItem>
-                            <SelectItem value="coordinator">Coordinator</SelectItem>
-                            <SelectItem value="client">Client</SelectItem>
-                            <SelectItem value="inspector">Inspector</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant="outline" className={cn("text-[10px]", ROLE_COLORS[u.role] ?? "")}>
-                          {ROLE_LABELS[u.role] ?? u.role}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">
-                      {u.createdAt ? format(new Date(u.createdAt), "dd MMM yy") : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {u.orgRole === "org_admin" && (
-                        <Badge className="text-[9px] gap-1">
-                          <ShieldCheck className="h-3 w-3" /> Admin
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        {editUserId === u.id ? (
-                          <>
-                            <Button size="sm" className="h-6 text-[10px]" onClick={() => updateRoleMut.mutate({ userId: u.id, role: editRole as any })}>
-                              Save
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditUserId(null)}>
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => { setEditUserId(u.id); setEditRole(u.role); }}
-                              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              title="Change role"
-                            >
-                              <Users className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => { setResetUserId(u.id); setNewPassword(""); }}
-                              className="rounded p-1 text-muted-foreground hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-950"
-                              title="Reset password"
-                            >
-                              <KeyRound className="h-3.5 w-3.5" />
-                            </button>
-                            {u.orgRole !== "org_admin" && (
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Remove ${u.name}? They will lose access immediately.`)) {
-                                    removeMut.mutate({ userId: u.id });
-                                  }
-                                }}
-                                className="rounded p-1 text-muted-foreground hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950"
-                                title="Remove user"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
+        <TabsList className="bg-muted p-1 rounded-xl h-10 border-none shadow-none flex w-fit">
+          <TabsTrigger value="members" className="gap-2 text-xs font-semibold px-4 py-1.5">
+            <Users className="h-4 w-4 text-blue-400" /> Team Members ({users.length})
+          </TabsTrigger>
+          <TabsTrigger value="organization" className="gap-2 text-xs font-semibold px-4 py-1.5">
+            <Building2 className="h-4 w-4 text-emerald-400" /> Organization Configuration &amp; Operating Model
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="members" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-2 h-4 w-4" /> Add User</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>Create a new account for a team member in your organization.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Full Name</Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Email / Username</Label>
+                    <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="john@company.com" className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Temporary Password</Label>
+                    <Input value={password} onChange={(e) => setPassword(e.target.value)} type="text" placeholder="At least 8 characters" className="h-9 text-sm" />
+                    <p className="text-[10px] text-muted-foreground">Share this password with the user. They can change it after logging in.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Role</Label>
+                    <Select value={role} onValueChange={setRole}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="project_manager">Project Manager</SelectItem>
+                        <SelectItem value="engineer">Engineer</SelectItem>
+                        <SelectItem value="coordinator">Coordinator</SelectItem>
+                        <SelectItem value="client">Client (Read-only)</SelectItem>
+                        <SelectItem value="inspector">Inspector</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+                  <Button
+                    onClick={() => createMut.mutate({ name, email, password, role: role as any })}
+                    disabled={createMut.isPending || !name || !email || !password}
+                  >
+                    {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    Create User
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Users table */}
+          <Card>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+              ) : users.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                  No users yet. Click "Add User" to create your first team member.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Name</TableHead>
+                      <TableHead className="text-xs">Email / Username</TableHead>
+                      <TableHead className="text-xs">Role</TableHead>
+                      <TableHead className="text-xs">Joined</TableHead>
+                      <TableHead className="text-xs">Org Role</TableHead>
+                      <TableHead className="text-center text-xs">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium text-xs text-foreground">{u.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">{u.email}</TableCell>
+                        <TableCell>
+                          {editUserId === u.id ? (
+                            <Select value={editRole} onValueChange={setEditRole}>
+                              <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="project_manager">Project Manager</SelectItem>
+                                <SelectItem value="engineer">Engineer</SelectItem>
+                                <SelectItem value="coordinator">Coordinator</SelectItem>
+                                <SelectItem value="client">Client</SelectItem>
+                                <SelectItem value="inspector">Inspector</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge className={cn("text-[10px] capitalize", ROLE_COLORS[u.role] || "bg-muted")}>
+                              {ROLE_LABELS[u.role] || u.role}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-[10px] text-muted-foreground">
+                          {u.createdAt ? format(new Date(u.createdAt), "dd MMM yy") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {u.orgRole === "org_admin" && (
+                            <Badge className="text-[9px] gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <ShieldCheck className="h-3 w-3" /> Admin
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            {editUserId === u.id ? (
+                              <>
+                                <Button size="sm" className="h-6 text-[10px]" onClick={() => updateRoleMut.mutate({ userId: u.id, role: editRole as any })}>
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditUserId(null)}>
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => { setEditUserId(u.id); setEditRole(u.role); }}
+                                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  title="Change role"
+                                >
+                                  <Users className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => { setResetUserId(u.id); setNewPassword(""); }}
+                                  className="rounded p-1 text-muted-foreground hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-950"
+                                  title="Reset password"
+                                >
+                                  <KeyRound className="h-3.5 w-3.5" />
+                                </button>
+                                {u.orgRole !== "org_admin" && (
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`Remove ${u.name}? They will lose access immediately.`)) {
+                                        removeMut.mutate({ userId: u.id });
+                                      }
+                                    }}
+                                    className="rounded p-1 text-muted-foreground hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950"
+                                    title="Remove user"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </>
                             )}
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Organization Configuration & Operating Model Tab */}
+        <TabsContent value="organization" className="space-y-4">
+          <div className="bg-[#121820]/40 p-6 rounded-2xl border border-white/5 space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-emerald-400" /> Organization Type &amp; Operating Model
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Configure contractor scale, joint venture structure, and financial site delegation authority.
+                </p>
+              </div>
+              <Button
+                onClick={() =>
+                  updateOrgMut.mutate({
+                    orgScale: orgScale as any,
+                    partnershipType: partnershipType as any,
+                    operatingModel: operatingModel as any,
+                    sitePettyCashLimit: pettyCashLimit,
+                  })
+                }
+                disabled={updateOrgMut.isPending}
+                className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs gap-1.5"
+              >
+                {updateOrgMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save Workspace Configuration
+              </Button>
+            </div>
+
+            {/* 16:10 Wide Responsive Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* 1. Organization Scale */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-gray-200">Organization Scale *</Label>
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setOrgScale("multi_project")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      orgScale === "multi_project"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">🏢 Multi-Project Firm</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Company runs multiple ongoing sites across different districts.</p>
+                  </div>
+
+                  <div
+                    onClick={() => setOrgScale("single_project_jv")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      orgScale === "single_project_jv"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">🤝 Single Dedicated Project JV</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Dedicated entity created for a single joint venture contract.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Partnership Model */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-gray-200">Contractor Partnership Model *</Label>
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setPartnershipType("sole")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      partnershipType === "sole"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">👤 Sole Contractor</div>
+                    <p className="text-[11px] text-gray-400 mt-1">100% owned &amp; operated by this organization.</p>
+                  </div>
+
+                  <div
+                    onClick={() => setPartnershipType("lead_partner_jv")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      partnershipType === "lead_partner_jv"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">👑 Lead Managing Partner (JV)</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Manages execution, billing, and distributes partner shares.</p>
+                  </div>
+
+                  <div
+                    onClick={() => setPartnershipType("joint_jv")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      partnershipType === "joint_jv"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">⚖️ Jointly Operated JV</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Equal partner governance and joint approvals.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Financial & Procurement Authority */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-gray-200">Operating Delegation Model *</Label>
+                <div className="space-y-2">
+                  <div
+                    onClick={() => setOperatingModel("decentralized_site_and_hq")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      operatingModel === "decentralized_site_and_hq"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">⚡ Autonomous Site &amp; HQ</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Site managers create bills and approve expenses up to petty cash limit.</p>
+                  </div>
+
+                  <div
+                    onClick={() => setOperatingModel("hybrid_daybook_hq_procure")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      operatingModel === "hybrid_daybook_hq_procure"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">🔄 Hybrid Day Book + HQ Procure</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Daily expenses at site; major procurement centrally reviewed at HQ.</p>
+                  </div>
+
+                  <div
+                    onClick={() => setOperatingModel("hq_centralized_imprest")}
+                    className={cn(
+                      "p-3 rounded-xl border cursor-pointer transition-all",
+                      operatingModel === "hq_centralized_imprest"
+                        ? "border-emerald-500 bg-emerald-500/10 text-white"
+                        : "border-white/10 bg-[#0b0f17] text-gray-400 hover:border-white/20"
+                    )}
+                  >
+                    <div className="font-semibold text-xs text-white">🏛️ HQ Centralized Imprest</div>
+                    <p className="text-[11px] text-gray-400 mt-1">Strict petty cash advance system with HQ accounting control.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Reset password dialog */}
       <Dialog open={!!resetUserId} onOpenChange={(o) => !o && setResetUserId(null)}>

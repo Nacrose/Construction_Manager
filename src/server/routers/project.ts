@@ -58,6 +58,69 @@ const UpdateMemberSchema = z.object({
 });
 
 export const projectRouter = router({
+  /** Get organization profile & operating configuration (Org Admin / Member) */
+  getOrgProfile: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx.user.organizationId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "User does not belong to an organization." });
+    }
+    const org = await db.organization.findUnique({
+      where: { id: ctx.user.organizationId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        orgScale: true,
+        partnershipType: true,
+        financeLocation: true,
+        operatingModel: true,
+        sitePettyCashLimit: true,
+      },
+    });
+    if (!org) throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+    return { org };
+  }),
+
+  /** Update organization scale & operating model (Org Admin only) */
+  updateOrgProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).optional(),
+        orgScale: z.enum(["single_project_jv", "multi_project"]).optional(),
+        partnershipType: z.enum(["sole", "lead_partner_jv", "joint_jv"]).optional(),
+        financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).optional(),
+        operatingModel: z.enum(["hq_centralized_imprest", "hybrid_daybook_hq_procure", "decentralized_site_and_hq", "single_project_jv"]).optional(),
+        sitePettyCashLimit: z.number().min(0).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertOrgAdmin(ctx.user);
+      const org = await db.organization.update({
+        where: { id: ctx.user.organizationId! },
+        data: {
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.orgScale ? { orgScale: input.orgScale } : {}),
+          ...(input.partnershipType ? { partnershipType: input.partnershipType } : {}),
+          ...(input.financeLocation ? { financeLocation: input.financeLocation } : {}),
+          ...(input.operatingModel ? { operatingModel: input.operatingModel } : {}),
+          ...(input.sitePettyCashLimit !== undefined ? { sitePettyCashLimit: input.sitePettyCashLimit } : {}),
+        },
+      });
+
+      if (input.operatingModel) {
+        const { seedDelegationRules } = await import("@/lib/delegation");
+        await seedDelegationRules(org.id, input.operatingModel as any);
+      }
+
+      await audit({
+        userId: ctx.user.id,
+        action: "org.profile.update",
+        entityType: "organization",
+        entityId: org.id,
+        metadata: input,
+      });
+
+      return { org };
+    }),
   /** List all projects the user belongs to. */
   list: protectedProcedure.query(async ({ ctx }) => {
     // Impersonation: a platform admin acting as a tenant sees ONLY the
