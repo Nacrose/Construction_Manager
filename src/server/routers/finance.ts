@@ -21,6 +21,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { hoOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
+import { assertDelegation } from "@/lib/delegation";
 
 export const financeRouter = router({
   /**
@@ -1159,6 +1160,7 @@ export const financeRouter = router({
       // Bank accounts are org-wide financial assets — only org admins
       // should be able to create them.
       assertOrgAdmin(ctx.user);
+      await assertDelegation(ctx.user, "create_bank_account");
       await assertNotLocked(ctx.user.organizationId);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
@@ -1241,6 +1243,7 @@ export const financeRouter = router({
       // SECURITY: org-wide settlement is an admin-tier financial action.
       // Caller must be an org admin AND belong to an organization.
       assertOrgAdmin(ctx.user);
+      await assertDelegation(ctx.user, "settle_multi_bill");
       // Pass the payment date (not today) so back-dated payments to
       // locked fiscal years are correctly rejected. Previously this
       // used new Date() which let users bypass the lock by back-dating.
@@ -1528,6 +1531,7 @@ export const financeRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertOrgAdmin(ctx.user);
+      await assertDelegation(ctx.user, "create_head_office_expense", input.amount);
       // Pass the expense date (not today) so back-dated expenses to
       // locked fiscal years are correctly rejected.
       await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());

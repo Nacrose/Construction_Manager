@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { assertDelegation } from "@/lib/delegation";
 import { createJournalEntry, vendorPaymentEntry } from "@/lib/journal-entry";
 
 const CreateVendorBillSchema = z.object({
@@ -162,6 +163,7 @@ export const vendorBillRouter = router({
     .input(CreateVendorBillSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "create_vendor_bill", input.grossAmount);
 
       // 3-Way Match Validation if linked to a Purchase Order
       if (input.purchaseOrderId) {
@@ -295,6 +297,7 @@ export const vendorBillRouter = router({
     .mutation(async ({ ctx, input }) => {
       // Role-gate financial disbursement to Project Manager or Coordinator
       await assertProjectAdmin(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "record_vendor_payment", input.amount);
 
       // Fiscal year lock enforcement
       await assertNotLocked(ctx.user.organizationId, input.paymentDate ? new Date(input.paymentDate) : new Date());

@@ -44,6 +44,19 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ─── Operating Model & Financial Delegation ───────────
+  // Controls how finance/procurement authority is distributed
+  // between HQ and site teams.
+  operatingModel     String  @default("decentralized_site_and_hq")
+  // "hq_centralized_imprest"   — HQ does all finance/procurement; site logs petty cash only
+  // "hybrid_daybook_hq_procure" — Site + HQ both log Day Book; HQ manages bulk procurement
+  // "decentralized_site_and_hq" — Site PMs have full local authority (default)
+  // "single_project_jv"        — JV SPV mode (Phase 3 — not yet implemented)
+
+  sitePettyCashLimit  Float   @default(25000.0)
+  // Maximum single voucher amount a Site Engineer can create without HQ approval.
+  // Only enforced when operatingModel = "hq_centralized_imprest".
+
   users                User[]
   projects             Project[]
   reportTemplates      ReportTemplate[]
@@ -54,8 +67,29 @@ model Organization {
   ganttTemplates       GanttTaskTemplate[]
   companyBankAccounts  CompanyBankAccount[]
   headOfficeExpenses   HeadOfficeExpense[]
+  delegationRules      DelegationRule[]
 
   @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Delegation Rules — configurable per-org financial action permissions
+// ─────────────────────────────────────────────────────────────
+
+model DelegationRule {
+  id              String   @id @default(cuid())
+  organizationId  String
+  action          String   // e.g. "create_payment", "create_vendor_bill", "create_po", "create_site_expense"
+  maxAmount       Float?   // null = unlimited; 0 = blocked entirely
+  allowedRoles    String   @default("[]") // JSON array: ["project_manager","coordinator","engineer"]
+  siteScopedOnly   Boolean  @default(false) // true = only site-level roles (engineer), not HQ
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, action])
+  @@index([organizationId])
 }
 
 // ─────────────────────────────────────────────────────────────

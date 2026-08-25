@@ -129,6 +129,10 @@ export const adminRouter = router({
         data: { name: input.name, code, status: input.status },
       });
 
+      // Seed default delegation rules for the new org
+      const { seedDelegationRules } = await import("@/lib/delegation");
+      await seedDelegationRules(org.id, "decentralized_site_and_hq");
+
       let adminUser: { id: string; email: string } | null = null;
       if (input.adminEmail && input.adminName && input.adminPassword) {
         const existing = await db.user.findUnique({ where: { email: input.adminEmail.toLowerCase() } });
@@ -397,5 +401,94 @@ export const adminRouter = router({
       }
       await audit({ userId: ctx.user.id, action: "admin.user.update", entityType: "user", entityId: id, metadata: { ...rest, deactivated: deactivatedAt }, ...impersonationMeta(ctx) });
       return { user: { id: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin, orgRole: user.orgRole } };
+    }),
+
+  // ── Operating Model Configuration ────────────────────────────
+
+  /** Set the operating model for an org + seed delegation rules. */
+  setOperatingModel: superAdminProcedure
+    .input(z.object({
+      organizationId: z.string(),
+      operatingModel: z.enum(["hq_centralized_imprest", "hybrid_daybook_hq_procure", "decentralized_site_and_hq", "single_project_jv"]),
+      sitePettyCashLimit: z.number().min(0).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const org = await db.organization.update({
+        where: { id: input.organizationId },
+        data: {
+          operatingModel: input.operatingModel,
+          ...(input.sitePettyCashLimit !== undefined ? { sitePettyCashLimit: input.sitePettyCashLimit } : {}),
+        },
+      });
+
+      // Seed delegation rules for the new operating model
+      const { seedDelegationRules } = await import("@/lib/delegation");
+      await seedDelegationRules(input.organizationId, input.operatingModel as any);
+
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.org.set_operating_model",
+        entityType: "organization",
+        entityId: input.organizationId,
+        metadata: { operatingModel: input.operatingModel, sitePettyCashLimit: input.sitePettyCashLimit },
+      });
+
+      return { org };
+    }),
+
+  /** Get delegation rules for an org. */
+  getDelegationRules: superAdminProcedure
+    .input(z.object({ organizationId: z.string() }))
+    .query(async ({ input }) => {
+      const org = await db.organization.findUnique({
+        where: { id: input.organizationId },
+        select: { operatingModel: true, sitePettyCashLimit: true },
+      });
+      if (!org) throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+
+      const rules = await db.delegationRule.findMany({
+        where: { organizationId: input.organizationId },
+        orderBy: { action: "asc" },
+      });
+
+      return {
+        operatingModel: org.operatingModel,
+        sitePettyCashLimit: org.sitePettyCashLimit,
+        rules: rules.map(r => ({
+          id: r.id,
+          action: r.action,
+          maxAmount: r.maxAmount,
+          allowedRoles: JSON.parse(r.allowedRoles || "[]"),
+          siteScopedOnly: r.siteScopedOnly,
+        })),
+      };
+    }),
+
+  /** Update a single delegation rule. */
+  updateDelegationRule: superAdminProcedure
+    .input(z.object({
+      ruleId: z.string(),
+      maxAmount: z.number().nullable().optional(),
+      allowedRoles: z.array(z.string()).optional(),
+      siteScopedOnly: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { ruleId, ...data } = input;
+      const rule = await db.delegationRule.update({
+        where: { id: ruleId },
+        data: {
+          ...(data.maxAmount !== undefined ? { maxAmount: data.maxAmount } : {}),
+          ...(data.allowedRoles !== undefined ? { allowedRoles: JSON.stringify(data.allowedRoles) } : {}),
+          ...(data.siteScopedOnly !== undefined ? { siteScopedOnly: data.siteScopedOnly } : {}),
+        },
+      });
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.delegation_rule.update",
+        entityType: "delegation_rule",
+        entityId: ruleId,
+        metadata: data,
+      });
+      return { rule };
     }),
 });

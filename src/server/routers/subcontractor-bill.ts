@@ -10,6 +10,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { assertDelegation } from "@/lib/delegation";
 
 const BillItemSchema = z.object({
   boqCode: z.string().optional().nullable(),
@@ -163,6 +164,7 @@ export const subcontractorBillRouter = router({
   /** Create a new subcontractor bill with line items. */
   create: protectedProcedure.input(CreateBillSchema).mutation(async ({ ctx, input }) => {
     await assertCanWrite(ctx.user, input.projectId);
+    await assertDelegation(ctx.user, "create_subcontractor_bill");
 
     // Validate subcontractor exists
     const sub = await db.subcontractor.findFirst({
@@ -492,6 +494,7 @@ export const subcontractorBillRouter = router({
     .input(z.object({ projectId: z.string(), billId: z.string(), amount: z.number().positive() }))
     .mutation(async ({ ctx, input }) => {
       await assertProjectAdmin(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "mark_subcontractor_paid", input.amount);
 
       const bill = await db.subcontractorBill.findFirst({
         where: { id: input.billId, projectId: input.projectId },

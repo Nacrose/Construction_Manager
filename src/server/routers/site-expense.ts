@@ -10,6 +10,7 @@ import { createJournalEntry } from "@/lib/journal-entry";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { siteOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
+import { assertDelegation } from "@/lib/delegation";
 
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
@@ -83,6 +84,7 @@ export const siteExpenseRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "create_site_expense", input.amount + (input.vatAmount || 0));
 
       // Auto-generate expense number with collision-prevention retry.
       //
@@ -197,10 +199,11 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true, date: true },
+        select: { projectId: true, status: true, date: true, totalAmount: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertProjectAdmin(ctx.user, expense.projectId);
+      await assertDelegation(ctx.user, "approve_site_expense", expense.totalAmount);
 
       // Fiscal year lock — use the expense's date (not today) so
       // back-dated expenses to locked fiscal years are rejected.

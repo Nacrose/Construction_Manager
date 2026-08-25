@@ -10,6 +10,7 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { assertDelegation } from "@/lib/delegation";
 
 // ─── Payment Router ─────────────────────────────────────────
 const paymentRouter = router({
@@ -100,6 +101,7 @@ const paymentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "create_payment", input.amount);
 
       // FISCAL YEAR LOCK: use the payment date (not today) so back-dated
       // payments to locked fiscal years are correctly rejected.
@@ -301,6 +303,7 @@ const paymentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "bulk_create_payments");
 
       // FISCAL YEAR LOCK: use the earliest payment date so back-dated
       // bulk imports to locked fiscal years are correctly rejected.
@@ -467,6 +470,7 @@ const paymentRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "create_payment");
 
       // IDOR FIX: verify the payment belongs to input.projectId.
       const existing = await db.payment.findFirst({
@@ -743,6 +747,7 @@ const paymentRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      await assertDelegation(ctx.user, "release_retention", input.amount);
 
       const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date();
 
