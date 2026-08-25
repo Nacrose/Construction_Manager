@@ -72,18 +72,18 @@ export default function AdminOrganizations() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> New Organization</Button>
           </DialogTrigger>
-          <DialogContent className="!max-w-5xl sm:!max-w-5xl md:!max-w-6xl w-[95vw] max-h-[85vh] overflow-y-auto border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
+          <DialogContent className="!max-w-4xl sm:!max-w-4xl w-[90vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
             <DialogHeader className="pb-3 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                    Create Organization
+                    Create Contractor Organization
                     <span className="text-[10px] font-mono font-normal text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                       नयाँ कम्पनी दर्ता
                     </span>
                   </DialogTitle>
                   <DialogDescription className="text-xs text-gray-400 mt-0.5">
-                    Create the contractor company workspace. Roles and operating structure are configured inside the organization.
+                    Provision contractor workspace and assign the primary Organization Administrator.
                   </DialogDescription>
                 </div>
               </div>
@@ -149,9 +149,6 @@ export default function AdminOrganizations() {
                               id: o.id,
                               name: o.name,
                               status: o.status,
-                              orgScale: o.orgScale,
-                              partnershipType: o.partnershipType,
-                              financeLocation: o.financeLocation,
                             })
                           }
                         >
@@ -168,7 +165,7 @@ export default function AdminOrganizations() {
       </Card>
 
       <Dialog open={!!editOrg} onOpenChange={(o) => !o && setEditOrg(null)}>
-        <DialogContent className="!max-w-5xl sm:!max-w-5xl md:!max-w-6xl w-[95vw] max-h-[85vh] overflow-y-auto border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
+        <DialogContent className="!max-w-3xl sm:!max-w-3xl w-[85vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
           <DialogHeader className="pb-3 border-b border-white/10">
             <DialogTitle className="text-lg font-bold tracking-tight text-white">Edit Organization Profile</DialogTitle>
           </DialogHeader>
@@ -208,55 +205,114 @@ export default function AdminOrganizations() {
   );
 }
 
-
-
 function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrganization.useMutation> }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+
+  const isFormValid = name.trim() && adminName.trim() && adminEmail.trim() && adminPassword.length >= 8;
 
   return (
-    <div className="space-y-4 pt-3 font-sans text-xs">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-        <div className="md:col-span-2 space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-200">Company Name (कम्पनीको नाम) *</Label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Anturam Construction Pvt. Ltd."
-            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-medium"
-            autoFocus
-          />
+    <div className="space-y-5 pt-3 font-sans text-xs">
+      {/* 16:10 Landscape Proportional Grid (2 Balanced Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* Left Column: Organization Entity */}
+        <div className="space-y-3 bg-[#121820]/40 p-4 rounded-xl border border-white/5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+              1. Organization Profile
+            </span>
+            <span className="text-[10px] text-emerald-400 font-mono">कम्पनी विवरण</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-200">Company Name (कम्पनीको नाम) *</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Anturam Construction Pvt. Ltd."
+              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-medium focus:border-emerald-500"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-200">Company Code (संक्षिप्त कोड)</Label>
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Auto-generated (e.g. ACPL)"
+              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-mono uppercase"
+            />
+            <p className="text-[10px] text-gray-400">
+              Short prefix for purchase orders, IPCs, and delivery challans.
+            </p>
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-200">Company Code (ऐच्छिक)</Label>
-          <Input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Auto-generated"
-            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-mono uppercase"
-          />
+
+        {/* Right Column: Organization Administrator Account */}
+        <div className="space-y-3 bg-[#121820]/40 p-4 rounded-xl border border-white/5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
+            <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+              2. Org Administrator (प्रशासक खाता)
+            </span>
+            <span className="text-[10px] text-blue-400 font-mono">Initial Login</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-200">Admin Full Name *</Label>
+            <Input
+              value={adminName}
+              onChange={(e) => setAdminName(e.target.value)}
+              placeholder="e.g. Aakash Dhakal"
+              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-200">Admin Email Address *</Label>
+            <Input
+              type="email"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              placeholder="admin@anturam.com"
+              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-200">Initial Password (८+ अक्षर) *</Label>
+            <Input
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Min. 8 characters"
+              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
+            />
+          </div>
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-400">
-        ℹ️ All contractor operating models, project structures, partner sharing, and member roles are configured directly inside the organization dashboard.
-      </p>
-
-      <DialogFooter className="pt-3 border-t border-white/10 mt-2 flex items-center justify-between sm:justify-between">
-        <div className="text-[10px] text-gray-500 font-mono">
-          Ready to provision workspace
+      <DialogFooter className="pt-3 border-t border-white/10 mt-3 flex items-center justify-between sm:justify-between">
+        <div className="text-[11px] text-gray-400">
+          This admin will manage users, projects, and finance inside this organization.
         </div>
         <Button
-          disabled={mut.isPending || !name.trim()}
+          disabled={mut.isPending || !isFormValid}
           onClick={() =>
             mut.mutate({
               name: name.trim(),
               code: code.trim() || undefined,
+              adminName: adminName.trim(),
+              adminEmail: adminEmail.trim(),
+              adminPassword: adminPassword,
             })
           }
           className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-6 h-9"
         >
-          {mut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Create Organization
+          {mut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Create Organization &amp; Admin
         </Button>
       </DialogFooter>
     </div>
@@ -320,5 +376,3 @@ function EditOrgForm({
     </div>
   );
 }
-
-
