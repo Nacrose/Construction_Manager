@@ -199,7 +199,7 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   const adminItem: NavItem | null =
-    user?.isSuperAdmin || user?.sessionKind === "admin"
+    user?.isSuperAdmin || (user as any)?.sessionKind === "admin"
       ? { label: "Platform Admin", href: "/admin", icon: ShieldAlert }
       : null;
 
@@ -475,7 +475,7 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
               <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {(user?.isSuperAdmin || user?.sessionKind === "admin") && (
+            {(user?.isSuperAdmin || (user as any)?.sessionKind === "admin") && (
               <>
                 <DropdownMenuSeparator />
                 <Link href="/admin">
