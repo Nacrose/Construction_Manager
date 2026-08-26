@@ -53,6 +53,7 @@ import { paymentCategoryRouter } from "./payment-category";
 import { accountingRouter } from "./accounting";
 import { bankGuaranteeRouter } from "./bank-guarantee";
 import { financialReportingRouter } from "./financial-reporting";
+import { jvPartnerRouter } from "./jv-partner";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -105,6 +106,7 @@ export const appRouter = router({
   accounting: accountingRouter,
   bankGuarantee: bankGuaranteeRouter,
   financialReporting: financialReportingRouter,
+  jvPartner: jvPartnerRouter,
 });
 
 export type AppRouter = typeof appRouter;

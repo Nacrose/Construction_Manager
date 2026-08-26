@@ -215,71 +215,87 @@ function CreateProjectDialog({
   }
 
   return (
-    <DialogContent className="max-w-md">
+    <DialogContent className="sm:max-w-[620px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
       <DialogHeader>
-        <DialogTitle>Create new project</DialogTitle>
-        <DialogDescription>
-          You will be added as the Project Manager.
+        <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+          <FolderKanban className="h-5 w-5 text-emerald-400" /> Create New Contractor Project Site
+        </DialogTitle>
+        <DialogDescription className="text-xs text-muted-foreground">
+          Initialize a contractual workspace for BOQ, site deliveries, Day Book vouchers, and client IPC billing.
         </DialogDescription>
       </DialogHeader>
-      <form onSubmit={submit} className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="p-name">Name *</Label>
-          <Input
-            id="p-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Biratnagar BRT Corridor"
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="p-code">Code *</Label>
-          <Input
-            id="p-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="BRT-001"
-            required
-            pattern="[A-Z0-9-]+"
-          />
-          <p className="text-xs text-muted-foreground">
-            Alphanumeric with dashes. Must be unique.
-          </p>
-        </div>
+      <form onSubmit={submit} className="space-y-4 pt-2">
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="p-client">Client</Label>
+          <div className="space-y-1">
+            <Label htmlFor="p-name" className="text-xs font-semibold">Project Name *</Label>
+            <Input
+              id="p-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Kathmandu-Terai Fast Track PKG-02"
+              required
+              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="p-code" className="text-xs font-semibold">Project Code *</Label>
+            <Input
+              id="p-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. KTFT-02"
+              required
+              pattern="[A-Z0-9-]+"
+              className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="p-client" className="text-xs font-semibold">Client / Employer Office</Label>
             <Input
               id="p-client"
               value={client}
               onChange={(e) => setClient(e.target.value)}
+              placeholder="e.g. Division Road Office, Hetauda / DUDBC"
+              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="p-loc">Location</Label>
+          <div className="space-y-1">
+            <Label htmlFor="p-loc" className="text-xs font-semibold">Site Location / District</Label>
             <Input
               id="p-loc"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Makwanpur / Chitwan"
+              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
             />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="p-desc">Description</Label>
+
+        <div className="space-y-1">
+          <Label htmlFor="p-desc" className="text-xs">Contract Scope / Description (Optional)</Label>
           <Textarea
             id="p-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={3}
+            rows={2}
+            placeholder="e.g. 4-lane asphalt road upgradation with 3 RCC bridges and slope protection."
+            className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
           />
         </div>
-        <DialogFooter>
-          <Button type="submit" disabled={loading}>
+
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5 shadow-[0_0_12px_rgba(0,255,102,0.2)]"
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create project
+            Create Project Workspace
           </Button>
-        </DialogFooter>
+        </div>
       </form>
     </DialogContent>
   );

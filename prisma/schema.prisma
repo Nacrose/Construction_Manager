@@ -468,6 +468,7 @@ model Project {
   plantDailyLogs       PlantDailyLog[]
   ganttTemplates       GanttTaskTemplate[]
   bankGuarantees       BankGuarantee[]
+  jvAgreement          JvPartnerAgreement?
 
   @@unique([organizationId, code])
   @@index([status])
@@ -3642,6 +3643,54 @@ model BankGuarantee {
 
   @@index([organizationId, status, expiryDate])
   @@index([projectId, status, expiryDate])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Single-Firm Managed Joint Venture (JV) Commission Module
+// ─────────────────────────────────────────────────────────────
+
+model JvPartnerAgreement {
+  id                String    @id @default(cuid())
+  projectId         String    @unique
+  partnerName       String    // e.g. "Sharma Construction Pvt. Ltd."
+  partnerPan        String?   // Partner PAN
+  commissionRate    Float     @default(1.5) // % of Certified IPC Gross (e.g. 1.5%)
+  leadPartnerShare  Float     @default(100.0) // % operational execution by lead firm
+  contactPerson     String?
+  phone             String?
+  email             String?
+  bankName          String?
+  bankAccountNumber String?
+  branch            String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payouts           JvCommissionPayout[]
+}
+
+model JvCommissionPayout {
+  id            String    @id @default(cuid())
+  agreementId   String
+  ipcId         String?   // Optional link to specific IPC bill
+  voucherNo     String    // Day Book Voucher Number
+  payoutDate    DateTime  @default(now())
+  payoutMiti    String?   // BS Miti e.g. 2081-03-10
+  grossAmount   Float     // Gross commission disbursed
+  tdsPercent    Float     @default(1.5) // Nepal statutory TDS on commission (1.5%)
+  tdsAmount     Float     @default(0)
+  netAmount     Float     // Net paid via bank/cheque
+  paymentMode   String    @default("bank_transfer") // bank_transfer | cheque | connectips
+  chequeNo      String?
+  bankAccountId String?
+  remarks       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  agreement     JvPartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@index([agreementId, payoutDate])
 }
 
 // ─────────────────────────────────────────────────────────────

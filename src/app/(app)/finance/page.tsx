@@ -14,9 +14,12 @@ import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
 import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
 import { OrgBankAccountsTab } from "@/app/(app)/finance/components/org-bank-accounts-tab";
 import { OrgGuaranteesTab } from "@/app/(app)/finance/components/org-guarantees-tab";
+import { ProjectJvTab } from "@/app/(app)/projects/[id]/accounting/components/project-jv-tab";
+import { Handshake } from "lucide-react";
 
 export const FIN_TABS = [
   { label: "Day Book & Cashbook", key: "accounting" },
+  { label: "JV Partner Commissions", key: "jv-commission" },
   { label: "Bank Accounts & Wallets", key: "bank-accounts" },
   { label: "Guarantees & Bid Bonds", key: "guarantees" },
   { label: "Parties & Payables", key: "payments" },
@@ -24,8 +27,8 @@ export const FIN_TABS = [
 ];
 
 export default function OrganizationFinancePage() {
-  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
-  const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance">("daybook");
+  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
+  const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance" | "jv">("daybook");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const { data: projectsData } = trpc.project.list.useQuery();
@@ -60,7 +63,7 @@ export default function OrganizationFinancePage() {
         </div>
 
         {/* Project Selector for Multi-Site Scoping (only when on site-scoped tabs) */}
-        {projects.length > 0 && (activeMainTab === "accounting" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
+        {projects.length > 0 && (activeMainTab === "accounting" || activeMainTab === "jv-commission" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-mono">Project:</span>
             <Select value={currentProjectId} onValueChange={setSelectedProjectId}>
@@ -89,8 +92,13 @@ export default function OrganizationFinancePage() {
         <OrgGuaranteesTab />
       )}
 
+      {/* Tab: JV Partner Commission Ledger */}
+      {activeMainTab === "jv-commission" && currentProjectId && (
+        <ProjectJvTab projectId={currentProjectId} />
+      )}
+
       {/* Empty State when Organization has no projects yet for site-scoped tabs */}
-      {projects.length === 0 && (activeMainTab === "accounting" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
+      {projects.length === 0 && (activeMainTab === "accounting" || activeMainTab === "jv-commission" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 my-4 space-y-4">
           <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_16px_rgba(0,255,102,0.15)]">
             <BookOpen className="h-6 w-6" />
@@ -98,7 +106,7 @@ export default function OrganizationFinancePage() {
           <div className="space-y-1 max-w-sm">
             <h3 className="text-base font-bold text-white">No Projects Created Yet</h3>
             <p className="text-xs text-muted-foreground">
-              Accounting ledgers, Day Book vouchers, and cashbooks are scoped to project sites. Create your first project to begin recording daily site transactions.
+              Accounting ledgers, Day Book vouchers, and JV commission tracking are scoped to project sites. Create your first project to begin.
             </p>
           </div>
           <Link href="/projects">
@@ -153,6 +161,19 @@ export default function OrganizationFinancePage() {
                 <Scale className="h-3.5 w-3.5" />
                 Trial Balance (वासलात)
               </button>
+
+              <button
+                onClick={() => setSubTab("jv")}
+                className={cn(
+                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                  subTab === "jv"
+                    ? "border-emerald-500 text-emerald-400 font-bold"
+                    : "border-transparent text-gray-400 hover:text-white"
+                )}
+              >
+                <Handshake className="h-3.5 w-3.5" />
+                JV Commission (साझेदार कमिसन)
+              </button>
             </div>
           </div>
 
@@ -161,6 +182,7 @@ export default function OrganizationFinancePage() {
               {subTab === "daybook" && <DayBookTab projectId={currentProjectId} />}
               {subTab === "ledgers" && <LedgerAccountsTab projectId={currentProjectId} />}
               {subTab === "trial_balance" && <TrialBalanceTab projectId={currentProjectId} />}
+              {subTab === "jv" && <ProjectJvTab projectId={currentProjectId} />}
             </>
           )}
         </div>
