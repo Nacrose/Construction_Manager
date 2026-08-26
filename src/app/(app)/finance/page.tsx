@@ -3,19 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { BookOpen, Users, Scale } from "lucide-react";
 import { DayBookTab } from "@/app/(app)/projects/[id]/accounting/components/day-book-tab";
-import { LedgerAccountsTab } from "@/app/(app)/projects/[id]/accounting/components/ledger-accounts-tab";
-import { TrialBalanceTab } from "@/app/(app)/projects/[id]/accounting/components/trial-balance-tab";
 import { trpc } from "@/lib/trpc-client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PaymentsPage from "@/app/(app)/projects/[id]/payments/page";
 import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
-import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
 import { OrgBankAccountsTab } from "@/app/(app)/finance/components/org-bank-accounts-tab";
 import { OrgGuaranteesTab } from "@/app/(app)/finance/components/org-guarantees-tab";
 import { ProjectJvTab } from "@/app/(app)/projects/[id]/accounting/components/project-jv-tab";
-import { Handshake } from "lucide-react";
 
 export const FIN_TABS = [
   { label: "Day Book & Cashbook", key: "accounting" },
@@ -28,7 +23,6 @@ export const FIN_TABS = [
 
 export default function OrganizationFinancePage() {
   const [activeMainTab, setActiveMainTab] = useState<"accounting" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
-  const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance" | "jv">("daybook");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const { data: projectsData } = trpc.project.list.useQuery();
@@ -104,61 +98,9 @@ export default function OrganizationFinancePage() {
         )
       )}
 
-      {/* Tab 1: Unified Day Book & Cashbook (Always available even with 0 projects) */}
+      {/* Tab 1: Day Book & Cashbook */}
       {activeMainTab === "accounting" && (
-        <div className="space-y-4">
-          {/* Compact Sub-Tabs Navigation */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-0">
-            <div className="flex gap-1">
-              <button
-                onClick={() => setSubTab("daybook")}
-                className={cn(
-                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                  subTab === "daybook"
-                    ? "border-emerald-500 text-emerald-400 font-bold"
-                    : "border-transparent text-gray-400 hover:text-white"
-                )}
-              >
-                <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
-                Day Book (दैनिक रोजकट्टी)
-              </button>
-
-              {projects.length > 0 && (
-                <>
-                  <button
-                    onClick={() => setSubTab("ledgers")}
-                    className={cn(
-                      "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                      subTab === "ledgers"
-                        ? "border-emerald-500 text-emerald-400 font-bold"
-                        : "border-transparent text-gray-400 hover:text-white"
-                    )}
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    Ledger Accounts (खाता सूची)
-                  </button>
-
-                  <button
-                    onClick={() => setSubTab("trial_balance")}
-                    className={cn(
-                      "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                      subTab === "trial_balance"
-                        ? "border-emerald-500 text-emerald-400 font-bold"
-                        : "border-transparent text-gray-400 hover:text-white"
-                    )}
-                  >
-                    <Scale className="h-3.5 w-3.5" />
-                    Trial Balance (वासलात)
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {subTab === "daybook" && <DayBookTab projectId={currentProjectId || undefined} />}
-          {subTab === "ledgers" && currentProjectId && <LedgerAccountsTab projectId={currentProjectId} />}
-          {subTab === "trial_balance" && currentProjectId && <TrialBalanceTab projectId={currentProjectId} />}
-        </div>
+        <DayBookTab projectId={currentProjectId || undefined} />
       )}
 
       {/* Tab 2: Parties & Payables */}

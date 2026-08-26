@@ -10,6 +10,9 @@
 
 ## UI Design & Aesthetic Rules (Strict User Directive)
 
+- **Zero Redundant Section / Tab Headers (No Duplicate Title Rows)**:
+  - When a tab, nav item, or module is already highlighted/active in the top navigation bar, **NEVER** render a duplicate header title, sub-tab bar, or section label repeating the tab's name (e.g. Do NOT show "📖 Day Book (दैनिक रोजकट्टी)" underneath the active "Day Book & Cashbook" tab).
+  - The content component must render immediately under the main navigation bar with zero redundant title clutter.
 - **No Nested Cards & Title Header Boxes**:
   - Never wrap form sections inside small boxed cards with separate header title text/borders within borders.
   - Forms must be clean, spacious, frameless/borderless layouts with natural flow, crisp subtle field labels, and zero visual clutter.
