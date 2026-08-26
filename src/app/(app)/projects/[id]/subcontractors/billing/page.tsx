@@ -161,37 +161,28 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
     <>
       <ModuleTabs projectId={id} tabs={RES_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-          <div>
-            <h1 className="text-lg font-bold flex items-center gap-2">
-              <ReceiptText className="h-5 w-5 text-violet-500" />
-              Subcontractor Billing & Multi-Package Reconciliation
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Verify claims, reconcile quantities across packages vs. BOQ &amp; IPC, and track material deductions.
-            </p>
-          </div>
-          {canWrite && (
-            <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white">
-              <Plus className="h-3.5 w-3.5" /> New Bill
-            </Button>
-          )}
-        </div>
+        {/* Primary Subcontractor Tabs & Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as any)} className="w-full">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <TabsList className="grid grid-cols-3 w-full sm:w-[540px] bg-[#121820] border border-white/10 p-1 rounded-xl">
+                <TabsTrigger value="bills" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+                  <ReceiptText className="h-3.5 w-3.5" /> Bills Register
+                </TabsTrigger>
+                <TabsTrigger value="matrix" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+                  <Layers className="h-3.5 w-3.5" /> Reconciliation Matrix
+                </TabsTrigger>
+                <TabsTrigger value="deductions" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+                  <Coins className="h-3.5 w-3.5" /> Material Recovery
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Primary Subcontractor Tabs */}
-        <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as any)} className="w-full">
-          <TabsList className="grid grid-cols-3 w-full sm:w-[540px] mb-4">
-            <TabsTrigger value="bills" className="text-xs gap-1.5">
-              <ReceiptText className="h-3.5 w-3.5" /> Bills Register
-            </TabsTrigger>
-            <TabsTrigger value="matrix" className="text-xs gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Reconciliation Matrix
-            </TabsTrigger>
-            <TabsTrigger value="materials" className="text-xs gap-1.5">
-              <Package className="h-3.5 w-3.5" /> Material Statement
-            </TabsTrigger>
-          </TabsList>
+              {canWrite && (
+                <Button size="sm" onClick={() => setCreateOpen(true)} className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
+                  <Plus className="h-3.5 w-3.5" /> + New Subcontractor Bill
+                </Button>
+              )}
+            </div>
 
           {/* TAB 1: BILLS REGISTER */}
           <TabsContent value="bills" className="space-y-4 m-0">
@@ -466,6 +457,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
             <MaterialReconciliationTab projectId={id} subcontractors={subsData?.subcontractors || []} />
           </TabsContent>
         </Tabs>
+      </div>
 
         {/* Detail View Dialog */}
         {selectedBillId && (

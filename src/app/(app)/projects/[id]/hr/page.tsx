@@ -57,19 +57,6 @@ export default function HrPage({ params }: { params: Promise<{ id: string }> }) 
     <>
       <ModuleTabs projectId={id} tabs={RES_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-          <div>
-            <h1 className="text-lg font-bold flex items-center gap-2">
-              <Users className="h-5 w-5 text-sky-500" />
-              Workforce &amp; HR Management
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Manage site labor gangs, high-speed daily attendance, 31-day muster rolls, advances, and payroll.
-            </p>
-          </div>
-        </div>
-
         {/* Unified Tab Navigation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full mb-4">

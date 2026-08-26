@@ -124,28 +124,12 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
 
   return (
     <AnimatedPage className="space-y-4 pb-12">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href={`/projects/${id}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            title="Back to project"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <div className="flex items-center gap-1.5 text-sm min-w-0">
-            <Link
-              href={`/projects/${id}`}
-              className="text-muted-foreground hover:text-foreground truncate"
-            >
-              {projectInfo?.project.code ?? "Project"}
-            </Link>
-            <span className="text-muted-foreground/50">/</span>
-            <span className="text-muted-foreground">Resources</span>
-            <span className="text-muted-foreground/50">/</span>
-            <span className="font-semibold text-foreground">Plant & Production</span>
-          </div>
+      <ModuleTabs projectId={id} tabs={RES_TABS} />
+
+      {/* Single-Row Action & Tab Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="flex items-center gap-1.5 text-xs font-mono text-gray-400">
+          <span>Batch Plants & Asphalt Production ({plants.length} Plants, {tickets.length} Tickets)</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

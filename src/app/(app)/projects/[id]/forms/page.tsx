@@ -26,25 +26,19 @@ export default function FormsPage() {
   const progressPct = boqTotal > 0 ? (certifiedTotal / boqTotal) * 100 : 0;
 
   return (
-    <AnimatedPage>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Ma Le Pa Reports</h1>
-          <p className="text-sm text-muted-foreground">
-            Nepal standard civil works reporting forms — generated from project data.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-1.5 h-4 w-4" /> Print</Button>
-        </div>
-      </div>
-
-      <Tabs defaultValue="p">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="p"><BarChart3 className="mr-1.5 h-4 w-4" /> Form P</TabsTrigger>
-          <TabsTrigger value="m"><FileText className="mr-1.5 h-4 w-4" /> Form M</TabsTrigger>
-          <TabsTrigger value="l"><Users className="mr-1.5 h-4 w-4" /> Form L</TabsTrigger>
-        </TabsList>
+    <AnimatedPage className="space-y-4 pb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <Tabs defaultValue="p" className="w-full">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <TabsList className="bg-[#121820] border border-white/10 p-1 rounded-xl">
+              <TabsTrigger value="p" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><BarChart3 className="mr-1.5 h-3.5 w-3.5" /> Form P (Progress)</TabsTrigger>
+              <TabsTrigger value="m" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><FileText className="mr-1.5 h-3.5 w-3.5" /> Form M (Materials)</TabsTrigger>
+              <TabsTrigger value="l" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><Users className="mr-1.5 h-3.5 w-3.5" /> Form L (Labor)</TabsTrigger>
+            </TabsList>
+            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#121820] border-white/10 text-gray-300 hover:text-white rounded-xl" onClick={() => window.print()}>
+              <Printer className="mr-1.5 h-3.5 w-3.5" /> Print Ma Le Pa
+            </Button>
+          </div>
 
         <TabsContent value="p" className="mt-4 space-y-4">
           <Card>
@@ -153,6 +147,7 @@ export default function FormsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </AnimatedPage>
   );
 }

@@ -32,20 +32,13 @@ export default function RateLibraryPage({ params }: { params: Promise<{ id: stri
       {/* Sub-module Navigation */}
       <ModuleTabs projectId={id} tabs={RES_TABS} />
 
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold tracking-tight">Resource & Rate Library</h1>
-        <p className="text-muted-foreground text-xs">
-          Manage project canonical resource specifications and district rate books for BOQ rate analysis.
-        </p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-[3px]">
-        <TabsList className="bg-muted p-1 rounded-xl h-10 border-none shadow-none flex w-fit">
-          <TabsTrigger value="materials" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <BookOpen className="h-4 w-4 text-amber-500" /> Material Catalog
+        <TabsList className="bg-[#121820] border border-white/10 p-1 rounded-xl h-10 flex w-fit">
+          <TabsTrigger value="materials" className="gap-2 text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+            <BookOpen className="h-4 w-4" /> Material Catalog
           </TabsTrigger>
-          <TabsTrigger value="rate-catalogs" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <Tag className="h-4 w-4 text-blue-500" /> Rate Catalogs
+          <TabsTrigger value="rate-catalogs" className="gap-2 text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+            <Tag className="h-4 w-4" /> Rate Catalogs
           </TabsTrigger>
         </TabsList>
 
