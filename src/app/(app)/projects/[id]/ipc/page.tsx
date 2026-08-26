@@ -59,28 +59,41 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
   return (
     <>
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
-      <AnimatedPage className="space-y-6 pb-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link><span>/</span><span>IPC</span>
-            </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Interim Payment Certificates</h1>
-          <p className="text-sm text-muted-foreground">Payment certificates with retention and advance recovery.</p>
-        </div>
-        {canWrite && (
-          <Dialog open={addOpen} onOpenChange={setAddOpen}>
-            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> New IPC</Button></DialogTrigger>
-            <AddIpcDialog projectId={id} onDone={() => setAddOpen(false)} />
-          </Dialog>
-        )}
-      </div>
+      <AnimatedPage className="space-y-4 pb-8">
+        {/* Single-Row Action & Summary Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <span className="text-gray-400">
+              Total Certificates: <span className="font-bold text-white">{allIpcs.length}</span>
+            </span>
+            {allIpcs.length > 0 && (
+              <>
+                <div className="h-3 w-[1px] bg-white/10" />
+                <span className="text-gray-400">
+                  Certified: <span className="font-bold text-emerald-400">{allIpcs.filter(i => i.status === "certified" || i.status === "paid").length}</span>
+                </span>
+              </>
+            )}
+          </div>
 
-      {isLoading ? <Skeleton className="h-64" /> : !allIpcs.length ? (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <Inbox className="h-12 w-12 text-muted-foreground" /><p className="text-sm text-muted-foreground">No IPCs yet.</p>
-        </Card>
-      ) : (
+          {canWrite && (
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> + New IPC
+                </Button>
+              </DialogTrigger>
+              <AddIpcDialog projectId={id} onDone={() => setAddOpen(false)} />
+            </Dialog>
+          )}
+        </div>
+
+        {isLoading ? <Skeleton className="h-64 rounded-2xl" /> : !allIpcs.length ? (
+          <Card className="flex flex-col items-center gap-3 p-12 text-center bg-[#0c1015]/50 border-white/10 rounded-2xl">
+            <Inbox className="h-10 w-10 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">No Interim Payment Certificates recorded yet.</p>
+          </Card>
+        ) : (
         <div className="space-y-3">
           {allIpcs.map((ipc) => (
             <Link key={ipc.id} href={`/projects/${id}/ipc/${ipc.id}`}>

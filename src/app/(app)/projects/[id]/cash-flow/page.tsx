@@ -40,33 +40,29 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
   return (
     <>
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
-      <AnimatedPage className="space-y-6 pb-8">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link>
-              <span>/</span>
-              <span>Cash Flow</span>
-            </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight flex items-center gap-2">
-            <Wallet className="h-6 w-6" /> Cash Flow Forecast
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Planned vs actual project costs by month — helps predict cash needs.
-          </p>
+      <AnimatedPage className="space-y-4 pb-8">
+        {/* Single-Row Action & Timeline Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+            <span>Forecast Horizon:</span>
+            <span className="font-bold text-emerald-400">{months} Months</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-mono">Period:</span>
+            <Select value={String(months)} onValueChange={(v) => setMonths(parseInt(v))}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="6">6 months</SelectItem>
+                <SelectItem value="12">12 months</SelectItem>
+                <SelectItem value="18">18 months</SelectItem>
+                <SelectItem value="24">24 months</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Select value={String(months)} onValueChange={(v) => setMonths(parseInt(v))}>
-          <SelectTrigger className="h-8 w-28 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="6">6 months</SelectItem>
-            <SelectItem value="12">12 months</SelectItem>
-            <SelectItem value="18">18 months</SelectItem>
-            <SelectItem value="24">24 months</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {isLoading ? (
         <div className="flex h-40 items-center justify-center">

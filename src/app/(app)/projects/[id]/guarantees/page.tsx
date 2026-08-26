@@ -131,32 +131,25 @@ export default function BankGuaranteesPage({
   return (
     <>
       <ModuleTabs projectId={projectId} tabs={CONTRACT_TABS} />
-      <div className="space-y-6 pb-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link href={`/projects/${projectId}`} className="hover:text-foreground">
-                Project
-              </Link>
-              <span>/</span>
-              <span>Guarantees & Insurance</span>
-            </div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">
-              Bank Guarantees & Insurance Policies (बैंक ग्यारेन्टी तथा बीमा)
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Track Performance Bonds, Mobilization APGs, and CAR Policies with automated expiry alerts.
-            </p>
+      <div className="space-y-4 pb-8">
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-4 text-xs font-mono text-gray-400">
+            <span>Active Guarantees: <span className="font-bold text-white">{kpis.activeCount}</span></span>
+            {kpis.expiringWithin30DaysCount > 0 && (
+              <>
+                <div className="h-3 w-[1px] bg-white/10" />
+                <span className="text-amber-400 font-bold">⚠️ {kpis.expiringWithin30DaysCount} Expiring Soon</span>
+              </>
+            )}
           </div>
 
           <Button
             size="sm"
             onClick={() => setAddOpen(true)}
-            className="gap-1.5 shadow-sm font-semibold text-xs"
+            className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 font-sans"
           >
-            <Plus className="h-4 w-4" />
-            Add Guarantee / Insurance
+            <Plus className="h-3.5 w-3.5" /> + Add Guarantee / Insurance
           </Button>
         </div>
 

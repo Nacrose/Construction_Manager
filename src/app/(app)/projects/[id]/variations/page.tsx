@@ -68,37 +68,38 @@ export default function VariationsPage() {
   );
 
   return (
-    <AnimatedPage className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Variation Orders</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage contract variations, track BOQ changes, and approve extra items.
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> New Variation Order
-        </Button>
-      </div>
-
+    <AnimatedPage className="space-y-4 pb-8">
       <Tabs defaultValue="orders">
-        <TabsList>
-          <TabsTrigger value="orders">Variation Orders</TabsTrigger>
-          <TabsTrigger value="snapshots">BOQ Snapshots</TabsTrigger>
-        </TabsList>
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <TabsList className="bg-[#121820] border border-white/10 p-0.5 rounded-xl">
+            <TabsTrigger value="orders" className="text-xs rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium">
+              Variation Orders ({vos?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="snapshots" className="text-xs rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium">
+              BOQ Snapshots
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="orders" className="mt-4 space-y-4">
-          <div className="flex items-center gap-2 max-w-sm">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-3">
+            <div className="relative w-48 sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search by VO number or title..."
-                className="pl-9"
+                placeholder="Search VO number/title..."
+                className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
             </div>
+            {canWrite && (
+              <Button onClick={() => setCreateOpen(true)} size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
+                <Plus className="h-3.5 w-3.5" /> + New Variation Order
+              </Button>
+            )}
           </div>
+        </div>
+
+        <TabsContent value="orders" className="mt-4 space-y-4">
 
           {isLoading ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

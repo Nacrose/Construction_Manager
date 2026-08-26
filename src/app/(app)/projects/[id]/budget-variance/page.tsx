@@ -46,20 +46,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
   return (
     <>
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
-      <AnimatedPage className="space-y-6 pb-8">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link>
-            <span>/</span>
-            <span>Budget vs Actual</span>
-          </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <Scale className="h-6 w-6" /> Budget vs Actual Variance
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Compare planned BOQ costs against actual execution quantities and material costs.
-        </p>
-      </div>
+      <AnimatedPage className="space-y-4 pb-8">
 
       {isLoading ? (
         <div className="flex h-40 items-center justify-center">
