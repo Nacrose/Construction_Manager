@@ -22,6 +22,7 @@ import {
   Loader2,
   LayoutList,
   Maximize2,
+  Building,
 } from "lucide-react";
 import {
   Select,
@@ -30,10 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { adToBs } from "@/lib/nepali-calendar";
+import { adToBs, bsToAd } from "@/lib/nepali-calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { RecordPaymentDialog } from "../../payments/components/record-payment-dialog";
@@ -63,11 +64,13 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
     }
   });
   const [inflowSource, setInflowSource] = useState("");
+  const [inflowCategory, setInflowCategory] = useState("Client IPC Running Bill");
   const [inflowAmount, setInflowAmount] = useState("");
-  const [inflowPaymentMode, setInflowPaymentMode] = useState<"bank_transfer" | "cheque" | "connectips" | "cash">("bank_transfer");
+  const [inflowMode, setInflowMode] = useState("bank_transfer");
+  const [inflowBank, setInflowBank] = useState("Nabil Bank Site A/C");
   const [inflowRefNo, setInflowRefNo] = useState("");
   const [inflowNotes, setInflowNotes] = useState("");
-  const [inflowProjectId, setInflowProjectId] = useState(projectId);
+  const [inflowProjectId, setInflowProjectId] = useState(projectId || "");
   const { data: projectsData } = trpc.project.list.useQuery();
   const allProjects = projectsData?.projects || [];
 
@@ -594,9 +597,14 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                   toast.error("Please enter payer source and amount");
                   return;
                 }
+                const effectiveProjId = inflowProjectId || projectId || allProjects[0]?.id;
+                if (!effectiveProjId) {
+                  toast.error("Please create or select a project to record site inflow.");
+                  return;
+                }
                 const amt = parseFloat(inflowAmount) || 0;
                 createInflowMut.mutate({
-                  projectId: inflowProjectId || projectId,
+                  projectId: effectiveProjId,
                   date: new Date(inflowDate).toISOString(),
                   debitAccountId: inflowBank.includes("Cash") ? "cash_petty" : "bank_nabil",
                   creditAccountId: "revenue_client",
@@ -615,18 +623,22 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
       </Dialog>
 
       {/* Modal: Record Payment (Outflow) */}
-      <RecordPaymentDialog
-        projectId={projectId}
-        open={recordPaymentOpen}
-        onOpenChange={setRecordPaymentOpen}
-      />
+      {(projectId || allProjects[0]?.id) && (
+        <RecordPaymentDialog
+          projectId={projectId || allProjects[0]?.id || ""}
+          open={recordPaymentOpen}
+          onOpenChange={setRecordPaymentOpen}
+        />
+      )}
 
       {/* Modal: Add Bill / Staff Expense Claim */}
-      <AddClaimDialog
-        projectId={projectId}
-        open={addClaimOpen}
-        onOpenChange={setAddClaimOpen}
-      />
+      {(projectId || allProjects[0]?.id) && (
+        <AddClaimDialog
+          projectId={projectId || allProjects[0]?.id || ""}
+          open={addClaimOpen}
+          onOpenChange={setAddClaimOpen}
+        />
+      )}
 
       {/* 16:10 Modal: Record Head Office Overhead Expense */}
       <Dialog open={recordHoExpenseOpen} onOpenChange={setRecordHoExpenseOpen}>

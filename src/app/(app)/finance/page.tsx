@@ -14,7 +14,6 @@ import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
 import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
 import { OrgBankAccountsTab } from "@/app/(app)/finance/components/org-bank-accounts-tab";
 import { OrgGuaranteesTab } from "@/app/(app)/finance/components/org-guarantees-tab";
-import { OrgHeadOfficeExpensesTab } from "@/app/(app)/finance/components/org-ho-expenses-tab";
 import { ProjectJvTab } from "@/app/(app)/projects/[id]/accounting/components/project-jv-tab";
 import { Handshake } from "lucide-react";
 
