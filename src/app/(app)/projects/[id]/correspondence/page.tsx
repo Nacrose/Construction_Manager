@@ -46,6 +46,7 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
   const [search, setSearch] = useState("");
   const [filterDirection, setFilterDirection] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
     projectId: id,
     direction: filterDirection === "all" ? undefined : filterDirection,
     replyStatus: filterStatus === "all" ? undefined : filterStatus,
+    category: filterCategory === "all" ? undefined : filterCategory,
     q: search || undefined,
     overdue: filterOverdue || undefined,
   });
