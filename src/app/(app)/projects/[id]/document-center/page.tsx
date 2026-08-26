@@ -103,50 +103,47 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
   return (
     <>
       <ModuleTabs projectId={id} tabs={DOCS_TABS} />
-      <div className="space-y-6 pb-8">
-      <div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link><span>/</span><span>Document Center</span>
+      <div className="space-y-4 pb-8">
+        {/* Stats */}
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+          {Object.entries(TYPE_CONFIG).map(([key, cfg]) => {
+            const count = allDocs.filter(d => d.type === key).length;
+            const Icon = cfg.icon;
+            return (
+              <Card key={key} className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl">
+                <Icon className={cn("h-4 w-4 mx-auto mb-1", cfg.color)} />
+                <div className={cn("text-lg font-bold font-mono", cfg.color)}>{count}</div>
+                <div className="text-[9px] text-muted-foreground uppercase font-mono">{cfg.label}</div>
+              </Card>
+            );
+          })}
         </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Document Center</h1>
-        <p className="text-sm text-muted-foreground">All approved documents in one place — reports, RFIs, IPCs, drawings, letters, and signed hardcopies.</p>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
-        {Object.entries(TYPE_CONFIG).map(([key, cfg]) => {
-          const count = allDocs.filter(d => d.type === key).length;
-          const Icon = cfg.icon;
-          return (
-            <Card key={key} className="p-3 text-center">
-              <Icon className={cn("h-4 w-4 mx-auto mb-1", cfg.color)} />
-              <div className={cn("text-lg font-bold", cfg.color)}>{count}</div>
-              <div className="text-[8px] text-muted-foreground uppercase">{cfg.label}</div>
-            </Card>
-          );
-        })}
-      </div>
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search document number, title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-9 w-40 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="daily_report">Daily Reports</SelectItem>
+                <SelectItem value="rfi">RFIs</SelectItem>
+                <SelectItem value="ipc">IPCs</SelectItem>
+                <SelectItem value="drawing">Drawings</SelectItem>
+                <SelectItem value="correspondence">Letters</SelectItem>
+                <SelectItem value="signed_doc">Signed Docs</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+          <div className="text-xs font-mono text-gray-400">
+            <span>Total: <span className="font-bold text-white">{filtered.length}</span> Documents</span>
+          </div>
         </div>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="h-9 w-40 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="daily_report">Daily Reports</SelectItem>
-            <SelectItem value="rfi">RFIs</SelectItem>
-            <SelectItem value="ipc">IPCs</SelectItem>
-            <SelectItem value="drawing">Drawings</SelectItem>
-            <SelectItem value="correspondence">Letters</SelectItem>
-            <SelectItem value="signed_doc">Signed Docs</SelectItem>
-            <SelectItem value="submittal">Submittals</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Document list */}
       {isLoading ? (

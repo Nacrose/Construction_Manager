@@ -38,77 +38,68 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
   return (
     <>
       <ModuleTabs projectId={id} tabs={PLANNING_TABS} />
-      <div className="space-y-6 pb-8">
-      <div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link>
-          <span>/</span>
-          <span>Look-Ahead</span>
+      <div className="space-y-4 pb-8">
+        {/* Single-Row Unified Action & Controls Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-1 bg-[#121820] p-1 rounded-xl border border-white/10">
+            <button
+              onClick={() => setTab("schedule")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
+                tab === "schedule" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+              )}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Schedule
+            </button>
+            <button
+              onClick={() => setTab("materials")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
+                tab === "materials" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+              )}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Materials
+            </button>
+            <button
+              onClick={() => setTab("conflicts")}
+              className={cn(
+                "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
+                tab === "conflicts" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+              )}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Resource Conflicts
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#121820] px-2 py-1 rounded-xl border border-white/10">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white" onClick={() => setStartDate(addDays(startDate, -7))}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs font-mono font-bold text-white px-2">
+                {format(startDate, "dd MMM")} — {format(endDate, "dd MMM yyyy")}
+              </span>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white" onClick={() => setStartDate(addDays(startDate, 7))}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+
+            <Select value={String(weeks)} onValueChange={(v) => setWeeks(parseInt(v))}>
+              <SelectTrigger className="h-9 w-28 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="1">1 week</SelectItem>
+                <SelectItem value="2">2 weeks</SelectItem>
+                <SelectItem value="4">4 weeks</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-9 px-3 text-xs bg-[#121820] border-white/10 text-gray-300 hover:text-white rounded-xl" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+              Today
+            </Button>
+          </div>
         </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Look-Ahead Schedule</h1>
-        <p className="text-sm text-muted-foreground">
-          {weeks}-week look-ahead with material requirements and resource conflicts.
-        </p>
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => setStartDate(addDays(startDate, -7))}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-sm font-medium">
-          {format(startDate, "dd MMM")} — {format(endDate, "dd MMM yyyy")}
-        </span>
-        <Button size="sm" variant="outline" onClick={() => setStartDate(addDays(startDate, 7))}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <div className="flex-1" />
-        <Select value={String(weeks)} onValueChange={(v) => setWeeks(parseInt(v))}>
-          <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">1 week</SelectItem>
-            <SelectItem value="2">2 weeks</SelectItem>
-            <SelectItem value="4">4 weeks</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button size="sm" variant="outline" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
-          Today
-        </Button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b">
-        <button
-          onClick={() => setTab("schedule")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition",
-            tab === "schedule" ? "border-amber-500 text-amber-700 dark:text-amber-400" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Calendar className="inline h-3.5 w-3.5 mr-1" />
-          Schedule
-        </button>
-        <button
-          onClick={() => setTab("materials")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition",
-            tab === "materials" ? "border-amber-500 text-amber-700 dark:text-amber-400" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Package className="inline h-3.5 w-3.5 mr-1" />
-          Materials
-        </button>
-        <button
-          onClick={() => setTab("conflicts")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition",
-            tab === "conflicts" ? "border-amber-500 text-amber-700 dark:text-amber-400" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <AlertTriangle className="inline h-3.5 w-3.5 mr-1" />
-          Resource Conflicts
-        </button>
-      </div>
 
       {tab === "schedule" && (
         <ScheduleTab projectId={id} days={days} startDate={startDate} />

@@ -10,6 +10,10 @@
 
 ## UI Design & Aesthetic Rules (Strict User Directive)
 
+- **Purpose-Driven UX Directive (No "Rule of Cool" & Zero Duplicate Elements)**:
+  - **Every single pixel, button, badge, and element on the UI MUST serve an explicit, operational purpose.**
+  - **NEVER** add visual elements, decorative widgets, or nested cards purely for the "rule of cool" or aesthetics. If an element does not deliver functional utility or actionable data to the contractor, remove it.
+  - **Zero Duplicate Elements**: Never repeat labels, headers, breadcrumbs, or status chips when another UI component already conveys that state.
 - **Zero Redundant Section / Tab Headers (No Duplicate Title Rows)**:
   - When a tab, nav item, or module is already highlighted/active in the top navigation bar, **NEVER** render a duplicate header title, sub-tab bar, or section label repeating the tab's name (e.g. Do NOT show "📖 Day Book (दैनिक रोजकट्टी)" underneath the active "Day Book & Cashbook" tab).
   - The content component must render immediately under the main navigation bar with zero redundant title clutter.

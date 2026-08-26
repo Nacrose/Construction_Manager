@@ -55,55 +55,55 @@ export default function SubmittalsPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <ModuleTabs projectId={id} tabs={DOCS_TABS} />
-      <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link><span>/</span><span>Submittals</span>
+      <div className="space-y-4 pb-8">
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[
+              { label: "Total", value: stats.total, color: "text-slate-400" },
+              { label: "Draft", value: stats.draft, color: "text-slate-500" },
+              { label: "Submitted", value: stats.submitted, color: "text-amber-400" },
+              { label: "Approved", value: stats.approved, color: "text-emerald-400" },
+              { label: "Rejected", value: stats.rejected, color: "text-red-400" },
+              { label: "Revise", value: stats.revise, color: "text-orange-400" },
+            ].map(s => (
+              <Card key={s.label} className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl">
+                <div className={cn("text-lg font-bold font-mono", s.color)}>{s.value}</div>
+                <div className="text-[10px] text-muted-foreground uppercase font-mono">{s.label}</div>
+              </Card>
+            ))}
           </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Submittals</h1>
-          <p className="text-sm text-muted-foreground">Shop drawings, material samples, and product data submitted for approval.</p>
-        </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> New Submittal</Button></DialogTrigger>
-          <CreateSubmittalDialog projectId={id} onDone={() => { setAddOpen(false); utils.submittal.list.invalidate({ projectId: id }); utils.submittal.stats.invalidate({ projectId: id }); }} />
-        </Dialog>
-      </div>
+        )}
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {[
-            { label: "Total", value: stats.total, color: "text-slate-600" },
-            { label: "Draft", value: stats.draft, color: "text-slate-500" },
-            { label: "Submitted", value: stats.submitted, color: "text-amber-600" },
-            { label: "Approved", value: stats.approved, color: "text-emerald-600" },
-            { label: "Rejected", value: stats.rejected, color: "text-red-600" },
-            { label: "Revise", value: stats.revise, color: "text-orange-600" },
-          ].map(s => (
-            <Card key={s.label} className="p-3 text-center"><div className={cn("text-lg font-bold", s.color)}>{s.value}</div><div className="text-[9px] text-muted-foreground uppercase">{s.label}</div></Card>
-          ))}
-        </div>
-      )}
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search submittal number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-36 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="revise_resubmit">Revise</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + New Submittal
+              </Button>
+            </DialogTrigger>
+            <CreateSubmittalDialog projectId={id} onDone={() => { setAddOpen(false); utils.submittal.list.invalidate({ projectId: id }); utils.submittal.stats.invalidate({ projectId: id }); }} />
+          </Dialog>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="submitted">Submitted</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="revise_resubmit">Revise</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* List */}
       {isLoading ? <Skeleton className="h-64" /> : submittals.length === 0 ? (
