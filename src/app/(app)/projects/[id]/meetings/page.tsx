@@ -39,16 +39,51 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
   return (
     <>
       <ModuleTabs projectId={id} tabs={WF_TABS} />
-      <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div><div className="flex items-center gap-2 text-sm text-muted-foreground"><Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link><span>/</span><span>Meetings</span></div><h1 className="mt-1 text-2xl font-semibold tracking-tight">Meeting Minutes</h1><p className="text-sm text-muted-foreground">Schedule meetings, record minutes, and track action items.</p></div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Schedule Meeting</Button></DialogTrigger>
-          <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Schedule Meeting</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-2"><div className="space-y-1.5"><Label className="text-xs">Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-sm" /></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-xs">Type</Label><Select value={type} onValueChange={setType}><SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="site_coordination">Site Coordination</SelectItem><SelectItem value="progress_review">Progress Review</SelectItem><SelectItem value="design_coordination">Design Coordination</SelectItem><SelectItem value="safety">Safety</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div><div className="space-y-1.5"><Label className="text-xs">Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" /></div></div><div className="space-y-1.5"><Label className="text-xs">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-sm" /></div><div className="space-y-1.5"><Label className="text-xs">Attendees (comma-separated)</Label><Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-sm" /></div><div className="space-y-1.5"><Label className="text-xs">Agenda</Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={2} className="text-sm" /></div></div>
-            <DialogFooter><Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button><Button onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title}>{createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <div className="space-y-4 pb-8">
+        {/* Single-Row Action Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+            <span>Meeting Minutes ({meetings.length} meetings)</span>
+          </div>
+
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + Schedule Meeting
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+              <DialogHeader><DialogTitle className="text-base font-bold text-white">Schedule Meeting</DialogTitle></DialogHeader>
+              <div className="space-y-3 py-2 text-xs">
+                <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5"><Label className="text-xs">Type</Label>
+                    <Select value={type} onValueChange={setType}>
+                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                        <SelectItem value="site_coordination">Site Coordination</SelectItem>
+                        <SelectItem value="progress_review">Progress Review</SelectItem>
+                        <SelectItem value="design_coordination">Design Coordination</SelectItem>
+                        <SelectItem value="safety">Safety</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5"><Label className="text-xs">Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+                </div>
+                <div className="space-y-1.5"><Label className="text-xs">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Attendees (comma-separated)</Label><Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Agenda</Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={2} className="text-xs bg-[#121820] border-white/10 text-white" /></div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="text-xs text-gray-400">Cancel</Button>
+                <Button size="sm" onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold">
+                  {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       {isLoading ? <Skeleton className="h-64" /> : meetings.length === 0 ? <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center"><Calendar className="h-12 w-12 text-muted-foreground/40 mb-3" /><p className="text-sm text-muted-foreground">No meetings scheduled.</p></CardContent></Card> : (
         <div className="space-y-2">{meetings.map(m => (
           <Card key={m.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => setDetailId(m.id)}><CardContent className="p-3 flex items-start gap-3">

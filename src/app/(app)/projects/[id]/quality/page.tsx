@@ -136,68 +136,69 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
   return (
     <>
       <ModuleTabs projectId={id} tabs={QS_TABS} />
-      <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link>
-            <span>/</span><span>Quality</span>
+      <div className="space-y-4 pb-8">
+        {stats && (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-slate-400">{stats.total}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Total</div></Card>
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-amber-400">{stats.pending}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Pending</div></Card>
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-emerald-400">{stats.passed}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Passed</div></Card>
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-red-400">{stats.failed}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Failed</div></Card>
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-orange-400">{stats.ncr}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">NCR</div></Card>
+            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-blue-400">{stats.completed}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Completed</div></Card>
           </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Quality Inspections</h1>
-          <p className="text-sm text-muted-foreground">Work inspections, material tests, NCRs, and site audits with checklists.</p>
-        </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Request Inspection</Button></DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader><DialogTitle>Request Inspection</DialogTitle></DialogHeader>
-            <div className="space-y-3 py-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Number</Label>
-                  <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-sm font-mono" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Type</Label>
-                  <Select value={inspectionType} onValueChange={setInspectionType}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="work_inspection">Work Inspection</SelectItem>
-                      <SelectItem value="material_test">Material Test</SelectItem>
-                      <SelectItem value="ncr">NCR</SelectItem>
-                      <SelectItem value="site_audit">Site Audit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Title</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Location</Label>
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} className="h-9 text-sm" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={() => createMut.mutate({ projectId: id, number, title, inspectionType: inspectionType as any, location: location || undefined })} disabled={createMut.isPending || !number || !title}>
-                {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+        )}
 
-      {stats && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-slate-600">{stats.total}</div><div className="text-[9px] text-muted-foreground uppercase">Total</div></Card>
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-amber-600">{stats.pending}</div><div className="text-[9px] text-muted-foreground uppercase">Pending</div></Card>
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-emerald-600">{stats.passed}</div><div className="text-[9px] text-muted-foreground uppercase">Passed</div></Card>
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-red-600">{stats.failed}</div><div className="text-[9px] text-muted-foreground uppercase">Failed</div></Card>
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-orange-600">{stats.ncr}</div><div className="text-[9px] text-muted-foreground uppercase">NCR</div></Card>
-          <Card className="p-3 text-center"><div className="text-lg font-bold text-blue-600">{stats.completed}</div><div className="text-[9px] text-muted-foreground uppercase">Completed</div></Card>
+        {/* Single-Row Action Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+            <span>Quality Register ({inspections.length} inspections)</span>
+          </div>
+
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + Request Inspection
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+              <DialogHeader><DialogTitle className="text-base font-bold text-white">Request Inspection</DialogTitle></DialogHeader>
+              <div className="space-y-3 py-2 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Number</Label>
+                    <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-xs font-mono bg-[#121820] border-white/10 text-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Type</Label>
+                    <Select value={inspectionType} onValueChange={setInspectionType}>
+                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                        <SelectItem value="work_inspection">Work Inspection</SelectItem>
+                        <SelectItem value="material_test">Material Test</SelectItem>
+                        <SelectItem value="ncr">NCR</SelectItem>
+                        <SelectItem value="site_audit">Site Audit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Title</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-xs bg-[#121820] border-white/10 text-white" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Location</Label>
+                  <Input value={location} onChange={(e) => setLocation(e.target.value)} className="h-9 text-xs bg-[#121820] border-white/10 text-white" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="text-xs text-gray-400">Cancel</Button>
+                <Button size="sm" onClick={() => createMut.mutate({ projectId: id, number, title, inspectionType: inspectionType as any, location: location || undefined })} disabled={createMut.isPending || !number || !title} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold">
+                  {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
-      )}
 
       {isLoading ? <Skeleton className="h-64" /> : inspections.length === 0 ? (
         <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center">

@@ -64,76 +64,65 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
   return (
     <>
       <ModuleTabs projectId={id} tabs={WF_TABS} />
-      <div className="space-y-6 pb-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link>
-            <span>/</span><span>Correspondence</span>
+      <div className="space-y-4 pb-8">
+        {/* Stats bar */}
+        {statsData && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <StatCard label="Total" value={statsData.total} icon={Mail} color="text-slate-400" />
+            <StatCard label="Incoming" value={statsData.incoming} icon={ArrowDownLeft} color="text-blue-400" />
+            <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-emerald-400" />
+            <StatCard label="Actionable" value={statsData.actionable} icon={FileText} color="text-amber-400" />
+            <StatCard label="Overdue" value={statsData.overdue} icon={AlertTriangle} color="text-red-400" urgent={statsData.overdue > 0} />
           </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Correspondence Register</h1>
-          <p className="text-sm text-muted-foreground">Formal letter tracking with full traceability and accountability.</p>
-        </div>
-        <Dialog open={logOpen} onOpenChange={setLogOpen}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Log Letter</Button></DialogTrigger>
-          <LogLetterDialog projectId={id} onDone={() => { setLogOpen(false); utils.correspondence.list.invalidate({ projectId: id }); utils.correspondence.stats.invalidate({ projectId: id }); }} />
-        </Dialog>
-      </div>
+        )}
 
-      {/* Stats bar */}
-      {statsData && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <StatCard label="Total" value={statsData.total} icon={Mail} color="text-slate-600" />
-          <StatCard label="Incoming" value={statsData.incoming} icon={ArrowDownLeft} color="text-blue-600" />
-          <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-emerald-600" />
-          <StatCard label="Actionable" value={statsData.actionable} icon={FileText} color="text-amber-600" />
-          <StatCard label="Overdue" value={statsData.overdue} icon={AlertTriangle} color="text-red-600" urgent={statsData.overdue > 0} />
-        </div>
-      )}
-
-      {/* Overdue alert */}
-      {statsData && statsData.overdue > 0 && (
-        <Card className="border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/20">
-          <CardContent className="flex items-center gap-3 p-3">
-            <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-            <div className="flex-1 text-xs">
-              <span className="font-medium text-red-700 dark:text-red-400">{statsData.overdue} letter(s) overdue for reply!</span>
-              <span className="text-red-600/70 dark:text-red-400/70 ml-2">Click "Overdue" filter to see them.</span>
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search subject, ref, from..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
             </div>
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setFilterOverdue(!filterOverdue)}>
-              {filterOverdue ? "Show All" : "Show Overdue"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+            <Select value={filterDirection} onValueChange={setFilterDirection}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Types</SelectItem><SelectItem value="incoming">Incoming</SelectItem><SelectItem value="outgoing">Outgoing</SelectItem></SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="not_started">Not Started</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="drafted">Drafted</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="qc">QC</SelectItem>
+                <SelectItem value="design">Design</SelectItem>
+                <SelectItem value="site">Site</SelectItem>
+                <SelectItem value="account">Account</SelectItem>
+                <SelectItem value="contract">Contract</SelectItem>
+                <SelectItem value="safety">Safety</SelectItem>
+                <SelectItem value="procurement">Procurement</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search subject, ref, from..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+          <Dialog open={logOpen} onOpenChange={setLogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + Log Letter
+              </Button>
+            </DialogTrigger>
+            <LogLetterDialog projectId={id} onDone={() => { setLogOpen(false); utils.correspondence.list.invalidate({ projectId: id }); utils.correspondence.stats.invalidate({ projectId: id }); }} />
+          </Dialog>
         </div>
-        <Select value={filterDirection} onValueChange={setFilterDirection}>
-          <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="incoming">Incoming</SelectItem>
-            <SelectItem value="outgoing">Outgoing</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="not_started">Not Started</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="drafted">Drafted</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Letter list */}
       {isLoading ? (

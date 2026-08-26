@@ -51,51 +51,51 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
   return (
     <>
       <ModuleTabs projectId={id} tabs={QS_TABS} />
-      <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href={`/projects/${id}`} className="hover:text-foreground">Project</Link><span>/</span><span>Punch List</span>
+      <div className="space-y-4 pb-8">
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            {[
+              { label: "Total", value: stats.total, color: "text-slate-400" },
+              { label: "Open", value: stats.open, color: "text-red-400" },
+              { label: "In Progress", value: stats.inProgress, color: "text-amber-400" },
+              { label: "Resolved", value: stats.resolved, color: "text-emerald-400" },
+              { label: "Verified", value: stats.verified, color: "text-blue-400" },
+            ].map(s => (
+              <Card key={s.label} className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl">
+                <div className={cn("text-lg font-bold font-mono", s.color)}>{s.value}</div>
+                <div className="text-[10px] text-muted-foreground uppercase font-mono">{s.label}</div>
+              </Card>
+            ))}
           </div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Punch List</h1>
-          <p className="text-sm text-muted-foreground">Defect tracking and snag list for handover.</p>
-        </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Add Item</Button></DialogTrigger>
-          <CreatePunchDialog projectId={id} onDone={() => { setAddOpen(false); utils.punchList.list.invalidate({ projectId: id }); utils.punchList.stats.invalidate({ projectId: id }); }} />
-        </Dialog>
-      </div>
+        )}
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-          {[
-            { label: "Total", value: stats.total, color: "text-slate-600" },
-            { label: "Open", value: stats.open, color: "text-red-600" },
-            { label: "In Progress", value: stats.inProgress, color: "text-amber-600" },
-            { label: "Resolved", value: stats.resolved, color: "text-emerald-600" },
-            { label: "Verified", value: stats.verified, color: "text-blue-600" },
-          ].map(s => (
-            <Card key={s.label} className="p-3 text-center"><div className={cn("text-lg font-bold", s.color)}>{s.value}</div><div className="text-[9px] text-muted-foreground uppercase">{s.label}</div></Card>
-          ))}
-        </div>
-      )}
+        {/* Single-Row Action & Filter Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="Search snag/punch item..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Status</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In Progress</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="verified">Verified</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent>
+            </Select>
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Severity</SelectItem><SelectItem value="critical">Critical</SelectItem><SelectItem value="major">Major</SelectItem><SelectItem value="minor">Minor</SelectItem></SelectContent>
+            </Select>
+          </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
+                <Plus className="h-3.5 w-3.5" /> + Add Item
+              </Button>
+            </DialogTrigger>
+            <CreatePunchDialog projectId={id} onDone={() => { setAddOpen(false); utils.punchList.list.invalidate({ projectId: id }); utils.punchList.stats.invalidate({ projectId: id }); }} />
+          </Dialog>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All Status</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In Progress</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="verified">Verified</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent>
-        </Select>
-        <Select value={severityFilter} onValueChange={setSeverityFilter}>
-          <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All Severity</SelectItem><SelectItem value="critical">Critical</SelectItem><SelectItem value="major">Major</SelectItem><SelectItem value="minor">Minor</SelectItem></SelectContent>
-        </Select>
-      </div>
 
       {/* List */}
       {isLoading ? <Skeleton className="h-64" /> : items.length === 0 ? (
