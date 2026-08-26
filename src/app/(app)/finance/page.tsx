@@ -20,7 +20,6 @@ import { Handshake } from "lucide-react";
 
 export const FIN_TABS = [
   { label: "Day Book & Cashbook", key: "accounting" },
-  { label: "HQ General Expenses", key: "ho-expenses" },
   { label: "JV Partner Commissions", key: "jv-commission" },
   { label: "Bank Accounts & Wallets", key: "bank-accounts" },
   { label: "Guarantees & Bid Bonds", key: "guarantees" },
@@ -29,15 +28,15 @@ export const FIN_TABS = [
 ];
 
 export default function OrganizationFinancePage() {
-  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "ho-expenses" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
+  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
   const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance" | "jv">("daybook");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   const { data: projectsData } = trpc.project.list.useQuery();
   const projects = projectsData?.projects || [];
 
-  // Active project ID fallback to first project
-  const currentProjectId = selectedProjectId || projects[0]?.id || "";
+  // Active project ID fallback to selected or first project (or empty string for org-wide)
+  const currentProjectId = selectedProjectId || (projects.length > 0 ? projects[0]?.id : "");
 
   return (
     <div className="space-y-4 pb-8">
@@ -64,18 +63,19 @@ export default function OrganizationFinancePage() {
           })}
         </div>
 
-        {/* Project Selector for Multi-Site Scoping (only when on site-scoped tabs) */}
+        {/* Project Selector for Multi-Site Scoping */}
         {projects.length > 0 && (activeMainTab === "accounting" || activeMainTab === "jv-commission" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-mono">Project:</span>
-            <Select value={currentProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-8 text-xs font-mono w-52 bg-[#121820] border-white/10 text-white rounded-lg">
-                <SelectValue placeholder="Select Project" />
+            <span className="text-xs text-muted-foreground font-mono">Scope:</span>
+            <Select value={selectedProjectId || "all"} onValueChange={(val) => setSelectedProjectId(val === "all" ? "" : val)}>
+              <SelectTrigger className="h-8 text-xs font-mono w-56 bg-[#121820] border-white/10 text-white rounded-lg">
+                <SelectValue placeholder="All (HQ + Projects)" />
               </SelectTrigger>
               <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
+                <SelectItem value="all">🌐 All (HQ + All Site Projects)</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name} ({p.code})
+                    🏗️ {p.name} ({p.code})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -89,43 +89,24 @@ export default function OrganizationFinancePage() {
         <OrgBankAccountsTab />
       )}
 
-      {/* Tab: Head Office Overheads & General Expenses */}
-      {activeMainTab === "ho-expenses" && (
-        <OrgHeadOfficeExpensesTab />
-      )}
-
       {/* Tab: Organization Bank Guarantees & Bid Bonds */}
       {activeMainTab === "guarantees" && (
         <OrgGuaranteesTab />
       )}
 
       {/* Tab: JV Partner Commission Ledger */}
-      {activeMainTab === "jv-commission" && currentProjectId && (
-        <ProjectJvTab projectId={currentProjectId} />
+      {activeMainTab === "jv-commission" && (
+        currentProjectId ? (
+          <ProjectJvTab projectId={currentProjectId} />
+        ) : (
+          <div className="p-8 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 text-xs text-muted-foreground">
+            Select an active project site from the dropdown to view JV partner commission agreements.
+          </div>
+        )
       )}
 
-      {/* Empty State when Organization has no projects yet for site-scoped tabs */}
-      {projects.length === 0 && (activeMainTab === "accounting" || activeMainTab === "jv-commission" || activeMainTab === "payments" || activeMainTab === "tax-summary") && (
-        <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 my-4 space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_16px_rgba(0,255,102,0.15)]">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div className="space-y-1 max-w-sm">
-            <h3 className="text-base font-bold text-white">No Projects Created Yet</h3>
-            <p className="text-xs text-muted-foreground">
-              Accounting ledgers, Day Book vouchers, and JV commission tracking are scoped to project sites. Create your first project to begin.
-            </p>
-          </div>
-          <Link href="/projects">
-            <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-[0_0_12px_rgba(0,255,102,0.25)] flex items-center gap-2">
-              <span>+ Create First Project</span>
-            </button>
-          </Link>
-        </div>
-      )}
-
-      {/* Tab 1: Day Book & Cashbook */}
-      {projects.length > 0 && activeMainTab === "accounting" && (
+      {/* Tab 1: Unified Day Book & Cashbook (Always available even with 0 projects) */}
+      {activeMainTab === "accounting" && (
         <div className="space-y-4">
           {/* Compact Sub-Tabs Navigation */}
           <div className="flex items-center justify-between border-b border-white/10 pb-0">
@@ -140,58 +121,44 @@ export default function OrganizationFinancePage() {
                 )}
               >
                 <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
-                Day Book (रोजकट्टी)
+                Day Book (दैनिक रोजकट्टी)
               </button>
 
-              <button
-                onClick={() => setSubTab("ledgers")}
-                className={cn(
-                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                  subTab === "ledgers"
-                    ? "border-emerald-500 text-emerald-400 font-bold"
-                    : "border-transparent text-gray-400 hover:text-white"
-                )}
-              >
-                <Users className="h-3.5 w-3.5" />
-                Ledger Accounts (खाता सूची)
-              </button>
+              {projects.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setSubTab("ledgers")}
+                    className={cn(
+                      "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                      subTab === "ledgers"
+                        ? "border-emerald-500 text-emerald-400 font-bold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    )}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Ledger Accounts (खाता सूची)
+                  </button>
 
-              <button
-                onClick={() => setSubTab("trial_balance")}
-                className={cn(
-                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                  subTab === "trial_balance"
-                    ? "border-emerald-500 text-emerald-400 font-bold"
-                    : "border-transparent text-gray-400 hover:text-white"
-                )}
-              >
-                <Scale className="h-3.5 w-3.5" />
-                Trial Balance (वासलात)
-              </button>
-
-              <button
-                onClick={() => setSubTab("jv")}
-                className={cn(
-                  "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
-                  subTab === "jv"
-                    ? "border-emerald-500 text-emerald-400 font-bold"
-                    : "border-transparent text-gray-400 hover:text-white"
-                )}
-              >
-                <Handshake className="h-3.5 w-3.5" />
-                JV Commission (साझेदार कमिसन)
-              </button>
+                  <button
+                    onClick={() => setSubTab("trial_balance")}
+                    className={cn(
+                      "px-3.5 py-2 text-xs font-semibold border-b-2 transition flex items-center gap-1.5",
+                      subTab === "trial_balance"
+                        ? "border-emerald-500 text-emerald-400 font-bold"
+                        : "border-transparent text-gray-400 hover:text-white"
+                    )}
+                  >
+                    <Scale className="h-3.5 w-3.5" />
+                    Trial Balance (वासलात)
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          {currentProjectId && (
-            <>
-              {subTab === "daybook" && <DayBookTab projectId={currentProjectId} />}
-              {subTab === "ledgers" && <LedgerAccountsTab projectId={currentProjectId} />}
-              {subTab === "trial_balance" && <TrialBalanceTab projectId={currentProjectId} />}
-              {subTab === "jv" && <ProjectJvTab projectId={currentProjectId} />}
-            </>
-          )}
+          {subTab === "daybook" && <DayBookTab projectId={currentProjectId || undefined} />}
+          {subTab === "ledgers" && currentProjectId && <LedgerAccountsTab projectId={currentProjectId} />}
+          {subTab === "trial_balance" && currentProjectId && <TrialBalanceTab projectId={currentProjectId} />}
         </div>
       )}
 

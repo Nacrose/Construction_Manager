@@ -44,13 +44,14 @@ function fmt(n: number) {
   return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function DayBookTab({ projectId }: { projectId: string }) {
+export function DayBookTab({ projectId }: { projectId?: string }) {
   const utils = trpc.useUtils();
   const [isCompact, setIsCompact] = useState(true);
   const [voucherType, setVoucherType] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [recordInflowOpen, setRecordInflowOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+  const [recordHoExpenseOpen, setRecordHoExpenseOpen] = useState(false);
 
   // Inflow Form State
   const [inflowDate, setInflowDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -62,10 +63,8 @@ export function DayBookTab({ projectId }: { projectId: string }) {
     }
   });
   const [inflowSource, setInflowSource] = useState("");
-  const [inflowCategory, setInflowCategory] = useState("Client IPC Running Bill");
   const [inflowAmount, setInflowAmount] = useState("");
-  const [inflowMode, setInflowMode] = useState("bank_transfer");
-  const [inflowBank, setInflowBank] = useState("Nabil Bank Site A/C");
+  const [inflowPaymentMode, setInflowPaymentMode] = useState<"bank_transfer" | "cheque" | "connectips" | "cash">("bank_transfer");
   const [inflowRefNo, setInflowRefNo] = useState("");
   const [inflowNotes, setInflowNotes] = useState("");
   const [inflowProjectId, setInflowProjectId] = useState(projectId);
@@ -98,13 +97,46 @@ export function DayBookTab({ projectId }: { projectId: string }) {
     },
   });
 
+  // Head Office Expense Form State
+  const [hoCategory, setHoCategory] = useState("office_rent");
+  const [hoParticulars, setHoParticulars] = useState("");
+  const [hoAmount, setHoAmount] = useState("");
+  const [hoPaymentMode, setHoPaymentMode] = useState<"bank_transfer" | "cheque" | "connectips" | "cash">("bank_transfer");
+  const [hoBankAccountId, setHoBankAccountId] = useState<string>("none");
+  const [hoChequeNo, setHoChequeNo] = useState("");
+  const [hoDate, setHoDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [hoMiti, setHoMiti] = useState(() => {
+    try { return adToBs(new Date()).formatted; } catch { return ""; }
+  });
+  const [hoNotes, setHoNotes] = useState("");
+
+  const { data: bankData } = trpc.finance.orgBankAccounts.useQuery();
+  const bankAccounts = bankData?.accounts || [];
+
+  const createHoExpenseMut = trpc.finance.createHeadOfficeExpense.useMutation({
+    onSuccess: () => {
+      toast.success("Head Office overhead expense recorded in Day Book!");
+      setRecordHoExpenseOpen(false);
+      setHoParticulars("");
+      setHoAmount("");
+      setHoChequeNo("");
+      setHoNotes("");
+      utils.accounting.dayBook.invalidate();
+      utils.finance.orgBankAccounts.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const { data, isLoading } = trpc.accounting.dayBook.useQuery({
-    projectId,
+    projectId: projectId || undefined,
     voucherType: voucherType !== "all" ? voucherType : undefined,
     search: search || undefined,
   });
 
-  const { data: stats } = trpc.projectOps.payment.stats.useQuery({ projectId });
+  const { data: stats } = trpc.projectOps.payment.stats.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId }
+  );
 
   const entries = data?.entries || [];
   const summary = data?.summary || { totalDebit: 0, totalCredit: 0, count: 0 };
@@ -235,6 +267,14 @@ export function DayBookTab({ projectId }: { projectId: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => setRecordHoExpenseOpen(true)}
+            className="h-9 px-3.5 text-xs font-bold bg-[#141a23] hover:bg-[#1a2330] text-amber-400 border border-amber-500/30 rounded-xl transition gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+          >
+            <Building className="h-3.5 w-3.5" /> + HQ Overhead (कार्यालय खर्च)
+          </Button>
+
           <Button
             size="sm"
             onClick={() => setAddClaimOpen(true)}
@@ -587,6 +627,181 @@ export function DayBookTab({ projectId }: { projectId: string }) {
         open={addClaimOpen}
         onOpenChange={setAddClaimOpen}
       />
+
+      {/* 16:10 Modal: Record Head Office Overhead Expense */}
+      <Dialog open={recordHoExpenseOpen} onOpenChange={setRecordHoExpenseOpen}>
+        <DialogContent className="sm:max-w-[560px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+              <Building className="h-5 w-5 text-amber-400" /> Log Head Office Overhead Expense
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Record central company costs (Office rent, audit fees, utilities, e-GP tender fees).
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!hoParticulars || !hoAmount || parseFloat(hoAmount) <= 0) {
+                toast.error("Please fill in valid expense particulars and amount");
+                return;
+              }
+              createHoExpenseMut.mutate({
+                category: hoCategory,
+                particulars: hoParticulars,
+                amount: parseFloat(hoAmount),
+                date: hoDate,
+                miti: hoMiti || undefined,
+                paymentMode: hoPaymentMode,
+                bankAccountId: hoBankAccountId !== "none" ? hoBankAccountId : undefined,
+                chequeNo: hoChequeNo || undefined,
+                notes: hoNotes || undefined,
+              });
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Expense Category *</Label>
+                <Select value={hoCategory} onValueChange={setHoCategory}>
+                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                    <SelectItem value="office_rent">Head Office Rent (कार्यालय भाडा)</SelectItem>
+                    <SelectItem value="audit_tax">Audit &amp; Tax Fees (लेखापरीक्षण / कर)</SelectItem>
+                    <SelectItem value="legal_compliance">Legal &amp; Registration Renewals</SelectItem>
+                    <SelectItem value="utilities_internet">Electricity, Water &amp; Internet</SelectItem>
+                    <SelectItem value="ho_salary">HQ Admin Salaries</SelectItem>
+                    <SelectItem value="director_draw">Director Drawing / Advance</SelectItem>
+                    <SelectItem value="tender_fees">e-GP Tender Document Fees</SelectItem>
+                    <SelectItem value="bank_charges">Bank Charges &amp; Interest</SelectItem>
+                    <SelectItem value="vehicle_fuel">HQ Vehicle Fuel &amp; Maintenance</SelectItem>
+                    <SelectItem value="other_overhead">Miscellaneous Overhead</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Expense Date (Miti)</Label>
+                <Input
+                  value={hoMiti}
+                  onChange={(e) => {
+                    setHoMiti(e.target.value);
+                    try {
+                      const parts = e.target.value.split("-").map(Number);
+                      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                        const ad = bsToAd(parts[0], parts[1], parts[2]);
+                        if (ad) setHoDate(format(ad, "yyyy-MM-dd"));
+                      }
+                    } catch {}
+                  }}
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Particulars / Description *</Label>
+              <Input
+                required
+                placeholder="e.g. Head office monthly rent for Shrawan 2081 / Tax audit fee"
+                value={hoParticulars}
+                onChange={(e) => setHoParticulars(e.target.value)}
+                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Amount (Rs.) *</Label>
+                <Input
+                  required
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  value={hoAmount}
+                  onChange={(e) => setHoAmount(e.target.value)}
+                  className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Payment Mode</Label>
+                <Select value={hoPaymentMode} onValueChange={(v: any) => setHoPaymentMode(v)}>
+                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                    <SelectItem value="bank_transfer">Bank Transfer (A/C Payee)</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="connectips">ConnectIPS / Digital</SelectItem>
+                    <SelectItem value="cash">HQ Petty Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Deduct From Company Account</Label>
+                <Select value={hoBankAccountId} onValueChange={setHoBankAccountId}>
+                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                    <SelectValue placeholder="Select Bank" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                    <SelectItem value="none">Do Not Deduct (Cash/Manual)</SelectItem>
+                    {bankAccounts.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.bankName} ({b.accountNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Cheque / Voucher Ref No</Label>
+                <Input
+                  placeholder="e.g. CHQ-10492"
+                  value={hoChequeNo}
+                  onChange={(e) => setHoChequeNo(e.target.value)}
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Notes / Remarks</Label>
+              <Input
+                placeholder="e.g. Paid to Landlord Mr. Sharma with TDS deducted"
+                value={hoNotes}
+                onChange={(e) => setHoNotes(e.target.value)}
+                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/10">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setRecordHoExpenseOpen(false)}
+                className="text-xs text-muted-foreground"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createHoExpenseMut.isPending}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5"
+              >
+                {createHoExpenseMut.isPending ? "Recording..." : "Record Expense"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

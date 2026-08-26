@@ -16,20 +16,31 @@ export const accountingRouter = router({
   dayBook: protectedProcedure
     .input(
       z.object({
-        projectId: z.string(),
+        projectId: z.string().optional().nullable(),
         fromDate: z.string().optional(),
         toDate: z.string().optional(),
-        voucherType: z.string().optional(), // all | payment | purchase | work_done | billing | expense
+        voucherType: z.string().optional(), // all | payment | purchase | work_done | billing | expense | ho_expense
         accountingSoftware: z.string().optional(), // all | tally | swastik | other
         search: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+
+      if (!user.organizationId) {
+        return { entries: [], summary: { totalDebit: 0, totalCredit: 0, count: 0 } };
+      }
+
+      if (input.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+      }
 
       const entries: Array<{
         id: string;
-        source: "payment" | "vendor_bill" | "subcontractor_bill" | "ipc" | "site_expense";
+        source: "payment" | "vendor_bill" | "subcontractor_bill" | "ipc" | "site_expense" | "head_office_expense";
         voucherNo: string;
         voucherType: string;
         projectCode?: string;
@@ -47,16 +58,23 @@ export const accountingRouter = router({
         scannedBillUrl?: string | null;
       }> = [];
 
-      // Fetch project info
-      const proj = await db.project.findUnique({
-        where: { id: input.projectId },
-        select: { code: true, name: true },
-      });
+      // Fetch project info if specified
+      let proj: { code: string; name: string } | null = null;
+      if (input.projectId) {
+        proj = await db.project.findUnique({
+          where: { id: input.projectId },
+          select: { code: true, name: true },
+        });
+      }
+
+      const projectFilter = input.projectId
+        ? { projectId: input.projectId }
+        : { project: { organizationId: user.organizationId } };
 
       // 1. Payments / Disbursements
       const payments = await db.payment.findMany({
         where: {
-          projectId: input.projectId,
+          ...projectFilter,
           ...(input.fromDate || input.toDate
             ? {
                 paymentDate: {
@@ -69,6 +87,7 @@ export const accountingRouter = router({
             ? { accountingSoftware: input.accountingSoftware as any }
             : {}),
         },
+        include: { project: { select: { code: true, name: true } } },
         orderBy: { paymentDate: "desc" },
       });
 
@@ -106,7 +125,7 @@ export const accountingRouter = router({
       // 2. Vendor Bills (Purchases / Material Accruals)
       const vendorBills = await db.vendorBill.findMany({
         where: {
-          projectId: input.projectId,
+          ...projectFilter,
           ...(input.fromDate || input.toDate
             ? {
                 billDate: {
@@ -116,7 +135,7 @@ export const accountingRouter = router({
               }
             : {}),
         },
-        include: { partner: true },
+        include: { partner: true, project: { select: { code: true, name: true } } },
         orderBy: { billDate: "desc" },
       });
 
@@ -131,8 +150,8 @@ export const accountingRouter = router({
           source: "vendor_bill",
           voucherNo: b.billNumber,
           voucherType: "PURCHASE BILL",
-          projectCode: proj?.code || "SITE",
-          projectName: proj?.name || "Project",
+          projectCode: b.project?.code || proj?.code || "SITE",
+          projectName: b.project?.name || proj?.name || "Project",
           date: b.billDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: "Materials & Supplies",
@@ -150,7 +169,7 @@ export const accountingRouter = router({
       // 3. Subcontractor Bills (Work Done Accruals)
       const subBills = await db.subcontractorBill.findMany({
         where: {
-          projectId: input.projectId,
+          ...projectFilter,
           ...(input.fromDate || input.toDate
             ? {
                 billDate: {
@@ -160,7 +179,7 @@ export const accountingRouter = router({
               }
             : {}),
         },
-        include: { subcontractor: true },
+        include: { subcontractor: true, project: { select: { code: true, name: true } } },
         orderBy: { billDate: "desc" },
       });
 
@@ -175,8 +194,8 @@ export const accountingRouter = router({
           source: "subcontractor_bill",
           voucherNo: b.number,
           voucherType: "SUB BILL",
-          projectCode: proj?.code || "SITE",
-          projectName: proj?.name || "Project",
+          projectCode: b.project?.code || proj?.code || "SITE",
+          projectName: b.project?.name || proj?.name || "Project",
           date: b.billDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: "Subcontractor Work",
@@ -194,7 +213,7 @@ export const accountingRouter = router({
       // 4. Client IPC Billings (Revenue) & Subcontractor IPCs (Payables)
       const ipcs = await db.ipc.findMany({
         where: {
-          projectId: input.projectId,
+          ...projectFilter,
           ...(input.fromDate || input.toDate
             ? {
                 createdAt: {
@@ -204,7 +223,7 @@ export const accountingRouter = router({
               }
             : {}),
         },
-        include: { subcontractor: { select: { name: true, pan: true } } },
+        include: { subcontractor: { select: { name: true, pan: true } }, project: { select: { code: true, name: true } } },
         orderBy: { createdAt: "desc" },
       });
 
@@ -222,8 +241,8 @@ export const accountingRouter = router({
           source: "ipc",
           voucherNo: i.number,
           voucherType: isSubcontractor ? "SUB IPC" : "CLIENT IPC",
-          projectCode: proj?.code || "SITE",
-          projectName: proj?.name || "Project",
+          projectCode: i.project?.code || proj?.code || "SITE",
+          projectName: i.project?.name || proj?.name || "Project",
           date: entryDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: isSubcontractor ? "Subcontractor Work (IPC)" : "Project Revenue / IPC",
@@ -238,6 +257,52 @@ export const accountingRouter = router({
           accountingSoftware: "tally",
         });
       });
+
+      // 5. Head Office Overhead Expenses (when viewing organization-wide or without project filter)
+      if (!input.projectId) {
+        const hoExpenses = await db.headOfficeExpense.findMany({
+          where: {
+            organizationId: user.organizationId,
+            ...(input.fromDate || input.toDate
+              ? {
+                  date: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          include: { bankAccount: true },
+          orderBy: { date: "desc" },
+        });
+
+        hoExpenses.forEach((ho) => {
+          let mitiStr = ho.miti;
+          if (!mitiStr) {
+            try {
+              mitiStr = adToBs(new Date(ho.date)).formatted;
+            } catch {}
+          }
+
+          entries.push({
+            id: ho.id,
+            source: "head_office_expense",
+            voucherNo: ho.voucherNo || `HO-${ho.id.slice(-5).toUpperCase()}`,
+            voucherType: "HQ EXPENSE",
+            projectCode: "HQ",
+            projectName: "Head Office",
+            date: ho.date.toISOString(),
+            miti: mitiStr || "—",
+            accountHead: ho.category,
+            particulars: `${ho.particulars} (HQ Overhead)`,
+            debit: ho.amount,
+            credit: 0,
+            netAmount: ho.amount,
+            paymentMode: ho.bankAccount ? `${ho.bankAccount.bankName} (${ho.paymentMode})` : ho.paymentMode,
+            accountingSoftware: "tally",
+          });
+        });
+      }
 
       // Sort combined entries chronologically
       entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
