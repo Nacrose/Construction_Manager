@@ -43,8 +43,7 @@ export const jvPartnerRouter = router({
           period: true,
           grossAmount: true,
           status: true,
-          certifiedAt: true,
-          paidAt: true,
+          issueDate: true,
         },
         orderBy: { number: "asc" },
       });
