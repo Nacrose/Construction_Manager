@@ -172,8 +172,8 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                 <TabsTrigger value="matrix" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
                   <Layers className="h-3.5 w-3.5" /> Reconciliation Matrix
                 </TabsTrigger>
-                <TabsTrigger value="deductions" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
-                  <Coins className="h-3.5 w-3.5" /> Material Recovery
+                <TabsTrigger value="materials" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
+                  <Package className="h-3.5 w-3.5" /> Material Recovery
                 </TabsTrigger>
               </TabsList>
 
