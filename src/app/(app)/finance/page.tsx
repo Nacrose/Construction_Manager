@@ -14,11 +14,13 @@ import TaxSummaryPage from "@/app/(app)/projects/[id]/tax-summary/page";
 import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-tab";
 import { OrgBankAccountsTab } from "@/app/(app)/finance/components/org-bank-accounts-tab";
 import { OrgGuaranteesTab } from "@/app/(app)/finance/components/org-guarantees-tab";
+import { OrgHeadOfficeExpensesTab } from "@/app/(app)/finance/components/org-ho-expenses-tab";
 import { ProjectJvTab } from "@/app/(app)/projects/[id]/accounting/components/project-jv-tab";
 import { Handshake } from "lucide-react";
 
 export const FIN_TABS = [
   { label: "Day Book & Cashbook", key: "accounting" },
+  { label: "HQ General Expenses", key: "ho-expenses" },
   { label: "JV Partner Commissions", key: "jv-commission" },
   { label: "Bank Accounts & Wallets", key: "bank-accounts" },
   { label: "Guarantees & Bid Bonds", key: "guarantees" },
@@ -27,7 +29,7 @@ export const FIN_TABS = [
 ];
 
 export default function OrganizationFinancePage() {
-  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
+  const [activeMainTab, setActiveMainTab] = useState<"accounting" | "ho-expenses" | "jv-commission" | "bank-accounts" | "guarantees" | "payments" | "tax-summary">("accounting");
   const [subTab, setSubTab] = useState<"daybook" | "ledgers" | "trial_balance" | "jv">("daybook");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
@@ -85,6 +87,11 @@ export default function OrganizationFinancePage() {
       {/* Tab: Organization Bank Accounts & Wallets */}
       {activeMainTab === "bank-accounts" && (
         <OrgBankAccountsTab />
+      )}
+
+      {/* Tab: Head Office Overheads & General Expenses */}
+      {activeMainTab === "ho-expenses" && (
+        <OrgHeadOfficeExpensesTab />
       )}
 
       {/* Tab: Organization Bank Guarantees & Bid Bonds */}
