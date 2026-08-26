@@ -1,6 +1,10 @@
 # Workspace Rules
 
 - **CRITICAL DIRECTIVE FOR ALL AI AGENTS**: ALWAYS consult the user and present findings/proposed changes for explicit confirmation BEFORE modifying or creating files. Never edit files unannounced.
+- **MANDATORY REUSE & MINIMALISM DIRECTIVE (STRICT USER RULE)**:
+  - **ALWAYS check and confirm if existing models, components, dialogs, routers, and tabs can be reused or extended before adding new ones.**
+  - **NEVER create duplicate buttons, duplicate models, or new sub-tabs when an existing workflow (e.g. Day Book, Record Payment dialog, Project dropdown) can handle it naturally.**
+  - Keep the system unified, streamlined, and minimalist. Zero redundant entities or UI sprawl.
 - Always check the build locally (e.g., using `npm run build` or equivalent) before pushing to git.
 - Only push to git after user has checked build locally on browser.
 

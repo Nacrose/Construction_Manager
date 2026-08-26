@@ -161,6 +161,22 @@ export function RecordPaymentDialog({
     onError: (err) => toast.error(err.message),
   });
 
+  const createHoExpenseMut = trpc.finance.createHeadOfficeExpense.useMutation({
+    onSuccess: () => {
+      toast.success("Head Office expense recorded in Day Book!");
+      onOpenChange(false);
+      setAmount("");
+      setTds("0");
+      setInvoiceNumber("");
+      setNotes("");
+      setChequeNo("");
+      utils.accounting.dayBook.invalidate();
+      utils.finance.orgBankAccounts.invalidate();
+      if (onSuccess) onSuccess();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const createMut = trpc.projectOps.payment.create.useMutation({
     onSuccess: () => {
       toast.success("Payment recorded successfully in Day Book & Ledgers!");
@@ -209,7 +225,7 @@ export function RecordPaymentDialog({
       return;
     }
     if (!payeeName.trim()) {
-      toast.error("Please enter payee name");
+      toast.error("Please enter payee name or expense particular");
       return;
     }
 
@@ -217,8 +233,33 @@ export function RecordPaymentDialog({
     const tdsVal = parseFloat(tds) || 0;
     const catName = selectedCategoryObj?.name || "Direct Material / Site Supplies";
 
+    // If Head Office is selected or no project exists
+    if (targetProjectId === "head_office" || !targetProjectId) {
+      createHoExpenseMut.mutate({
+        category: catName.toLowerCase().includes("rent")
+          ? "office_rent"
+          : catName.toLowerCase().includes("audit") || catName.toLowerCase().includes("tax")
+          ? "audit_tax"
+          : catName.toLowerCase().includes("tender")
+          ? "tender_fees"
+          : catName.toLowerCase().includes("salary")
+          ? "ho_salary"
+          : catName.toLowerCase().includes("director")
+          ? "director_draw"
+          : "other_overhead",
+        particulars: `${payeeName.trim()} ${invoiceNumber ? `(#${invoiceNumber})` : ""}`,
+        amount: netAmount,
+        date,
+        miti,
+        paymentMode: mode === "cash" ? "cash" : mode === "cheque" ? "cheque" : mode === "connectips" ? "connectips" : "bank_transfer",
+        chequeNo: mode === "cheque" ? chequeNo : undefined,
+        notes: notes || undefined,
+      });
+      return;
+    }
+
     createMut.mutate({
-      projectId: targetProjectId || projectId,
+      projectId: targetProjectId,
       amount: netAmount,
       tdsDeducted: tdsVal,
       paymentDate: date,
@@ -265,9 +306,12 @@ export function RecordPaymentDialog({
                   <SelectValue placeholder="Select Project" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
+                  <SelectItem value="head_office" className="text-amber-400 font-semibold">
+                    🏢 Head Office (कार्यालय खर्च)
+                  </SelectItem>
                   {allProjects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.code})
+                      🏗️ {p.name} ({p.code})
                     </SelectItem>
                   ))}
                 </SelectContent>
