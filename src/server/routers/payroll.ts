@@ -6,6 +6,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { computePayrollLine } from "@/server/utils/payroll-calc";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -315,6 +316,7 @@ export const payrollRouter = router({
       }, 0);
 
       const payrollRun = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         // Upsert the main run
         const run = await tx.payrollRun.upsert({
           where: {
@@ -622,6 +624,7 @@ export const payrollRouter = router({
       }
 
       const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         if (input.action === "disburse") {
           await tx.payrollStaffRecord.updateMany({
             where: { payrollRunId: input.runId },

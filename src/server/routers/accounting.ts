@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs } from "@/lib/nepali-calendar";
@@ -919,6 +920,7 @@ export const accountingRouter = router({
       const paymentMode = isCash ? "cash" : "bank_transfer";
 
       const payment = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const receipt = await tx.payment.create({
           data: {
             projectId: input.projectId,

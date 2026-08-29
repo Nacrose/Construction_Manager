@@ -6,6 +6,7 @@ import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -213,6 +214,7 @@ export const vendorBillRouter = router({
       await assertNotLocked(ctx.user.organizationId, new Date(input.billDate));
 
       const bill = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const created = await tx.vendorBill.create({
           data: {
             projectId: input.projectId,
@@ -339,6 +341,7 @@ export const vendorBillRouter = router({
       const newStatus = isFull ? "paid" : "partially_paid";
 
       const payment = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const p = await tx.vendorPayment.create({
           data: {
             projectId: input.projectId,

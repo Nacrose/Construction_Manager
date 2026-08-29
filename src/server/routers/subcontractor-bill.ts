@@ -6,6 +6,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -209,6 +210,7 @@ export const subcontractorBillRouter = router({
 
       try {
         bill = await db.$transaction(async (tx) => {
+          await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
           const created = await tx.subcontractorBill.create({
             data: {
               projectId: input.projectId,
@@ -305,6 +307,7 @@ export const subcontractorBillRouter = router({
     // (the create runs in its own number-collision retry loop); a JE
     // failure surfaces loudly instead of silently skipping the entry.
     const billWithLines = await db.$transaction(async (tx) => {
+      await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
       // Re-read inside the transaction so the JE is written against the
       // committed bill (the create above ran in its own retry loop).
       const fresh = await tx.subcontractorBill.findUniqueOrThrow({
@@ -404,6 +407,7 @@ export const subcontractorBillRouter = router({
     }
 
     const updated = await db.$transaction(async (tx) => {
+      await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
       // If items provided, replace them
       let itemsForCalc: { thisQty: number; rate: number }[] = [];
       if (input.items) {
@@ -565,6 +569,7 @@ export const subcontractorBillRouter = router({
       // line, entry-number collision) left the bill marked paid with no
       // GL trace of the payment, and no retry path.
       const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         // Atomic increment to avoid lost-update race on concurrent payments.
         // Previously this used `bill.paidAmount + input.amount` (read-then-write)
         // — two concurrent markPaid calls would race and one payment would be lost.
@@ -648,6 +653,7 @@ export const subcontractorBillRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.subcontractorBillItem.deleteMany({ where: { billId: input.billId } });
         await tx.subcontractorBill.delete({ where: { id: input.billId } });
       });
@@ -875,6 +881,7 @@ export const subcontractorBillRouter = router({
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
 
       const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         let verifiedGross = 0;
 
         for (const itemInput of input.items) {

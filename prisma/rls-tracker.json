@@ -1,0 +1,100 @@
+{
+  "$comment": "RLS rollout tracker (docs/plans/rls-rollout.md). covered = policy SQL exists in prisma/migrations; planned = phase assignment; excluded = RLS deliberately not applied (reason per table). Every org/project-scoped model in schema.prisma MUST appear in exactly one of the three — enforced by src/server/routers/__tests__/rls-coverage.test.ts. Regenerate with: npx tsx scripts/rls-inventory.ts (covered/excluded are preserved; planned lists are regenerated).",
+  "covered": [
+    "Project"
+  ],
+  "excluded": {
+    "User": "queried pre-auth (login/signup/first-user check) before org context exists — app-level filtering only"
+  },
+  "planned": {
+    "phase1_org_money": [
+      "JournalEntry",
+      "HeadOfficeExpense",
+      "CompanyBankAccount",
+      "FiscalYearLock",
+      "BankGuarantee"
+    ],
+    "phase2_org_rest": [
+      "CatalogMaterial",
+      "DelegationRule",
+      "GanttTaskTemplate",
+      "GlobalPresetAnalysis",
+      "RateBook",
+      "RateProfile",
+      "ReportSnapshot",
+      "ReportTemplate",
+      "StoredFile",
+      "UncatalogedMaterial"
+    ],
+    "phase3m_project_money": [
+      "Ipc",
+      "JournalEntryLine",
+      "MaterialTransaction",
+      "Payment",
+      "PayrollRun",
+      "ProjectCost",
+      "PurchaseOrder",
+      "PurchaseRequisition",
+      "SiteExpense",
+      "SubcontractorBill",
+      "VatBill",
+      "VendorBill",
+      "VendorPayment"
+    ],
+    "phase3a_project_procurement_materials": [
+      "EquipmentVendor",
+      "MarketRateRevisionLog",
+      "Material",
+      "StoreLocation",
+      "Supplier"
+    ],
+    "phase3b_project_hr_equipment": [
+      "Equipment",
+      "EquipmentLog",
+      "EquipmentMaintenance",
+      "EquipmentRental",
+      "EquipmentSpotHire",
+      "LeaveBalance",
+      "LeaveRequest",
+      "Staff",
+      "StaffAdvance",
+      "StaffAttendance",
+      "StaffRole"
+    ],
+    "phase3c_project_documents": [
+      "AnalysisLibrary",
+      "ApprovedDocument",
+      "AuditLog",
+      "BoqItem",
+      "BoqVersion",
+      "ChatChannel",
+      "Correspondence",
+      "DailyProgram",
+      "DailyReport",
+      "Document",
+      "Drawing",
+      "DrawingSet",
+      "GanttTask",
+      "GanttVersion",
+      "GateEntry",
+      "JvPartnerAgreement",
+      "Meeting",
+      "Notification",
+      "Partner",
+      "PaymentCategory",
+      "Plant",
+      "PlantBatchTicket",
+      "PlantDailyLog",
+      "PlantMixDesign",
+      "ProjectMember",
+      "PunchItem",
+      "QualityInspection",
+      "Rfi",
+      "SafetyIncident",
+      "Subcontractor",
+      "Submittal",
+      "Transmittal",
+      "VariationOrder"
+    ]
+  }
+}

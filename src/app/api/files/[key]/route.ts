@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { readStoredFile, STORAGE_KEY_PATTERN } from "@/lib/storage";
 
 /**
@@ -30,6 +31,10 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // RLS context — REST routes bypass the tRPC context builder, so the
+    // org context must be set here too (RLS rollout Phase 0, gap G-2).
+    await setOrgContext(db, user.organizationId, !!user.isSuperAdmin);
 
     const { key } = await params;
 

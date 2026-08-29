@@ -6,6 +6,7 @@ import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import {db} from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -243,6 +244,7 @@ export const ipcRouter = router({
       }
 
       const final = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const _updated = await tx.ipc.update({
           where: { id: ipcId },
           data: updateData,
@@ -558,6 +560,7 @@ export const ipcRouter = router({
       const amount = thisQty * existing.rate;
 
       const final = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.ipcItem.update({
           where: { id: input.itemId },
           data: {
@@ -617,6 +620,7 @@ export const ipcRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.ipcItem.deleteMany({ where: { ipcId: input.ipcId } });
         await tx.ipcItem.createMany({
           data: boqItems.map((b, i) => ({

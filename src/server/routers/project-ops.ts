@@ -7,6 +7,7 @@ import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -212,6 +213,7 @@ const paymentRouter = router({
 
       // ── SINGLE TRANSACTION: payment + JE + bill settle + bank balance ──
       const payment = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const created = await tx.payment.create({
           data: {
             projectId,
@@ -405,6 +407,7 @@ const paymentRouter = router({
       // category-mapped expense account — never Sundry Creditors, which
       // would create negative payables for vendors we may not owe.
       const createdPayments = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const results: any[] = [];
         for (const p of input.payments) {
           const paymentDate = p.paymentDate ? new Date(p.paymentDate) : new Date();
@@ -585,6 +588,7 @@ const paymentRouter = router({
       // reverseJournalEntry (mirror entry, debits/credits swapped) in the
       // same transaction as the delete.
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const linkedEntries = await tx.journalEntry.findMany({
           where: { sourceRefId: input.id, sourceRefType: "Payment" },
           select: { id: true },
@@ -965,6 +969,7 @@ const paymentRouter = router({
       // a failed sub update left the payment posted without the released
       // total being tracked (so the over-release check would drift).
       const payment = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const created = await tx.payment.create({
           data: {
             projectId: input.projectId,

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 
 export const fiscalYearRouter = router({
@@ -228,6 +229,7 @@ export const fiscalYearRouter = router({
 
       // Execute transaction
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.marketRateRevisionLog.create({
           data: {
             projectId: input.projectId,
@@ -316,6 +318,7 @@ export const fiscalYearRouter = router({
       const newCatalogName = `District Rates ${input.targetFiscalYear}`;
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         // Create new catalog
         const newCatalog = await tx.rateBook.create({
           data: {

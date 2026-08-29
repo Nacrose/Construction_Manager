@@ -17,12 +17,20 @@ import type { DbTxClient } from "@/lib/db";
  * the database itself will block the query from returning data from
  * another organization.
  *
- * NOTE: With Neon's pooled connections (pgbouncer), session-level
- * settings (set_config with is_local=false) may not persist across
- * queries if pgbouncer routes them to different backend connections.
- * For maximum safety, use Neon's session-pooler endpoint for RLS-backed
- * deployments. The app-level filtering in project.list is the primary
- * defense; RLS is defense-in-depth.
+ * ── Connection-pool reality (Phase 0 of the RLS rollout) ─────────────
+ * setOrgContext uses SESSION-level settings on the shared client. Prisma
+ * pools connections, so a later query (and every interactive transaction)
+ * may run on a DIFFERENT physical connection where the variable was never
+ * set — session-level context is therefore best-effort only, even without
+ * pgbouncer. The reliable primitive is withOrgContext(): TRANSACTION-scoped
+ * settings set as the first statement INSIDE an interactive $transaction
+ * callback, which pins the org for exactly that transaction's connection.
+ *
+ * Rollout rule (docs/plans/rls-rollout.md): any interactive $transaction
+ * that touches RLS-covered tables MUST open with withOrgContext. Array-form
+ * $transaction([...]) cannot run set_config (Prisma operations only) — such
+ * call sites must be converted to interactive form when their tables get
+ * RLS-enabled in their rollout phase.
  */
 
 /**
@@ -107,5 +115,42 @@ export async function setOrgContext(
   } catch (err) {
     // Don't throw — RLS is defense-in-depth, not the primary filter.
     console.error("Failed to set RLS org context:", err);
+  }
+}
+
+/**
+ * Transaction-scoped org context — the RELIABLE RLS primitive.
+ *
+ * Set this as the FIRST statement inside a Prisma interactive transaction:
+ *
+ *   await db.$transaction(async (tx) => {
+ *     await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+ *     // ... writes to RLS-covered tables ...
+ *   });
+ *
+ * `is_local = true` scopes the setting to the current transaction, which
+ * runs on exactly one pooled connection — unlike session-level
+ * setOrgContext, this cannot miss due to pool rotation. When RLS is
+ * FORCEd on a table (rollout phases 1–3), a transaction that forgot this
+ * call fails CLOSED (0 rows) instead of leaking cross-org data.
+ *
+ * Fail-soft like setOrgContext: telemetry over correctness of the
+ * defense-in-depth layer; app-level where clauses remain the primary
+ * tenant filter.
+ */
+export async function withOrgContext(
+  tx: DbTxClient,
+  organizationId: string | null | undefined,
+  isSuperAdmin = false,
+): Promise<void> {
+  try {
+    await tx.$executeRawUnsafe(
+      `SELECT set_config('app.organization_id', $1, true), set_config('app.is_superadmin', $2, true)`,
+      organizationId ?? "",
+      isSuperAdmin ? "true" : "false"
+    );
+  } catch (err) {
+    // Don't throw — RLS is defense-in-depth, not the primary filter.
+    console.error("Failed to set RLS org context (tx):", err);
   }
 }

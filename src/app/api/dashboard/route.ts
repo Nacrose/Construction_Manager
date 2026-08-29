@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { ok, handleError, unauthorized } from "@/lib/api";
 
 // GET /api/dashboard — KPIs, charts, and recent activity for the current user.
@@ -8,6 +9,10 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser(req.headers.get("authorization"));
     if (!user) return unauthorized();
+
+    // RLS context — REST routes bypass the tRPC context builder, so the
+    // org context must be set here too (RLS rollout Phase 0, gap G-2).
+    await setOrgContext(db, user.organizationId, !!user.isSuperAdmin);
 
     const memberships = await db.projectMember.findMany({
       where: { userId: user.id },

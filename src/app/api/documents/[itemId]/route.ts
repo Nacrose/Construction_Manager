@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { assertCanWrite } from "@/lib/authz";
 import { ok, handleError, unauthorized, notFound } from "@/lib/api";
 
@@ -20,6 +21,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const user = await getCurrentUser(req.headers.get("authorization"));
     if (!user) return unauthorized();
+
+    // RLS context — REST routes bypass the tRPC context builder, so the
+    // org context must be set here too (RLS rollout Phase 0, gap G-2).
+    await setOrgContext(db, user.organizationId, !!user.isSuperAdmin);
+
     const { itemId } = await params;
     const item = await db.document.findUnique({ where: { id: itemId }, select: { projectId: true } });
     if (!item) return notFound("Document not found.");
@@ -37,6 +43,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const user = await getCurrentUser(req.headers.get("authorization"));
     if (!user) return unauthorized();
+
+    // RLS context — REST routes bypass the tRPC context builder, so the
+    // org context must be set here too (RLS rollout Phase 0, gap G-2).
+    await setOrgContext(db, user.organizationId, !!user.isSuperAdmin);
+
     const { itemId } = await params;
     const item = await db.document.findUnique({ where: { id: itemId }, select: { projectId: true } });
     if (!item) return notFound("Document not found.");

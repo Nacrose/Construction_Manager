@@ -16,6 +16,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
@@ -1319,6 +1320,7 @@ export const financeRouter = router({
 
       // Perform updates inside a transaction
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         for (const b of input.bills) {
           // 1. Record payment for each bill linked to its specific project
           const payment = await tx.payment.create({
@@ -1549,6 +1551,7 @@ export const financeRouter = router({
       // with no GL entry; if the bank decrement failed, the JE was posted
       // with no balance change. Now any failure rolls back all three.
       const expense = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         const exp = await tx.headOfficeExpense.create({
           data: {
             organizationId: user.organizationId!,
