@@ -409,7 +409,7 @@ export const accountingRouter = router({
         }),
         db.projectMember.findMany({
           where: { projectId: input.projectId },
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, role: true } } },
         }),
         db.equipmentVendor.findMany({
           where: { projectId: input.projectId },
@@ -436,14 +436,6 @@ export const accountingRouter = router({
             }))
           : [
               {
-                id: "bank_nabil",
-                name: "Nabil Bank Site A/C",
-                type: "bank" as const,
-                group: "Bank Accounts",
-                pan: null,
-                phone: null,
-              },
-              {
                 id: "cash_petty",
                 name: "Site Petty Cash",
                 type: "cash" as const,
@@ -469,7 +461,7 @@ export const accountingRouter = router({
             id: ev.id,
             name: ev.name,
             type: "vendor" as const,
-            group: "Sundry Creditors (Equipment Suppliers)",
+            group: "Sundry Creditors (Equipment Vendors)",
             pan: ev.pan,
             phone: ev.phone,
           })),
@@ -477,15 +469,15 @@ export const accountingRouter = router({
           id: s.id,
           name: s.name,
           type: "subcontractor" as const,
-          group: "Sundry Creditors (Subcontractors & Labor Teams)",
+          group: "Subcontractor Payables",
           pan: s.pan,
           phone: s.phone,
         })),
         ...members.map((m) => ({
           id: m.user.id,
-          name: m.user.name || m.user.email,
+          name: `${m.user.name || m.user.email}${m.user.role ? ` (${m.user.role})` : ""}`,
           type: "staff" as const,
-          group: "Sundry Creditors (Staff & Employees)",
+          group: "Staff Imprest / Advances",
           pan: null,
           phone: null,
         })),
@@ -494,16 +486,13 @@ export const accountingRouter = router({
       return { accounts };
     }),
 
-  /**
-   * Ledger Statement (खाता पाना / Statement of Account)
-   * Statement with Opening Balance, chronological Dr/Cr transactions, and Running Balance.
-   */
+  /** Get Full Account Ledger Statement with Running Balance (खता पाना) */
   ledgerStatement: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         accountId: z.string(),
-        accountType: z.enum(["vendor", "subcontractor", "staff", "bank", "cash", "expense_head"]),
+        accountType: z.enum(["vendor", "subcontractor", "staff", "bank", "cash", "expense_head", "general"]),
         accountName: z.string().optional(),
         fromDate: z.string().optional(),
         toDate: z.string().optional(),
@@ -532,22 +521,23 @@ export const accountingRouter = router({
           where: { projectId: input.projectId, partnerId: input.accountId },
           orderBy: { billDate: "asc" },
         });
-        const payments = await db.payment.findMany({
-          where: { projectId: input.projectId, payeeType: "vendor" },
-          orderBy: { paymentDate: "asc" },
-        });
 
-        // Filter payments matching vendor by name or ID.
-        // IDOR guard: verify the partner belongs to the project the
-        // caller was authorized on. Previously this used findUnique on
-        // the cuid only — minor cross-tenant info leak (partner name
-        // and PAN from another project).
         const matchedVendor = await db.partner.findFirst({
           where: { id: input.accountId, projectId: input.projectId },
         });
-        const vPayments = payments.filter(
-          (p) => p.payeeName.toLowerCase().includes(matchedVendor?.name.toLowerCase() || "") || p.partyPan === matchedVendor?.pan
-        );
+
+        // Match payments by direct foreign key (payeeId), exact PAN, or exact name
+        const vPayments = await db.payment.findMany({
+          where: {
+            projectId: input.projectId,
+            OR: [
+              { payeeId: input.accountId },
+              ...(matchedVendor?.pan ? [{ partyPan: matchedVendor.pan }] : []),
+              ...(matchedVendor?.name ? [{ payeeName: { equals: matchedVendor.name, mode: "insensitive" as const } }] : []),
+            ],
+          },
+          orderBy: { paymentDate: "asc" },
+        });
 
         bills.forEach((b) => {
           let miti = "";
@@ -593,13 +583,20 @@ export const accountingRouter = router({
         const matchedSub = await db.subcontractor.findFirst({
           where: { id: input.accountId, projectId: input.projectId },
         });
-        const payments = await db.payment.findMany({
-          where: { projectId: input.projectId, payeeType: "subcontractor" },
+
+        // Match payments by direct foreign key (payeeId), exact PAN, or exact name
+        const sPayments = await db.payment.findMany({
+          where: {
+            projectId: input.projectId,
+            payeeType: "subcontractor",
+            OR: [
+              { payeeId: input.accountId },
+              ...(matchedSub?.pan ? [{ partyPan: matchedSub.pan }] : []),
+              ...(matchedSub?.name ? [{ payeeName: { equals: matchedSub.name, mode: "insensitive" as const } }] : []),
+            ],
+          },
           orderBy: { paymentDate: "asc" },
         });
-        const sPayments = payments.filter(
-          (p) => p.payeeName.toLowerCase().includes(matchedSub?.name.toLowerCase() || "") || p.partyPan === matchedSub?.pan
-        );
 
         bills.forEach((b) => {
           let miti = "";

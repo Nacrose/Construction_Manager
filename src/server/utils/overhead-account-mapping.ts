@@ -25,14 +25,17 @@ const SITE_OVERHEAD_CODES = {
   utilities: "6002",
   fuel: "6003",          // Site Overhead - Fuel & Vehicle
   vehicle: "6003",
-  transport: "6003",     // transport → Fuel & Vehicle
+  transport: "5050",     // transport → Site Transport Cost (5050)
+  transportation: "5050",
+  freight: "5050",
   travel: "6003",        // travel → Fuel & Vehicle
   food: "6004",          // Site Overhead - Food & Mess
   mess: "6004",
-  labor: "6006",         // labor → Misc (labor is a direct cost, not overhead, but
-                          // if categorized as a site expense it defaults to Misc)
+  labor: "5010",         // Direct Labor (5010)
+  manpower: "5010",
   office: "6006",        // office → Misc (no specific site overhead code for office)
-  material: "6006",      // material → Misc (materials are tracked via BOQ/vendor bills)
+  material: "5001",      // Material Consumption (5001)
+  materials: "5001",
   safety: "6005",        // Site Overhead - Safety Equipment
   misc: "6006",          // Site Overhead - Misc
   general: "6006",

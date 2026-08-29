@@ -47,11 +47,15 @@ describe("Overhead Account Mapping", () => {
 
     it("maps real UI categories from SiteExpense schema correctly", () => {
       // The schema defines: material | transport | labor | food | accommodation | utility | office | travel | other
-      expect(siteOverheadCodeForCategory("transport")).toBe("6003"); // → Fuel & Vehicle
+      expect(siteOverheadCodeForCategory("transport")).toBe("5050"); // → Site Transport Cost
+      expect(siteOverheadCodeForCategory("transportation")).toBe("5050");
+      expect(siteOverheadCodeForCategory("freight")).toBe("5050");
       expect(siteOverheadCodeForCategory("travel")).toBe("6003");     // → Fuel & Vehicle
-      expect(siteOverheadCodeForCategory("labor")).toBe("6006");      // → Misc (direct cost, not overhead)
+      expect(siteOverheadCodeForCategory("labor")).toBe("5010");      // → Direct Labor
+      expect(siteOverheadCodeForCategory("manpower")).toBe("5010");
       expect(siteOverheadCodeForCategory("office")).toBe("6006");     // → Misc
-      expect(siteOverheadCodeForCategory("material")).toBe("6006");   // → Misc (tracked via BOQ)
+      expect(siteOverheadCodeForCategory("material")).toBe("5001");   // → Material Consumption
+      expect(siteOverheadCodeForCategory("materials")).toBe("5001");
       expect(siteOverheadCodeForCategory("accommodation")).toBe("6004"); // → Food & Mess (lodging)
       expect(siteOverheadCodeForCategory("utility")).toBe("6002");    // → Utilities
       expect(siteOverheadCodeForCategory("food")).toBe("6004");       // → Food & Mess

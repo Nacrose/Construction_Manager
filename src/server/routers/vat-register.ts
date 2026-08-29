@@ -83,6 +83,10 @@ export const vatRegisterRouter = router({
           projectId: input.projectId,
           ...(hasDateFilter ? { date: dateFilter } : {}),
         },
+        include: {
+          partner: { select: { name: true, pan: true } },
+          vendor: { select: { name: true, pan: true } },
+        },
         orderBy: { date: "desc" },
       });
 
@@ -173,7 +177,9 @@ export const vatRegisterRouter = router({
 
       for (const sp of spotHires) {
         const base = sp.totalGross;
-        const isDry = sp.fuelMode === "dry";
+        const pan = sp.partner?.pan || sp.vendor?.pan || null;
+        const hasPan = Boolean(pan);
+        const vatAmt = hasPan ? base * 0.13 : 0;
         rows.push({
           id: `spot-${sp.id}`,
           source: "equipment_spot",
@@ -181,13 +187,13 @@ export const vatRegisterRouter = router({
           date: sp.date,
           invoiceNo: sp.slipNumber || `SPOT-${sp.id.slice(-4)}`,
           partyName: sp.vendorName,
-          partyPan: "—", // vendorPhone is not a PAN — don't use it as one
-          taxableLocal: base,
-          exemptAmount: 0,
+          partyPan: pan || "—",
+          taxableLocal: hasPan ? base : 0,
+          exemptAmount: hasPan ? 0 : base,
           capitalGoods: 0,
           importAmount: 0,
-          vatAmount: base * 0.13,
-          totalAmount: base * 1.13,
+          vatAmount: vatAmt,
+          totalAmount: base + vatAmt,
           tdsAmount: 0,
           netPayable: sp.netPayable,
           description: `${sp.machineName} (${sp.hireType === "trip" ? `${sp.tripCount} trips` : `${sp.hoursWorked} hrs`})`,
@@ -226,8 +232,11 @@ export const vatRegisterRouter = router({
         totalExempt: rows.reduce((s, r) => s + r.exemptAmount, 0),
         totalCapitalGoods: rows.reduce((s, r) => s + r.capitalGoods, 0),
         totalImport: rows.reduce((s, r) => s + r.importAmount, 0),
+        totalInputVat: rows.reduce((s, r) => s + r.vatAmount, 0),
         totalVatAmount: rows.reduce((s, r) => s + r.vatAmount, 0),
+        totalGrossPurchases: rows.reduce((s, r) => s + r.totalAmount, 0),
         totalGross: rows.reduce((s, r) => s + r.totalAmount, 0),
+        totalTdsDeducted: rows.reduce((s, r) => s + r.tdsAmount, 0),
         totalTds: rows.reduce((s, r) => s + r.tdsAmount, 0),
         totalNetPayable: rows.reduce((s, r) => s + r.netPayable, 0),
         missingScansCount: rows.filter((r) => !r.isBillAttached).length,
@@ -259,11 +268,11 @@ export const vatRegisterRouter = router({
 
       const hasDateFilter = input.fromDate || input.toDate;
 
-      // 1. Client IPCs
+      // 1. Client IPCs (Statutory certified/approved/paid only)
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
-          status: { in: ["certified", "approved", "paid", "submitted"] },
+          status: { in: ["certified", "approved", "paid"] },
           subcontractorId: null, // Client IPCs only
           ...(hasDateFilter ? { issueDate: dateFilter } : {}),
         },
@@ -377,32 +386,106 @@ export const vatRegisterRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // Fetch Purchases
-      const pRes = await db.materialTransaction.aggregate({
-        where: { projectId: input.projectId, type: "receive" },
-        _sum: { vatAmount: true },
+      const dateFilter: any = {};
+      if (input.fromDate) dateFilter.gte = new Date(input.fromDate);
+      if (input.toDate) dateFilter.lte = new Date(input.toDate);
+      const hasDateFilter = input.fromDate || input.toDate;
+
+      // 1. Fetch Material Purchases (GRNs)
+      const materialTxns = await db.materialTransaction.findMany({
+        where: {
+          projectId: input.projectId,
+          type: "receive",
+          ...(hasDateFilter ? { date: dateFilter } : {}),
+        },
+        select: {
+          quantity: true,
+          rate: true,
+          vatAmount: true,
+          vatPercent: true,
+        },
       });
 
-      // Fetch Subcontractors
+      let matTaxable = 0;
+      let matExempt = 0;
+      let matVat = 0;
+
+      for (const m of materialTxns) {
+        const base = m.quantity * m.rate;
+        const isExempt = m.vatPercent === 0 || m.vatAmount === 0;
+        if (isExempt) {
+          matExempt += base;
+        } else {
+          matTaxable += base;
+          matVat += m.vatAmount ?? (base * (m.vatPercent || 13)) / 100;
+        }
+      }
+
+      // 2. Fetch Subcontractor Bills
       const subRes = await db.subcontractorBill.aggregate({
-        where: { projectId: input.projectId, status: { in: ["approved", "paid"] } },
+        where: {
+          projectId: input.projectId,
+          status: { in: ["approved", "paid", "certified"] },
+          ...(hasDateFilter ? { billDate: dateFilter } : {}),
+        },
         _sum: { vatAmount: true, grossAmount: true },
       });
 
-      // Fetch Direct Bills
+      // 3. Fetch Spot Equipment Hires (with PAN check)
+      const spotHires = await db.equipmentSpotHire.findMany({
+        where: {
+          projectId: input.projectId,
+          ...(hasDateFilter ? { date: dateFilter } : {}),
+        },
+        include: {
+          partner: { select: { pan: true } },
+          vendor: { select: { pan: true } },
+        },
+      });
+
+      let spotTaxable = 0;
+      let spotExempt = 0;
+      let spotVat = 0;
+
+      for (const sp of spotHires) {
+        const base = sp.totalGross;
+        const hasPan = Boolean(sp.partner?.pan || sp.vendor?.pan);
+        if (hasPan) {
+          spotTaxable += base;
+          spotVat += base * 0.13;
+        } else {
+          spotExempt += base;
+        }
+      }
+
+      // 4. Fetch Direct Bills
       const dirP = await db.vatBill.aggregate({
-        where: { projectId: input.projectId, billType: { in: ["purchase", "expense", "capital_goods"] } },
+        where: {
+          projectId: input.projectId,
+          billType: { in: ["purchase", "expense", "capital_goods", "import"] },
+          ...(hasDateFilter ? { billDate: dateFilter } : {}),
+        },
         _sum: { vatAmount: true, taxableAmount: true, exemptAmount: true },
       });
 
-      // Fetch Sales (Client IPCs + Direct Sales)
+      // 5. Fetch Sales (Client IPCs + Direct Sales)
+      // Note: only statutory certified/approved/paid IPCs count
       const ipcRes = await db.ipc.aggregate({
-        where: { projectId: input.projectId, subcontractorId: null, status: { in: ["certified", "approved", "paid"] } },
+        where: {
+          projectId: input.projectId,
+          subcontractorId: null,
+          status: { in: ["certified", "approved", "paid"] },
+          ...(hasDateFilter ? { issueDate: dateFilter } : {}),
+        },
         _sum: { vatAmount: true, grossAmount: true },
       });
 
       const dirS = await db.vatBill.aggregate({
-        where: { projectId: input.projectId, billType: "sales" },
+        where: {
+          projectId: input.projectId,
+          billType: "sales",
+          ...(hasDateFilter ? { billDate: dateFilter } : {}),
+        },
         _sum: { vatAmount: true, taxableAmount: true, exemptAmount: true },
       });
 
@@ -410,9 +493,9 @@ export const vatRegisterRouter = router({
       const totalTaxableSales = (ipcRes._sum.grossAmount || 0) + (dirS._sum.taxableAmount || 0);
       const totalExemptSales = dirS._sum.exemptAmount || 0;
 
-      const inputVat = (pRes._sum.vatAmount || 0) + (subRes._sum.vatAmount || 0) + (dirP._sum.vatAmount || 0);
-      const totalTaxablePurchases = (subRes._sum.grossAmount || 0) + (dirP._sum.taxableAmount || 0);
-      const totalExemptPurchases = dirP._sum.exemptAmount || 0;
+      const inputVat = matVat + (subRes._sum.vatAmount || 0) + spotVat + (dirP._sum.vatAmount || 0);
+      const totalTaxablePurchases = matTaxable + (subRes._sum.grossAmount || 0) + spotTaxable + (dirP._sum.taxableAmount || 0);
+      const totalExemptPurchases = matExempt + spotExempt + (dirP._sum.exemptAmount || 0);
 
       const netVatPayable = outputVat - inputVat;
 

@@ -407,6 +407,86 @@ export const rateAnalysisRouter = router({
       return { ok: true };
     }),
 
+  /** Atomically copy all ingredients from source analysis to target analysis. */
+  copyIngredients: protectedProcedure
+    .input(
+      z.object({
+        itemId: z.string(),
+        sourceAnalysisId: z.string(),
+        targetAnalysisId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const item = await resolveItemAndAssert(ctx.user, input.itemId, true);
+
+      if (input.sourceAnalysisId === input.targetAnalysisId) {
+        return { ok: true, copiedCount: 0 };
+      }
+
+      const sourceAnalysis = await db.rateAnalysis.findUnique({
+        where: { id: input.sourceAnalysisId },
+        select: { id: true, boqItemId: true },
+      });
+      const targetAnalysis = await db.rateAnalysis.findUnique({
+        where: { id: input.targetAnalysisId },
+        select: { id: true, boqItemId: true },
+      });
+
+      if (!sourceAnalysis || !targetAnalysis) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Source or target rate analysis not found." });
+      }
+
+      const sourceIngredients = await db.boqIngredient.findMany({
+        where: { rateAnalysisId: input.sourceAnalysisId },
+        orderBy: { sortOrder: "asc" },
+      });
+
+      await db.$transaction(async (tx) => {
+        await tx.boqIngredient.deleteMany({
+          where: { rateAnalysisId: input.targetAnalysisId },
+        });
+
+        if (sourceIngredients.length > 0) {
+          await tx.boqIngredient.createMany({
+            data: sourceIngredients.map((ing) => ({
+              boqItemId: input.itemId,
+              rateAnalysisId: input.targetAnalysisId,
+              name: ing.name,
+              type: ing.type,
+              calcMode: ing.calcMode,
+              quantity: ing.quantity,
+              unit: ing.unit,
+              percentage: ing.percentage,
+              pctBase: ing.pctBase,
+              rate: ing.rate,
+              amount: ing.amount,
+              sortOrder: ing.sortOrder,
+              materialId: ing.materialId,
+              catalogMaterialId: ing.catalogMaterialId,
+            })),
+          });
+        }
+      });
+
+      await recalcAnalysis(input.targetAnalysisId, input.itemId);
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: item.projectId,
+        action: "boq.ingredient.copy",
+        entityType: "boq_item",
+        entityId: input.itemId,
+        metadata: {
+          code: item.code,
+          sourceAnalysisId: input.sourceAnalysisId,
+          targetAnalysisId: input.targetAnalysisId,
+          count: sourceIngredients.length,
+        },
+      });
+
+      return { ok: true, copiedCount: sourceIngredients.length };
+    }),
+
   /** Delete an ingredient. */
   deleteIngredient: protectedProcedure
     .input(z.object({ itemId: z.string(), ingredientId: z.string(), rateAnalysisId: z.string().optional() }))

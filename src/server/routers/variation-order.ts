@@ -287,36 +287,13 @@ export const variationOrderRouter = router({
         //
         // #6 FIX: items without baseline data now use item.newQty * newRate
         // as a FALLBACK ESTIMATE (instead of being skipped entirely).
-        // The item is still flagged in the audit log so a reviewer knows
-        // the value change is an estimate, not a precise delta.
         if (input.status === "approved") {
-          const itemsWithoutBaseline: string[] = [];
           let totalValueChange = 0;
           for (const item of vo.items) {
             if (item.boqItemId) {
-              const existing = await tx.boqItem.findUnique({
-                where: { id: item.boqItemId },
-                select: { baselineQty: true, baselineRate: true, code: true, quantity: true, rate: true },
-              });
-              if (
-                !existing ||
-                existing.baselineQty == null ||
-                existing.baselineRate == null
-              ) {
-                // FALLBACK: use current quantity * rate as the baseline
-                // estimate instead of skipping. This ensures the VO's
-                // value change is captured (even if imprecise) rather
-                // than silently vanishing from the JE. Flag the item
-                // so the reviewer knows the delta is estimated.
-                itemsWithoutBaseline.push(existing?.code || item.boqItemId);
-                const estOldQty = existing?.quantity ?? item.newQty;
-                const estOldRate = existing?.rate ?? item.newRate;
-                totalValueChange += (item.newQty * item.newRate) - (estOldQty * estOldRate);
-              } else {
-                const oldQty = existing.baselineQty;
-                const oldRate = existing.baselineRate;
-                totalValueChange += (item.newQty * item.newRate) - (oldQty * oldRate);
-              }
+              const prevValue = (item.previousQty ?? 0) * (item.previousRate ?? 0);
+              const newValue = item.newQty * item.newRate;
+              totalValueChange += (newValue - prevValue);
             } else {
               // New item added: full value
               totalValueChange += item.newQty * item.newRate;

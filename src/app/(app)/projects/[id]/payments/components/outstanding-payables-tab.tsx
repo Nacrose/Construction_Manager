@@ -190,7 +190,7 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
                 entityPan: item.entityPan,
                 billNumber: item.billNumber,
                 balanceDue: item.balanceDue,
-                tdsAmount: (item.balanceDue * (item.tdsPercent || 1.5)) / 100,
+                tdsAmount: item.tdsAmount ?? 0,
                 category: item.category,
               })
             }

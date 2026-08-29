@@ -69,6 +69,12 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
       toast.success("Default analysis library updated");
     },
     onError: (e) => toast.error(e.message),
+  });  const copyIngredientsMut = trpc.rateAnalysis.copyIngredients.useMutation({
+    onSuccess: () => {
+      utils.analysisLibrary.getItems.invalidate();
+      toast.success("Copied ingredients");
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const copyEstimateToActual = useMutation({
@@ -85,29 +91,14 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
 
         const actAnalyses = await utils.rateAnalysis.list.fetch({ itemId: item.id });
         const actAnalysis = actAnalyses.analyses.find((a: any) => a.name === "Contractor's Actual");
-        if (!actAnalysis) continue;
-
-        await utils.rateAnalysis.deleteIngredientsOfAnalysis.mutateAsync({ itemId: item.id, analysisId: actAnalysis.id });
-
         const estAnalysis = actAnalyses.analyses.find((a: any) => a.name === "Client's Estimate");
-        if (!estAnalysis) continue;
+        if (!actAnalysis || !estAnalysis) continue;
 
-        const ingData = await utils.rateAnalysis.listIngredients.fetch({ itemId: item.id, analysisId: estAnalysis.id });
-
-        for (const ing of ingData.analysis.ingredients) {
-          await utils.rateAnalysis.addIngredient.mutateAsync({
-            itemId: item.id,
-            rateAnalysisId: actAnalysis.id,
-            name: ing.name,
-            type: ing.type as any,
-            calcMode: ing.calcMode as any,
-            quantity: ing.quantity,
-            unit: ing.unit,
-            percentage: ing.percentage,
-            pctBase: ing.pctBase,
-            rate: ing.rate,
-          });
-        }
+        await utils.rateAnalysis.copyIngredients.mutateAsync({
+          itemId: item.id,
+          sourceAnalysisId: estAnalysis.id,
+          targetAnalysisId: actAnalysis.id,
+        });
         copied++;
       }
       return { copied };
@@ -134,29 +125,14 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
 
         const bidAnalyses = await utils.rateAnalysis.list.fetch({ itemId: item.id });
         const bidAnalysis = bidAnalyses.analyses.find((a: any) => a.name === "Contractor Bid");
-        if (!bidAnalysis) continue;
-
-        await utils.rateAnalysis.deleteIngredientsOfAnalysis.mutateAsync({ itemId: item.id, analysisId: bidAnalysis.id });
-
         const estAnalysis = bidAnalyses.analyses.find((a: any) => a.name === "Client's Estimate");
-        if (!estAnalysis) continue;
+        if (!bidAnalysis || !estAnalysis) continue;
 
-        const ingData = await utils.rateAnalysis.listIngredients.fetch({ itemId: item.id, analysisId: estAnalysis.id });
-
-        for (const ing of ingData.analysis.ingredients) {
-          await utils.rateAnalysis.addIngredient.mutateAsync({
-            itemId: item.id,
-            rateAnalysisId: bidAnalysis.id,
-            name: ing.name,
-            type: ing.type as any,
-            calcMode: ing.calcMode as any,
-            quantity: ing.quantity,
-            unit: ing.unit,
-            percentage: ing.percentage,
-            pctBase: ing.pctBase,
-            rate: ing.rate,
-          });
-        }
+        await utils.rateAnalysis.copyIngredients.mutateAsync({
+          itemId: item.id,
+          sourceAnalysisId: estAnalysis.id,
+          targetAnalysisId: bidAnalysis.id,
+        });
         copied++;
       }
       return { copied };
@@ -185,9 +161,9 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
     { projectId, libraryId: actLib?.id ?? "" }, { enabled: !!actLib }
   );
 
-  const buildLookup = (data: typeof estData) => {
-    const map = new Map<string, { analysisId: string | null; ratePerUnit: number; ingredientCount: number }>();
-    data?.items.forEach((item) => map.set(item.id, item));
+  const buildLookup = (data: any) => {
+    const map = new Map<string, any>();
+    data?.items.forEach((item: any) => map.set(item.id, item));
     return map;
   };
   const estByItem = buildLookup(estData);
@@ -197,25 +173,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
   async function copyIngredients(itemId: string, sourceAnalysisId: string, targetAnalysisId: string) {
     if (sourceAnalysisId === targetAnalysisId) return;
     try {
-      const src = await utils.rateAnalysis.listIngredients.fetch({ itemId, analysisId: sourceAnalysisId });
-      await utils.rateAnalysis.deleteIngredientsOfAnalysis.mutateAsync({ itemId, analysisId: targetAnalysisId });
-      for (const ing of src.analysis.ingredients) {
-        await utils.rateAnalysis.addIngredient.mutateAsync({
-          itemId,
-          rateAnalysisId: targetAnalysisId,
-          name: ing.name,
-          type: ing.type as any,
-          calcMode: ing.calcMode as any,
-          quantity: ing.quantity,
-          unit: ing.unit,
-          percentage: ing.percentage,
-          pctBase: ing.pctBase,
-          rate: ing.rate,
-        });
-      }
-      utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId: targetAnalysisId });
-      utils.analysisLibrary.getItems.invalidate();
-      toast.success(`Copied from source analysis`);
+      await copyIngredientsMut.mutateAsync({ itemId, sourceAnalysisId, targetAnalysisId });
     } catch (e: any) {
       toast.error(e.message);
     }

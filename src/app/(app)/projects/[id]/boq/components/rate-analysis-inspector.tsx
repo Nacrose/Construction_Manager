@@ -198,6 +198,17 @@ export function RateAnalysisInspector({
     }
   }
 
+  const copyIngredientsMut = trpc.rateAnalysis.copyIngredients.useMutation({
+    onSuccess: () => {
+      utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId });
+      utils.analysisLibrary.getItems.invalidate();
+      toast.success("Copied ingredients from Client's Estimate");
+    },
+    onError: (e) => {
+      toast.error(e.message);
+    },
+  });
+
   // Copy from another analysis
   async function handleCopyFromEstimate() {
     if (!analysesData?.analyses?.length || !analysisId) return;
@@ -205,25 +216,11 @@ export function RateAnalysisInspector({
     if (!est || est.id === analysisId) return;
 
     try {
-      const src = await utils.rateAnalysis.listIngredients.fetch({ itemId, analysisId: est.id });
-      await utils.rateAnalysis.deleteIngredientsOfAnalysis.mutateAsync({ itemId, analysisId });
-      for (const ing of src.analysis.ingredients) {
-        await utils.rateAnalysis.addIngredient.mutateAsync({
-          itemId,
-          rateAnalysisId: analysisId,
-          name: ing.name,
-          type: ing.type as any,
-          calcMode: ing.calcMode as any,
-          quantity: ing.quantity,
-          unit: ing.unit,
-          percentage: ing.percentage,
-          pctBase: ing.pctBase,
-          rate: ing.rate,
-        });
-      }
-      utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId });
-      utils.analysisLibrary.getItems.invalidate();
-      toast.success("Copied ingredients from Client's Estimate");
+      await copyIngredientsMut.mutateAsync({
+        itemId,
+        sourceAnalysisId: est.id,
+        targetAnalysisId: analysisId,
+      });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -573,19 +570,37 @@ export function RateAnalysisInspector({
                       onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
                     />
                   ))}
-                  {percentage.map((ing) => (
-                    <PercentageIngredientRow
-                      key={ing.id}
-                      ing={ing}
-                      directCost={directCost}
-                      matCost={matCost}
-                      labCost={labCost}
-                      eqCost={eqCost}
-                      canWrite={canWrite}
-                      onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
-                      onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
-                    />
-                  ))}
+                  {percentage.map((ing, idx) => {
+                    let priorPctCost = 0;
+                    for (let i = 0; i < idx; i++) {
+                      const prev = percentage[i];
+                      const prevBaseType = prev.pctBase ?? "all";
+                      let prevBase = directCost;
+                      if (prevBaseType === "material") prevBase = matCost;
+                      else if (prevBaseType === "labor") prevBase = labCost;
+                      else if (prevBaseType === "equipment") prevBase = eqCost;
+                      else if (prevBaseType === "material_labor") prevBase = matCost + labCost;
+                      else if (prevBaseType === "labor_equipment") prevBase = labCost + eqCost;
+                      else if (prevBaseType === "all_including_pct") prevBase = directCost + priorPctCost;
+                      else prevBase = directCost;
+                      priorPctCost += (prevBase * (prev.percentage || 0)) / 100;
+                    }
+
+                    return (
+                      <PercentageIngredientRow
+                        key={ing.id}
+                        ing={ing}
+                        directCost={directCost}
+                        matCost={matCost}
+                        labCost={labCost}
+                        eqCost={eqCost}
+                        priorPctCost={priorPctCost}
+                        canWrite={canWrite}
+                        onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
+                        onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -928,6 +943,7 @@ function PercentageIngredientRow({
   matCost,
   labCost,
   eqCost,
+  priorPctCost = 0,
   canWrite,
   onUpdate,
   onDelete,
@@ -937,6 +953,7 @@ function PercentageIngredientRow({
   matCost: number;
   labCost: number;
   eqCost: number;
+  priorPctCost?: number;
   canWrite: boolean;
   onUpdate: (data: any) => void;
   onDelete: () => void;
@@ -950,6 +967,8 @@ function PercentageIngredientRow({
   else if (b === "equipment") base = eqCost;
   else if (b === "material_labor") base = matCost + labCost;
   else if (b === "labor_equipment") base = labCost + eqCost;
+  else if (b === "all_including_pct") base = directCost + priorPctCost;
+  else base = directCost;
 
   const amount = (base * (ing.percentage || 0)) / 100;
 

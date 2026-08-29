@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,12 +51,28 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   const [inflowCategory, setInflowCategory] = useState("Client IPC Running Bill");
   const [inflowAmount, setInflowAmount] = useState("");
   const [inflowMode, setInflowMode] = useState("bank_transfer");
-  const [inflowBank, setInflowBank] = useState("Nabil Bank Site A/C");
+  const [inflowBank, setInflowBank] = useState("");
   const [inflowRefNo, setInflowRefNo] = useState("");
   const [inflowNotes, setInflowNotes] = useState("");
   const [inflowProjectId, setInflowProjectId] = useState(projectId || "");
   const { data: projectsData } = trpc.project.list.useQuery();
   const allProjects = projectsData?.projects || [];
+
+  const effectiveProjectId = inflowProjectId || projectId || allProjects[0]?.id || "";
+  const { data: accountsData } = trpc.accounting.ledgerAccounts.useQuery(
+    { projectId: effectiveProjectId },
+    { enabled: Boolean(effectiveProjectId) }
+  );
+  const bankAndCashAccounts = useMemo(() => {
+    return (accountsData?.accounts || []).filter((a: any) => a.type === "bank" || a.type === "cash");
+  }, [accountsData]);
+
+  // Set default account when accounts data loads
+  useEffect(() => {
+    if (!inflowBank && bankAndCashAccounts.length > 0) {
+      setInflowBank(bankAndCashAccounts[0].id);
+    }
+  }, [bankAndCashAccounts, inflowBank]);
 
   const { data, isLoading } = trpc.accounting.dayBook.useQuery({
     projectId: projectId || undefined,
@@ -414,14 +430,18 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 <Label className="text-xs font-medium text-gray-300">Deposited Bank Account</Label>
                 <Select value={inflowBank} onValueChange={setInflowBank}>
                   <SelectTrigger className="w-full min-w-0 h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
-                    <SelectValue />
+                    <SelectValue placeholder="Select bank/cash account" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
-                    <SelectItem value="Nabil Bank Site A/C">Nabil Bank Site A/C</SelectItem>
-                    <SelectItem value="Global IME Bank Ltd">Global IME Bank Ltd</SelectItem>
-                    <SelectItem value="NIC Asia Bank Ltd">NIC Asia Bank Ltd</SelectItem>
-                    <SelectItem value="Rastriya Banijya Bank (RBB)">Rastriya Banijya Bank (RBB)</SelectItem>
-                    <SelectItem value="Site Petty Cash">Site Petty Cash (नगद)</SelectItem>
+                    {bankAndCashAccounts.length > 0 ? (
+                      bankAndCashAccounts.map((acc: any) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="cash_petty">Site Petty Cash (नगद)</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -473,7 +493,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 createInflowMut.mutate({
                   projectId: effectiveProjId,
                   date: new Date(inflowDate).toISOString(),
-                  debitAccountId: inflowBank.includes("Cash") ? "cash_petty" : "bank_nabil",
+                  debitAccountId: inflowBank || "cash_petty",
                   creditAccountId: "revenue_client",
                   amount: amt,
                   narration: `${inflowCategory}: Received from ${inflowSource} ${inflowRefNo ? `(Ref: ${inflowRefNo})` : ""} - ${inflowNotes}`,
