@@ -38,6 +38,27 @@ export function TaskHoverTooltip({
 }: TaskHoverTooltipProps) {
   if (!hoverData) return null;
 
+  return (
+    <TaskHoverTooltipContent
+      hoverData={hoverData}
+      taskMap={taskMap}
+      isCritical={isCritical}
+      totalFloat={totalFloat}
+    />
+  );
+}
+
+function TaskHoverTooltipContent({
+  hoverData,
+  taskMap,
+  isCritical = false,
+  totalFloat,
+}: {
+  hoverData: HoverTooltipPosition;
+  taskMap: Map<string, Task>;
+  isCritical?: boolean;
+  totalFloat?: number;
+}) {
   const { x, y, task } = hoverData;
 
   const start = new Date(task.startDate);

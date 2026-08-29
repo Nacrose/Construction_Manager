@@ -106,8 +106,8 @@ export const accountingRouter = router({
           source: "payment",
           voucherNo: p.accountingVoucherNo || `PV-${p.id.slice(-5).toUpperCase()}`,
           voucherType: (p.voucherType || "payment").toUpperCase(),
-          projectCode: proj?.code || "SITE",
-          projectName: proj?.name || "Project",
+          projectCode: p.project?.code || proj?.code || "SITE",
+          projectName: p.project?.name || proj?.name || "Project",
           date: p.paymentDate.toISOString(),
           miti: mitiStr || "—",
           accountHead: p.category || "General Expense",
@@ -304,6 +304,50 @@ export const accountingRouter = router({
         });
       }
 
+      // 6. Site Petty Cash Expenses (approved or recorded)
+      const siteExpenses = await db.siteExpense.findMany({
+        where: {
+          ...projectFilter,
+          ...(input.fromDate || input.toDate
+            ? {
+                date: {
+                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                },
+              }
+            : {}),
+        },
+        include: { project: { select: { code: true, name: true } } },
+        orderBy: { date: "desc" },
+      });
+
+      siteExpenses.forEach((se) => {
+        let mitiStr = "";
+        try {
+          mitiStr = adToBs(new Date(se.date)).formatted;
+        } catch {}
+
+        entries.push({
+          id: se.id,
+          source: "site_expense",
+          voucherNo: se.number || `EXP-${se.id.slice(-5).toUpperCase()}`,
+          voucherType: "PETTY CASH",
+          projectCode: se.project?.code || proj?.code || "SITE",
+          projectName: se.project?.name || proj?.name || "Project",
+          date: se.date.toISOString(),
+          miti: mitiStr || "—",
+          accountHead: se.category || "Site Petty Cash",
+          particulars: `${se.description} ${se.vendorName ? `(${se.vendorName})` : ""}`,
+          partyPan: undefined,
+          debit: se.totalAmount,
+          credit: 0,
+          netAmount: se.totalAmount,
+          paymentMode: se.paymentMode,
+          accountingSoftware: "tally",
+          scannedBillUrl: se.receiptData,
+        });
+      });
+
       // Sort combined entries chronologically
       entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -314,6 +358,9 @@ export const accountingRouter = router({
           if (input.voucherType === "purchase" && e.source !== "vendor_bill") return false;
           if (input.voucherType === "work_done" && e.source !== "subcontractor_bill") return false;
           if (input.voucherType === "billing" && e.source !== "ipc") return false;
+          if (input.voucherType === "expense" && e.source !== "site_expense" && e.source !== "head_office_expense") return false;
+          if (input.voucherType === "ho_expense" && e.source !== "head_office_expense") return false;
+          if (input.voucherType === "site_expense" && e.source !== "site_expense") return false;
         }
         if (input.search) {
           const q = input.search.toLowerCase();

@@ -33,6 +33,29 @@ export function assertOrgAdmin(user: AuthUser | null | undefined): void {
   }
 }
 
+/**
+ * Multi-Tenant Bank Account Security Choke Point:
+ * Throws unless the bank account exists and strictly belongs to the caller's organization.
+ * Accepts either the standard db client or an ongoing Prisma transaction client (`tx`).
+ */
+export async function assertOrgBankAccount(
+  bankAccountId: string,
+  organizationId: string | null | undefined,
+  txDb: any = db
+): Promise<{ id: string; organizationId: string; currentBalance: number; name?: string; accountNumber?: string }> {
+  if (!organizationId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
+  }
+  const bank = await txDb.companyBankAccount.findUnique({
+    where: { id: bankAccountId },
+    select: { id: true, organizationId: true, currentBalance: true, name: true, accountNumber: true },
+  });
+  if (!bank || bank.organizationId !== organizationId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Bank account not found in your organization." });
+  }
+  return bank;
+}
+
 // Returns the user's role on a project, or null if not a member.
 export async function getProjectRole(
   userId: string,

@@ -47,16 +47,7 @@ function BoqPageContent({
   params?: Promise<{ id: string }>;
 }) {
   const routeParams = useParams();
-  const idFromHook = routeParams?.id as string;
-  let id = idFromHook;
-  if (!id && params) {
-    try {
-      const resolved = use(params);
-      id = resolved?.id;
-    } catch {
-      // fallback
-    }
-  }
+  const id = (routeParams?.id as string) || "";
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "boq";

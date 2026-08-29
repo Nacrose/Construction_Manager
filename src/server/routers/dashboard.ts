@@ -521,9 +521,12 @@ export const dashboardRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // Get all IPCs (billing/revenue)
+      // Get all Client IPCs (billing/revenue)
       const ipcs = await db.ipc.findMany({
-        where: { projectId: input.projectId },
+        where: {
+          projectId: input.projectId,
+          subcontractorId: null, // Client IPC billing only
+        },
         select: {
           number: true,
           period: true,

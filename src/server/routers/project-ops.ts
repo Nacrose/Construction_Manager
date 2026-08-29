@@ -963,7 +963,7 @@ const paymentRouter = router({
         rows.push({
           ipcId: ipc.id,
           ipcNumber: ipc.number,
-          payeeName: ipc.subcontractor?.name ?? "General",
+          payeeName: ipc.subcontractor?.name ?? "Client Billing",
           issueDate: ipc.issueDate,
           finalPayable: ipc.finalPayable ?? 0,
           paidAmount: paid,

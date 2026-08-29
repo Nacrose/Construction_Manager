@@ -2,8 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { assertDelegation } from "@/lib/delegation";
 
 export const TxnSchema = z.object({
   projectId: z.string(),
@@ -690,6 +691,7 @@ export const materialTransactionProcedures = {
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
       await assertNotLocked(input.projectId);
+      await assertDelegation(ctx.user, "log_direct_material_purchase", input.totalAmount);
 
       const targetDate = new Date(input.date);
 
@@ -789,6 +791,8 @@ export const materialTransactionProcedures = {
 
         // 5. Handle Material Payment vs Bahi Khata
         if (input.paymentStatus === "paid_now" && input.bankAccountId) {
+          const compBank = await assertOrgBankAccount(input.bankAccountId, ctx.user.organizationId, tx);
+
           await tx.payment.create({
             data: {
               projectId: input.projectId,
@@ -811,15 +815,10 @@ export const materialTransactionProcedures = {
             },
           });
 
-          const compBank = await tx.companyBankAccount.findUnique({
-            where: { id: input.bankAccountId },
+          await tx.companyBankAccount.update({
+            where: { id: compBank.id },
+            data: { currentBalance: { decrement: netPayable } },
           });
-          if (compBank) {
-            await tx.companyBankAccount.update({
-              where: { id: compBank.id },
-              data: { currentBalance: { decrement: netPayable } },
-            });
-          }
         } else {
           // Material is Credit / Due: Log VAT Bill / Payable with bill status
           await tx.vatBill.create({
@@ -851,6 +850,8 @@ export const materialTransactionProcedures = {
         // 6. Handle Independent Transportation Payment if Paid Now
         if (input.transportationCost > 0) {
           if (input.transportPaidStatus === "paid_now" && input.transportBankAccountId) {
+            const tBank = await assertOrgBankAccount(input.transportBankAccountId, ctx.user.organizationId, tx);
+
             await tx.payment.create({
               data: {
                 projectId: input.projectId,
@@ -871,15 +872,10 @@ export const materialTransactionProcedures = {
               },
             });
 
-            const tBank = await tx.companyBankAccount.findUnique({
-              where: { id: input.transportBankAccountId },
+            await tx.companyBankAccount.update({
+              where: { id: tBank.id },
+              data: { currentBalance: { decrement: input.transportationCost } },
             });
-            if (tBank) {
-              await tx.companyBankAccount.update({
-                where: { id: tBank.id },
-                data: { currentBalance: { decrement: input.transportationCost } },
-              });
-            }
           } else if (input.transportIsVat) {
             // Freight is VAT Bill on Credit
             const tTaxable = input.transportationCost / 1.13;
@@ -911,6 +907,8 @@ export const materialTransactionProcedures = {
         // 7. Handle Independent Incidental / Unloading Payment if Paid Now
         const totalIncidental = input.incidentalCost + input.loadingUnloadingCost;
         if (totalIncidental > 0 && input.incidentalPaidStatus === "paid_now" && input.incidentalBankAccountId) {
+          const iBank = await assertOrgBankAccount(input.incidentalBankAccountId, ctx.user.organizationId, tx);
+
           await tx.payment.create({
             data: {
               projectId: input.projectId,
@@ -927,15 +925,10 @@ export const materialTransactionProcedures = {
             },
           });
 
-          const iBank = await tx.companyBankAccount.findUnique({
-            where: { id: input.incidentalBankAccountId },
+          await tx.companyBankAccount.update({
+            where: { id: iBank.id },
+            data: { currentBalance: { decrement: totalIncidental } },
           });
-          if (iBank) {
-            await tx.companyBankAccount.update({
-              where: { id: iBank.id },
-              data: { currentBalance: { decrement: totalIncidental } },
-            });
-          }
         }
 
         return {

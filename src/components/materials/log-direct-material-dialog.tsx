@@ -129,6 +129,17 @@ export function LogDirectMaterialDialog({
     return taxonomy[selectedCategory][selectedMaterialName];
   }, [taxonomy, selectedCategory, selectedMaterialName]);
 
+  // Specifications
+  const [company, setCompany] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [unit, setUnit] = useState("Bags");
+  const [quantity, setQuantity] = useState("");
+  const [rate, setRate] = useState("");
+  const [totalAmount, setTotalAmount] = useState("");
+
+  // Rate mode: Inclusive vs Exclusive
+  const [vatCalculationMode, setVatCalculationMode] = useState<"inclusive" | "exclusive">("inclusive");
+
   useEffect(() => {
     if (categories.length > 0 && !selectedCategory) {
       const defaultCat = categories.find((c) => c.toLowerCase().includes("cement")) || categories[0];
@@ -150,17 +161,6 @@ export function LogDirectMaterialDialog({
       if (first.rate > 0) setRate(first.rate.toString());
     }
   }, [specsForMaterial]);
-
-  // Specifications
-  const [company, setCompany] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [unit, setUnit] = useState("Bags");
-  const [quantity, setQuantity] = useState("");
-  const [rate, setRate] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
-
-  // Rate mode: Inclusive vs Exclusive
-  const [vatCalculationMode, setVatCalculationMode] = useState<"inclusive" | "exclusive">("inclusive");
 
   const handleSelectTier3Spec = (specId: string) => {
     const item = specsForMaterial.find((i) => i.id === specId);

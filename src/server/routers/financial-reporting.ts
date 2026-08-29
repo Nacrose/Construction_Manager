@@ -19,7 +19,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
+import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
@@ -62,6 +62,7 @@ export const financialReportingRouter = router({
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
+          subcontractorId: null, // Client IPCs only
           status: { in: ["certified", "approved", "paid"] },
         },
         select: { grossAmount: true, vatAmount: true, netPayable: true, status: true, createdAt: true },
@@ -287,10 +288,11 @@ export const financialReportingRouter = router({
         return { receivables: [], payables: [], summary: { totalReceivable: 0, totalPayable: 0, netPosition: 0 } };
       }
 
-      // ── Retention RECEIVABLE: retention deducted on IPCs ──
+      // ── Retention RECEIVABLE: retention deducted on Client IPCs ──
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: { in: projectIds },
+          subcontractorId: null, // Client IPCs only
           status: { in: ["certified", "approved", "paid"] },
         },
         include: {
@@ -317,36 +319,65 @@ export const financialReportingRouter = router({
           releasedAt: i.retentionReleasedAt,
         }));
 
-      // ── Retention PAYABLE: retention deducted on sub-bills ──
-      const subBills = await db.subcontractorBill.findMany({
-        where: {
-          projectId: { in: projectIds },
-          status: { in: ["submitted", "verified", "certified", "paid"] },
-        },
-        include: {
-          project: { select: { id: true, name: true, code: true } },
-          subcontractor: { select: { id: true, name: true, pan: true } },
-        },
-      });
+      // ── Retention PAYABLE: retention deducted on sub-bills and sub-IPCs ──
+      const [subBills, subIpcs] = await Promise.all([
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: { in: projectIds },
+            status: { in: ["submitted", "verified", "certified", "paid"] },
+          },
+          include: {
+            project: { select: { id: true, name: true, code: true } },
+            subcontractor: { select: { id: true, name: true, pan: true } },
+          },
+        }),
+        db.ipc.findMany({
+          where: {
+            projectId: { in: projectIds },
+            subcontractorId: { not: null },
+            status: { in: ["certified", "approved", "paid"] },
+          },
+          include: {
+            project: { select: { id: true, name: true, code: true } },
+            subcontractor: { select: { id: true, name: true, pan: true } },
+          },
+        }),
+      ]);
 
-      const payables = subBills
-        .filter((b) => (b.retentionAmount || 0) > 0)
-        .map((b) => ({
-          id: b.id,
-          type: "subcontractor_retention" as const,
-          projectName: b.project.name,
-          projectCode: b.project.code,
-          subcontractorName: b.subcontractor?.name || "Unknown",
-          subcontractorPan: b.subcontractor?.pan || null,
-          number: b.number,
-          date: b.billDate,
-          retentionAmount: b.retentionAmount || 0,
-          status: b.status,
-          // Same as IPCs: track release state from the SubcontractorBill's
-          // `retentionReleasedAt` field, set by `releaseRetention`.
-          isReleased: b.retentionReleasedAt !== null,
-          releasedAt: b.retentionReleasedAt,
-        }));
+      const payables = [
+        ...subBills
+          .filter((b) => (b.retentionAmount || 0) > 0)
+          .map((b) => ({
+            id: b.id,
+            type: "subcontractor_retention" as const,
+            projectName: b.project.name,
+            projectCode: b.project.code,
+            subcontractorName: b.subcontractor?.name || "Unknown",
+            subcontractorPan: b.subcontractor?.pan || null,
+            number: b.number,
+            date: b.billDate,
+            retentionAmount: b.retentionAmount || 0,
+            status: b.status,
+            isReleased: b.retentionReleasedAt !== null,
+            releasedAt: b.retentionReleasedAt,
+          })),
+        ...subIpcs
+          .filter((i) => (i.retentionAmount || 0) > 0)
+          .map((i) => ({
+            id: i.id,
+            type: "subcontractor_retention" as const,
+            projectName: i.project.name,
+            projectCode: i.project.code,
+            subcontractorName: i.subcontractor?.name || "Unknown",
+            subcontractorPan: i.subcontractor?.pan || null,
+            number: i.number,
+            date: i.issueDate || i.createdAt,
+            retentionAmount: i.retentionAmount || 0,
+            status: i.status,
+            isReleased: i.retentionReleasedAt !== null,
+            releasedAt: i.retentionReleasedAt,
+          })),
+      ];
 
       const totalReceivable = receivables.reduce((s, r) => s + (r.isReleased ? 0 : r.retentionAmount), 0);
       const totalPayable = payables.reduce((s, p) => s + (p.isReleased ? 0 : p.retentionAmount), 0);
@@ -691,7 +722,7 @@ export const financialReportingRouter = router({
       // filter `["certified", "approved"]` included "approved" as a
       // harmless dead branch — no sub-bill ever matched it. We drop it
       // here so the filter matches the actual enum.
-      const [vendorBills, subBills] = await Promise.all([
+      const [vendorBills, subBills, subIpcs] = await Promise.all([
         db.vendorBill.findMany({
           where: { projectId: { in: projectIds }, status: { in: ["unpaid", "partially_paid"] } },
           select: { netPayable: true, paidAmount: true },
@@ -700,16 +731,26 @@ export const financialReportingRouter = router({
           where: { projectId: { in: projectIds }, status: { in: ["certified"] } },
           select: { netPayable: true, paidAmount: true },
         }),
+        db.ipc.findMany({
+          where: {
+            projectId: { in: projectIds },
+            subcontractorId: { not: null },
+            status: { in: ["certified", "approved"] },
+          },
+          select: { netPayable: true },
+        }),
       ]);
 
       const totalPayables =
         vendorBills.reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0) +
-        subBills.reduce((s, b) => s + Math.max(0, b.netPayable - (b.paidAmount || 0)), 0);
+        subBills.reduce((s, b) => s + Math.max(0, b.netPayable - (b.paidAmount || 0)), 0) +
+        subIpcs.reduce((s, i) => s + i.netPayable, 0);
 
-      // ── Expected inflows: IPCs in certified/approved status ──
+      // ── Expected inflows: Client IPCs in certified/approved status ──
       const pendingIpcs = await db.ipc.findMany({
         where: {
           projectId: { in: projectIds },
+          subcontractorId: null, // Client IPCs only
           status: { in: ["certified", "approved"] },
         },
         select: { netPayable: true },
@@ -1309,15 +1350,7 @@ export const financialReportingRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // Verify the bank account belongs to the caller's org.
-      const bankAccount = await db.companyBankAccount.findFirst({
-        where: { id: input.bankAccountId },
-      });
-      if (!bankAccount) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Bank account not found." });
-      }
-      if (bankAccount.organizationId !== ctx.user.organizationId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Bank account does not belong to your organization." });
-      }
+      const bankAccount = await assertOrgBankAccount(input.bankAccountId, ctx.user.organizationId);
 
       const fromDate = new Date(input.fromDate);
       const toDate = new Date(input.toDate);
@@ -1544,6 +1577,7 @@ export const financialReportingRouter = router({
       const ipcsWithRetention = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
+          subcontractorId: null, // Client IPCs only
           retentionAmount: { gt: 0 },
           retentionReleasedAt: null,
           status: { in: ["certified", "approved", "paid"] },

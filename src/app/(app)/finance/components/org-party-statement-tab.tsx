@@ -46,11 +46,14 @@ export function OrgPartyStatementTab() {
 
   // Compute running balance chronologically
   const transactionsWithRunning = useMemo(() => {
-    let running = 0;
-    return transactions.map((t) => {
-      running += (t.credit || 0) - (t.debit || 0); // Billed increases payable, paid reduces it
-      return { ...t, runningBalance: running };
-    });
+    let acc = 0;
+    const result = new Array(transactions.length);
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      acc += (t.credit || 0) - (t.debit || 0); // Billed increases payable, paid reduces it
+      result[i] = { ...t, runningBalance: acc };
+    }
+    return result;
   }, [transactions]);
 
   const handleExportExcel = () => {

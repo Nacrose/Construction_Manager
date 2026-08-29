@@ -37,26 +37,39 @@ export async function POST(req: NextRequest) {
       where: { email: data.email },
     });
 
-    // Vercel / Environment Auto-Provisioning:
-    // If user doesn't exist but matches SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD from Vercel environment vars,
-    // automatically provision the superadmin JIT (Just-In-Time) securely.
-    const envSuperEmail = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
-    const envSuperPassword = process.env.SUPERADMIN_PASSWORD;
-    const envSuperName = process.env.SUPERADMIN_NAME || "Platform Administrator";
-
-    if (!user && envSuperEmail && envSuperPassword && data.email === envSuperEmail && data.password === envSuperPassword) {
-      const passwordHash = await bcrypt.hash(envSuperPassword, 12);
-      user = await db.user.create({
-        data: {
-          email: envSuperEmail,
-          name: envSuperName,
-          passwordHash,
-          role: "project_manager",
-          isSuperAdmin: true,
-          orgRole: "org_admin",
-        },
+    // Initial Platform Bootstrap (Only if zero superadmins exist in the database):
+    // Once any superadmin exists in the system, environment auto-provisioning is permanently disabled.
+    if (!user) {
+      const existingSuperadminCount = await db.user.count({
+        where: { isSuperAdmin: true },
       });
-      console.log(`[admin-login] JIT provisioned superadmin from Vercel env: ${user.email}`);
+
+      const envSuperEmail = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
+      const envSuperPassword = process.env.SUPERADMIN_PASSWORD;
+      const envSuperName = process.env.SUPERADMIN_NAME || "Platform Administrator";
+
+      if (
+        existingSuperadminCount === 0 &&
+        envSuperEmail &&
+        envSuperPassword &&
+        data.email === envSuperEmail
+      ) {
+        const passwordHash = await bcrypt.hash(envSuperPassword, 12);
+        const isMatch = await bcrypt.compare(data.password, passwordHash);
+        if (isMatch) {
+          user = await db.user.create({
+            data: {
+              email: envSuperEmail,
+              name: envSuperName,
+              passwordHash,
+              role: "project_manager",
+              isSuperAdmin: true,
+              orgRole: "org_admin",
+            },
+          });
+          console.log(`[admin-login] Initial superadmin bootstrapped from environment: ${user.email}`);
+        }
+      }
     }
 
     if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) {

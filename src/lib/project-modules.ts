@@ -57,7 +57,7 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   { key: "boq",             label: "BOQ & Rate Analysis",      core: true,  group: "Core",                description: "Bill of Quantities & rate analysis library" },
 
   // ── Financial Management ──────────────────────────────────────
-  { key: "payments",        label: "Site Payables & Bahi Khata", core: false, group: "Core",              description: "Site vendor ledgers, party claims & outstanding balances" },
+  { key: "payments",        label: "Site Payables & Bahi Khata", core: true,  group: "Core",              description: "Site vendor ledgers, party claims & outstanding balances" },
   { key: "accounting",      label: "Site Day Book & Cashbook", core: false, group: "Core",                description: "Day Book (रोजकट्टी), Site Cash Inflow/Outflow & Vouchers" },
 
   // ── Contract Management ───────────────────────────────────────

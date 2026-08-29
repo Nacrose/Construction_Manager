@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,7 @@ export function MergeMaterialsDialog({
   const [loserId, setLoserId] = useState(initialLoserId || materials[1]?.id || "");
 
   // Update if initials change
-  useMemo(() => {
+  useEffect(() => {
     if (initialWinnerId) setWinnerId(initialWinnerId);
     if (initialLoserId) setLoserId(initialLoserId);
   }, [initialWinnerId, initialLoserId]);

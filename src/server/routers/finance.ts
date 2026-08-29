@@ -16,7 +16,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertOrgAdmin } from "@/lib/authz";
+import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
 import { createJournalEntry } from "@/lib/journal-entry";
@@ -159,6 +159,7 @@ export const financeRouter = router({
       const paidIpcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
+          subcontractorId: null, // Client IPC inflows only
           status: "paid",
           issueDate: { gte: startMonth, not: null },
         },
@@ -1253,17 +1254,9 @@ export const financeRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
       }
 
-      // SECURITY: if a bank account is specified, it must belong to the
-      // caller's org — otherwise an org admin of Org A could pay Org B
-      // bills by referencing Org B's bank account ID.
+      // SECURITY: if a bank account is specified, it must belong to the caller's org.
       if (input.companyBankAccountId) {
-        const bank = await db.companyBankAccount.findUnique({
-          where: { id: input.companyBankAccountId },
-          select: { organizationId: true },
-        });
-        if (!bank || bank.organizationId !== callerOrgId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Bank account not found in your organization." });
-        }
+        await assertOrgBankAccount(input.companyBankAccountId, callerOrgId);
       }
 
       // SECURITY: every bill passed by the caller must be verified to
@@ -1546,13 +1539,7 @@ export const financeRouter = router({
 
       // Verify the bank account belongs to the caller's org.
       if (input.bankAccountId) {
-        const bank = await db.companyBankAccount.findUnique({
-          where: { id: input.bankAccountId },
-          select: { organizationId: true },
-        });
-        if (!bank || bank.organizationId !== user.organizationId) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Bank account not found in your organization." });
-        }
+        await assertOrgBankAccount(input.bankAccountId, user.organizationId);
       }
 
       // Wrap the expense creation + journal entry + bank balance decrement

@@ -9,9 +9,10 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertProjectManager } from "@/lib/authz";
+import { assertProjectMember, assertProjectManager, assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { assertDelegation } from "@/lib/delegation";
 import { adToBs } from "@/lib/nepali-calendar";
 import { format } from "date-fns";
 
@@ -35,6 +36,7 @@ export const jvPartnerRouter = router({
       const ipcs = await db.ipc.findMany({
         where: {
           projectId: input.projectId,
+          subcontractorId: null, // Client IPC turnover only
           status: { in: ["certified", "approved", "paid"] },
         },
         select: {
@@ -177,6 +179,7 @@ export const jvPartnerRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertProjectManager(ctx.user, input.projectId);
       await assertNotLocked(ctx.user.organizationId, input.payoutDate ? new Date(input.payoutDate) : new Date());
+      await assertDelegation(ctx.user, "record_jv_payout", input.grossAmount);
 
       const agreement = await db.jvPartnerAgreement.findUnique({
         where: { projectId: input.projectId },
@@ -187,6 +190,11 @@ export const jvPartnerRouter = router({
           code: "NOT_FOUND",
           message: "JV Partner Agreement not configured for this project.",
         });
+      }
+
+      // SECURITY: If bank account is specified, verify it belongs to caller's organization
+      if (input.bankAccountId) {
+        await assertOrgBankAccount(input.bankAccountId, ctx.user.organizationId);
       }
 
       const pDate = input.payoutDate ? new Date(input.payoutDate) : new Date();
@@ -224,17 +232,12 @@ export const jvPartnerRouter = router({
         },
       });
 
-      // If bank account is specified, deduct net payment from central company bank account
+      // Deduct net payment from central company bank account
       if (input.bankAccountId) {
-        const bank = await db.companyBankAccount.findUnique({
+        await db.companyBankAccount.update({
           where: { id: input.bankAccountId },
+          data: { currentBalance: { decrement: netAmount } },
         });
-        if (bank) {
-          await db.companyBankAccount.update({
-            where: { id: input.bankAccountId },
-            data: { currentBalance: { decrement: netAmount } },
-          });
-        }
       }
 
       await audit({
@@ -269,12 +272,17 @@ export const jvPartnerRouter = router({
         where: { id: input.payoutId },
       });
 
-      // Restore bank account balance if previously deducted
+      // Restore bank account balance if previously deducted (verifying org ownership)
       if (payout.bankAccountId) {
-        await db.companyBankAccount.update({
+        const bank = await db.companyBankAccount.findUnique({
           where: { id: payout.bankAccountId },
-          data: { currentBalance: { increment: payout.netAmount } },
-        }).catch(() => {});
+        });
+        if (bank && bank.organizationId === ctx.user.organizationId) {
+          await db.companyBankAccount.update({
+            where: { id: payout.bankAccountId },
+            data: { currentBalance: { increment: payout.netAmount } },
+          }).catch(() => {});
+        }
       }
 
       await db.jvCommissionPayout.delete({

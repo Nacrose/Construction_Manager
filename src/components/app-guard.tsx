@@ -31,6 +31,7 @@ import type { DockPosition } from "@/components/app-dock";
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { getPref } = useUserPreferences();
   const [state, setState] = useState<"loading" | "authed" | "unauthed">(
     () => (typeof window !== "undefined" && getToken() ? "authed" : "loading")
   );
@@ -111,7 +112,6 @@ export function AppGuard({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const { getPref } = useUserPreferences();
   const dockPosition = getPref<DockPosition>("dockPosition", "bottom");
   const dockAutoHide = getPref<boolean>("dockAutoHide", false);
 

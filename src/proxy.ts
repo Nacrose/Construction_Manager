@@ -19,31 +19,13 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-
-const COOKIE_NAME = "cf_session";
+import { COOKIE_NAME, getAuthSecret } from "@/lib/auth-config";
 
 // Paths that require authentication. We match by prefix so nested
 // routes are covered automatically.
 const PROTECTED_PREFIXES = ["/dashboard", "/projects", "/admin", "/finance", "/sync", "/team", "/presets", "/activity", "/rate-catalogs"];
 
-function getAuthSecret(): Uint8Array | null {
-  const v = process.env.AUTH_SECRET;
-  if (!v) {
-    // In production, AUTH_SECRET is required for the rest of the auth
-    // stack to function — if missing, fail open so the app doesn't get
-    // locked out entirely (the rest of auth will fail loudly anyway).
-    if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "development") {
-      // Use a placeholder that won't verify any real token — every
-      // request will fail the jwtVerify and be redirected to /login.
-      // This is the safest behavior when AUTH_SECRET is missing.
-      return new TextEncoder().encode("__missing_auth_secret__");
-    }
-    return new TextEncoder().encode("dev-only-insecure-secret-please-set-AUTH_SECRET-in-production-32bytes-min");
-  }
-  return new TextEncoder().encode(v);
-}
-
-async function isAuthed(req: NextRequest): Promise<boolean> {
+async function getSessionPayload(req: NextRequest): Promise<{ kind?: string; sub?: string } | null> {
   const authHeader = req.headers.get("authorization");
   let token: string | null = null;
   if (authHeader?.startsWith("Bearer ")) {
@@ -51,16 +33,16 @@ async function isAuthed(req: NextRequest): Promise<boolean> {
   } else {
     token = req.cookies.get(COOKIE_NAME)?.value ?? null;
   }
-  if (!token) return false;
+  if (!token) return null;
 
   const secret = getAuthSecret();
-  if (!secret) return false;
+  if (!secret) return null;
 
   try {
-    await jwtVerify(token, secret);
-    return true;
+    const { payload } = await jwtVerify(token, secret);
+    return payload as { kind?: string; sub?: string };
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -72,6 +54,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
   const isProtected = PROTECTED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
@@ -79,7 +62,21 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (await isAuthed(req)) {
+  const session = await getSessionPayload(req);
+
+  // Platform admin routes require a verified admin session (kind === "admin")
+  if (isAdminRoute) {
+    if (session && session.kind === "admin") {
+      return NextResponse.next();
+    }
+    const adminLoginUrl = req.nextUrl.clone();
+    adminLoginUrl.pathname = "/admin/login";
+    adminLoginUrl.search = "";
+    adminLoginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(adminLoginUrl);
+  }
+
+  if (session) {
     return NextResponse.next();
   }
 

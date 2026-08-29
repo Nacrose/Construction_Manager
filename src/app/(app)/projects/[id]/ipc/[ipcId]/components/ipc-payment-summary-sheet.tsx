@@ -25,19 +25,7 @@ export function IpcPaymentSummarySheet({
   ipcId: string;
   canWrite?: boolean;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-
-  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.ipc.getPaymentSummary.useQuery({ ipcId });
-
-  const updateMut = trpc.ipc.update.useMutation({
-    onSuccess: () => {
-      toast.success("Payment summary metadata saved");
-      utils.ipc.getPaymentSummary.invalidate({ ipcId });
-      setIsEditing(false);
-    },
-    onError: (e) => toast.error(e.message),
-  });
 
   if (isLoading || !data) {
     return (
@@ -48,7 +36,43 @@ export function IpcPaymentSummarySheet({
     );
   }
 
-  const { ipc, summary } = data;
+  return (
+    <IpcPaymentSummaryContent
+      projectId={projectId}
+      ipcId={ipcId}
+      ipc={data.ipc}
+      summary={data.summary}
+      canWrite={canWrite}
+    />
+  );
+}
+
+function IpcPaymentSummaryContent({
+  projectId,
+  ipcId,
+  ipc,
+  summary,
+  canWrite,
+}: {
+  projectId: string;
+  ipcId: string;
+  ipc: any;
+  summary: any;
+  canWrite: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  const utils = trpc.useUtils();
+
+  const updateMut = trpc.ipc.update.useMutation({
+    onSuccess: () => {
+      toast.success("Payment summary metadata saved");
+      utils.ipc.getPaymentSummary.invalidate({ ipcId });
+      setIsEditing(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const project = (ipc as any).project;
 
   // Local edit states

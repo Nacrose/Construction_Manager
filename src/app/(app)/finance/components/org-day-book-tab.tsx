@@ -59,12 +59,14 @@ export function OrgDayBookTab() {
 
   // Compute running balance chronologically
   const entriesWithRunning = useMemo(() => {
-    let running = 0;
-    return entries.map((e) => {
-      // Debit increases cash/expense or settles payable; credit is inward/bill
-      running += (e.debit || 0) - (e.credit || 0);
-      return { ...e, runningBalance: running };
-    });
+    let acc = 0;
+    const result = new Array(entries.length);
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      acc += (e.debit || 0) - (e.credit || 0);
+      result[i] = { ...e, runningBalance: acc };
+    }
+    return result;
   }, [entries]);
 
   const handleExportExcel = () => {

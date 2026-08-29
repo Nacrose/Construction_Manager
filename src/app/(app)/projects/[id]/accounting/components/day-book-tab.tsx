@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import * as XLSX from "@e965/xlsx";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
@@ -145,11 +145,17 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   const summary = data?.summary || { totalDebit: 0, totalCredit: 0, count: 0 };
 
   // Calculate live running balances for Cashbook
-  let runningBal = 0;
-  const entriesWithRunning = [...entries].reverse().map((e) => {
-    runningBal += (e.debit - e.credit);
-    return { ...e, runningBalance: runningBal };
-  }).reverse();
+  const entriesWithRunning = useMemo(() => {
+    const reversed = [...entries].reverse();
+    let acc = 0;
+    const mapped = new Array(reversed.length);
+    for (let i = 0; i < reversed.length; i++) {
+      const e = reversed[i];
+      acc += (e.debit - e.credit);
+      mapped[i] = { ...e, runningBalance: acc };
+    }
+    return mapped.reverse();
+  }, [entries]);
 
   // Inflow creation mutation
   const createInflowMut = trpc.accounting.logJournalEntry.useMutation({

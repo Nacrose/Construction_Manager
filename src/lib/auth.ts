@@ -7,54 +7,14 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { COOKIE_NAME, getAuthSecret } from "@/lib/auth-config";
 
-const COOKIE_NAME = "cf_session";
 const SESSION_DAYS = 7;
 // Admin sessions are deliberately short-lived (platform-tier access).
 const ADMIN_SESSION_MINS = Math.max(
   1,
   Number(process.env.ADMIN_SESSION_MINS ?? "60") || 60,
 );
-
-// ── AUTH_SECRET validation ────────────────────────────────────
-// In production, AUTH_SECRET MUST be set. If missing, the app will
-// throw on first auth call — rather than silently using an insecure
-// default that could be exploited.
-function getAuthSecret(): Uint8Array {
-  const secretValue = process.env.AUTH_SECRET;
-  if (!secretValue) {
-    // Treat any non-local-dev environment as production: Vercel preview,
-    // staging, and any environment where VERCEL_ENV is set. Misconfigured
-    // staging envs previously fell through to the dev fallback, which
-    // signed JWTs with a publicly-known secret.
-    const isProdLike =
-      process.env.NODE_ENV === "production" ||
-      process.env.VERCEL_ENV === "preview" ||
-      process.env.VERCEL_ENV === "production";
-    if (isProdLike) {
-      throw new Error(
-        "FATAL: AUTH_SECRET environment variable is not set. " +
-        "Generate one with: openssl rand -base64 32 " +
-        "Then add AUTH_SECRET=xxx to your .env file."
-      );
-    }
-    // Development fallback (insecure — only for local dev)
-    console.warn(
-      "⚠️  AUTH_SECRET not set — using insecure dev-only secret. " +
-      "Set AUTH_SECRET in production with: openssl rand -base64 32"
-    );
-    return new TextEncoder().encode(
-      "dev-only-insecure-secret-please-set-AUTH_SECRET-in-production-32bytes-min"
-    );
-  }
-  if (secretValue.length < 32) {
-    throw new Error(
-      "FATAL: AUTH_SECRET must be at least 32 characters. " +
-      "Generate a stronger one with: openssl rand -base64 32"
-    );
-  }
-  return new TextEncoder().encode(secretValue);
-}
 
 // Lazy initialization — only compute the secret when first needed,
 // not at module load time (which would break the build in production

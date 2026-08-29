@@ -189,6 +189,21 @@ export function PaymentsTab({
     }
   });
 
+  // Category & Subcategory selection
+  const [selectedCatId, setSelectedCatId] = useState<string>("");
+  const [selectedSubId, setSelectedSubId] = useState<string>("");
+  const [newSubName, setNewSubName] = useState("");
+  const [isCreatingSub, setIsCreatingSub] = useState(false);
+
+  // Accounting Software
+  const [accountingSoftware, setAccountingSoftware] = useState<"tally" | "swastik" | "other">("tally");
+  const [accountingVoucherNo, setAccountingVoucherNo] = useState("");
+  const [voucherType, setVoucherType] = useState<"payment" | "bank_payment" | "cash_payment" | "journal">("bank_payment");
+
+  // Scanned voucher attachment
+  const [fileData, setFileData] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
+
   // Handle incoming initialPayable trigger (e.g. from Outstanding Payables tab)
   useEffect(() => {
     if (initialPayable) {
@@ -210,21 +225,6 @@ export function PaymentsTab({
       if (onClearInitialPayable) onClearInitialPayable();
     }
   }, [initialPayable, categories, onClearInitialPayable]);
-
-  // Category & Subcategory selection
-  const [selectedCatId, setSelectedCatId] = useState<string>("");
-  const [selectedSubId, setSelectedSubId] = useState<string>("");
-  const [newSubName, setNewSubName] = useState("");
-  const [isCreatingSub, setIsCreatingSub] = useState(false);
-
-  // Accounting Software
-  const [accountingSoftware, setAccountingSoftware] = useState<"tally" | "swastik" | "other">("tally");
-  const [accountingVoucherNo, setAccountingVoucherNo] = useState("");
-  const [voucherType, setVoucherType] = useState<"payment" | "bank_payment" | "cash_payment" | "journal">("bank_payment");
-
-  // Scanned voucher attachment
-  const [fileData, setFileData] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
 
   const selectedCategoryObj = categories.find((c) => c.id === selectedCatId || c.name === selectedCatId);
   const subcategoryList = selectedCategoryObj?.children || [];

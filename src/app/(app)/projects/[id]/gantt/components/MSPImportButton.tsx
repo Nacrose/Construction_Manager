@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { format } from "date-fns";
 import { Upload, X, Loader2 } from "lucide-react";
@@ -96,10 +96,16 @@ export function MSPImportButton({
 
   const preview = previewMut.data;
   const result = commitMut.data;
+  const inputId = `msp-import-${projectId}`;
+  const handleTriggerClick = useCallback(() => {
+    const el = document.getElementById(inputId) as HTMLInputElement | null;
+    el?.click();
+  }, [inputId]);
 
   return (
     <>
       <input
+        id={inputId}
         ref={fileInputRef}
         type="file"
         accept=".xml"
@@ -107,10 +113,10 @@ export function MSPImportButton({
         className="hidden"
       />
       {renderTrigger ? (
-        renderTrigger(() => fileInputRef.current?.click())
+        renderTrigger(handleTriggerClick)
       ) : (
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={handleTriggerClick}
           className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           title="Import from MS Project XML file"
         >

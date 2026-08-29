@@ -23,7 +23,7 @@ export const bankGuaranteeRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const orgId = input.organizationId || ctx.user.organizationId;
+      const orgId = ctx.user.role === "superadmin" && input.organizationId ? input.organizationId : ctx.user.organizationId;
       if (input.projectId) {
         await assertProjectMember(ctx.user, input.projectId);
       }

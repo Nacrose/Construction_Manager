@@ -23,7 +23,7 @@ import {
 import { FileQuestion, Loader2, MapPin, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FileDropzone, AttachmentBadge } from "./file-dropzone";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -119,9 +119,7 @@ export function CreateRfiDialog({
     setItems(items.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
   }
 
-  const defaultWorkDate = useMemo(() => {
-    return new Date(Date.now() + 86400000).toISOString().split("T")[0]; // tomorrow
-  }, []);
+  const [defaultWorkDate] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
 
   const form = useForm<CreateRfiValues>({
     resolver: zodResolver(CreateRfiSchema),
