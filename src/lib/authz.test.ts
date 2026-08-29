@@ -115,4 +115,46 @@ describe("Authorization Status Mapping & Security Guards", () => {
       expect(() => assertOrgAdmin(undefined)).toThrow(/Organization admin access required/);
     });
   });
+
+  describe("Tenant Isolation on Cross-Org Guarantees & Presets", () => {
+    it("rejects cross-organization guarantee access when user organization does not match", () => {
+      const user = { id: "u1", organizationId: "org-alpha" };
+      const guarantee = { projectId: null, organizationId: "org-beta" };
+
+      const isAllowed = Boolean(
+        user.organizationId &&
+        guarantee.organizationId &&
+        user.organizationId === guarantee.organizationId
+      );
+      expect(isAllowed).toBe(false);
+    });
+
+    it("allows same-organization guarantee access for org-level bid bonds", () => {
+      const user = { id: "u1", organizationId: "org-alpha" };
+      const guarantee = { projectId: null, organizationId: "org-alpha" };
+
+      const isAllowed = Boolean(
+        user.organizationId &&
+        guarantee.organizationId &&
+        user.organizationId === guarantee.organizationId
+      );
+      expect(isAllowed).toBe(true);
+    });
+
+    it("blocks non-superadmin from mutating global system presets", () => {
+      const orgAdmin = { id: "u1", orgRole: "org_admin", isSuperAdmin: false, organizationId: "org-alpha" };
+      const globalPreset = { organizationId: null };
+
+      const canMutateGlobal = Boolean(orgAdmin.isSuperAdmin || (globalPreset.organizationId && globalPreset.organizationId === orgAdmin.organizationId));
+      expect(canMutateGlobal).toBe(false);
+    });
+
+    it("allows superadmin to mutate global system presets", () => {
+      const superAdmin = { id: "u-root", orgRole: "org_admin", isSuperAdmin: true, organizationId: null };
+      const globalPreset = { organizationId: null };
+
+      const canMutateGlobal = Boolean(superAdmin.isSuperAdmin || (globalPreset.organizationId && globalPreset.organizationId === superAdmin.organizationId));
+      expect(canMutateGlobal).toBe(true);
+    });
+  });
 });

@@ -85,6 +85,8 @@ export const siteExpenseRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      const expenseDate = input.date ? new Date(input.date) : new Date();
+      await assertNotLocked(ctx.user.organizationId, expenseDate);
       await assertDelegation(ctx.user, "create_site_expense", input.amount + (input.vatAmount || 0));
 
       // Auto-generate expense number with collision-prevention retry.
@@ -114,7 +116,7 @@ export const siteExpenseRouter = router({
             data: {
               projectId: input.projectId,
               number,
-              date: input.date ? new Date(input.date) : new Date(),
+              date: expenseDate,
               category: input.category,
               description: input.description,
               amount: input.amount,
@@ -172,10 +174,14 @@ export const siteExpenseRouter = router({
       const { id, ...data } = input;
       const expense = await db.siteExpense.findUnique({
         where: { id },
-        select: { projectId: true, status: true },
+        select: { projectId: true, status: true, date: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertCanWrite(ctx.user, expense.projectId);
+      await assertNotLocked(ctx.user.organizationId, expense.date);
+      if (data.date) {
+        await assertNotLocked(ctx.user.organizationId, new Date(data.date));
+      }
 
       if (expense.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft/pending expenses can be edited." });
@@ -313,10 +319,11 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true, number: true },
+        select: { projectId: true, status: true, number: true, date: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertCanWrite(ctx.user, expense.projectId);
+      await assertNotLocked(ctx.user.organizationId, expense.date);
 
       if (expense.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft/pending expenses can be deleted." });

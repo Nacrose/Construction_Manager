@@ -602,6 +602,7 @@ export const payrollRouter = router({
         where: { id: input.runId, projectId: input.projectId },
       });
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found." });
+      await assertNotLocked(ctx.user.organizationId, run.createdAt);
 
       let newStatus = run.status;
       let approvedById = run.approvedById;
@@ -662,8 +663,10 @@ export const payrollRouter = router({
       // payroll staff records in project B by their cuid.
       const record = await db.payrollStaffRecord.findFirst({
         where: { id: input.recordId, payrollRun: { projectId: input.projectId } },
+        include: { payrollRun: { select: { createdAt: true } } },
       });
       if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Staff record not found." });
+      await assertNotLocked(ctx.user.organizationId, record.payrollRun.createdAt);
 
       const updated = await db.payrollStaffRecord.update({
         where: { id: input.recordId },

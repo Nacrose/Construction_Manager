@@ -363,9 +363,11 @@ export const subcontractorBillRouter = router({
 
     const existing = await db.subcontractorBill.findFirst({
       where: { id: input.billId, projectId: input.projectId },
-        include: { subcontractor: { select: { id: true, name: true } } },
+      include: { subcontractor: { select: { id: true, name: true } } },
     });
     if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
+    await assertNotLocked(ctx.user.organizationId, existing.billDate);
+
     if (existing.status !== "draft") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft bills can be edited." });
     }
@@ -600,6 +602,8 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
+      await assertNotLocked(ctx.user.organizationId, bill.billDate);
+
       if (bill.status !== "draft") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft bills can be deleted." });
       }

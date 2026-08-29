@@ -11,6 +11,24 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs, bsToAd } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
 
+async function assertGuaranteeAccess(
+  user: any,
+  existing: { projectId: string | null; organizationId: string | null }
+) {
+  if (existing.projectId) {
+    await assertProjectManager(user, existing.projectId);
+  } else if (existing.organizationId) {
+    if (!user.organizationId || existing.organizationId !== user.organizationId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "You don't have access to this organization's guarantees.",
+      });
+    }
+  } else {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied." });
+  }
+}
+
 export const bankGuaranteeRouter = router({
   /** List all bank guarantees (Organization wide or Project scoped) */
   list: protectedProcedure
@@ -273,9 +291,7 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      if (existing.projectId) {
-        await assertProjectManager(ctx.user, existing.projectId);
-      }
+      await assertGuaranteeAccess(ctx.user, existing);
 
       const newExpiryD = new Date(input.newExpiryDate);
       if (isNaN(newExpiryD.getTime())) {
@@ -349,9 +365,7 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      if (existing.projectId) {
-        await assertProjectManager(ctx.user, existing.projectId);
-      }
+      await assertGuaranteeAccess(ctx.user, existing);
 
       const guarantee = await db.bankGuarantee.update({
         where: { id: input.id },
@@ -399,9 +413,7 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      if (existing.projectId) {
-        await assertProjectManager(ctx.user, existing.projectId);
-      }
+      await assertGuaranteeAccess(ctx.user, existing);
 
       const { id, ...data } = input;
       const guarantee = await db.bankGuarantee.update({
@@ -430,9 +442,7 @@ export const bankGuaranteeRouter = router({
       const existing = await db.bankGuarantee.findUniqueOrThrow({
         where: { id: input.id },
       });
-      if (existing.projectId) {
-        await assertProjectManager(ctx.user, existing.projectId);
-      }
+      await assertGuaranteeAccess(ctx.user, existing);
 
       await db.bankGuarantee.delete({ where: { id: input.id } });
 

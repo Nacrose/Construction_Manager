@@ -5,7 +5,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs } from "@/lib/nepali-calendar";
 
 export const accountingRouter = router({
@@ -892,7 +893,8 @@ export const accountingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      await assertCanWrite(ctx.user, input.projectId);
+      await assertNotLocked(ctx.user.organizationId, new Date(input.date));
 
       // Create Payment entry as Inflow / Receipt
       const payment = await db.payment.create({

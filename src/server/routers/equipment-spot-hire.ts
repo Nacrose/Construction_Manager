@@ -295,6 +295,8 @@ export const equipmentSpotHireProcedures = {
         where: { id: input.ticketId, projectId: input.projectId },
       });
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Spot ticket not found." });
+      await assertNotLocked(ctx.user.organizationId, ticket.date);
+
       if (ticket.isBilled) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete a ticket that has already been billed." });
       }

@@ -55,6 +55,26 @@ const UpdateIngredientSchema = z.object({
   materialCatalogId: z.string().optional().nullable(),
 });
 
+async function assertPresetWriteAccess(user: any, presetId: string) {
+  if (!isOrgAdmin(user) && user.orgRole !== "org_admin" && !user.isSuperAdmin) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
+  }
+  const preset = await db.globalPresetAnalysis.findUnique({
+    where: { id: presetId },
+    select: { organizationId: true },
+  });
+  if (!preset) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Preset not found." });
+  }
+  if (preset.organizationId && preset.organizationId !== user.organizationId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "This preset belongs to a different organization." });
+  }
+  if (!preset.organizationId && !user.isSuperAdmin) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Only platform superadmins can modify global system presets." });
+  }
+  return preset;
+}
+
 export const globalPresetRouter = router({
   /** List all global presets. */
   list: protectedProcedure
@@ -116,7 +136,7 @@ export const globalPresetRouter = router({
   create: protectedProcedure
     .input(CreatePresetSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
+      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin" && !ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
       }
       const preset = await db.globalPresetAnalysis.create({
@@ -126,6 +146,7 @@ export const globalPresetRouter = router({
           category: input.category,
           description: input.description,
           batchSize: input.batchSize,
+          organizationId: ctx.user.isSuperAdmin ? null : ctx.user.organizationId,
         },
       });
       return { preset };
@@ -135,9 +156,7 @@ export const globalPresetRouter = router({
   update: protectedProcedure
     .input(UpdatePresetSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-      }
+      await assertPresetWriteAccess(ctx.user, input.presetId);
       const { presetId, ...data } = input;
       const preset = await db.globalPresetAnalysis.update({
         where: { id: presetId },
@@ -156,9 +175,7 @@ export const globalPresetRouter = router({
   delete: protectedProcedure
     .input(z.object({ presetId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-      }
+      await assertPresetWriteAccess(ctx.user, input.presetId);
       await db.globalPresetAnalysis.delete({ where: { id: input.presetId } });
       return { ok: true };
     }),
@@ -167,9 +184,7 @@ export const globalPresetRouter = router({
   addIngredient: protectedProcedure
     .input(CreateIngredientSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-      }
+      await assertPresetWriteAccess(ctx.user, input.presetId);
       const { presetId, materialCatalogId, catalogMaterialId, ...data } = input;
       const maxOrder = await db.globalPresetIngredient.aggregate({
         where: { presetId },
@@ -190,9 +205,7 @@ export const globalPresetRouter = router({
   updateIngredient: protectedProcedure
     .input(UpdateIngredientSchema)
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-      }
+      await assertPresetWriteAccess(ctx.user, input.presetId);
       const { ingredientId, presetId, materialCatalogId, catalogMaterialId, ...data } = input;
       const finalCatalogId =
         catalogMaterialId !== undefined
@@ -222,9 +235,7 @@ export const globalPresetRouter = router({
   deleteIngredient: protectedProcedure
     .input(z.object({ presetId: z.string(), ingredientId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
-      }
+      await assertPresetWriteAccess(ctx.user, input.presetId);
       await db.globalPresetIngredient.delete({ where: { id: input.ingredientId } });
       return { ok: true };
     }),

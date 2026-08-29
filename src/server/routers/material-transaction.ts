@@ -419,6 +419,7 @@ export const materialTransactionProcedures = {
         where: { id: transactionId, projectId },
       });
       if (!txn) throw new TRPCError({ code: "NOT_FOUND", message: "Transaction not found." });
+      await assertNotLocked(ctx.user.organizationId, txn.date);
 
       const updated = await db.materialTransaction.update({
         where: { id: transactionId },
