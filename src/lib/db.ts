@@ -1,11 +1,25 @@
 import { PrismaClient } from '@prisma/client'
 import { createRequire } from 'node:module'
+import { decimalBoundary } from './decimal-extension'
 
 const nativeRequire = createRequire(import.meta.url)
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-  freshPrisma?: PrismaClient | undefined
+  prisma: ReturnType<typeof createDb> | undefined
+  freshPrisma?: ReturnType<typeof createDb> | undefined
+}
+
+/**
+ * PrismaClient with the DECIMAL boundary extension applied.
+ *
+ * The database stores exact DECIMAL(15,2)/(15,4) columns; this extension
+ * converts Prisma Decimal objects → plain JS numbers at the client
+ * boundary (model fields via result extensions, aggregates via a deep
+ * result walker) so all application code and the tRPC superjson
+ * transformer keep working with numbers. Writes accept numbers natively.
+ */
+function createDb() {
+  return new PrismaClient(prismaClientOptions).$extends(decimalBoundary)
 }
 
 // During development, the dev server's HMR can hold onto a stale PrismaClient
@@ -60,12 +74,13 @@ const prismaClientOptions: { log: LogLevel[] } = {
 
 export const db =
   globalForPrisma.prisma ??
-  new PrismaClient(prismaClientOptions)
+  createDb()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
 
 /**
- * Returns a PrismaClient that knows about every model in the current schema.
+ * Returns a PrismaClient that knows about every model in the current schema
+ * (with the decimal boundary extension applied — see createDb).
  *
  * In production this is just `db` (the singleton). In development, when
  * models are added while the dev server is running, the cached
@@ -79,7 +94,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
  * started. Routes that only touch the original models (User, Session,
  * Project, Rfi, AuditLog, …) can use the regular `db` singleton.
  */
-export function getFreshDb(): PrismaClient {
+export function getFreshDb(): ReturnType<typeof createDb> {
   if (process.env.NODE_ENV === 'production') return db
   // Reuse a previously-built fresh client if we have one.
   if (globalForPrisma.freshPrisma && isClientFresh(globalForPrisma.freshPrisma)) {
@@ -110,7 +125,27 @@ export function getFreshDb(): PrismaClient {
   const { PrismaClient: FreshPrismaClient } = nativeRequire(prismaIndex) as {
     PrismaClient: new (opts?: typeof prismaClientOptions) => PrismaClient
   }
-  const fresh = new FreshPrismaClient(prismaClientOptions)
+  const fresh = new FreshPrismaClient(prismaClientOptions).$extends(decimalBoundary)
   globalForPrisma.freshPrisma = fresh
   return fresh
 }
+
+/**
+ * The extended client type (decimal boundary applied).
+ * `db` itself satisfies this; interactive-transaction `tx` clients satisfy
+ * DbTxClient below.
+ */
+export type DbClient = ReturnType<typeof createDb>
+
+/**
+ * A type that BOTH the full `db` client AND the `tx` passed to
+ * `db.$transaction(async (tx) => …)` are assignable to. The omitted keys are
+ * a superset of Prisma's internal ITxClientDenyList, so passing the full
+ * client is also fine (structural subtyping). Use this for helper functions
+ * that may run either standalone or inside a transaction.
+ */
+export type DbTxClient = Omit<
+  DbClient,
+  | "$accelerateInfo" | "$batch" | "$extends" | "$injectableDmmf" | "$metrics"
+  | "$on" | "$transaction" | "$use" | "$disconnect" | "$connect" | "$pipeline"
+>

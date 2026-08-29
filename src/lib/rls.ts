@@ -1,3 +1,5 @@
+import type { DbTxClient } from "@/lib/db";
+
 /**
  * PostgreSQL Row-Level Security (RLS) for multi-tenant isolation.
  *
@@ -92,7 +94,7 @@ CREATE POLICY "project_delete_org_check" ON "Project"
  * @param isSuperAdmin When true, the session can bypass organization scoping
  */
 export async function setOrgContext(
-  db: import("@prisma/client").PrismaClient,
+  db: DbTxClient,
   organizationId: string | null | undefined,
   isSuperAdmin = false,
 ): Promise<void> {

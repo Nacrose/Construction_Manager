@@ -22,7 +22,7 @@
  *     projectId: payment.projectId,
  *   });
  */
-import type { PrismaClient, Prisma } from "@prisma/client";
+import type { DbTxClient } from "./db";
 
 export type JournalLineInput = {
   accountCode: string;
@@ -52,7 +52,7 @@ export type JournalEntryInput = {
  * before persisting. Throws if unbalanced.
  */
 export async function createJournalEntry(
-  tx: Prisma.TransactionClient | PrismaClient,
+  tx: DbTxClient,
   input: JournalEntryInput,
 ): Promise<{ id: string; entryNumber: string }> {
   // Validate balance
@@ -153,7 +153,7 @@ export async function createJournalEntry(
  * with debits and credits swapped. Used for corrections.
  */
 export async function reverseJournalEntry(
-  tx: Prisma.TransactionClient | PrismaClient,
+  tx: DbTxClient,
   originalEntryId: string,
   reason: string,
 ): Promise<{ id: string; entryNumber: string }> {

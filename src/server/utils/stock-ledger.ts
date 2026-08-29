@@ -8,7 +8,8 @@
  * - Wastage, Breakage & Physical Reconciliation Adjustments
  */
 import { TRPCError } from "@trpc/server";
-import { type Prisma, type PrismaClient } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import type { DbTxClient } from "@/lib/db";
 
 export type StockMovementType = "receive" | "issue" | "transfer" | "adjustment";
 
@@ -45,7 +46,7 @@ export type StockMovementResult = {
   materialUnit: string;
 };
 
-type DbClientOrTx = PrismaClient | Prisma.TransactionClient;
+type DbClientOrTx = DbTxClient;
 
 /**
  * Record an atomic stock movement and update current inventory balances.

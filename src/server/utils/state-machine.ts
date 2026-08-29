@@ -7,7 +7,8 @@
  * - Leaves, RFIs, Daily Reports, Drawing Approvals
  */
 import { TRPCError } from "@trpc/server";
-import { type PrismaClient, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import type { DbTxClient } from "@/lib/db";
 import { emitDomainEvent } from "./domain-events";
 
 export type SupportedLifecycleModel =
@@ -39,7 +40,7 @@ export type TransitionEntityStateResult<T = any> = {
   transitionedAt: Date;
 };
 
-type DbClientOrTx = PrismaClient | Prisma.TransactionClient;
+type DbClientOrTx = DbTxClient;
 
 /**
  * Execute an atomic state transition with validation, user attribution, and event dispatch.

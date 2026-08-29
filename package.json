@@ -4,21 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/patch-prisma-decimal-types.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate && node scripts/patch-prisma-decimal-types.mjs",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:regenerate-baseline": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0_init/migration.sql",
     "seed:catalog": "tsx prisma/seed-comprehensive.ts",
     "seed:all": "tsx prisma/seed-comprehensive.ts && tsx prisma/seed-presets.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && node scripts/patch-prisma-decimal-types.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
