@@ -53,27 +53,33 @@ describe("vatRegister.attachScannedBill (H-1 input boundary)", () => {
     expect(anyDb.ipc.update).not.toHaveBeenCalled();
   });
 
-  it("accepts a legitimate inline PDF scan past validation (fails later at the auth guard, not validation)", async () => {
-    // Handler proceeds past zod → assertCanWrite fails on the mocked db
-    // (no membership) → FORBIDDEN. Proves the safe URL shape passes the
-    // input boundary.
+  it("accepts a legitimate inline PDF scan past validation (reaches the IDOR guard, not validation)", async () => {
+    // Pin the auth + target-lookup path so this test is immune to mock
+    // state leaked from other test files (vitest isolate:false shares the
+    // module registry). Writable membership + missing IPC → NOT_FOUND,
+    // which proves the URL passed the zod boundary.
+    anyDb.projectMember.findUnique.mockReset().mockResolvedValue({ role: "engineer" });
+    anyDb.ipc.findFirst.mockReset().mockResolvedValue(null);
     const caller = createCaller(vatRegisterRouter, buildUser());
     const res = await caller
       .attachScannedBill(
         scanInput("data:application/pdf;base64,JVBERi0xLjQK"),
       )
       .catch((e: any) => e);
-    expect([res.code, res.shape?.code]).toContain("FORBIDDEN");
+    expect([res.code, res.shape?.code]).toContain("NOT_FOUND");
+    expect(anyDb.ipc.update).not.toHaveBeenCalled();
   });
 
   it("accepts an authed storage route path (/api/files/<key>)", async () => {
+    anyDb.projectMember.findUnique.mockReset().mockResolvedValue({ role: "engineer" });
+    anyDb.ipc.findFirst.mockReset().mockResolvedValue(null);
     const caller = createCaller(vatRegisterRouter, buildUser());
     const res = await caller
       .attachScannedBill(
         scanInput("/api/files/1735432100123-1a2b3c4d5e6f7089.pdf"),
       )
       .catch((e: any) => e);
-    expect([res.code, res.shape?.code]).toContain("FORBIDDEN"); // passed validation
+    expect([res.code, res.shape?.code]).toContain("NOT_FOUND"); // passed validation
   });
 });
 

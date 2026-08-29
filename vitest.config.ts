@@ -12,7 +12,13 @@ export default defineConfig({
     poolOptions: {
       forks: {
         singleFork: true,
-        isolate: false,
+        // isolate: true — each test FILE gets a fresh module registry.
+        // Router-layer tests (src/server/routers/__tests__) mock @/lib/db
+        // per-file via vi.mock factories; without isolation those mocks
+        // (and their mockResolvedValue state) leak across files and cause
+        // order-dependent flakiness/unhandled rejections. Suite is ~3s, so
+        // the isolation overhead is negligible.
+        isolate: true,
       },
     },
     coverage: {
