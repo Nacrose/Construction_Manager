@@ -90,6 +90,12 @@ async function resolveItemAndAssert(
 
 /** Convert an auth error (FORBIDDEN, READ_ONLY, etc.) to a TRPCError. */
 export function authErrorToTRPC(err: unknown): TRPCError {
+  // Modern authz helpers (assertCanWrite / assertProjectMember / ...) throw
+  // TRPCError with the correct tRPC code already. Pass them through
+  // untouched — remapping by message would downgrade a clean FORBIDDEN
+  // into INTERNAL_SERVER_ERROR ("Authorization check failed"), turning a
+  // routine 403 into a 500.
+  if (err instanceof TRPCError) return err;
   const code = err instanceof Error ? err.message : "UNKNOWN";
   switch (code) {
     case "FORBIDDEN":

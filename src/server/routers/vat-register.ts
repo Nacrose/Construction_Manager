@@ -153,7 +153,7 @@ export const vatRegisterRouter = router({
 
       for (const s of subBills) {
         const taxable = s.grossAmount;
-        const vatAmt = s.vatAmount || (taxable * 0.13);
+        const vatAmt = s.vatAmount ?? (taxable * 0.13);
         rows.push({
           id: `sub-${s.id}`,
           source: "subcontractor_bill",
@@ -312,9 +312,9 @@ export const vatRegisterRouter = router({
 
       for (const i of ipcs) {
         const taxable = i.grossAmount;
-        const vatAmt = i.vatAmount || (taxable * 0.13);
-        const tdsAmt = i.tdsAmount || (taxable * 0.015);
-        const total = i.totalWithVat || (taxable + vatAmt);
+        const vatAmt = i.vatAmount ?? (taxable * 0.13);
+        const tdsAmt = i.tdsAmount ?? (taxable * 0.015);
+        const total = i.totalWithVat ?? (taxable + vatAmt);
 
         rows.push({
           id: `ipc-${i.id}`,
@@ -330,7 +330,7 @@ export const vatRegisterRouter = router({
           vatAmount: vatAmt,
           totalAmount: total,
           tdsAmount: tdsAmt,
-          netReceived: i.finalPayable || (total - tdsAmt - i.retentionAmount - i.advanceRecovery),
+          netReceived: i.finalPayable ?? (total - tdsAmt - i.retentionAmount - i.advanceRecovery),
           description: `Interim Payment Certificate: IPC-${i.number}`,
           isBillAttached: Boolean(i.scannedBillUrl || i.isBillAttached),
           scannedBillUrl: i.scannedBillUrl || null,
@@ -527,7 +527,7 @@ export const vatRegisterRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
 
       const billDate = input.billDate ? new Date(input.billDate) : new Date();
-      const vatAmount = (input.taxableAmount * (input.vatPercent || 13)) / 100;
+      const vatAmount = (input.taxableAmount * (input.vatPercent ?? 13)) / 100;
       const totalAmount = input.taxableAmount + input.exemptAmount + vatAmount;
       const tdsAmount = (input.taxableAmount * (input.tdsPercent || 0)) / 100;
       const netPayable = Math.max(0, totalAmount - tdsAmount);

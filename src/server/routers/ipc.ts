@@ -399,11 +399,11 @@ export const ipcRouter = router({
       }
 
       const thisGross = ipc.grossAmount;
-      const thisVat = ipc.vatAmount || (thisGross * (ipc.vatPercent || 13)) / 100;
+      const thisVat = ipc.vatAmount ?? (thisGross * (ipc.vatPercent ?? 13)) / 100;
       const thisTotalBill = thisGross + thisVat;
       const thisAdvance = ipc.advanceRecovery;
-      const thisRetention = ipc.retentionAmount || (thisGross * (ipc.retention || 5)) / 100;
-      const thisTds = ipc.tdsAmount || (thisGross * (ipc.tdsPercent || 1.5)) / 100;
+      const thisRetention = ipc.retentionAmount ?? (thisGross * (ipc.retention ?? 5)) / 100;
+      const thisTds = ipc.tdsAmount ?? (thisGross * (ipc.tdsPercent ?? 1.5)) / 100;
       // Include material deductions in the total — previously missing.
       const thisTotalDeductions = thisAdvance + thisRetention + thisTds + thisMaterialDeductions;
       const thisNetPayable = thisTotalBill - thisTotalDeductions;
