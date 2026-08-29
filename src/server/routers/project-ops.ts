@@ -1177,6 +1177,17 @@ const safetyRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // IDOR FIX: verify the incident belongs to input.projectId before
+      // deleting. The authorization above only proves the caller can write
+      // to input.projectId — without this check they could delete incidents
+      // in ANY project (or org) by passing its row id.
+      const existing = await db.safetyIncident.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Safety incident not found in this project." });
+      }
       await db.safetyIncident.delete({ where: { id: input.id } });
       return { ok: true };
     }),
@@ -1249,6 +1260,15 @@ const qualityRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // IDOR FIX: verify the inspection belongs to input.projectId before
+      // deleting (see safety.delete for the rationale).
+      const existing = await db.qualityInspection.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Quality inspection not found in this project." });
+      }
       await db.qualityInspection.delete({ where: { id: input.id } });
       return { ok: true };
     }),
@@ -1341,6 +1361,15 @@ const meetingRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // IDOR FIX: verify the meeting belongs to input.projectId before
+      // deleting (see safety.delete for the rationale).
+      const existing = await db.meeting.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found in this project." });
+      }
       await db.meeting.delete({ where: { id: input.id } });
       return { ok: true };
     }),

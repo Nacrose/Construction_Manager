@@ -692,10 +692,15 @@ export const materialTransactionProcedures = {
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertNotLocked(input.projectId);
-      await assertDelegation(ctx.user, "log_direct_material_purchase", input.totalAmount);
 
+      // FISCAL YEAR LOCK: use the caller's ORG id and the DELIVERY date.
+      // Previously this passed input.projectId where the organization id is
+      // expected — the lock lookup could never match, so back-dated
+      // deliveries into locked fiscal years were silently allowed.
       const targetDate = new Date(input.date);
+      await assertNotLocked(ctx.user.organizationId, targetDate);
+
+      await assertDelegation(ctx.user, "log_direct_material_purchase", input.totalAmount);
 
       return await db.$transaction(async (tx) => {
         // Construct detailed formatted title if subCategory/spec/company provided

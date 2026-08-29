@@ -38,7 +38,10 @@ const MODEL_OPS: Record<string, any> = {
   deleteMany: { count: 0 },
   upsert: {},
   count: 0,
-  aggregate: {},
+  // Prisma aggregates group under _sum/_count/_max/_min — provide the
+  // common groupings so unmocked aggregates (e.g. `_sum.quantity || 0`)
+  // don't crash; tests override with real values when asserting math.
+  aggregate: { _sum: {}, _count: {}, _max: {}, _min: {} },
   groupBy: [],
 };
 
