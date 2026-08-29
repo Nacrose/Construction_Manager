@@ -4,7 +4,7 @@ import { isOrgAdmin, assertOrgAdmin } from "@/lib/authz";
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, orgAdminProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
@@ -81,7 +81,7 @@ export const projectRouter = router({
   }),
 
   /** Update organization scale & operating model (Org Admin only) */
-  updateOrgProfile: protectedProcedure
+  updateOrgProfile: orgAdminProcedure
     .input(
       z.object({
         name: z.string().min(1).optional(),
@@ -93,7 +93,6 @@ export const projectRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertOrgAdmin(ctx.user);
       const org = await db.organization.update({
         where: { id: ctx.user.organizationId! },
         data: {

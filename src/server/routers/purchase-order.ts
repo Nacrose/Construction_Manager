@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
+import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
 const PurchaseOrderItemSchema = z.object({
   materialId: z.string().min(1),
@@ -180,10 +181,7 @@ export const purchaseOrderRouter = router({
 
       let poNumber = input.number;
       if (!poNumber) {
-        const count = await db.purchaseOrder.count({
-          where: { projectId: input.projectId },
-        });
-        poNumber = `PO-${(count + 1).toString().padStart(4, "0")}`;
+        poNumber = await getNextSequenceNumber("purchase_order", { projectId: input.projectId });
       }
 
       const duplicate = await db.purchaseOrder.findFirst({

@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { VendorDetailFullPage } from "./components/vendor-detail-view";
 import { CreateVendorDialog } from "./components/create-vendor-dialog";
 import { EditVendorDialog } from "./components/edit-vendor-dialog";
+import { formatNpr } from "@/lib/currency";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -94,7 +95,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
       accessorKey: "name",
       header: "Vendor Name",
       cell: ({ row }) => (
-        <div className="font-semibold text-foreground flex items-center gap-1.5">
+        <div className="font-semibold text-foreground flex items-center gap-1.5 font-sans">
           <Building2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
           {row.original.name}
         </div>
@@ -109,7 +110,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
           <Badge
             variant="outline"
             className={cn(
-              "capitalize font-normal text-[10px]",
+              "capitalize font-mono text-[10px]",
               val === "both"
                 ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"
                 : val === "material_supplier"
@@ -128,8 +129,8 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <div className="space-y-0.5 text-xs text-muted-foreground">
-            {r.contact && <div className="font-medium text-foreground">{r.contact}</div>}
+          <div className="space-y-0.5 text-xs text-muted-foreground font-mono">
+            {r.contact && <div className="font-medium text-foreground font-sans">{r.contact}</div>}
             {r.phone && <div>{r.phone}</div>}
             {r.email && <div className="text-[10px] truncate max-w-[150px]">{r.email}</div>}
           </div>
@@ -142,7 +143,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
       cell: ({ row }) => {
         const r = row.original;
         return (
-          <div className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground font-mono">
             {r.pan && <div>PAN: {r.pan}</div>}
             {r.regNumber && <div>Reg: {r.regNumber}</div>}
             {!r.pan && !r.regNumber && "—"}
@@ -156,7 +157,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
       cell: ({ row }) => {
         const len = row.original.supplies?.length ?? 0;
         return len > 0 ? (
-          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-mono">
             📦 {len} items
           </span>
         ) : (
@@ -174,7 +175,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
           return (
             <div className="flex items-center gap-2 font-mono">
               <span className="font-bold text-red-600 dark:text-red-400 text-xs">
-                NPR {due.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatNpr(due)}
               </span>
               <Link
                 href={`/projects/${id}/payments`}
@@ -196,7 +197,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
         <Badge
           variant="secondary"
           className={cn(
-            "capitalize text-[10px]",
+            "capitalize text-[10px] font-mono",
             row.original.status === "active"
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
               : "bg-slate-100 text-slate-600"
@@ -220,12 +221,12 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="backdrop-blur-md bg-black/85 border-white/10 text-white font-mono text-xs">
                 <DropdownMenuItem onClick={() => setEditPartner(partner)}>
                   Edit Details
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
+                  className="text-red-400 focus:text-red-400 focus:bg-red-950/50"
                   onClick={() => {
                     if (confirm("Are you sure you want to delete this vendor?")) {
                       deleteMutation.mutate({ partnerId: partner.id });
@@ -249,7 +250,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
   return (
     <>
       <ModuleTabs projectId={id} tabs={RES_TABS} />
-      <AnimatedPage className="space-y-5 pb-8">
+      <AnimatedPage className="space-y-5 pb-8 font-sans">
         {activeDetailPartner ? (
           <VendorDetailFullPage
             partner={activeDetailPartner}
@@ -261,36 +262,36 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
         ) : (
           <>
             {/* KPI Summary Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 font-mono">
               <div className="rounded-xl border border-border bg-card p-4">
-                <div className="text-xs font-mono text-muted-foreground uppercase">Registered Vendors</div>
-                <div className="mt-1 text-2xl font-bold font-mono text-foreground">{totalVendors}</div>
-                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Suppliers & service providers</div>
+                <div className="text-xs text-muted-foreground uppercase">Registered Vendors</div>
+                <div className="mt-1 text-2xl font-bold text-foreground">{totalVendors}</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Suppliers &amp; service providers</div>
               </div>
               <div className="rounded-xl border border-border bg-card p-4">
-                <div className="text-xs font-mono text-muted-foreground uppercase">Total Invoiced (Net)</div>
-                <div className="mt-1 text-2xl font-bold font-mono text-foreground">
-                  NPR {totalBilled.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="text-xs text-muted-foreground uppercase">Total Invoiced (Net)</div>
+                <div className="mt-1 text-2xl font-bold text-foreground">
+                  {formatNpr(totalBilled)}
                 </div>
-                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Cumulative vendor billings</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Cumulative vendor billings</div>
               </div>
               <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20 p-4">
-                <div className="flex items-center justify-between text-xs font-mono text-red-700 dark:text-red-300 uppercase font-bold">
+                <div className="flex items-center justify-between text-xs text-red-700 dark:text-red-300 uppercase font-bold">
                   <span className="flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" /> Total Due (तिर्न बाँकी)</span>
                   <Link href={`/projects/${id}/payments`} className="text-xs text-red-600 dark:text-red-400 hover:underline">
                     View Payables →
                   </Link>
                 </div>
-                <div className="mt-1 text-2xl font-bold font-mono text-red-900 dark:text-red-100">
-                  NPR {totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="mt-1 text-2xl font-bold text-red-900 dark:text-red-100">
+                  {formatNpr(totalDue)}
                 </div>
-                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">Unsettled vendor balances</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Unsettled vendor balances</div>
               </div>
             </div>
 
             {/* Page Actions */}
             <div className="flex justify-between items-center gap-4 mb-2">
-              <div className="flex gap-1 rounded-md bg-muted/60 p-0.5 w-fit">
+              <div className="flex gap-1 rounded-md bg-muted/60 p-0.5 w-fit font-mono">
                 {(
                   [
                     { id: "all", label: "All Vendors" },
@@ -302,9 +303,9 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
                     key={tid}
                     onClick={() => setFilterType(tid)}
                     className={cn(
-                      "rounded px-3 py-1.5 text-xs font-medium transition-all",
+                      "px-3 py-1.5 text-xs font-semibold rounded transition",
                       filterType === tid
-                        ? "bg-background text-foreground shadow-sm"
+                        ? "bg-background text-foreground shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -316,8 +317,8 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
               {canWrite && (
                 <Dialog open={addOpen} onOpenChange={setAddOpen}>
                   <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    <Button size="sm" className="gap-1.5 font-mono">
+                      <Plus className="h-4 w-4" />
                       Add Vendor
                     </Button>
                   </DialogTrigger>
@@ -332,26 +333,22 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
               )}
             </div>
 
-            {/* Vendors Table View */}
+            {/* Table */}
             {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-40 w-full" />
-              </div>
+              <Skeleton className="h-96 w-full rounded-xl" />
             ) : (
               <DataTable
-                tableId="vendors-table-list"
                 columns={columns}
                 data={partners}
-                searchPlaceholder="Search vendors by name..."
                 searchColumn="name"
+                searchPlaceholder="Search vendor name, code, contact..."
                 onRowClick={(row) => setDetailPartner(row)}
               />
             )}
           </>
         )}
 
-        {/* Edit Dialog */}
+        {/* Edit Vendor Dialog */}
         {editPartner && (
           <EditVendorDialog
             partner={editPartner}
@@ -369,7 +366,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
 
 export default function VendorsPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<Skeleton className="h-96" />}>
+    <Suspense fallback={<Skeleton className="h-96 w-full" />}>
       <VendorsPageContent params={params} />
     </Suspense>
   );

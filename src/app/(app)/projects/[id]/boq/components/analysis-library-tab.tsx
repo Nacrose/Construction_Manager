@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import { trpc } from "@/lib/trpc-client";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
 
 import { InlineAnalysisEditor } from "./inline-analysis-editor";
 import { PresetCombobox } from "./preset-combobox";
@@ -238,8 +239,6 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
     });
   }
 
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   const LIB_CONFIG: Record<string, { label: string; short: string; color: string; badge: string }> = {
     client_estimate: { label: "Client's Estimate", short: "Estimate", color: "text-sky-600 dark:text-sky-400", badge: "billing" },
     contractor_bid: { label: "Contractor Bid", short: "Bid", color: "text-amber-600 dark:text-amber-400", badge: "bid" },
@@ -370,20 +369,20 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
                         <td className="px-3 py-1.5 font-bold text-primary">{item.code}</td>
                         <td className="px-3 py-1.5 truncate max-w-xs text-foreground">{item.description}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{item.unit}</td>
-                        <td className="px-3 py-1.5 text-right font-medium text-foreground">{item.rate > 0 ? fmt(item.rate) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right font-medium text-foreground">{item.rate > 0 ? formatNpr(item.rate) : "—"}</td>
                         {(["client_estimate", "contractor_bid", "contractor_actual"] as const).map((lib) => {
                           if (!visibleLibs.has(lib)) return null;
                           const lookup = lib === "client_estimate" ? est : lib === "contractor_bid" ? bid : act;
                           const val = lookup?.ratePerUnit ?? 0;
                           return (
                             <td key={lib} className={`px-3 py-1.5 text-right font-medium ${lib === "client_estimate" ? "text-sky-400" : lib === "contractor_bid" ? "text-amber-400" : "text-purple-400"}`}>
-                              {val > 0 ? fmt(val) : <span className="italic text-muted-foreground">—</span>}
+                              {val > 0 ? formatNpr(val) : <span className="italic text-muted-foreground">—</span>}
                             </td>
                           );
                         })}
                         {visibleLibs.size >= 2 && (
                           <td className={`px-3 py-1.5 text-right font-bold ${spread === 0 ? "text-muted-foreground" : "text-amber-400"}`}>
-                            {spread > 0 ? fmt(spread) : "—"}
+                            {spread > 0 ? formatNpr(spread) : "—"}
                           </td>
                         )}
                         <td className="px-3 py-1.5 text-center text-muted-foreground">{item.ingredientCount}</td>
@@ -483,7 +482,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
                 <tfoot>
                   <tr className="border-t-2 bg-muted/30 font-semibold">
                     <td colSpan={4} className="p-3 text-right text-muted-foreground">Project totals:</td>
-                    <td className="p-3 text-right">{fmt(items.reduce((s, i) => s + i.rate * i.quantity, 0))}</td>
+                    <td className="p-3 text-right">{formatNpr(items.reduce((s, i) => s + i.rate * i.quantity, 0))}</td>
                     {(["client_estimate", "contractor_bid", "contractor_actual"] as const).map((lib) => {
                       if (!visibleLibs.has(lib)) return null;
                       const lookup = lib === "client_estimate" ? estByItem : lib === "contractor_bid" ? bidByItem : actByItem;
@@ -493,7 +492,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
                       }, 0);
                       return (
                         <td key={lib} className={`p-3 text-right ${lib === "client_estimate" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
-                          {fmt(total)}
+                          {formatNpr(total)}
                         </td>
                       );
                     })}

@@ -7,22 +7,18 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, projectProcedure, financialProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertProjectManager, assertOrgBankAccount } from "@/lib/authz";
+import { assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { assertNotLocked } from "@/lib/fiscal-year-lock";
-import { assertDelegation } from "@/lib/delegation";
-import { adToBs } from "@/lib/nepali-calendar";
-import { format } from "date-fns";
+import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
+import { normalizeDateMiti } from "@/server/utils/date-miti";
 
 export const jvPartnerRouter = router({
   /** Get JV partner agreement & statement for a project */
-  getAgreement: protectedProcedure
+  getAgreement: projectProcedure("member")
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-
+    .query(async ({ input }) => {
       const agreement = await db.jvPartnerAgreement.findUnique({
         where: { projectId: input.projectId },
         include: {
@@ -94,7 +90,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Save / Update JV Partner Agreement */
-  saveAgreement: protectedProcedure
+  saveAgreement: projectProcedure("manager")
     .input(
       z.object({
         projectId: z.string(),
@@ -112,8 +108,6 @@ export const jvPartnerRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertProjectManager(ctx.user, input.projectId);
-
       const agreement = await db.jvPartnerAgreement.upsert({
         where: { projectId: input.projectId },
         create: {
@@ -161,7 +155,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Record a Commission Payout to the JV Partner */
-  recordPayout: protectedProcedure
+  recordPayout: financialProcedure("record_jv_payout")
     .input(
       z.object({
         projectId: z.string(),
@@ -177,10 +171,6 @@ export const jvPartnerRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertProjectManager(ctx.user, input.projectId);
-      await assertNotLocked(ctx.user.organizationId, input.payoutDate ? new Date(input.payoutDate) : new Date());
-      await assertDelegation(ctx.user, "record_jv_payout", input.grossAmount);
-
       const agreement = await db.jvPartnerAgreement.findUnique({
         where: { projectId: input.projectId },
       });
@@ -192,35 +182,19 @@ export const jvPartnerRouter = router({
         });
       }
 
-      // SECURITY: If bank account is specified, verify it belongs to caller's organization
-      if (input.bankAccountId) {
-        await assertOrgBankAccount(input.bankAccountId, ctx.user.organizationId);
-      }
-
-      const pDate = input.payoutDate ? new Date(input.payoutDate) : new Date();
-      let pMiti = input.payoutMiti;
-      if (!pMiti) {
-        try {
-          pMiti = adToBs(pDate).formatted;
-        } catch {}
-      }
-
+      const dateInfo = normalizeDateMiti({ adDate: ctx.fiscalDate, bsMiti: input.payoutMiti });
       const tdsAmount = (input.grossAmount * input.tdsPercent) / 100;
       const netAmount = input.grossAmount - tdsAmount;
 
-      // Count existing payouts to generate clean voucher number
-      const count = await db.jvCommissionPayout.count({
-        where: { agreementId: agreement.id },
-      });
-      const voucherNo = `JV-COMM-${String(count + 1).padStart(3, "0")}`;
+      const voucherNo = await getNextSequenceNumber("jv_payout", { agreementId: agreement.id });
 
       const payout = await db.jvCommissionPayout.create({
         data: {
           agreementId: agreement.id,
           ipcId: input.ipcId || null,
           voucherNo,
-          payoutDate: pDate,
-          payoutMiti: pMiti || null,
+          payoutDate: dateInfo.adDate,
+          payoutMiti: dateInfo.bsMiti,
           grossAmount: input.grossAmount,
           tdsPercent: input.tdsPercent,
           tdsAmount,
@@ -247,10 +221,10 @@ export const jvPartnerRouter = router({
         entityType: "jv_payout",
         entityId: payout.id,
         metadata: {
-          voucherNo: payout.voucherNo,
-          grossAmount: payout.grossAmount,
-          netAmount: payout.netAmount,
-          partnerName: agreement.partnerName,
+          voucherNo,
+          grossAmount: input.grossAmount,
+          netAmount,
+          bankAccountId: input.bankAccountId,
         },
       });
 
@@ -258,7 +232,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Delete a commission payout record */
-  deletePayout: protectedProcedure
+  deletePayout: projectProcedure("manager")
     .input(
       z.object({
         projectId: z.string(),
@@ -266,18 +240,14 @@ export const jvPartnerRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertProjectManager(ctx.user, input.projectId);
-
       const payout = await db.jvCommissionPayout.findUniqueOrThrow({
         where: { id: input.payoutId },
       });
 
       // Restore bank account balance if previously deducted (verifying org ownership)
       if (payout.bankAccountId) {
-        const bank = await db.companyBankAccount.findUnique({
-          where: { id: payout.bankAccountId },
-        });
-        if (bank && bank.organizationId === ctx.user.organizationId) {
+        const bank = await assertOrgBankAccount(payout.bankAccountId, ctx.user.organizationId).catch(() => null);
+        if (bank) {
           await db.companyBankAccount.update({
             where: { id: payout.bankAccountId },
             data: { currentBalance: { increment: payout.netAmount } },

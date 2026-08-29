@@ -10,10 +10,11 @@ import { FileText, Printer, Download, Edit3, Check, Loader2, Paperclip, Eye } fr
 import { format } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "@e965/xlsx";
+import { formatNpr, amountInWords } from "@/lib/construction-finance";
 import { IpcScannedBillCard } from "./ipc-scanned-bill-card";
 
 function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatNpr(n);
 }
 
 export function IpcPaymentSummarySheet({
@@ -432,6 +433,18 @@ function IpcPaymentSummaryContent({
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* Legal Amount in Words Box (Standard Nepal Statutory Requirement) */}
+          <div className="rounded-lg border bg-muted/20 p-3 space-y-1 text-xs font-mono">
+            <div className="flex items-start gap-2">
+              <span className="font-bold text-muted-foreground whitespace-nowrap">Net Payable (In Words - EN):</span>
+              <span className="font-semibold text-foreground italic">{amountInWords(summary.thisPeriod.netPayable, "en")}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-bold text-muted-foreground whitespace-nowrap">भुक्तानी योग्य रकम (अक्षरूपी):</span>
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300 font-sans">{amountInWords(summary.thisPeriod.netPayable, "np")}</span>
+            </div>
           </div>
 
           {/* 3-Party Official Signatures Block */}

@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatNpr } from "@/lib/currency";
 
 export function AdvancesLedgerTab({
   projectId,
@@ -125,10 +126,10 @@ export function AdvancesLedgerTab({
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <Select value={selectedStaffFilter} onValueChange={setSelectedStaffFilter}>
-            <SelectTrigger className="h-7 w-44 text-xs bg-card">
+            <SelectTrigger className="h-7 w-44 text-xs bg-card font-mono">
               <SelectValue placeholder="All Workers" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="font-mono text-xs">
               <SelectItem value="all">All Workers</SelectItem>
               {staffList.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
@@ -139,10 +140,10 @@ export function AdvancesLedgerTab({
           </Select>
 
           <Select value={recoveredFilter} onValueChange={setRecoveredFilter}>
-            <SelectTrigger className="h-7 w-32 text-xs bg-card">
+            <SelectTrigger className="h-7 w-32 text-xs bg-card font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="font-mono text-xs">
               <SelectItem value="all">All Records</SelectItem>
               <SelectItem value="unrecovered">Pending Only</SelectItem>
               <SelectItem value="recovered">Recovered</SelectItem>
@@ -156,7 +157,7 @@ export function AdvancesLedgerTab({
             variant="outline"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-7 text-xs gap-1 px-2"
+            className="h-7 text-xs gap-1 px-2 font-mono"
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
@@ -164,7 +165,7 @@ export function AdvancesLedgerTab({
           <Button
             size="sm"
             onClick={() => setAddOpen(true)}
-            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 px-3 shadow-xs"
+            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1 px-3 shadow-xs font-mono"
           >
             <Plus className="h-3 w-3" />
             Issue Advance
@@ -180,11 +181,11 @@ export function AdvancesLedgerTab({
           </span>
           <span className="text-muted-foreground/40">│</span>
           <span className="text-amber-600 dark:text-amber-400 font-bold">
-            Pending Auto-Recovery: NPR {totalPending.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            Pending Auto-Recovery: {formatNpr(totalPending)}
           </span>
           <span className="text-muted-foreground/40">│</span>
           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-            Settled in Payroll: NPR {totalRecovered.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+            Settled in Payroll: {formatNpr(totalRecovered)}
           </span>
         </div>
       </div>
@@ -197,7 +198,7 @@ export function AdvancesLedgerTab({
               <th className="py-2 px-3 text-left w-24">Date</th>
               <th className="py-2 px-3 text-left font-semibold min-w-[160px]">Worker Name</th>
               <th className="py-2 px-2 text-center w-28">Type</th>
-              <th className="py-2 px-3 text-right w-28 font-bold text-foreground">Amount (NPR)</th>
+              <th className="py-2 px-3 text-right w-28 font-bold text-foreground">Amount</th>
               <th className="py-2 px-3 text-left min-w-[180px]">Remarks / Purpose</th>
               <th className="py-2 px-2 text-center w-28">Status</th>
               <th className="py-2 px-2 text-right w-16">Action</th>
@@ -213,7 +214,7 @@ export function AdvancesLedgerTab({
               </tr>
             ) : advances.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td colSpan={7} className="p-8 text-center text-muted-foreground font-mono">
                   No site advances or mess deductions recorded.
                 </td>
               </tr>
@@ -227,20 +228,20 @@ export function AdvancesLedgerTab({
                   <td className="py-1.5 px-3 font-sans font-medium text-foreground">
                     {item.staff.name}
                     {item.staff.designation && (
-                      <span className="block text-[10px] text-muted-foreground font-normal">
+                      <span className="block text-[10px] text-muted-foreground font-normal font-mono">
                         {item.staff.designation}
                       </span>
                     )}
                   </td>
 
                   <td className="py-1.5 px-2 text-center">
-                    <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 capitalize", typeColor(item.type))}>
+                    <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", typeColor(item.type))}>
                       {item.type.replace("_", " ")}
                     </Badge>
                   </td>
 
                   <td className="py-1.5 px-3 text-right font-bold font-mono text-amber-700 dark:text-amber-300">
-                    NPR {item.amount.toLocaleString()}
+                    {formatNpr(item.amount)}
                   </td>
 
                   <td className="py-1.5 px-3 text-muted-foreground font-sans text-[11px] truncate max-w-[200px]" title={item.remarks || ""}>
@@ -249,11 +250,11 @@ export function AdvancesLedgerTab({
 
                   <td className="py-1.5 px-2 text-center">
                     {item.isRecovered ? (
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1">
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1 font-mono">
                         <CheckCircle2 className="h-2.5 w-2.5" /> Recovered
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold gap-1">
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold gap-1 font-mono">
                         <ShieldAlert className="h-2.5 w-2.5" /> Pending
                       </Badge>
                     )}
@@ -279,27 +280,27 @@ export function AdvancesLedgerTab({
         </table>
       </div>
 
-      {/* Add Advance / Deduction Modal */}
+      {/* Add Advance / Deduction Modal with Backdrop Blur */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Banknote className="h-5 w-5 text-amber-600" />
+            <DialogTitle className="flex items-center gap-2 text-base text-white">
+              <Banknote className="h-5 w-5 text-amber-400" />
               Issue Site Cash Advance / Log Deduction
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-muted-foreground font-mono">
               Record cash handouts or canteen charges that will be deducted from the worker&apos;s monthly wage envelope.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreate} className="space-y-3.5 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Select Worker *</Label>
+              <Label className="text-xs font-semibold">Select Worker *</Label>
               <Select value={targetStaffId} onValueChange={setTargetStaffId} required>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
                   <SelectValue placeholder="Choose personnel..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                   {staffList.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.designation || s.category || "Labor"})
@@ -311,23 +312,23 @@ export function AdvancesLedgerTab({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Advance Date *</Label>
+                <Label className="text-xs font-semibold">Advance Date *</Label>
                 <Input
                   type="date"
                   value={advanceDate}
                   onChange={(e) => setAdvanceDate(e.target.value)}
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Deduction Type</Label>
+                <Label className="text-xs font-semibold">Deduction Type</Label>
                 <Select value={advanceType} onValueChange={(val: any) => setAdvanceType(val)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                     <SelectItem value="cash_advance">Cash Advance</SelectItem>
                     <SelectItem value="mess_deduction">Canteen / Mess Charge</SelectItem>
                     <SelectItem value="safety_gear">PPE / Boots Charge</SelectItem>
@@ -338,14 +339,14 @@ export function AdvancesLedgerTab({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Amount (NPR) *</Label>
+              <Label className="text-xs font-semibold">Amount (NPR) *</Label>
               <Input
                 type="number"
                 min="50"
                 step="50"
                 value={amount}
                 onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-mono font-bold"
+                className="h-8 text-xs font-mono font-bold bg-white/5 border-white/10 text-white"
                 required
               />
             </div>
@@ -356,23 +357,24 @@ export function AdvancesLedgerTab({
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 placeholder="e.g. Festival advance, Canteen Slip #104"
-                className="h-8 text-xs"
+                className="h-8 text-xs bg-white/5 border-white/10 text-white"
               />
             </div>
 
-            <DialogFooter className="border-t pt-3">
+            <DialogFooter className="border-t border-white/10 pt-3">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setAddOpen(false)}
                 disabled={createMut.isPending}
+                className="h-8 text-xs font-mono"
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMut.isPending} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold">
+              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-amber-600 hover:bg-amber-700 text-white font-semibold">
                 {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Record Advance (NPR {amount.toLocaleString()})
+                Record Advance ({formatNpr(amount)})
               </Button>
             </DialogFooter>
           </form>

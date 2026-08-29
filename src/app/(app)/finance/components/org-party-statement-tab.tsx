@@ -1,26 +1,29 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import * as XLSX from "@e965/xlsx";
 import { trpc } from "@/lib/trpc-client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Search,
-  Download,
-  LayoutList,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+type StatementTxn = {
+  id: string;
+  date: Date | string;
+  projectCode?: string | null;
+  voucherNo: string;
+  voucherType: string;
+  particulars: string;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+};
 
 export function OrgPartyStatementTab() {
-  const [isCompact, setIsCompact] = useState(true);
   const [searchParty, setSearchParty] = useState("");
   const [selectedPartyName, setSelectedPartyName] = useState<string>("");
 
@@ -45,9 +48,9 @@ export function OrgPartyStatementTab() {
   const closingBalance = statementData?.closingBalanceDue || 0;
 
   // Compute running balance chronologically
-  const transactionsWithRunning = useMemo(() => {
+  const transactionsWithRunning: StatementTxn[] = useMemo(() => {
     let acc = 0;
-    const result = new Array(transactions.length);
+    const result: StatementTxn[] = new Array(transactions.length);
     for (let i = 0; i < transactions.length; i++) {
       const t = transactions[i];
       acc += (t.credit || 0) - (t.debit || 0); // Billed increases payable, paid reduces it
@@ -56,37 +59,73 @@ export function OrgPartyStatementTab() {
     return result;
   }, [transactions]);
 
-  const handleExportExcel = () => {
-    if (transactions.length === 0 || !activeParty) return;
-    try {
-      const rows = transactionsWithRunning.map((t, idx) => [
-        idx + 1,
-        format(new Date(t.date), "yyyy-MM-dd"),
-        t.projectCode || "HO",
-        t.voucherNo,
-        t.voucherType,
-        t.particulars,
-        t.debit > 0 ? t.debit : "",
-        t.credit > 0 ? t.credit : "",
-        t.runningBalance,
-      ]);
-
-      const wsData = [
-        [`COMPANY STATEMENT OF ACCOUNT: ${activeParty.toUpperCase()}`],
-        [`As of: ${format(new Date(), "yyyy-MM-dd")}`],
-        ["S.N.", "Date (AD)", "Project", "Voucher No", "Type", "Particulars", "Debit Paid (NPR)", "Credit Billed (NPR)", "Closing Balance Due (NPR)"],
-        ...rows,
-        ["", "", "", "", "", "TOTAL", totalPaid, totalBilled, closingBalance],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Statement");
-      XLSX.writeFile(wb, `${activeParty}_Master_Statement_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const columns: ConstructionTableColumn<StatementTxn>[] = useMemo(
+    () => [
+      {
+        key: "date",
+        header: "Date (AD)",
+        accessor: (r) => format(new Date(r.date), "yyyy-MM-dd"),
+        width: "120px",
+        sortable: true,
+      },
+      {
+        key: "projectCode",
+        header: "Project",
+        accessor: (r) => r.projectCode || "HO",
+        width: "100px",
+        render: (val) => (
+          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-emerald-400">
+            {val}
+          </Badge>
+        ),
+      },
+      {
+        key: "voucherNo",
+        header: "Voucher #",
+        width: "120px",
+        render: (val) => <span className="font-bold text-emerald-400">{val}</span>,
+      },
+      {
+        key: "particulars",
+        header: "Particulars",
+        render: (val) => <span className="text-white font-medium truncate max-w-md block">{val}</span>,
+      },
+      {
+        key: "debit",
+        header: "Paid (Dr)",
+        align: "right",
+        width: "130px",
+        render: (val) => (
+          <span className="font-bold text-blue-400">
+            {val > 0 ? formatNpr(val) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "credit",
+        header: "Billed (Cr)",
+        align: "right",
+        width: "130px",
+        render: (val) => (
+          <span className="font-bold text-emerald-400">
+            {val > 0 ? formatNpr(val) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "runningBalance",
+        header: "Closing Balance Due",
+        align: "right",
+        width: "160px",
+        render: (val) => (
+          <span className="font-bold font-mono text-amber-400">
+            {formatNpr(val)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-4">
@@ -145,7 +184,7 @@ export function OrgPartyStatementTab() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-bold font-mono text-amber-400 text-xs">
-                        Rs. {fmt(p.totalDue)}
+                        {formatNpr(p.totalDue)}
                       </div>
                       <span className="text-[9px] text-gray-500 uppercase">Due</span>
                     </div>
@@ -173,28 +212,6 @@ export function OrgPartyStatementTab() {
                 Multi-project chronological transaction history &amp; running balance.
               </p>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsCompact(!isCompact)}
-                className="h-8 px-2.5 text-xs gap-1.5 font-mono bg-[#121820] text-gray-300 border-white/10 hover:text-white rounded-xl"
-              >
-                <LayoutList className="h-3.5 w-3.5 text-emerald-400" />
-                {isCompact ? "Compact" : "Comfortable"}
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleExportExcel}
-                disabled={transactions.length === 0}
-                className="h-8 text-xs gap-1.5 font-mono bg-[#121820] text-gray-300 border-white/10 hover:text-white rounded-xl"
-              >
-                <Download className="h-3.5 w-3.5 text-emerald-400" /> Export Excel
-              </Button>
-            </div>
           </div>
 
           {/* 3-Head Financial Summary Strip */}
@@ -202,78 +219,40 @@ export function OrgPartyStatementTab() {
             <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
               <span className="text-[10px] font-mono text-gray-400 uppercase">Total Invoiced / Billed</span>
               <div className="text-base font-bold font-mono text-emerald-400">
-                Rs. {fmt(totalBilled)}
+                {formatNpr(totalBilled)}
               </div>
             </div>
             <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
               <span className="text-[10px] font-mono text-gray-400 uppercase">Total Settled / Paid</span>
               <div className="text-base font-bold font-mono text-blue-400">
-                Rs. {fmt(totalPaid)}
+                {formatNpr(totalPaid)}
               </div>
             </div>
             <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
               <span className="text-[10px] font-mono text-gray-400 uppercase">Net Closing Balance Due</span>
               <div className="text-base font-bold font-mono text-amber-400">
-                Rs. {fmt(closingBalance)}
+                {formatNpr(closingBalance)}
               </div>
             </div>
           </div>
 
-          {/* Transactions Statement Table */}
-          {statementLoading ? (
-            <Skeleton className="h-72 rounded-2xl bg-white/5" />
-          ) : transactions.length === 0 ? (
-            <div className="p-16 rounded-2xl border border-dashed border-white/10 bg-[#0c1015] text-center text-xs text-gray-400">
-              No transactions recorded for this party.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#0c1015]">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="border-b border-white/10 bg-[#121820] uppercase text-[10px] text-gray-400">
-                  <tr>
-                    <th className={cn(isCompact ? "px-3 py-1.5" : "px-4 py-3")}>Date</th>
-                    <th className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Project</th>
-                    <th className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Voucher #</th>
-                    <th className={cn("font-sans", isCompact ? "px-3 py-1.5" : "px-4 py-3")}>Particulars</th>
-                    <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Paid (Dr)</th>
-                    <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Billed (Cr)</th>
-                    <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Balance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {transactionsWithRunning.map((t) => (
-                    <tr key={t.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className={cn(isCompact ? "px-3 py-1.5" : "px-4 py-3")}>
-                        <div className="text-gray-300">
-                          {format(new Date(t.date), "yyyy-MM-dd")}
-                        </div>
-                      </td>
-                      <td className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                        <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-emerald-400">
-                          {t.projectCode || "HO"}
-                        </Badge>
-                      </td>
-                      <td className={cn("font-bold text-emerald-400", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-3")}>
-                        {t.voucherNo}
-                      </td>
-                      <td className={cn("font-sans", isCompact ? "px-3 py-1.5" : "px-4 py-3")}>
-                        <div className="font-medium text-white truncate max-w-md">{t.particulars}</div>
-                      </td>
-                      <td className={cn("text-right font-bold text-blue-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                        {t.debit > 0 ? fmt(t.debit) : "—"}
-                      </td>
-                      <td className={cn("text-right font-bold text-emerald-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                        {t.credit > 0 ? fmt(t.credit) : "—"}
-                      </td>
-                      <td className={cn("text-right font-bold font-mono text-amber-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                        {fmt(t.runningBalance)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* Transactions Statement ConstructionTable */}
+          <ConstructionTable<StatementTxn>
+            data={transactionsWithRunning}
+            columns={columns}
+            isLoading={statementLoading}
+            searchPlaceholder="Search particulars, voucher #..."
+            searchFilterKeys={["voucherNo", "particulars", "projectCode"]}
+            exportExcel={{
+              filename: `${activeParty || "Party"}_Master_Statement_${format(new Date(), "yyyy-MM-dd")}`,
+              sheetName: "PartyStatement",
+            }}
+            emptyState={{
+              title: "No transactions recorded for this party",
+              description: "Transactions will automatically populate when vendor bills or subcontractor payments are posted.",
+            }}
+            className="border-white/10 bg-[#0c1015]"
+          />
         </div>
       </div>
     </div>

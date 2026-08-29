@@ -17,18 +17,15 @@ import {
   Search,
   Download,
   Trash2,
-  CheckCircle2,
-  Clock,
-  Fuel,
   Loader2,
   RefreshCw,
-  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { LogSpotHireDialog } from "../dialogs/log-spot-hire-dialog";
+import { formatNpr } from "@/lib/currency";
 
 export function SpotHireTab({
   projectId,
@@ -98,13 +95,13 @@ export function SpotHireTab({
         "Billing Status",
       ];
 
-      const rows = tickets.map((t) => ({
-        "Slip #": t.slipNumber || t.id.slice(-6),
+      const exportRows = tickets.map((t) => ({
+        "Slip #": t.slipNumber || "—",
         Date: format(new Date(t.date), "yyyy-MM-dd"),
         "Vendor / Supplier": t.vendorName,
         "Machine Name": t.machineName,
-        "Plate / Reg No": t.registrationNo || "",
-        Type: t.equipmentType,
+        "Plate / Reg No": t.registrationNo || "—",
+        Type: t.equipmentType || "—",
         Basis: t.hireType,
         "Rate (NPR)": t.rate,
         "Hours Worked": t.hoursWorked,
@@ -115,20 +112,20 @@ export function SpotHireTab({
         "Site Diesel (L)": t.fuelLitersIssued,
         "Diesel Debit (NPR)": t.fuelDeduction,
         "Net Due (NPR)": t.netPayable,
-        "BOQ Charge Code": t.boqItem?.code || "",
-        Remarks: t.remarks || "",
+        "BOQ Charge Code": t.boqItem?.code || "—",
+        Remarks: t.remarks || "—",
         "Billing Status": t.isBilled ? "Billed" : "Unbilled",
       }));
 
-      const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+      const ws = XLSX.utils.json_to_sheet(exportRows, { header: headers });
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Spot Machine Slips");
+      XLSX.utils.book_append_sheet(wb, ws, "Spot Tickets");
 
-      const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 2, 12) }));
+      const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 3, 14) }));
       ws["!cols"] = colWidths;
 
-      XLSX.writeFile(wb, `spot-equipment-slips-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-      toast.success("Spot slips exported successfully");
+      XLSX.writeFile(wb, `equipment-spot-tickets-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success("Spot tickets exported to Excel");
     } catch {
       toast.error("Failed to export Excel");
     }
@@ -136,11 +133,10 @@ export function SpotHireTab({
 
   return (
     <div className="space-y-2.5">
-      {/* Dense Controls & View Mode Ribbon */}
+      {/* Dense Controls & Action Ribbon */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
         <div className="flex flex-wrap items-center gap-2 flex-1">
-          {/* View Mode Toggle */}
-          <div className="inline-flex rounded-md border bg-card p-0.5 text-xs">
+          <div className="inline-flex rounded-md bg-muted p-0.5 border font-mono">
             <button
               type="button"
               onClick={() => setViewMode("slips")}
@@ -173,15 +169,15 @@ export function SpotHireTab({
               placeholder="Search vendor or machine..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-7 text-xs pl-7"
+              className="h-7 text-xs pl-7 font-mono"
             />
           </div>
 
           <Select value={billedFilter} onValueChange={setBilledFilter}>
-            <SelectTrigger className="h-7 w-28 text-xs bg-card">
+            <SelectTrigger className="h-7 w-28 text-xs bg-card font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="font-mono text-xs">
               <SelectItem value="all">All Slips</SelectItem>
               <SelectItem value="unbilled">Unbilled</SelectItem>
               <SelectItem value="billed">Billed</SelectItem>
@@ -189,7 +185,7 @@ export function SpotHireTab({
           </Select>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 font-mono">
           <Button
             size="sm"
             variant="outline"
@@ -234,13 +230,13 @@ export function SpotHireTab({
             </span>
             <span className="text-muted-foreground/40">│</span>
             <span>
-              Gross: NPR {summary.totalGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              Gross: {formatNpr(summary.totalGross)}
             </span>
             {summary.totalFuelDeductions > 0 && (
               <>
                 <span className="text-muted-foreground/40">│</span>
                 <span className="text-amber-600 dark:text-amber-400 font-medium">
-                  Fuel Debits: -NPR {summary.totalFuelDeductions.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                  Fuel Debits: -{formatNpr(summary.totalFuelDeductions)}
                 </span>
               </>
             )}
@@ -248,7 +244,7 @@ export function SpotHireTab({
 
           <div>
             <span className="text-emerald-700 dark:text-emerald-300 font-bold">
-              💰 Unbilled Outstanding: NPR {summary.unbilledAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              💰 Unbilled Outstanding: {formatNpr(summary.unbilledAmount)}
             </span>
           </div>
         </div>
@@ -265,7 +261,7 @@ export function SpotHireTab({
                 <th className="py-2 px-3 text-left min-w-[150px]">Machine &amp; Plate</th>
                 <th className="py-2 px-2 text-right w-16">Duration</th>
                 <th className="py-2 px-2 text-right w-20">Rate</th>
-                <th className="py-2 px-2 text-right w-20">Gross (NPR)</th>
+                <th className="py-2 px-2 text-right w-20">Gross</th>
                 <th className="py-2 px-2 text-right w-20 text-amber-600">Fuel Debit</th>
                 <th className="py-2 px-3 text-right w-24 font-bold text-foreground bg-emerald-50/20 dark:bg-emerald-950/10">
                   Net Due
@@ -285,7 +281,7 @@ export function SpotHireTab({
                 </tr>
               ) : tickets.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={11} className="p-8 text-center text-muted-foreground font-mono">
                     No spot equipment tickets found. Click &quot;Log Spot Ticket&quot; to add on-demand machinery.
                   </td>
                 </tr>
@@ -319,19 +315,19 @@ export function SpotHireTab({
                     </td>
 
                     <td className="py-1.5 px-2 text-right text-muted-foreground">
-                      {t.rate.toLocaleString()}
+                      {formatNpr(t.rate)}
                     </td>
 
                     <td className="py-1.5 px-2 text-right font-mono">
-                      {t.totalGross.toLocaleString()}
+                      {formatNpr(t.totalGross)}
                     </td>
 
                     <td className={cn("py-1.5 px-2 text-right font-mono", t.fuelDeduction > 0 ? "text-amber-600 font-bold" : "text-muted-foreground")}>
-                      {t.fuelDeduction > 0 ? `-${t.fuelDeduction.toLocaleString()}` : "—"}
+                      {t.fuelDeduction > 0 ? `-${formatNpr(t.fuelDeduction)}` : "—"}
                     </td>
 
                     <td className="py-1.5 px-3 text-right font-bold font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10">
-                      NPR {t.netPayable.toLocaleString()}
+                      {formatNpr(t.netPayable)}
                     </td>
 
                     <td className="py-1.5 px-3 text-muted-foreground text-[10px] truncate max-w-[140px]" title={t.boqItem ? `${t.boqItem.code} - ${t.boqItem.description}` : t.remarks || ""}>
@@ -341,7 +337,7 @@ export function SpotHireTab({
                     <td className="py-1.5 px-2 text-center">
                       <Badge
                         variant="secondary"
-                        className={cn("text-[9px] px-1.5 py-0 capitalize", {
+                        className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", {
                           "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold": t.isBilled,
                           "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": !t.isBilled,
                         })}
@@ -381,7 +377,7 @@ export function SpotHireTab({
                 <th className="py-2 px-2 text-right w-20">Slips Count</th>
                 <th className="py-2 px-2 text-right w-24">Total Hours</th>
                 <th className="py-2 px-2 text-right w-20">Total Trips</th>
-                <th className="py-2 px-3 text-right w-28">Total Gross (NPR)</th>
+                <th className="py-2 px-3 text-right w-28">Total Gross</th>
                 <th className="py-2 px-3 text-right w-28 text-amber-600">Site Diesel Debits</th>
                 <th className="py-2 px-3 text-right w-28 font-bold text-foreground">Total Incurred</th>
                 <th className="py-2 px-3 text-right w-32 font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10">
@@ -399,7 +395,7 @@ export function SpotHireTab({
                 </tr>
               ) : statements.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="p-8 text-center text-muted-foreground font-mono">
                     No vendor spot hire statements recorded.
                   </td>
                 </tr>
@@ -428,19 +424,19 @@ export function SpotHireTab({
                     </td>
 
                     <td className="py-2 px-3 text-right font-mono">
-                      NPR {v.totalGross.toLocaleString()}
+                      {formatNpr(v.totalGross)}
                     </td>
 
                     <td className="py-2 px-3 text-right font-mono text-amber-600">
-                      {v.totalFuelDeductions > 0 ? `-NPR ${v.totalFuelDeductions.toLocaleString()}` : "—"}
+                      {v.totalFuelDeductions > 0 ? `-${formatNpr(v.totalFuelDeductions)}` : "—"}
                     </td>
 
                     <td className="py-2 px-3 text-right font-mono font-semibold text-foreground">
-                      NPR {v.netPayable.toLocaleString()}
+                      {formatNpr(v.netPayable)}
                     </td>
 
                     <td className="py-2 px-3 text-right font-bold font-mono text-emerald-700 dark:text-emerald-300 text-sm bg-emerald-50/20 dark:bg-emerald-950/10">
-                      NPR {v.unbilledAmount.toLocaleString()}
+                      {formatNpr(v.unbilledAmount)}
                     </td>
                   </tr>
                 ))

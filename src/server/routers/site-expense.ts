@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { siteOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { assertDelegation } from "@/lib/delegation";
+import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
@@ -99,12 +100,13 @@ export const siteExpenseRouter = router({
       const MAX_RETRIES = 5;
       let expense;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        const count = await db.siteExpense.count({ where: { projectId: input.projectId } });
-        let seq = count + 1 + attempt; // offset by attempt to avoid same number
-        let number = `EXP-${String(seq).padStart(3, "0")}`;
+        let number = await getNextSequenceNumber("site_expense", { projectId: input.projectId });
+        if (attempt > 0) {
+          number = `EXP-${String(parseInt(number.replace(/\D/g, "")) + attempt).padStart(3, "0")}`;
+        }
         while (await db.siteExpense.findFirst({ where: { projectId: input.projectId, number } })) {
-          seq++;
-          number = `EXP-${String(seq).padStart(3, "0")}`;
+          const nextSeq = parseInt(number.replace(/\D/g, "")) + 1;
+          number = `EXP-${String(nextSeq).padStart(3, "0")}`;
         }
 
         try {

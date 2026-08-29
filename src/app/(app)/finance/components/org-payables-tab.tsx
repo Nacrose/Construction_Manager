@@ -24,17 +24,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
 import { SettleMultiBillDialog, BillToSettle } from "../dialogs/settle-multi-bill-dialog";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtShort(n: number) {
-  if (Math.abs(n) >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (Math.abs(n) >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  return `Rs. ${fmt(n)}`;
-}
 
 export function OrgPayablesTab() {
   const [search, setSearch] = useState("");
@@ -104,7 +95,7 @@ export function OrgPayablesTab() {
               Total Company Payables Owed (कुल तिर्न बाँकी)
             </div>
             <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400">
-              {fmtShort(totalDue)}
+              {formatNpr(totalDue, { prefix: "Rs.", compact: true })}
             </div>
             <div className="text-[11px] text-muted-foreground font-mono">
               Across all active sites & suppliers
@@ -255,7 +246,7 @@ export function OrgPayablesTab() {
                     <div className="text-right">
                       <div className="text-[10px] text-muted-foreground uppercase">Total Due</div>
                       <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                        NPR {fmt(sup.totalDue)}
+                        NPR {formatNpr(sup.totalDue)}
                       </div>
                     </div>
 
@@ -323,16 +314,16 @@ export function OrgPayablesTab() {
                             <td className="px-3 py-2.5 text-muted-foreground">
                               {format(new Date(b.billDate), "yyyy-MM-dd")}
                             </td>
-                            <td className="px-3 py-2.5 text-right">{fmt(b.grossAmount)}</td>
+                            <td className="px-3 py-2.5 text-right">{formatNpr(b.grossAmount)}</td>
                             <td className="px-3 py-2.5 text-right text-muted-foreground">
-                              {fmt(b.tdsAmount)}
+                              {formatNpr(b.tdsAmount)}
                             </td>
-                            <td className="px-3 py-2.5 text-right">{fmt(b.netPayable)}</td>
+                            <td className="px-3 py-2.5 text-right">{formatNpr(b.netPayable)}</td>
                             <td className="px-3 py-2.5 text-right text-muted-foreground">
-                              {fmt(b.paidAmount)}
+                              {formatNpr(b.paidAmount)}
                             </td>
                             <td className="px-3 py-2.5 text-right font-bold text-amber-600 dark:text-amber-400">
-                              {fmt(b.balanceDue)}
+                              {formatNpr(b.balanceDue)}
                             </td>
                             <td className="px-4 py-2.5 text-center">
                               <Button

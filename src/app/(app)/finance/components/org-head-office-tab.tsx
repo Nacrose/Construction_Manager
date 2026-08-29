@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Select,
@@ -20,17 +19,23 @@ import {
   Building,
   Plus,
   Loader2,
-  Calendar,
-  Receipt,
-  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+type HeadOfficeExpense = {
+  id: string;
+  date: Date | string;
+  category: string;
+  particulars: string;
+  amount: number;
+  paymentMode: string;
+  chequeNo?: string | null;
+  bankAccount?: { bankName: string } | null;
+};
 
 export function OrgHeadOfficeTab() {
   const utils = trpc.useUtils();
@@ -56,7 +61,7 @@ export function OrgHeadOfficeTab() {
   const bankAccounts = banksData?.accounts || [];
 
   const { data, isLoading } = trpc.finance.listHeadOfficeExpenses.useQuery();
-  const expenses = data?.expenses || [];
+  const expenses: HeadOfficeExpense[] = (data?.expenses || []) as HeadOfficeExpense[];
   const total = data?.total || 0;
 
   const createMutation = trpc.finance.createHeadOfficeExpense.useMutation({
@@ -102,6 +107,70 @@ export function OrgHeadOfficeTab() {
     });
   };
 
+  const columns: ConstructionTableColumn<HeadOfficeExpense>[] = useMemo(
+    () => [
+      {
+        key: "date",
+        header: "Date (AD)",
+        width: "120px",
+        sortable: true,
+        render: (val) => (
+          <span className="text-muted-foreground font-mono text-xs">
+            {format(new Date(val), "yyyy-MM-dd")}
+          </span>
+        ),
+      },
+      {
+        key: "category",
+        header: "Category",
+        width: "160px",
+        render: (val) => (
+          <Badge variant="outline" className="text-[10px] font-mono">
+            {val}
+          </Badge>
+        ),
+      },
+      {
+        key: "particulars",
+        header: "Particulars",
+        render: (val) => <span className="font-medium text-foreground text-xs">{val}</span>,
+      },
+      {
+        key: "bankAccount",
+        header: "Paid From",
+        width: "160px",
+        render: (_, r) => (
+          <span className="text-muted-foreground text-xs font-mono">
+            {r.bankAccount?.bankName || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "paymentMode",
+        header: "Mode / Cheque",
+        width: "150px",
+        render: (_, r) => (
+          <span className="text-muted-foreground text-xs font-mono">
+            {r.paymentMode} {r.chequeNo ? `#${r.chequeNo}` : ""}
+          </span>
+        ),
+      },
+      {
+        key: "amount",
+        header: "Amount",
+        align: "right",
+        width: "140px",
+        summary: "sum",
+        render: (val) => (
+          <span className="font-bold text-foreground font-mono text-xs">
+            {formatNpr(val)}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <div className="space-y-4">
       {/* Top Banner */}
@@ -115,7 +184,7 @@ export function OrgHeadOfficeTab() {
               Total Head Office Overheads (मुख्यालय प्रशासनिक खर्च)
             </div>
             <div className="text-2xl font-bold font-mono text-foreground">
-              NPR {fmt(total)}
+              {formatNpr(total)}
             </div>
           </div>
         </div>
@@ -123,77 +192,37 @@ export function OrgHeadOfficeTab() {
         <Button
           size="sm"
           onClick={() => setAddOpen(true)}
-          className="gap-1.5 font-semibold text-xs h-9 shadow-sm"
+          className="gap-1.5 font-semibold text-xs h-9 shadow-sm font-mono"
         >
           <Plus className="h-4 w-4" />
           Log Head Office Expense
         </Button>
       </div>
 
-      {/* Expenses Table */}
-      {isLoading ? (
-        <Skeleton className="h-64 rounded-xl" />
-      ) : expenses.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-12 text-center bg-card">
-          <Building className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-          <h3 className="text-base font-bold text-foreground">No Head Office Expenses Logged</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            Record company-level expenses like main office rent, company audit & tax fees, internet, and office utility bills.
-          </p>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="mt-4 gap-1.5 text-xs">
-            <Plus className="h-4 w-4" />
-            Log First Expense
-          </Button>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="border-b bg-muted/60 text-[10px] uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">Date (AD)</th>
-                <th className="px-3 py-3">Category</th>
-                <th className="px-4 py-3">Particulars</th>
-                <th className="px-3 py-3">Paid From</th>
-                <th className="px-3 py-3">Mode / Cheque</th>
-                <th className="px-4 py-3 text-right">Amount (NPR)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {expenses.map((e) => (
-                <tr key={e.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                    {format(new Date(e.date), "yyyy-MM-dd")}
-                  </td>
-                  <td className="px-3 py-2.5 font-sans">
-                    <Badge variant="outline" className="text-[10px] font-medium">
-                      {e.category}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-2.5 font-sans font-medium text-foreground">
-                    {e.particulars}
-                  </td>
-                  <td className="px-3 py-2.5 text-muted-foreground font-sans">
-                    {e.bankAccount?.bankName || "—"}
-                  </td>
-                  <td className="px-3 py-2.5 text-muted-foreground">
-                    {e.paymentMode} {e.chequeNo ? `#${e.chequeNo}` : ""}
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-bold text-foreground">
-                    {fmt(e.amount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Expenses ConstructionTable */}
+      <ConstructionTable<HeadOfficeExpense>
+        data={expenses}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search category, particulars, cheque..."
+        searchFilterKeys={["category", "particulars", "chequeNo"]}
+        summaryFooterLabel="Total Overheads"
+        exportExcel={{
+          filename: `HeadOffice_Expenses_${format(new Date(), "yyyy-MM-dd")}`,
+          sheetName: "HOExpenses",
+        }}
+        emptyState={{
+          title: "No Head Office Expenses Logged",
+          description: "Record company-level expenses like main office rent, company audit & tax fees, internet, and office utility bills.",
+        }}
+      />
 
-      {/* Log Expense Dialog */}
+      {/* Log Expense Dialog with Backdrop Blur */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Building className="h-5 w-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base text-white">
+              <Building className="h-5 w-5 text-emerald-400" />
               Log Head Office Expense
             </DialogTitle>
           </DialogHeader>
@@ -202,15 +231,15 @@ export function OrgHeadOfficeTab() {
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Expense Category *</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                   <SelectItem value="Office Rent">Office Rent (मुख्यालय भाडा)</SelectItem>
-                  <SelectItem value="Audit & Tax Fees">Audit & Tax Consultancy (लेखा परीक्षण तथा कर)</SelectItem>
-                  <SelectItem value="Electricity & Internet">Electricity, Water & Internet</SelectItem>
-                  <SelectItem value="Company Vehicle Fuel">Company Vehicle Fuel & Repairs</SelectItem>
-                  <SelectItem value="Legal & Registration">Company Registrar & License Renewals</SelectItem>
+                  <SelectItem value="Audit & Tax Fees">Audit &amp; Tax Consultancy (लेखा परीक्षण तथा कर)</SelectItem>
+                  <SelectItem value="Electricity & Internet">Electricity, Water &amp; Internet</SelectItem>
+                  <SelectItem value="Company Vehicle Fuel">Company Vehicle Fuel &amp; Repairs</SelectItem>
+                  <SelectItem value="Legal & Registration">Company Registrar &amp; License Renewals</SelectItem>
                   <SelectItem value="Director Drawings">Director / Owner Drawings</SelectItem>
                   <SelectItem value="General Office Overhead">General Office Overhead</SelectItem>
                 </SelectContent>
@@ -222,7 +251,7 @@ export function OrgHeadOfficeTab() {
               <Input
                 required
                 placeholder="e.g. Head office rent for Shrawan 2081"
-                className="h-8 text-xs"
+                className="h-8 text-xs bg-white/5 border-white/10 text-white"
                 value={particulars}
                 onChange={(e) => setParticulars(e.target.value)}
               />
@@ -236,7 +265,7 @@ export function OrgHeadOfficeTab() {
                 step="any"
                 min="0"
                 placeholder="e.g. 25000"
-                className="h-8 text-xs font-mono font-bold"
+                className="h-8 text-xs font-mono font-bold bg-white/5 border-white/10 text-white"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
@@ -247,7 +276,7 @@ export function OrgHeadOfficeTab() {
                 <Label className="text-xs">Date (AD)</Label>
                 <Input
                   type="date"
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   value={date}
                   onChange={(e) => handleDateChange(e.target.value)}
                 />
@@ -257,7 +286,7 @@ export function OrgHeadOfficeTab() {
                 <Label className="text-xs">Miti (BS)</Label>
                 <Input
                   placeholder="2081-05-15"
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   value={miti}
                   onChange={(e) => setMiti(e.target.value)}
                 />
@@ -266,32 +295,32 @@ export function OrgHeadOfficeTab() {
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Paid From Bank/Cash</Label>
-                <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select account..." />
+                <Label className="text-xs font-semibold">Payment Mode</Label>
+                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                    <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {bankAccounts.map((acc) => (
-                      <SelectItem key={acc.id} value={acc.id}>
-                        {acc.bankName}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                    <SelectItem value="bank_transfer">Bank Transfer (IPS/Online)</SelectItem>
+                    <SelectItem value="cheque">Cheque (चेक)</SelectItem>
+                    <SelectItem value="cash">Cash (नगद)</SelectItem>
+                    <SelectItem value="mobile_pay">Mobile Wallet (eSewa/Khalti)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Payment Mode</Label>
-                <Select value={paymentMode} onValueChange={setPaymentMode}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
+                <Label className="text-xs font-semibold">Paid From Account</Label>
+                <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                    <SelectValue placeholder="Select bank" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="connectips">ConnectIPS</SelectItem>
+                  <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                    {bankAccounts.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.bankName} ({b.accountType})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -301,21 +330,21 @@ export function OrgHeadOfficeTab() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Cheque Number</Label>
                 <Input
-                  placeholder="e.g. 048920"
-                  className="h-8 text-xs font-mono"
+                  placeholder="e.g. CHQ-990182"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   value={chequeNo}
                   onChange={(e) => setChequeNo(e.target.value)}
                 />
               </div>
             )}
 
-            <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)}>
+            <DialogFooter className="gap-2 pt-2 border-t border-white/10">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs font-mono">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMutation.isPending}>
+              <Button type="submit" size="sm" disabled={createMutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Expense
+                Log Overhead Expense
               </Button>
             </DialogFooter>
           </form>

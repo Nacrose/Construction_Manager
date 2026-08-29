@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,31 +22,19 @@ import {
 } from "@/components/ui/select";
 import {
   Handshake,
-  Percent,
   ReceiptText,
-  Building2,
   Plus,
-  ArrowDownRight,
-  ArrowUpRight,
   CreditCard,
-  FileCheck2,
-  Loader2,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { adToBs, bsToAd } from "@/lib/nepali-calendar";
+import { adToBs } from "@/lib/nepali-calendar";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtShort(n: number) {
-  if (Math.abs(n) >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (Math.abs(n) >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  return `Rs. ${fmt(n)}`;
-}
+import { formatNpr } from "@/lib/construction-finance";
+import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export function ProjectJvTab({ projectId }: { projectId: string }) {
   const utils = trpc.useUtils();
@@ -191,6 +179,129 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
     setPayoutOpen(true);
   };
 
+  const ipcColumns: ConstructionTableColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "number",
+        header: "IPC Running Bill",
+        className: "font-bold text-white font-sans",
+        render: (val) => `Bill No. ${val}`,
+      },
+      {
+        key: "period",
+        header: "Bill Period",
+        className: "text-muted-foreground font-sans",
+        render: (val) => val || "—",
+      },
+      {
+        key: "grossAmount",
+        header: "Certified Gross",
+        align: "right",
+        summary: "sum",
+        className: "text-white",
+        render: (val) => formatNpr(val),
+      },
+      {
+        key: "accruedCommission",
+        header: `Accrued Commission (${summary.commissionRate}%)`,
+        align: "right",
+        summary: "sum",
+        className: "font-bold text-amber-400",
+        render: (val) => formatNpr(val),
+      },
+      {
+        key: "isPaid",
+        header: "Status",
+        align: "center",
+        render: (val) => <StatusBadge status={val ? "approved" : "pending"} label={val ? "Settled" : "Accrued"} size="xs" />,
+      },
+      {
+        key: "ipcId",
+        header: "Action",
+        align: "right",
+        render: (ipcIdVal, row) =>
+          !row.isPaid ? (
+            <Button
+              onClick={() => openPayoutForIpc(ipcIdVal, row.accruedCommission)}
+              size="sm"
+              className="h-7 px-2.5 text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
+            >
+              Pay Commission
+            </Button>
+          ) : null,
+      },
+    ],
+    [summary.commissionRate]
+  );
+
+  const payoutColumns: ConstructionTableColumn<any>[] = useMemo(
+    () => [
+      {
+        key: "voucherNo",
+        header: "Voucher No",
+        className: "font-bold text-emerald-400",
+      },
+      {
+        key: "payoutDate",
+        header: "Date (Miti)",
+        render: (val, row) => row.payoutMiti || format(new Date(val), "yyyy-MM-dd"),
+      },
+      {
+        key: "paymentMode",
+        header: "Payment Mode / Ref",
+        render: (val, row) => (
+          <span className="capitalize text-muted-foreground font-sans">
+            {val.replace("_", " ")} {row.chequeNo && `(Chq: ${row.chequeNo})`}
+          </span>
+        ),
+      },
+      {
+        key: "grossAmount",
+        header: "Gross Commission",
+        align: "right",
+        summary: "sum",
+        className: "text-white font-mono",
+        render: (val) => formatNpr(val),
+      },
+      {
+        key: "tdsAmount",
+        header: "TDS (1.5%)",
+        align: "right",
+        summary: "sum",
+        className: "text-rose-400 font-mono",
+        render: (val) => formatNpr(val),
+      },
+      {
+        key: "netAmount",
+        header: "Net Paid",
+        align: "right",
+        summary: "sum",
+        className: "font-bold text-blue-400 font-mono",
+        render: (val) => formatNpr(val),
+      },
+      {
+        key: "id",
+        header: "Actions",
+        align: "right",
+        render: (idVal) => (
+          <Button
+            onClick={() => {
+              if (confirm("Delete this commission payout voucher?")) {
+                deletePayoutMut.mutate({ projectId, payoutId: idVal });
+              }
+            }}
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-400"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        ),
+      },
+    ],
+    [deletePayoutMut, projectId]
+  );
+
   return (
     <div className="space-y-6">
       {/* Header Banner & Agreement Status */}
@@ -253,7 +364,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
             <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Certified Turnover (कुल बिलिङ)</span>
               <div className="text-xl font-bold font-mono text-white mt-1">
-                {fmtShort(summary.totalCertifiedTurnover)}
+                {formatNpr(summary.totalCertifiedTurnover, { compact: true, prefix: "Rs." })}
               </div>
               <span className="text-[11px] text-muted-foreground">{summary.ipcCount} Certified IPCs</span>
             </div>
@@ -261,7 +372,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
             <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Accrued Commission ({summary.commissionRate}%)</span>
               <div className="text-xl font-bold font-mono text-amber-400 mt-1">
-                Rs. {fmt(summary.totalCommissionAccrued)}
+                Rs. {formatNpr(summary.totalCommissionAccrued)}
               </div>
               <span className="text-[11px] text-muted-foreground">Total partner entitlement</span>
             </div>
@@ -269,154 +380,45 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
             <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Total Disbursed (TDS 1.5%)</span>
               <div className="text-xl font-bold font-mono text-blue-400 mt-1">
-                Rs. {fmt(summary.totalNetDisbursed)}
+                Rs. {formatNpr(summary.totalNetDisbursed)}
               </div>
-              <span className="text-[11px] text-muted-foreground">TDS: Rs. {fmt(summary.totalTdsDeducted)}</span>
+              <span className="text-[11px] text-muted-foreground">TDS: Rs. {formatNpr(summary.totalTdsDeducted)}</span>
             </div>
 
             <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Balance Due (बाँकी कमिसन)</span>
               <div className={cn("text-xl font-bold font-mono mt-1", summary.balanceDue > 0 ? "text-emerald-400" : "text-gray-400")}>
-                Rs. {fmt(summary.balanceDue)}
+                Rs. {formatNpr(summary.balanceDue)}
               </div>
               <span className="text-[11px] text-muted-foreground">Outstanding payable</span>
             </div>
           </div>
 
-          {/* IPC Commission Accrual Breakdown */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <ReceiptText className="h-4 w-4 text-emerald-400" /> Client IPC Certified Billing &amp; Commission Accruals
-            </h4>
-
-            {ipcBreakdown.length === 0 ? (
-              <div className="p-8 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 text-xs text-muted-foreground">
-                No certified IPC Running Bills recorded yet. As client IPC bills are certified, partner commission accrues automatically.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-[#121820]/80 overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-[#161d26] text-muted-foreground uppercase font-mono text-[10px] tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="p-3.5">IPC Running Bill</th>
-                      <th className="p-3.5">Bill Period</th>
-                      <th className="p-3.5 text-right">Certified Gross</th>
-                      <th className="p-3.5 text-right">Accrued Commission ({summary.commissionRate}%)</th>
-                      <th className="p-3.5 text-center">Status</th>
-                      <th className="p-3.5 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 font-mono">
-                    {ipcBreakdown.map((row) => (
-                      <tr key={row.ipcId} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-3.5 font-bold text-white font-sans">
-                          Bill No. {row.number}
-                        </td>
-                        <td className="p-3.5 text-muted-foreground font-sans">
-                          {row.period || "—"}
-                        </td>
-                        <td className="p-3.5 text-right text-white">
-                          Rs. {fmt(row.grossAmount)}
-                        </td>
-                        <td className="p-3.5 text-right font-bold text-amber-400">
-                          Rs. {fmt(row.accruedCommission)}
-                        </td>
-                        <td className="p-3.5 text-center font-sans">
-                          {row.isPaid ? (
-                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[9px]">
-                              Settled
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-amber-400 border-amber-500/30 text-[9px]">
-                              Accrued
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="p-3.5 text-right font-sans">
-                          {!row.isPaid && (
-                            <Button
-                              onClick={() => openPayoutForIpc(row.ipcId, row.accruedCommission)}
-                              size="sm"
-                              className="h-7 px-2.5 text-[10px] font-bold bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
-                            >
-                              Pay Commission
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {/* IPC Commission Accrual Breakdown Table */}
+          <ConstructionTable
+            title="Client IPC Certified Billing & Commission Accruals"
+            data={ipcBreakdown}
+            columns={ipcColumns}
+            searchPlaceholder="Search IPC bill number, period..."
+            emptyState={{
+              icon: ReceiptText,
+              title: "No Certified IPC Running Bills",
+              description: "As client IPC bills are certified, partner commission accrues automatically.",
+            }}
+          />
 
           {/* Commission Payout Disbursements Ledger */}
-          <div className="space-y-3 pt-2">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-blue-400" /> Commission Payouts &amp; TDS Deductions Ledger
-            </h4>
-
-            {payouts.length === 0 ? (
-              <div className="p-6 text-center bg-[#121820]/30 rounded-2xl border border-dashed border-white/10 text-xs text-muted-foreground">
-                No commission disbursement vouchers recorded yet.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-[#121820]/80 overflow-hidden">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-[#161d26] text-muted-foreground uppercase font-mono text-[10px] tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="p-3.5">Voucher No</th>
-                      <th className="p-3.5">Date (Miti)</th>
-                      <th className="p-3.5">Payment Mode / Ref</th>
-                      <th className="p-3.5 text-right">Gross Commission</th>
-                      <th className="p-3.5 text-right">TDS (1.5%)</th>
-                      <th className="p-3.5 text-right">Net Paid</th>
-                      <th className="p-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 font-mono">
-                    {payouts.map((p) => (
-                      <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="p-3.5 font-bold text-emerald-400">
-                          {p.voucherNo}
-                        </td>
-                        <td className="p-3.5 text-white/90">
-                          {p.payoutMiti || format(new Date(p.payoutDate), "yyyy-MM-dd")}
-                        </td>
-                        <td className="p-3.5 text-muted-foreground capitalize font-sans">
-                          {p.paymentMode.replace("_", " ")} {p.chequeNo && `(Chq: ${p.chequeNo})`}
-                        </td>
-                        <td className="p-3.5 text-right text-white">
-                          Rs. {fmt(p.grossAmount)}
-                        </td>
-                        <td className="p-3.5 text-right text-rose-400">
-                          Rs. {fmt(p.tdsAmount)}
-                        </td>
-                        <td className="p-3.5 text-right font-bold text-blue-400">
-                          Rs. {fmt(p.netAmount)}
-                        </td>
-                        <td className="p-3.5 text-right font-sans">
-                          <Button
-                            onClick={() => {
-                              if (confirm("Delete this commission payout voucher?")) {
-                                deletePayoutMut.mutate({ projectId, payoutId: p.id });
-                              }
-                            }}
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <ConstructionTable
+            title="Commission Payouts & TDS Deductions Ledger"
+            data={payouts}
+            columns={payoutColumns}
+            searchPlaceholder="Search voucher number, mode..."
+            emptyState={{
+              icon: CreditCard,
+              title: "No Commission Payouts Recorded",
+              description: "Commission disbursement vouchers will appear here.",
+            }}
+          />
         </>
       )}
 
@@ -448,46 +450,32 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Partner PAN Number</Label>
                 <Input
-                  placeholder="e.g. 601234567"
+                  placeholder="e.g. 600123456"
                   value={partnerPan}
                   onChange={(e) => setPartnerPan(e.target.value)}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 bg-[#121820] p-3 rounded-xl border border-white/5">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-emerald-400">Partner Commission Rate (%) *</Label>
+                <Label className="text-xs font-semibold">Commission Rate (%) *</Label>
                 <Input
                   required
                   type="number"
                   step="0.01"
-                  min="0"
-                  max="100"
+                  placeholder="1.5"
                   value={commissionRate}
                   onChange={(e) => setCommissionRate(e.target.value)}
-                  className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
                 />
-                <p className="text-[10px] text-muted-foreground">Typical Nepal standard: 1.0% – 2.5%</p>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Lead Managing Partner Share (%)</Label>
+                <Label className="text-xs font-semibold">Contact Person</Label>
                 <Input
-                  disabled
-                  value="100% Operational"
-                  className="h-9 text-xs bg-[#161d26]/50 border-white/5 text-gray-400"
-                />
-                <p className="text-[10px] text-muted-foreground">Lead executes 100% of site work</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Contact Person</Label>
-                <Input
-                  placeholder="e.g. Er. Ramesh Sharma"
+                  placeholder="e.g. Ram Shrestha"
                   value={contactPerson}
                   onChange={(e) => setContactPerson(e.target.value)}
                   className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
@@ -495,131 +483,161 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Phone Number</Label>
+                <Label className="text-xs font-semibold">Contact Phone</Label>
                 <Input
-                  placeholder="e.g. 9851012345"
+                  placeholder="98510..."
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Partner Bank Name</Label>
-                <Input
-                  placeholder="e.g. Global IME Bank"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
                   className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
                 />
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">Bank Account Number</Label>
-                <Input
-                  placeholder="e.g. 01201017500123"
-                  value={bankAccountNumber}
-                  onChange={(e) => setBankAccountNumber(e.target.value)}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
-                />
+            <div className="border-t border-white/10 pt-3 space-y-3">
+              <span className="text-[11px] uppercase font-mono text-muted-foreground font-bold">Partner Settlement Bank Account</span>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Bank Name</Label>
+                  <Input
+                    placeholder="e.g. Nabil Bank"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Account Number</Label>
+                  <Input
+                    placeholder="012001..."
+                    value={bankAccountNumber}
+                    onChange={(e) => setBankAccountNumber(e.target.value)}
+                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Branch</Label>
+                  <Input
+                    placeholder="Kathmandu"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/10">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setAgreementOpen(false)}
-                className="text-xs text-muted-foreground"
+                className="text-xs text-muted-foreground hover:text-white"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={saveAgreementMut.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
               >
-                {saveAgreementMut.isPending ? "Saving..." : "Save Agreement"}
+                {saveAgreementMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Save JV Agreement
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* 16:10 Disburse Commission Payout Dialog */}
+      {/* Disburse Commission Payout Dialog */}
       <Dialog open={payoutOpen} onOpenChange={setPayoutOpen}>
-        <DialogContent className="sm:max-w-[540px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+        <DialogContent className="sm:max-w-[500px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-              <CreditCard className="h-5 w-5 text-emerald-400" /> Disburse JV Partner Commission
+              <CreditCard className="h-5 w-5 text-blue-400" /> Disburse JV Partner Commission
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Record commission settlement with statutory 1.5% TDS deduction.
+              Record a commission payment to {agreement?.partnerName}. Automatically calculates 1.5% TDS.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handlePayoutSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-3 gap-3 bg-[#121820] p-3 rounded-xl border border-white/5">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Gross Comm. (Rs.) *</Label>
+                <Label className="text-xs font-semibold">Gross Commission (NPR) *</Label>
                 <Input
                   required
                   type="number"
-                  step="any"
+                  step="0.01"
+                  placeholder="0.00"
                   value={payoutGross}
                   onChange={(e) => setPayoutGross(e.target.value)}
-                  className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono font-bold"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">TDS (%)</Label>
+                <Label className="text-xs font-semibold">TDS Rate (%) *</Label>
                 <Input
+                  required
                   type="number"
-                  step="0.1"
+                  step="0.01"
                   value={tdsPercent}
                   onChange={(e) => setTdsPercent(e.target.value)}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
                 />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-blue-400">Net Payable (Rs.)</Label>
-                <div className="h-9 px-3 flex items-center bg-[#161d26] rounded-md font-mono font-bold text-blue-400 text-xs border border-white/10">
-                  Rs. {fmt(parseFloat(payoutGross || "0") * (1 - (parseFloat(tdsPercent || "1.5") / 100)))}
-                </div>
               </div>
             </div>
 
+            {/* Calculated Breakdown preview */}
+            {parseFloat(payoutGross) > 0 && (
+              <div className="bg-[#161d26] p-3 rounded-xl border border-white/10 text-xs font-mono space-y-1">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Gross Commission:</span>
+                  <span>Rs. {formatNpr(parseFloat(payoutGross) || 0)}</span>
+                </div>
+                <div className="flex justify-between text-rose-400">
+                  <span>Less 1.5% TDS:</span>
+                  <span>- Rs. {formatNpr(((parseFloat(payoutGross) || 0) * (parseFloat(tdsPercent) || 1.5)) / 100)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-blue-400 border-t border-white/10 pt-1 text-sm">
+                  <span>Net Disbursed:</span>
+                  <span>
+                    Rs.{" "}
+                    {formatNpr(
+                      (parseFloat(payoutGross) || 0) -
+                        ((parseFloat(payoutGross) || 0) * (parseFloat(tdsPercent) || 1.5)) / 100
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Payment Mode</Label>
+                <Label className="text-xs">Payment Mode</Label>
                 <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)}>
                   <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                    <SelectItem value="bank_transfer">Bank Transfer (A/C Payee)</SelectItem>
-                    <SelectItem value="cheque">Cheque Payment</SelectItem>
-                    <SelectItem value="connectips">ConnectIPS / Digital</SelectItem>
-                    <SelectItem value="cash">Cash Settlement</SelectItem>
+                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                    <SelectItem value="bank_transfer">Bank Transfer / connectIPS</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Deduct From Company Account</Label>
+                <Label className="text-xs">Paid from Bank Account</Label>
                 <Select value={selectedBankId} onValueChange={setSelectedBankId}>
                   <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
-                    <SelectValue placeholder="Select Bank" />
+                    <SelectValue placeholder="Select Account" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                    <SelectItem value="none">Do Not Deduct (Manual)</SelectItem>
+                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                    <SelectItem value="none">Site Petty Cash / Unlinked</SelectItem>
                     {bankAccounts.map((b) => (
                       <SelectItem key={b.id} value={b.id}>
-                        {b.bankName} ({b.accountNumber})
+                        {b.bankName} - {b.accountNumber.slice(-4)} (Bal: {formatNpr(b.currentBalance, { compact: true, prefix: "Rs." })})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -627,61 +645,68 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {paymentMode === "cheque" && (
               <div className="space-y-1">
-                <Label className="text-xs">Cheque / Transaction Ref No</Label>
+                <Label className="text-xs">Cheque Number</Label>
                 <Input
-                  placeholder="e.g. CHQ-990142"
+                  placeholder="e.g. CHQ-99104"
                   value={chequeNo}
                   onChange={(e) => setChequeNo(e.target.value)}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
                 />
               </div>
+            )}
 
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Disbursement Miti (Date)</Label>
+                <Label className="text-xs">Date (AD)</Label>
+                <Input
+                  type="date"
+                  value={payoutDate}
+                  onChange={(e) => {
+                    setPayoutDate(e.target.value);
+                    try { setPayoutMiti(adToBs(e.target.value).formatted); } catch {}
+                  }}
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Miti (BS)</Label>
                 <Input
                   value={payoutMiti}
-                  onChange={(e) => {
-                    setPayoutMiti(e.target.value);
-                    try {
-                      const parts = e.target.value.split("-").map(Number);
-                      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                        const ad = bsToAd(parts[0], parts[1], parts[2]);
-                        if (ad) setPayoutDate(format(ad, "yyyy-MM-dd"));
-                      }
-                    } catch {}
-                  }}
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  onChange={(e) => setPayoutMiti(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono text-emerald-400"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Remarks / Note</Label>
+              <Label className="text-xs">Narration / Remarks</Label>
               <Input
-                placeholder="e.g. Commission settlement for IPC Bill No 02"
+                placeholder="e.g. Commission settlement for IPC #02"
                 value={payoutRemarks}
                 onChange={(e) => setPayoutRemarks(e.target.value)}
                 className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/10">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
               <Button
                 type="button"
                 variant="ghost"
                 onClick={() => setPayoutOpen(false)}
-                className="text-xs text-muted-foreground"
+                className="text-xs text-muted-foreground hover:text-white"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={recordPayoutMut.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
               >
-                {recordPayoutMut.isPending ? "Disbursing..." : "Confirm & Disburse"}
+                {recordPayoutMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Record Payout Voucher
               </Button>
             </div>
           </form>

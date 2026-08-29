@@ -11,6 +11,7 @@ import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
+import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
 const BillItemSchema = z.object({
   boqCode: z.string().optional().nullable(),
@@ -190,12 +191,13 @@ export const subcontractorBillRouter = router({
     const MAX_RETRIES = 5;
     let bill;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const count = await db.subcontractorBill.count({ where: { projectId: input.projectId } });
-      let nextIndex = count + 1 + attempt;
-      let number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
+      let number = await getNextSequenceNumber("subcontractor_bill", { projectId: input.projectId });
+      if (attempt > 0) {
+        number = `SUB-BILL-${String(parseInt(number.replace(/\D/g, "")) + attempt).padStart(3, "0")}`;
+      }
       while (await db.subcontractorBill.findFirst({ where: { projectId: input.projectId, number } })) {
-        nextIndex++;
-        number = `SUB-BILL-${nextIndex.toString().padStart(3, "0")}`;
+        const nextIdx = parseInt(number.replace(/\D/g, "")) + 1;
+        number = `SUB-BILL-${String(nextIdx).padStart(3, "0")}`;
       }
 
       try {

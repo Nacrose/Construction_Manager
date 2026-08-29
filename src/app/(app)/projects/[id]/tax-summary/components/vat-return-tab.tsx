@@ -1,14 +1,11 @@
 "use client";
 
 import { trpc } from "@/lib/trpc-client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   FileSpreadsheet,
   Download,
-  CheckCircle2,
-  ArrowRight,
   TrendingUp,
   TrendingDown,
   Scale,
@@ -18,10 +15,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "@e965/xlsx";
 import { adToBs } from "@/lib/nepali-calendar";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatNpr } from "@/lib/currency";
 
 export function VatReturnTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = trpc.vatRegister.getVatReturnSchedule10.useQuery({ projectId });
@@ -203,10 +197,10 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
             </Badge>
           </div>
           <p className="text-xl font-bold font-mono text-amber-800 dark:text-amber-300 mt-1">
-            NPR {fmt(sales.outputVat)}
+            {formatNpr(sales.outputVat)}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-            On Taxable Sales: NPR {fmt(sales.taxable)}
+            On Taxable Sales: {formatNpr(sales.taxable)}
           </p>
         </div>
 
@@ -221,10 +215,10 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
             </Badge>
           </div>
           <p className="text-xl font-bold font-mono text-emerald-800 dark:text-emerald-300 mt-1">
-            NPR {fmt(purchases.inputVat)}
+            {formatNpr(purchases.inputVat)}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-            On Taxable Purchases: NPR {fmt(purchases.taxable)}
+            On Taxable Purchases: {formatNpr(purchases.taxable)}
           </p>
         </div>
 
@@ -243,7 +237,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
             </Badge>
           </div>
           <p className="text-xl font-extrabold font-mono text-foreground mt-1">
-            NPR {fmt(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
+            {formatNpr(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             {reconciliation.netVatPayable > 0
@@ -269,34 +263,34 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
           <tbody className="divide-y divide-border">
             <tr>
               <td className="p-2 font-medium">१. कुल करयोग्य बिक्री (Taxable Sales)</td>
-              <td className="p-2 text-right">{fmt(sales.taxable)}</td>
-              <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{fmt(sales.outputVat)}</td>
+              <td className="p-2 text-right">{formatNpr(sales.taxable)}</td>
+              <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{formatNpr(sales.outputVat)}</td>
             </tr>
             <tr>
               <td className="p-2 text-muted-foreground">२. कर छुट बिक्री (Exempt Sales)</td>
-              <td className="p-2 text-right text-muted-foreground">{fmt(sales.exempt)}</td>
+              <td className="p-2 text-right text-muted-foreground">{formatNpr(sales.exempt)}</td>
               <td className="p-2 text-right text-muted-foreground">—</td>
             </tr>
             <tr className="bg-muted/10 font-bold">
               <td className="p-2 uppercase text-[11px]">जम्मा बिक्री कर (Output VAT Collected - A)</td>
-              <td className="p-2 text-right">{fmt(sales.taxable + sales.exempt)}</td>
-              <td className="p-2 text-right font-bold text-amber-800 dark:text-amber-300">{fmt(sales.outputVat)}</td>
+              <td className="p-2 text-right">{formatNpr(sales.taxable + sales.exempt)}</td>
+              <td className="p-2 text-right font-bold text-amber-800 dark:text-amber-300">{formatNpr(sales.outputVat)}</td>
             </tr>
 
             <tr>
               <td className="p-2 font-medium pt-3">३. कुल करयोग्य खरिद (Taxable Purchases)</td>
-              <td className="p-2 text-right pt-3">{fmt(purchases.taxable)}</td>
-              <td className="p-2 text-right pt-3 font-bold text-emerald-700 dark:text-emerald-300">{fmt(purchases.inputVat)}</td>
+              <td className="p-2 text-right pt-3">{formatNpr(purchases.taxable)}</td>
+              <td className="p-2 text-right pt-3 font-bold text-emerald-700 dark:text-emerald-300">{formatNpr(purchases.inputVat)}</td>
             </tr>
             <tr>
               <td className="p-2 text-muted-foreground">४. कर छुट खरिद (Exempt Purchases)</td>
-              <td className="p-2 text-right text-muted-foreground">{fmt(purchases.exempt)}</td>
+              <td className="p-2 text-right text-muted-foreground">{formatNpr(purchases.exempt)}</td>
               <td className="p-2 text-right text-muted-foreground">—</td>
             </tr>
             <tr className="bg-muted/10 font-bold">
               <td className="p-2 uppercase text-[11px]">जम्मा खरिद कर कट्टी (Input VAT Credit - B)</td>
-              <td className="p-2 text-right">{fmt(purchases.taxable + purchases.exempt)}</td>
-              <td className="p-2 text-right font-bold text-emerald-800 dark:text-emerald-300">{fmt(purchases.inputVat)}</td>
+              <td className="p-2 text-right">{formatNpr(purchases.taxable + purchases.exempt)}</td>
+              <td className="p-2 text-right font-bold text-emerald-800 dark:text-emerald-300">{formatNpr(purchases.inputVat)}</td>
             </tr>
 
             <tr className="bg-primary/10 font-extrabold border-t-2 text-sm">
@@ -305,7 +299,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
               </td>
               <td className="p-2.5 text-right">—</td>
               <td className="p-2.5 text-right text-primary font-black">
-                NRs. {fmt(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
+                {formatNpr(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
               </td>
             </tr>
           </tbody>

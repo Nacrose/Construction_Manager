@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc";
+import { router, projectProcedure } from "../trpc";
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 /** Standard Construction & Accounting (Tally / Swastik) Category Tree Presets */
@@ -135,11 +134,9 @@ export const DEFAULT_NEPAL_PAYMENT_CATEGORIES = [
 
 export const paymentCategoryRouter = router({
   /** List all hierarchical categories and subcategories for a project (auto-seeds defaults if empty) */
-  list: protectedProcedure
+  list: projectProcedure("member")
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-
+    .query(async ({ input }) => {
       let categories = await db.paymentCategory.findMany({
         where: { projectId: input.projectId },
         include: {
@@ -200,7 +197,7 @@ export const paymentCategoryRouter = router({
     }),
 
   /** Create a new custom Category or Subcategory */
-  create: protectedProcedure
+  create: projectProcedure("write")
     .input(
       z.object({
         projectId: z.string(),
@@ -213,7 +210,6 @@ export const paymentCategoryRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
       await assertNotLocked(ctx.user.organizationId);
 
       // Check unique name per parent
@@ -249,7 +245,7 @@ export const paymentCategoryRouter = router({
     }),
 
   /** Update an existing category or subcategory */
-  update: protectedProcedure
+  update: projectProcedure("write")
     .input(
       z.object({
         id: z.string(),
@@ -262,13 +258,9 @@ export const paymentCategoryRouter = router({
         sortOrder: z.number().optional(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
-
+    .mutation(async ({ input }) => {
       // IDOR guard: verify the category belongs to the project the
-      // caller was authorized on. Previously this used update({where:{id}})
-      // directly — caller authorized on project A could update categories
-      // in project B by cuid.
+      // caller was authorized on.
       const existing = await db.paymentCategory.findFirst({
         where: { id: input.id, projectId: input.projectId },
         select: { id: true },
@@ -293,16 +285,14 @@ export const paymentCategoryRouter = router({
     }),
 
   /** Delete a category or subcategory */
-  delete: protectedProcedure
+  delete: projectProcedure("write")
     .input(
       z.object({
         id: z.string(),
         projectId: z.string(),
       })
     )
-    .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
-
+    .mutation(async ({ input }) => {
       // IDOR guard: verify the category belongs to the project the
       // caller was authorized on.
       const existing = await db.paymentCategory.findFirst({
@@ -335,10 +325,9 @@ export const paymentCategoryRouter = router({
     }),
 
   /** Reset/Seed standard Nepal default presets */
-  seedDefaults: protectedProcedure
+  seedDefaults: projectProcedure("write")
     .input(z.object({ projectId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
+    .mutation(async ({ input }) => {
 
       for (const cat of DEFAULT_NEPAL_PAYMENT_CATEGORIES) {
         let parent = await db.paymentCategory.findFirst({

@@ -4,6 +4,7 @@ import { useState, Fragment } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, MapPin, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
 
 export type ProgramTask = {
   id: string;
@@ -55,7 +56,7 @@ export function TaskTable({ tasks, projectId }: { tasks: ProgramTask[]; projectI
           <tr className="text-left uppercase font-bold text-[10px] tracking-wide text-primary">
             <th className="w-7 py-2 px-1 text-center">#</th>
             <th className="w-28 py-2 px-2">RFI / Task</th>
-            <th className="py-2 px-3 min-w-[200px]">Description & BOQ</th>
+            <th className="py-2 px-3 min-w-[200px]">Description &amp; BOQ</th>
             <th className="w-28 py-2 px-2">Location</th>
             <th className="w-20 py-2 px-2 text-right">Planned</th>
             <th className="w-20 py-2 px-2 text-right">Actual</th>
@@ -195,7 +196,7 @@ export function TaskTable({ tasks, projectId }: { tasks: ProgramTask[]; projectI
                               <th className="py-1 px-2 text-right">Coefficient</th>
                               <th className="py-1 px-2 text-right">Total Requirement</th>
                               <th className="py-1 px-1 text-center">Unit</th>
-                              <th className="py-1 px-2 text-right">Estimated Cost (NPR)</th>
+                              <th className="py-1 px-2 text-right">Estimated Cost</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/30">
@@ -213,8 +214,8 @@ export function TaskTable({ tasks, projectId }: { tasks: ProgramTask[]; projectI
                                   <td className="py-1 px-2 text-right text-muted-foreground">{ing.quantity}</td>
                                   <td className="py-1 px-2 text-right font-bold text-foreground">{totalQty.toFixed(2)}</td>
                                   <td className="py-1 px-1 text-center text-muted-foreground">{ing.unit}</td>
-                                  <td className="py-1 px-2 text-right font-bold text-primary">
-                                    {totalCost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                                  <td className="py-1 px-2 text-right font-bold text-primary font-mono">
+                                    {formatNpr(totalCost)}
                                   </td>
                                 </tr>
                               );

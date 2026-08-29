@@ -18,15 +18,11 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { formatNpr } from "@/lib/currency";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const CATEGORIES = ["material", "transport", "labor", "food", "accommodation", "utility", "office", "travel", "other"];
 const PAYMENT_MODES = ["cash", "bank_transfer", "cheque", "mobile"];
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  rejected: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-};
 
 const PIE_COLORS = ["#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6b7280"];
 
@@ -120,25 +116,29 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
     {
       accessorKey: "number",
       header: "#",
-      cell: ({ row }) => <span className="font-mono text-sm">{row.original.number}</span>,
+      cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.number}</span>,
     },
     {
       accessorKey: "date",
       header: "Date",
-      cell: ({ row }) => format(new Date(row.original.date), "dd MMM yyyy"),
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {format(new Date(row.original.date), "dd MMM yyyy")}
+        </span>
+      ),
     },
     {
       accessorKey: "category",
       header: "Category",
       cell: ({ row }) => (
-        <Badge variant="secondary" className="capitalize">{row.original.category}</Badge>
+        <Badge variant="secondary" className="capitalize text-[10px]">{row.original.category}</Badge>
       ),
     },
     {
       accessorKey: "description",
       header: "Description",
       cell: ({ row }) => (
-        <span className="truncate max-w-[200px] block" title={row.original.description}>
+        <span className="truncate max-w-[200px] block text-xs" title={row.original.description}>
           {row.original.description}
         </span>
       ),
@@ -146,14 +146,14 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
     {
       accessorKey: "amount",
       header: () => <div className="text-right">Amount</div>,
-      cell: ({ row }) => <div className="text-right">NPR {row.original.amount.toLocaleString()}</div>,
+      cell: ({ row }) => <div className="text-right font-mono text-xs">{formatNpr(row.original.amount)}</div>,
     },
     {
       accessorKey: "vatAmount",
       header: () => <div className="text-right">VAT</div>,
       cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.vatAmount > 0 ? `NPR ${row.original.vatAmount.toLocaleString()}` : "—"}
+        <div className="text-right font-mono text-xs text-muted-foreground">
+          {row.original.vatAmount > 0 ? formatNpr(row.original.vatAmount) : "—"}
         </div>
       ),
     },
@@ -161,21 +161,21 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
       accessorKey: "totalAmount",
       header: () => <div className="text-right">Total</div>,
       cell: ({ row }) => (
-        <div className="text-right font-semibold">NPR {row.original.totalAmount.toLocaleString()}</div>
+        <div className="text-right font-semibold font-mono text-xs">{formatNpr(row.original.totalAmount)}</div>
       ),
     },
     {
       accessorKey: "paymentMode",
       header: "Payment",
-      cell: ({ row }) => <span className="capitalize text-muted-foreground">{row.original.paymentMode.replace("_", " ")}</span>,
+      cell: ({ row }) => (
+        <span className="capitalize text-muted-foreground text-xs">{row.original.paymentMode.replace("_", " ")}</span>
+      ),
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant="secondary" className={`capitalize ${STATUS_COLORS[row.original.status] ?? ""}`}>
-          {row.original.status}
-        </Badge>
+        <StatusBadge status={row.original.status} />
       ),
     },
     {
@@ -219,41 +219,41 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
   ];
 
   return (
-    <AnimatedPage className="space-y-5 pb-8">
+    <AnimatedPage className="space-y-4 pb-8">
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Expenses</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">NPR {(stats?.totalAll || 0).toLocaleString()}</div></CardContent>
+          <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Total Expenses</CardTitle></CardHeader>
+          <CardContent><div className="text-xl font-bold font-mono">{formatNpr(stats?.totalAll || 0)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Pending Approval</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-amber-600">NPR {(stats?.totalPending || 0).toLocaleString()}</div></CardContent>
+          <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Pending Approval</CardTitle></CardHeader>
+          <CardContent><div className="text-xl font-bold font-mono text-amber-600">{formatNpr(stats?.totalPending || 0)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Approved</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold text-emerald-600">NPR {(stats?.totalApproved || 0).toLocaleString()}</div></CardContent>
+          <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Approved</CardTitle></CardHeader>
+          <CardContent><div className="text-xl font-bold font-mono text-emerald-600">{formatNpr(stats?.totalApproved || 0)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Count</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{stats?.totalCount || 0}</div></CardContent>
+          <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Vouchers Count</CardTitle></CardHeader>
+          <CardContent><div className="text-xl font-bold font-mono">{stats?.totalCount || 0}</div></CardContent>
         </Card>
       </div>
 
       {/* Category Pie Chart + Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="md:col-span-1">
-          <CardHeader><CardTitle className="text-sm">By Category</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-xs font-mono uppercase">By Category</CardTitle></CardHeader>
           <CardContent>
             {pieData.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No data</p>
+              <p className="text-xs text-muted-foreground text-center py-8">No data</p>
             ) : (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value">
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value">
                     {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => `NPR ${v.toLocaleString()}`} />
+                  <Tooltip formatter={(v: number) => formatNpr(v)} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -261,13 +261,13 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
           </CardContent>
         </Card>
         <Card className="md:col-span-2">
-          <CardHeader><CardTitle className="text-sm">Category Breakdown</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-xs font-mono uppercase">Category Breakdown</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {Object.entries(stats?.byCategory || {}).map(([cat, total]) => (
-                <div key={cat} className="flex justify-between p-2 border rounded text-sm">
-                  <span className="capitalize">{cat}</span>
-                  <span className="font-medium">NPR {total.toLocaleString()}</span>
+                <div key={cat} className="flex justify-between p-2 border rounded-lg text-xs font-mono">
+                  <span className="capitalize text-muted-foreground">{cat}</span>
+                  <span className="font-bold text-foreground">{formatNpr(total)}</span>
                 </div>
               ))}
             </div>
@@ -278,9 +278,9 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
       {/* Filters + New Expense */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Category</Label>
+          <Label className="text-xs font-mono">Category</Label>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-8 text-xs font-mono"><SelectValue placeholder="All" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
               {CATEGORIES.map((c) => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
@@ -288,9 +288,9 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Status</Label>
+          <Label className="text-xs font-mono">Status</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectTrigger className="w-32 h-8 text-xs font-mono"><SelectValue placeholder="All" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
@@ -300,16 +300,16 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">From</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+          <Label className="text-xs font-mono">From</Label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 h-8 text-xs font-mono" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">To</Label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+          <Label className="text-xs font-mono">To</Label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 h-8 text-xs font-mono" />
         </div>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="mr-1.5 h-3.5 w-3.5" />New Expense</Button>
+            <Button size="sm" className="h-8 text-xs gap-1.5 font-mono"><Plus className="h-3.5 w-3.5" />New Expense</Button>
           </DialogTrigger>
           <NewExpenseDialog projectId={id} onDone={() => setAddOpen(false)} />
         </Dialog>
@@ -317,7 +317,7 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
 
       {/* Table */}
       {isLoading ? (
-        <Skeleton className="h-64" />
+        <Skeleton className="h-64 rounded-xl" />
       ) : (
         <DataTable tableId="expenses-table" columns={columns} data={expenses} searchPlaceholder="Search expenses..." searchColumn="description" />
       )}
@@ -375,69 +375,69 @@ function NewExpenseDialog({ projectId, onDone }: { projectId: string; onDone: ()
   };
 
   return (
-    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>New Site Expense</DialogTitle></DialogHeader>
+    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
+      <DialogHeader><DialogTitle className="text-white">New Site Expense</DialogTitle></DialogHeader>
       <form onSubmit={onSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Category *</Label>
+            <Label className="text-xs">Category *</Label>
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CATEGORIES.map((c) => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Label className="text-xs">Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label>Description *</Label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="What was this expense for?" />
+          <Label className="text-xs">Description *</Label>
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="What was this expense for?" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label>Amount (NPR) *</Label>
-            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" />
+            <Label className="text-xs">Amount (NPR) *</Label>
+            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label>VAT (NPR)</Label>
-            <Input type="number" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} min="0" step="0.01" />
+            <Label className="text-xs">VAT (NPR)</Label>
+            <Input type="number" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
           </div>
           <div className="space-y-1.5">
-            <Label>Total</Label>
-            <Input value={`NPR ${((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0)).toLocaleString()}`} readOnly className="bg-muted" />
+            <Label className="text-xs">Total</Label>
+            <Input value={formatNpr((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0))} readOnly className="h-8 text-xs bg-white/10 border-white/10 text-emerald-400 font-mono font-bold" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Payment Mode</Label>
+            <Label className="text-xs">Payment Mode</Label>
             <Select value={paymentMode} onValueChange={setPaymentMode}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PAYMENT_MODES.map((m) => <SelectItem key={m} value={m} className="capitalize">{m.replace("_", " ")}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Vendor / Payee</Label>
-            <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Optional" />
+            <Label className="text-xs">Vendor / Payee</Label>
+            <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label>Reference No.</Label>
-          <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" />
+          <Label className="text-xs">Reference No.</Label>
+          <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
         </div>
         <div className="space-y-1.5">
-          <Label>Receipt Photo</Label>
-          <Input type="file" accept="image/*" onChange={handleReceiptChange} />
-          {receiptFile && <p className="text-xs text-muted-foreground">{receiptFile.name}</p>}
+          <Label className="text-xs">Receipt Photo</Label>
+          <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs bg-white/5 border-white/10 text-white file:text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md file:mr-2" />
+          {receiptFile && <p className="text-xs text-emerald-400 font-mono">{receiptFile.name}</p>}
         </div>
         <DialogFooter>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button type="submit" disabled={mutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
+            {mutation.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
             Create Expense
           </Button>
         </DialogFooter>

@@ -15,6 +15,17 @@ import superjson from "superjson";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { setOrgContext } from "@/lib/rls";
+import {
+  isOrgAdmin,
+  assertProjectMember,
+  assertCanWrite,
+  assertProjectAdmin,
+  assertProjectManager,
+  assertOrgBankAccount,
+  type ProjectRole,
+} from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { assertDelegation, type DelegationAction } from "@/lib/delegation";
 
 // ─── Context ───────────────────────────────────────────────────
 // The context is created per-request. We lazily resolve the user
@@ -39,11 +50,6 @@ export const t = initTRPC.context<TRPCContext>().create({
     let message = shape.message;
 
     // Sanitize raw Prisma and database errors into human-readable messages.
-    // In production, we never want to expose Prisma internals (table names,
-    // column names, query fragments) to the client — they can be used for
-    // enumeration attacks. The specific codes below are safe to map to
-    // human messages; everything else falls through to a generic message
-    // in production if it looks like a DB internal.
     if (message.includes("Unique constraint failed") || message.includes("P2002")) {
       message = "An item with this name and specification already exists in this catalog.";
     } else if (message.includes("Foreign key constraint failed") || message.includes("P2003")) {
@@ -53,9 +59,6 @@ export const t = initTRPC.context<TRPCContext>().create({
     } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
       message = "A database error occurred while processing your request. Please try again.";
     } else if (process.env.NODE_ENV === "production") {
-      // In production, if this is NOT a TRPCError (i.e. it's an unexpected
-      // Prisma/runtime error), scrub the message to prevent leaking DB
-      // internals. TRPCErrors are thrown by our own code with safe messages.
       const isTrpcError = error && typeof error === "object" && "name" in error && error.name === "TRPCError";
       if (!isTrpcError) {
         console.error("[trpc] Unhandled error (scrubbed from client):", error);
@@ -75,31 +78,166 @@ export const publicProcedure = t.procedure;
 export const createCallerFactory = t.createCallerFactory;
 export const mergeRouters = t.mergeRouters;
 
-// ─── Auth + RLS middleware ────────────────────────────────────
-// This middleware:
-// 1. Verifies the user is authenticated (JWT + session check)
-// 2. Sets the PostgreSQL RLS session variables so the database
-//    itself enforces organization-level data isolation
-//
-// The RLS context is set via set_config('app.organization_id', ...)
-// which the Project table's RLS policies check. Even if a bug in
-// the application code skips the org filter, the database blocks
-// the query from returning data from another organization.
-
+// ─── Base Auth + RLS middleware ───────────────────────────────
 const enforceAuth = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
   }
 
   // Set RLS context — defense-in-depth at the database level.
-  // `ctx.user.isSuperAdmin` is already the EFFECTIVE flag: it is false while
-  // a superadmin is impersonating a tenant org (so RLS scopes to that org),
-  // and true otherwise. App-level filtering in the routers keys off the same
-  // effective identity, so tenant scoping is reliable even when RLS is not
-  // enforced (e.g. under connection pooling).
   await setOrgContext(db, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
 export const protectedProcedure = t.procedure.use(enforceAuth);
+
+// ═══════════════════════════════════════════════════════════════
+// CENTRAL SECURITY CONTROL PLANE: Declarative Security Procedures
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Organization Administrator Procedure:
+ * Automatically enforces caller is an org_admin / owner of their assigned org.
+ */
+const enforceOrgAdmin = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
+  }
+  if (!isOrgAdmin(ctx.user)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Organization admin access required." });
+  }
+  if (!ctx.user.organizationId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
+  }
+
+  await setOrgContext(db, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user,
+      organizationId: ctx.user.organizationId,
+    },
+  });
+});
+
+export const orgAdminProcedure = t.procedure.use(enforceOrgAdmin);
+
+/**
+ * Platform Superadmin Procedure:
+ * Enforces platform-tier admin access with a dedicated admin-kind session.
+ */
+const enforceSuperAdmin = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
+  }
+  if (!ctx.user.isPlatformAdmin) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin access required." });
+  }
+  if (ctx.user.sessionKind !== "admin") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Use the platform admin login to access this area.",
+    });
+  }
+
+  await setOrgContext(db, "", true);
+
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+export const superAdminProcedure = t.procedure.use(enforceSuperAdmin);
+
+/**
+ * Project-Scoped Declarative Procedure:
+ * Automatically intercepts `projectId` from input, verifies user membership
+ * and role criteria, and injects `ctx.projectId` & `ctx.projectRole`.
+ */
+export const projectProcedure = (
+  requiredRole: "member" | "write" | "admin" | "manager" = "member"
+) =>
+  protectedProcedure.use(async ({ ctx, getRawInput, next }) => {
+    const rawInput = await getRawInput();
+    const inputObj = rawInput && typeof rawInput === "object" ? (rawInput as Record<string, any>) : {};
+    const projectId = inputObj.projectId;
+
+    if (!projectId || typeof projectId !== "string") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Missing or invalid projectId in request payload.",
+      });
+    }
+
+    let role: ProjectRole;
+    if (requiredRole === "manager") {
+      role = await assertProjectManager(ctx.user, projectId);
+    } else if (requiredRole === "admin") {
+      role = await assertProjectAdmin(ctx.user, projectId);
+    } else if (requiredRole === "write") {
+      role = await assertCanWrite(ctx.user, projectId);
+    } else {
+      role = await assertProjectMember(ctx.user, projectId);
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        projectId,
+        projectRole: role,
+      },
+    });
+  });
+
+/**
+ * Financial Mutation Declarative Procedure:
+ * Centralized 5-Point Financial & Multi-Tenant Pipeline:
+ *  1. Project write permission check (if projectId present)
+ *  2. Fiscal year lock check on target date
+ *  3. Operating model delegation limits on monetary amount
+ *  4. Multi-tenant bank account isolation check
+ *  5. Injects verified financial metadata into context
+ */
+export const financialProcedure = (action: DelegationAction) =>
+  protectedProcedure.use(async ({ ctx, getRawInput, next }) => {
+    const rawInput = await getRawInput();
+    const inputObj = rawInput && typeof rawInput === "object" ? (rawInput as Record<string, any>) : {};
+
+    // 1. Project write access check if projectId is present
+    const projectId = inputObj.projectId;
+    if (projectId && typeof projectId === "string") {
+      await assertCanWrite(ctx.user, projectId);
+    }
+
+    // 2. Fiscal year lock check
+    const dateVal = inputObj.paymentDate || inputObj.payoutDate || inputObj.billDate || inputObj.date;
+    const targetDate = dateVal ? new Date(dateVal) : new Date();
+    await assertNotLocked(ctx.user.organizationId, targetDate);
+
+    // 3. Financial delegation limit check
+    const amount = Number(inputObj.grossAmount ?? inputObj.amount ?? inputObj.totalAmount ?? 0);
+    if (amount > 0) {
+      await assertDelegation(ctx.user, action, amount);
+    }
+
+    // 4. Multi-tenant bank account isolation check
+    const bankIds = [
+      inputObj.bankAccountId,
+      inputObj.companyBankAccountId,
+      inputObj.transportBankAccountId,
+      inputObj.incidentalBankAccountId,
+    ].filter((id): id is string => typeof id === "string" && id.length > 0);
+
+    for (const bId of bankIds) {
+      await assertOrgBankAccount(bId, ctx.user.organizationId);
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        fiscalDate: targetDate,
+        delegatedAction: action,
+        projectId: typeof projectId === "string" ? projectId : undefined,
+      },
+    });
+  });

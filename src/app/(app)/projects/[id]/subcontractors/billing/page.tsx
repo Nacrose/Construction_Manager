@@ -45,6 +45,8 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNpr } from "@/lib/construction-finance";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ReconciliationMatrixTab } from "./components/reconciliation-matrix-tab";
@@ -198,19 +200,19 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                 <Card className="shadow-xs">
                   <CardContent className="p-3">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Billed</p>
-                    <p className="text-2xl font-bold text-foreground">NPR {billsData.summary.totalBilled.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-foreground">NPR {formatNpr(billsData.summary.totalBilled)}</p>
                   </CardContent>
                 </Card>
                 <Card className="shadow-xs">
                   <CardContent className="p-3">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
-                    <p className="text-2xl font-bold text-amber-600">NPR {billsData.summary.outstanding.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-amber-600">NPR {formatNpr(billsData.summary.outstanding)}</p>
                   </CardContent>
                 </Card>
                 <Card className="shadow-xs">
                   <CardContent className="p-3">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p>
-                    <p className="text-2xl font-bold text-emerald-600">NPR {billsData.summary.totalPaid.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-emerald-600">NPR {formatNpr(billsData.summary.totalPaid)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -304,15 +306,13 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                           <td className="p-3 font-mono text-muted-foreground">{bill.number}</td>
                           <td className="p-3 font-medium">{bill.subcontractor.name}</td>
                           <td className="p-3 text-muted-foreground">{bill.period || "—"}</td>
-                          <td className="p-3 text-right font-mono">NPR {bill.grossAmount.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono text-amber-600">NPR {bill.retentionAmount.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono">NPR {bill.vatAmount.toLocaleString()}</td>
-                          <td className="p-3 text-right font-bold font-mono">NPR {bill.netPayable.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono text-emerald-600">NPR {bill.paidAmount.toLocaleString()}</td>
+                          <td className="p-3 text-right font-mono">NPR {formatNpr(bill.grossAmount)}</td>
+                          <td className="p-3 text-right font-mono text-amber-600">NPR {formatNpr(bill.retentionAmount)}</td>
+                          <td className="p-3 text-right font-mono">NPR {formatNpr(bill.vatAmount)}</td>
+                          <td className="p-3 text-right font-bold font-mono">NPR {formatNpr(bill.netPayable)}</td>
+                          <td className="p-3 text-right font-mono text-emerald-600">NPR {formatNpr(bill.paidAmount)}</td>
                           <td className="p-3 text-center">
-                            <Badge variant="secondary" className={cn("capitalize text-[10px]", statusColor(bill.status))}>
-                              {bill.status}
-                            </Badge>
+                            <StatusBadge status={bill.status} size="xs" />
                           </td>
                           <td className="p-3 text-right">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -576,19 +576,19 @@ function BillDetailView({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border p-3 text-center">
           <p className="text-[10px] text-muted-foreground uppercase">Gross Amount</p>
-          <p className="text-lg font-bold font-mono">NPR {bill.grossAmount.toLocaleString()}</p>
+          <p className="text-lg font-bold font-mono">NPR {formatNpr(bill.grossAmount)}</p>
         </div>
         <div className="rounded-lg border p-3 text-center">
           <p className="text-[10px] text-muted-foreground uppercase">Retention ({bill.retentionPercent}%)</p>
-          <p className="text-lg font-bold font-mono text-amber-600">-NPR {bill.retentionAmount.toLocaleString()}</p>
+          <p className="text-lg font-bold font-mono text-amber-600">-NPR {formatNpr(bill.retentionAmount)}</p>
         </div>
         <div className="rounded-lg border p-3 text-center">
           <p className="text-[10px] text-muted-foreground uppercase">VAT ({bill.vatPercent}%)</p>
-          <p className="text-lg font-bold font-mono">+NPR {bill.vatAmount.toLocaleString()}</p>
+          <p className="text-lg font-bold font-mono">+NPR {formatNpr(bill.vatAmount)}</p>
         </div>
         <div className="rounded-lg border p-3 text-center bg-violet-50/40 dark:bg-violet-950/10">
           <p className="text-[10px] text-muted-foreground uppercase">Net Payable</p>
-          <p className="text-lg font-bold font-mono text-violet-700 dark:text-violet-300">NPR {bill.netPayable.toLocaleString()}</p>
+          <p className="text-lg font-bold font-mono text-violet-700 dark:text-violet-300">NPR {formatNpr(bill.netPayable)}</p>
         </div>
       </div>
 
@@ -597,12 +597,12 @@ function BillDetailView({
         <div className="flex gap-3 text-xs">
           {bill.materialDeduction > 0 && (
             <span className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-1.5">
-              Material Deduction: <strong>NPR {bill.materialDeduction.toLocaleString()}</strong>
+              Material Deduction: <strong>NPR {formatNpr(bill.materialDeduction)}</strong>
             </span>
           )}
           {bill.advanceRecovery > 0 && (
             <span className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-1.5">
-              Advance Recovery: <strong>NPR {bill.advanceRecovery.toLocaleString()}</strong>
+              Advance Recovery: <strong>NPR {formatNpr(bill.advanceRecovery)}</strong>
             </span>
           )}
         </div>
@@ -621,8 +621,8 @@ function BillDetailView({
           />
         </div>
         <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-          <span>Paid: NPR {bill.paidAmount.toLocaleString()}</span>
-          <span>Remaining: NPR {Math.max(0, bill.netPayable - bill.paidAmount).toLocaleString()}</span>
+          <span>Paid: NPR {formatNpr(bill.paidAmount)}</span>
+          <span>Remaining: NPR {formatNpr(Math.max(0, bill.netPayable - bill.paidAmount))}</span>
         </div>
       </div>
 
@@ -923,7 +923,7 @@ function CreateBillDialog({
                   </div>
                   <div className="col-span-1 text-right">
                     <Label className="text-[9px]">Amount</Label>
-                    <p className="text-[10px] font-mono font-bold pt-1.5">{(item.thisQty * item.rate).toLocaleString()}</p>
+                    <p className="text-[10px] font-mono font-bold pt-1.5">{formatNpr(item.thisQty * item.rate)}</p>
                   </div>
                   <div className="col-span-1 flex justify-center">
                     {items.length > 1 && (
@@ -944,13 +944,13 @@ function CreateBillDialog({
 
           {/* Summary */}
           <div className="rounded-lg border bg-muted/20 p-3 space-y-1 text-xs">
-            <div className="flex justify-between"><span className="text-muted-foreground">Gross Amount</span><span className="font-mono font-bold">NPR {grossTotal.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Retention ({retentionPercent}%)</span><span className="font-mono text-amber-600">-NPR {retentionAmt.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">VAT ({vatPercent}%)</span><span className="font-mono">+NPR {vatAmt.toLocaleString()}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">TDS ({tdsPercent}%)</span><span className="font-mono">-NPR {tdsAmt.toLocaleString()}</span></div>
-            {parseFloat(materialDeduction || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Material Deduction</span><span className="font-mono text-red-600">-NPR {parseFloat(materialDeduction).toLocaleString()}</span></div>}
-            {parseFloat(advanceRecovery || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Advance Recovery</span><span className="font-mono text-red-600">-NPR {parseFloat(advanceRecovery).toLocaleString()}</span></div>}
-            <div className="flex justify-between border-t pt-1 font-bold"><span>Net Payable</span><span className="font-mono text-violet-700 dark:text-violet-300">NPR {netPayable.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Gross Amount</span><span className="font-mono font-bold">NPR {formatNpr(grossTotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Retention ({retentionPercent}%)</span><span className="font-mono text-amber-600">-NPR {formatNpr(retentionAmt)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">VAT ({vatPercent}%)</span><span className="font-mono">+NPR {formatNpr(vatAmt)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">TDS ({tdsPercent}%)</span><span className="font-mono">-NPR {formatNpr(tdsAmt)}</span></div>
+            {parseFloat(materialDeduction || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Material Deduction</span><span className="font-mono text-red-600">-NPR {formatNpr(parseFloat(materialDeduction))}</span></div>}
+            {parseFloat(advanceRecovery || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Advance Recovery</span><span className="font-mono text-red-600">-NPR {formatNpr(parseFloat(advanceRecovery))}</span></div>}
+            <div className="flex justify-between border-t pt-1 font-bold"><span>Net Payable</span><span className="font-mono text-violet-700 dark:text-violet-300">NPR {formatNpr(netPayable)}</span></div>
           </div>
         </div>
 

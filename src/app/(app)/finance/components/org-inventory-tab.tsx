@@ -11,17 +11,7 @@ import {
   Package,
 } from "lucide-react";
 import { LogDirectMaterialDialog } from "@/components/materials/log-direct-material-dialog";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-function fmtCurrency(n: number) {
-  if (n >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (n >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  if (n >= 1000) return `Rs. ${(n / 1000).toFixed(1)} K`;
-  return `Rs. ${fmt(n)}`;
-}
+import { formatNpr } from "@/lib/currency";
 
 export function OrgInventoryTab() {
   const [search, setSearch] = useState<string>("");
@@ -120,7 +110,7 @@ export function OrgInventoryTab() {
   }, [matrixRows]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-sans">
       {/* Top Filter, Category Pills & Log Material Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 rounded-2xl bg-[#0c1015] border border-white/10">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
@@ -158,13 +148,13 @@ export function OrgInventoryTab() {
         <div className="flex items-center gap-3 shrink-0">
           <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#121820] border border-emerald-500/20 text-xs font-mono">
             <span className="text-gray-400 text-[10px] uppercase">Total Valuation:</span>
-            <span className="text-emerald-400 font-bold">{fmtCurrency(totalCompanyValuation)}</span>
+            <span className="text-emerald-400 font-bold">{formatNpr(totalCompanyValuation)}</span>
           </div>
 
           <Button
             onClick={() => setLogMaterialOpen(true)}
             size="sm"
-            className="h-8 px-3 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-black rounded-xl gap-1.5 shadow-[0_0_15px_rgba(0,255,102,0.2)]"
+            className="h-8 px-3 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-black rounded-xl gap-1.5 shadow-[0_0_15px_rgba(0,255,102,0.2)] font-mono"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
             Log Material (दाखिला)
@@ -183,8 +173,8 @@ export function OrgInventoryTab() {
         <div className="p-12 text-center rounded-2xl bg-[#0c1015] border border-white/10">
           <Package className="h-8 w-8 text-gray-500 mx-auto mb-2 opacity-60" />
           <h3 className="text-sm font-semibold text-white">No Inventory Items Found</h3>
-          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">
-            Click "+ Log Material" to record physical material delivery against any project site.
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto font-mono">
+            Click &quot;+ Log Material&quot; to record physical material delivery against any project site.
           </p>
         </div>
       ) : (
@@ -258,11 +248,11 @@ export function OrgInventoryTab() {
                                 }`}
                               />
                               <span className={isLow ? "text-amber-400" : "text-white"}>
-                                {fmt(cell.currentStock)} {row.unit}
+                                {cell.currentStock.toLocaleString("en-IN")} {row.unit}
                               </span>
                             </div>
                             <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">
-                              @ Rs. {fmt(cell.lastRate)} | {fmtCurrency(cell.totalValue)}
+                              @ {formatNpr(cell.lastRate)} | {formatNpr(cell.totalValue)}
                               {isLow && (
                                 <span className="text-amber-400/90 ml-1 font-semibold">
                                   (Low)
@@ -274,7 +264,7 @@ export function OrgInventoryTab() {
                           <div className="flex flex-col items-center justify-center text-gray-600">
                             <span className="text-xs font-bold leading-tight">—</span>
                             <span className="text-[10px] text-gray-600 mt-0.5 leading-tight">
-                              Rs. 0
+                              NPR 0
                             </span>
                           </div>
                         )}
@@ -285,10 +275,10 @@ export function OrgInventoryTab() {
                   {/* Right Column: Total Company Stock & Valuation */}
                   <td className="px-4 py-2.5 text-right font-mono bg-[#0e141c] group-hover:bg-[#121822] sticky right-0 z-10 border-l border-white/10 shadow-[-2px_0_10px_rgba(0,0,0,0.5)]">
                     <div className="font-bold text-xs text-emerald-400 leading-tight">
-                      {fmt(row.totalStock)} {row.unit}
+                      {row.totalStock.toLocaleString("en-IN")} {row.unit}
                     </div>
                     <div className="text-[10px] text-emerald-500/80 mt-0.5 leading-tight">
-                      Avg: Rs. {fmt(row.avgRate)} | {fmtCurrency(row.totalValue)}
+                      Avg: {formatNpr(row.avgRate)} | {formatNpr(row.totalValue)}
                     </div>
                   </td>
                 </tr>
@@ -311,12 +301,12 @@ export function OrgInventoryTab() {
                       key={proj.id}
                       className="px-3 py-3 text-center text-xs text-emerald-400 border-r border-white/5"
                     >
-                      {fmtCurrency(projTotalVal)}
+                      {formatNpr(projTotalVal)}
                     </td>
                   );
                 })}
                 <td className="px-4 py-3 text-right text-xs text-emerald-400 sticky right-0 z-20 bg-[#141b24] border-l border-white/10">
-                  {fmtCurrency(totalCompanyValuation)}
+                  {formatNpr(totalCompanyValuation)}
                 </td>
               </tr>
             </tfoot>

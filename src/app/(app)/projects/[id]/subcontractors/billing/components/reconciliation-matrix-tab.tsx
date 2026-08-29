@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
 
 export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
   const [search, setSearch] = useState("");
@@ -120,40 +121,38 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
       ws["!cols"] = colWidths;
 
       XLSX.writeFile(wb, `subcontractor-reconciliation-matrix-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.success("Excel exported successfully");
+      toast.success("Matrix exported successfully");
     } catch {
-      toast.error("Failed to export Excel");
+      toast.error("Failed to export Excel matrix");
     }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top Banner KPI Cards */}
+    <div className="space-y-4 font-mono">
+      {/* High-Level Financial Reconciled KPI Strip */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card className="p-3 border-l-4 border-l-primary shadow-xs">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Contract BOQ</p>
-            <p className="text-base font-bold font-mono">NPR {summary.totalBoqAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
-            <p className="text-[9px] text-muted-foreground mt-0.5">{summary.totalItems} Work Items</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Main Contract (BOQ)</p>
+            <p className="text-base font-bold font-mono text-foreground">{formatNpr(summary.totalBoqAmount)}</p>
+            <p className="text-[9px] text-muted-foreground mt-0.5">{summary.totalItems} BOQ Line Items</p>
           </Card>
 
           <Card className="p-3 border-l-4 border-l-blue-500 shadow-xs">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Client IPC Certified</p>
-            <p className="text-base font-bold font-mono text-blue-600 dark:text-blue-400">NPR {summary.totalIpcAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
-            <p className="text-[9px] text-muted-foreground mt-0.5">
-              {summary.totalBoqAmount > 0 ? Math.round((summary.totalIpcAmount / summary.totalBoqAmount) * 100) : 0}% of Scope
-            </p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Client Certified (IPC)</p>
+            <p className="text-base font-bold font-mono text-blue-600 dark:text-blue-400">{formatNpr(summary.totalIpcAmount)}</p>
+            <p className="text-[9px] text-muted-foreground mt-0.5">Approved Work Done</p>
           </Card>
 
           <Card className="p-3 border-l-4 border-l-violet-500 shadow-xs">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Subcontractors Total</p>
-            <p className="text-base font-bold font-mono text-violet-600 dark:text-violet-400">NPR {summary.totalSubcontractorAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Subcontractor Scope</p>
+            <p className="text-base font-bold font-mono text-violet-600 dark:text-violet-400">{formatNpr(summary.totalSubcontractorAmount)}</p>
             <p className="text-[9px] text-muted-foreground mt-0.5">{subcontractors.length} Subcontractor Packages</p>
           </Card>
 
           <Card className="p-3 border-l-4 border-l-emerald-500 shadow-xs">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">Gross Margin Captured</p>
-            <p className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">NPR {summary.totalMarginGain.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</p>
+            <p className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatNpr(summary.totalMarginGain)}</p>
             <p className="text-[9px] text-muted-foreground mt-0.5">Rate differential</p>
           </Card>
 
@@ -188,14 +187,14 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
               placeholder="Search by BOQ Code or Description..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 text-xs pl-8"
+              className="h-8 text-xs pl-8 font-mono"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-44 text-xs">
+            <SelectTrigger className="h-8 w-44 text-xs font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="font-mono text-xs">
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="exceeds_boq">🔴 Over-Claim (Exceeds BOQ)</SelectItem>
               <SelectItem value="exceeds_ipc">🟡 Uncertified (Exceeds IPC)</SelectItem>
@@ -211,7 +210,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
             variant="outline"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-8 text-xs gap-1.5"
+            className="h-8 text-xs gap-1.5 font-mono"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
             Refresh
@@ -219,7 +218,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
           <Button
             size="sm"
             onClick={handleExportExcel}
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-mono"
           >
             <Download className="h-3.5 w-3.5" />
             Export Matrix (Excel)
@@ -256,7 +255,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
                   Total Subcontractor Claims
                 </th>
                 <th colSpan={2} className="py-2 px-2 text-center bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                  Verification & Balance
+                  Verification &amp; Balance
                 </th>
               </tr>
               {/* Level 2 Column Headers */}
@@ -328,7 +327,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
 
                       {/* Contract BOQ Rate */}
                       <td className="py-1.5 px-2 text-right text-muted-foreground border-r font-mono">
-                        {r.boqRate.toLocaleString()}
+                        {formatNpr(r.boqRate)}
                       </td>
 
                       {/* Client IPC Certified Qty */}
@@ -338,7 +337,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
 
                       {/* Client IPC Certified Value */}
                       <td className="py-1.5 px-2 text-right bg-blue-50/30 dark:bg-blue-950/10 border-r text-muted-foreground font-mono">
-                        {r.ipcAmount > 0 ? r.ipcAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"}
+                        {r.ipcAmount > 0 ? formatNpr(r.ipcAmount) : "—"}
                       </td>
 
                       {/* Subcontractor Columns */}
@@ -351,7 +350,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
                             {hasClaim ? (
                               <div className="grid grid-cols-2 text-[10px]">
                                 <span className="text-right font-semibold text-foreground pr-1">{claim.qty.toLocaleString()}</span>
-                                <span className="text-right text-muted-foreground font-mono pr-1">{claim.rate.toLocaleString()}</span>
+                                <span className="text-right text-muted-foreground font-mono pr-1">{formatNpr(claim.rate)}</span>
                               </div>
                             ) : (
                               <span className="text-center block text-muted-foreground/40">—</span>
@@ -367,12 +366,12 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
 
                       {/* Total Subcontractor Amount */}
                       <td className="py-1.5 px-2 text-right font-mono bg-violet-50/30 dark:bg-violet-950/10">
-                        {r.totalSubAmount > 0 ? r.totalSubAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"}
+                        {r.totalSubAmount > 0 ? formatNpr(r.totalSubAmount) : "—"}
                       </td>
 
                       {/* Margin Gain */}
                       <td className={cn("py-1.5 px-2 text-right font-mono border-r bg-violet-50/30 dark:bg-violet-950/10", r.marginGain > 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground")}>
-                        {r.marginGain !== 0 ? r.marginGain.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"}
+                        {r.marginGain !== 0 ? formatNpr(r.marginGain) : "—"}
                       </td>
 
                       {/* Balance Remaining Qty */}
@@ -383,19 +382,19 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
                       {/* Status Badge */}
                       <td className="py-1.5 px-2 text-center">
                         {r.status === "exceeds_boq" ? (
-                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-1 uppercase">
-                            <ShieldAlert className="h-2.5 w-2.5" /> Over-Claim
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-0.5">
+                            <ShieldAlert className="h-2.5 w-2.5" /> Over BOQ
                           </Badge>
                         ) : r.status === "exceeds_ipc" ? (
-                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 gap-1 uppercase">
-                            <AlertTriangle className="h-2.5 w-2.5" /> &gt; IPC Qty
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-bold border-amber-400 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-200 gap-0.5">
+                            <AlertTriangle className="h-2.5 w-2.5" /> &gt; IPC
                           </Badge>
                         ) : r.status === "ok" ? (
-                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 uppercase">
-                            <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 gap-0.5">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> OK
                           </Badge>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/60">Not Started</span>
+                          <span className="text-[10px] text-muted-foreground/60">—</span>
                         )}
                       </td>
                     </tr>

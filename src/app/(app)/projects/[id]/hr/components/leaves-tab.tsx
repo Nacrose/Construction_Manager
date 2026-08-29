@@ -116,10 +116,10 @@ export function LeavesTab({
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
         <div className="flex items-center gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-7 w-36 text-xs bg-card">
+            <SelectTrigger className="h-7 w-36 text-xs bg-card font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="font-mono text-xs">
               <SelectItem value="all">All Requests</SelectItem>
               <SelectItem value="pending">Pending Approval</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -134,7 +134,7 @@ export function LeavesTab({
             variant="outline"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-7 text-xs gap-1 px-2"
+            className="h-7 text-xs gap-1 px-2 font-mono"
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
@@ -143,7 +143,7 @@ export function LeavesTab({
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1 px-3 shadow-xs"
+              className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1 px-3 shadow-xs font-mono"
             >
               <Plus className="h-3 w-3" />
               Apply Leave
@@ -152,39 +152,43 @@ export function LeavesTab({
         </div>
       </div>
 
-      {/* Slim 28px High-Density Inline Metrics Ribbon */}
+      {/* Inline KPI Ribbon */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 bg-muted/40 rounded border text-[11px] font-mono tabular-nums">
         <div className="flex items-center gap-3">
           <span>
             <strong className="text-foreground">Total Requests:</strong> {leaves.length}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-amber-600 dark:text-amber-400 font-bold">
-            Pending Review: {pendingCount}
+          <span className="text-amber-600 dark:text-amber-400 font-semibold">
+            ⏳ Pending: {pendingCount}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-            Approved: {approvedCount}
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+            ✓ Approved: {approvedCount}
           </span>
-          <span className="text-muted-foreground/40">│</span>
-          <span className="text-red-600 dark:text-red-400">
-            Rejected: {rejectedCount}
-          </span>
+          {rejectedCount > 0 && (
+            <>
+              <span className="text-muted-foreground/40">│</span>
+              <span className="text-red-600 dark:text-red-400 font-medium">
+                ✗ Rejected: {rejectedCount}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Full-Bleed Requests Table */}
+      {/* Full-Bleed Table */}
       <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
         <table className="w-full text-xs font-mono tabular-nums border-collapse">
           <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
             <tr>
-              <th className="py-2 px-3 text-left min-w-[160px] font-semibold text-foreground">Worker Name</th>
+              <th className="py-2 px-3 text-left font-semibold min-w-[160px]">Worker Name</th>
               <th className="py-2 px-2 text-center w-24">Type</th>
-              <th className="py-2 px-3 text-left w-48">Duration</th>
-              <th className="py-2 px-2 text-right w-16">Days</th>
-              <th className="py-2 px-3 text-left min-w-[160px]">Reason</th>
+              <th className="py-2 px-3 text-left w-24">Start Date</th>
+              <th className="py-2 px-3 text-left w-24">End Date</th>
+              <th className="py-2 px-3 text-left min-w-[180px]">Reason / Notes</th>
               <th className="py-2 px-2 text-center w-24">Status</th>
-              <th className="py-2 px-3 text-right w-36">Actions</th>
+              <th className="py-2 px-2 text-right w-28">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
@@ -192,12 +196,12 @@ export function LeavesTab({
               <tr>
                 <td colSpan={7} className="p-8 text-center text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
-                  Loading leave requests...
+                  Loading leave records...
                 </td>
               </tr>
             ) : leaves.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td colSpan={7} className="p-8 text-center text-muted-foreground font-mono">
                   No leave requests found.
                 </td>
               </tr>
@@ -206,45 +210,50 @@ export function LeavesTab({
                 <tr key={leave.id} className="hover:bg-muted/20 transition-colors">
                   <td className="py-1.5 px-3 font-sans font-medium text-foreground">
                     {leave.staff.name}
-                    <span className="block text-[10px] text-muted-foreground font-normal">
-                      {leave.staff.designation || leave.staff.category || "Staff"}
-                    </span>
+                    {leave.staff.designation && (
+                      <span className="block text-[10px] text-muted-foreground font-normal font-mono">
+                        {leave.staff.designation}
+                      </span>
+                    )}
                   </td>
 
                   <td className="py-1.5 px-2 text-center">
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 capitalize">
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 capitalize font-mono">
                       {leave.leaveType}
                     </Badge>
                   </td>
 
-                  <td className="py-1.5 px-3 text-muted-foreground text-[11px]">
-                    {format(new Date(leave.startDate), "dd MMM")} – {format(new Date(leave.endDate), "dd MMM yyyy")}
+                  <td className="py-1.5 px-3 text-muted-foreground">
+                    {format(new Date(leave.startDate), "dd MMM yyyy")}
                   </td>
 
-                  <td className="py-1.5 px-2 text-right font-bold text-foreground">
-                    {leave.totalDays}
+                  <td className="py-1.5 px-3 text-muted-foreground">
+                    {format(new Date(leave.endDate), "dd MMM yyyy")}
                   </td>
 
-                  <td className="py-1.5 px-3 text-muted-foreground text-[11px] font-sans truncate max-w-[180px]">
+                  <td className="py-1.5 px-3 text-muted-foreground font-sans text-[11px] truncate max-w-[200px]" title={leave.reason || ""}>
                     {leave.reason || "—"}
                   </td>
 
-                  <td className="py-1.5 px-2 text-center">
-                    <Badge
-                      variant="secondary"
-                      className={cn("text-[9px] px-1.5 py-0 capitalize font-bold", {
-                        "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": leave.status === "pending",
-                        "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300": leave.status === "approved",
-                        "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300": leave.status === "rejected",
-                      })}
-                    >
-                      {leave.status}
-                    </Badge>
+                  <td className="py-1.5 px-2 text-center font-mono">
+                    {leave.status === "approved" ? (
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> Approved
+                      </Badge>
+                    ) : leave.status === "rejected" ? (
+                      <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-1">
+                        <XCircle className="h-2.5 w-2.5" /> Rejected
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold">
+                        Pending
+                      </Badge>
+                    )}
                   </td>
 
-                  <td className="py-1.5 px-3 text-right">
-                    {leave.status === "pending" && isAdmin ? (
-                      <div className="flex items-center justify-end gap-1.5">
+                  <td className="py-1.5 px-2 text-right">
+                    {isAdmin && leave.status === "pending" ? (
+                      <div className="flex items-center justify-end gap-1 font-mono">
                         <Button
                           size="sm"
                           variant="outline"
@@ -265,7 +274,7 @@ export function LeavesTab({
                         </Button>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground font-mono">
                         {leave.approvedBy ? `By ${leave.approvedBy.name}` : "—"}
                       </span>
                     )}
@@ -277,27 +286,27 @@ export function LeavesTab({
         </table>
       </div>
 
-      {/* Leave Application Dialog */}
+      {/* Leave Application Dialog with Backdrop Blur */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Calendar className="h-5 w-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base text-white">
+              <Calendar className="h-5 w-5 text-emerald-400" />
               Apply for Leave
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-muted-foreground font-mono">
               Submit a site leave request for Project Manager review and attendance linking.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreate} className="space-y-3.5 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Select Worker *</Label>
+              <Label className="text-xs font-semibold">Select Worker *</Label>
               <Select value={staffId} onValueChange={setStaffId} required>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
                   <SelectValue placeholder="Choose personnel..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                   {staffList.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.designation || s.category || "Staff"})
@@ -308,12 +317,12 @@ export function LeavesTab({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Leave Type</Label>
+              <Label className="text-xs font-semibold">Leave Type</Label>
               <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger className="h-8 text-xs capitalize">
+                <SelectTrigger className="h-8 text-xs capitalize bg-white/5 border-white/10 text-white font-mono">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                   {LEAVE_TYPES.map((lt) => (
                     <SelectItem key={lt} value={lt} className="capitalize">
                       {lt} Leave
@@ -325,49 +334,50 @@ export function LeavesTab({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Start Date *</Label>
+                <Label className="text-xs font-semibold">Start Date *</Label>
                 <Input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">End Date *</Label>
+                <Label className="text-xs font-semibold">End Date *</Label>
                 <Input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Reason / Handover Notes</Label>
+              <Label className="text-xs font-semibold">Reason / Handover Notes</Label>
               <Input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="e.g. Medical emergency, Family wedding"
-                className="h-8 text-xs"
+                className="h-8 text-xs bg-white/5 border-white/10 text-white"
               />
             </div>
 
-            <DialogFooter className="border-t pt-3">
+            <DialogFooter className="border-t border-white/10 pt-3">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setAddOpen(false)}
                 disabled={createMut.isPending}
+                className="h-8 text-xs font-mono"
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMut.isPending} className="font-semibold">
+              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
                 {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Submit Leave
               </Button>

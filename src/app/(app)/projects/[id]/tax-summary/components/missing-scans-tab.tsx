@@ -18,18 +18,12 @@ import {
   Paperclip,
   CheckCircle2,
   Package,
-  Layers,
   FileCheck,
-  Receipt,
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { adToBs } from "@/lib/nepali-calendar";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatNpr } from "@/lib/currency";
 
 export function MissingScansTab({
   projectId,
@@ -142,7 +136,7 @@ export function MissingScansTab({
           {/* Missing Purchases */}
           {missingPurchases.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 font-mono">
                 <Package className="h-3.5 w-3.5 text-blue-600" />
                 Missing Purchase / Inward Scans ({missingPurchases.length})
               </h4>
@@ -169,11 +163,11 @@ export function MissingScansTab({
                         <td className="p-2 font-bold text-foreground">{r.invoiceNo}</td>
                         <td className="p-2 font-sans truncate max-w-[220px]">
                           <span className="font-semibold text-foreground">{r.partyName}</span>
-                          <span className="block text-[10px] text-muted-foreground truncate">{r.description}</span>
+                          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
                         </td>
-                        <td className="p-2 text-right">{fmt(r.taxableLocal)}</td>
-                        <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">{fmt(r.vatAmount)}</td>
-                        <td className="p-2 text-right font-bold">{fmt(r.totalAmount)}</td>
+                        <td className="p-2 text-right">{formatNpr(r.taxableLocal)}</td>
+                        <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">{formatNpr(r.vatAmount)}</td>
+                        <td className="p-2 text-right font-bold">{formatNpr(r.totalAmount)}</td>
                         <td className="p-2 text-center">
                           {canWrite && (
                             <Button
@@ -187,7 +181,7 @@ export function MissingScansTab({
                                   partyName: r.partyName,
                                 })
                               }
-                              className="h-6 text-[10px] gap-1"
+                              className="h-6 text-[10px] gap-1 font-mono"
                             >
                               <Upload className="h-2.5 w-2.5" /> Attach Scan
                             </Button>
@@ -204,7 +198,7 @@ export function MissingScansTab({
           {/* Missing Sales */}
           {missingSales.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 font-mono">
                 <FileCheck className="h-3.5 w-3.5 text-blue-600" />
                 Missing Client IPC / Sales Invoices ({missingSales.length})
               </h4>
@@ -231,11 +225,11 @@ export function MissingScansTab({
                         <td className="p-2 font-bold text-foreground">{r.invoiceNo}</td>
                         <td className="p-2 font-sans truncate max-w-[220px]">
                           <span className="font-semibold text-foreground">{r.clientName}</span>
-                          <span className="block text-[10px] text-muted-foreground truncate">{r.description}</span>
+                          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
                         </td>
-                        <td className="p-2 text-right">{fmt(r.taxableSales)}</td>
-                        <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{fmt(r.vatAmount)}</td>
-                        <td className="p-2 text-right font-bold">{fmt(r.totalAmount)}</td>
+                        <td className="p-2 text-right">{formatNpr(r.taxableSales)}</td>
+                        <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{formatNpr(r.vatAmount)}</td>
+                        <td className="p-2 text-right font-bold">{formatNpr(r.totalAmount)}</td>
                         <td className="p-2 text-center">
                           {canWrite && (
                             <Button
@@ -249,7 +243,7 @@ export function MissingScansTab({
                                   partyName: r.clientName,
                                 })
                               }
-                              className="h-6 text-[10px] gap-1"
+                              className="h-6 text-[10px] gap-1 font-mono"
                             >
                               <Upload className="h-2.5 w-2.5" /> Attach Scan
                             </Button>
@@ -265,20 +259,20 @@ export function MissingScansTab({
         </div>
       )}
 
-      {/* Quick Upload Modal */}
+      {/* Quick Upload Modal with Dark Glass Backdrop Blur */}
       <Dialog open={!!activeUpload} onOpenChange={() => setActiveUpload(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <Upload className="h-4 w-4 text-primary" />
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-white">
+              <Upload className="h-4 w-4 text-emerald-400" />
               Attach Scanned Bill: {activeUpload?.invoiceNo}
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleUploadSubmit} className="space-y-3.5 py-2">
-            <div className="p-2.5 bg-muted/40 rounded border text-xs font-mono">
+            <div className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-xs font-mono">
               <span className="text-muted-foreground">Party / Supplier: </span>
-              <span className="font-bold text-foreground">{activeUpload?.partyName}</span>
+              <span className="font-bold text-white">{activeUpload?.partyName}</span>
             </div>
 
             <div className="space-y-1.5">
@@ -287,27 +281,28 @@ export function MissingScansTab({
                 type="file"
                 accept="application/pdf,image/*"
                 onChange={handleFileChange}
-                className="h-9 text-xs file:text-xs"
+                className="h-9 text-xs file:text-xs bg-white/5 border-white/10 text-white"
                 required
               />
               {fileName && (
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                  <Paperclip className="h-3 w-3 text-primary" /> {fileName}
+                <p className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
+                  <Paperclip className="h-3 w-3" /> {fileName}
                 </p>
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setActiveUpload(null)}
                 disabled={attachMut.isPending}
+                className="h-8 text-xs font-mono"
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={attachMut.isPending}>
+              <Button type="submit" size="sm" disabled={attachMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
                 {attachMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Upload &amp; Verify Bill
               </Button>

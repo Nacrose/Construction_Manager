@@ -1,61 +1,84 @@
 "use client";
 
-import * as XLSX from "@e965/xlsx";
+import { useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Scale,
   CheckCircle2,
   AlertTriangle,
-  Download,
-  Printer,
-  FileSpreadsheet,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+type TrialBalanceRow = {
+  head: string;
+  group: string;
+  debit: number;
+  credit: number;
+};
 
 export function TrialBalanceTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = trpc.accounting.trialBalance.useQuery({ projectId });
 
-  const rows = data?.rows || [];
+  const rows: TrialBalanceRow[] = data?.rows || [];
   const totalDebits = data?.totalDebits || 0;
   const totalCredits = data?.totalCredits || 0;
   const isBalanced = data?.isBalanced ?? true;
   const difference = data?.difference || 0;
 
-  const handleExportExcel = () => {
-    try {
-      const exportRows = rows.map((r, idx) => [
-        idx + 1,
-        r.head,
-        r.group,
-        r.debit > 0 ? r.debit : "",
-        r.credit > 0 ? r.credit : "",
-      ]);
-
-      const wsData = [
-        ["TRIAL BALANCE (सन्तुलन परीक्षण)"],
-        [`As of: ${format(new Date(), "yyyy-MM-dd")}`],
-        ["S.N.", "Account Head", "Group / Classification", "Debit (NPR)", "Credit (NPR)"],
-        ...exportRows,
-        ["", "TOTAL", "", totalDebits, totalCredits],
-        ["", "DIFFERENCE", "", difference, ""],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "TrialBalance");
-      XLSX.writeFile(wb, `TrialBalance_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const columns: ConstructionTableColumn<TrialBalanceRow>[] = useMemo(
+    () => [
+      {
+        key: "head",
+        header: "Account Head / Ledger",
+        accessor: (r) => r.head,
+        sortable: true,
+        render: (val) => <span className="font-semibold text-foreground">{val}</span>,
+      },
+      {
+        key: "group",
+        header: "Group / Classification",
+        accessor: (r) => r.group,
+        width: "180px",
+        sortable: true,
+        render: (val) => (
+          <Badge variant="outline" className="text-[10px] font-mono">
+            {val}
+          </Badge>
+        ),
+      },
+      {
+        key: "debit",
+        header: "Debit (Dr)",
+        align: "right",
+        width: "160px",
+        format: "currency",
+        summary: "sum",
+        render: (val) => (
+          <span className="font-medium text-foreground">
+            {val > 0 ? formatNpr(val) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "credit",
+        header: "Credit (Cr)",
+        align: "right",
+        width: "160px",
+        format: "currency",
+        summary: "sum",
+        render: (val) => (
+          <span className="font-medium text-foreground">
+            {val > 0 ? formatNpr(val) : "—"}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
 
   if (isLoading) {
     return (
@@ -87,73 +110,31 @@ export function TrialBalanceTab({ projectId }: { projectId: string }) {
             <h4 className="font-bold text-sm">
               {isBalanced ? "Ledger Accounts are in Perfect Balance" : "Trial Balance Discrepancy Detected"}
             </h4>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 font-mono">
               {isBalanced
-                ? "Total debits match total credits across all direct costs, liabilities, and income heads."
-                : `Total debits and credits differ by NPR ${fmt(difference)}. Please review unlinked vouchers.`}
+                ? `Debits (${formatNpr(totalDebits)}) match Credits (${formatNpr(totalCredits)}) across direct costs, liabilities, and income heads.`
+                : `Total debits and credits differ by ${formatNpr(difference)}. Please review unlinked vouchers.`}
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleExportExcel}
-            className="h-8 text-xs gap-1.5 font-mono"
-          >
-            <Download className="h-3.5 w-3.5 text-emerald-600" />
-            Export Excel
-          </Button>
-        </div>
       </div>
 
-      {/* Trial Balance Matrix Table */}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full text-left text-xs font-mono">
-          <thead className="border-b bg-muted/60 uppercase text-[10px] text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 font-sans">Account Head / Ledger</th>
-              <th className="px-3 py-3">Group / Classification</th>
-              <th className="px-4 py-3 text-right">Debit (Dr) NPR</th>
-              <th className="px-4 py-3 text-right">Credit (Cr) NPR</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((r, idx) => (
-              <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-2.5 font-sans font-semibold text-foreground">
-                  {r.head}
-                </td>
-                <td className="px-3 py-2.5">
-                  <Badge variant="outline" className="text-[10px]">
-                    {r.group}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2.5 text-right font-medium text-foreground">
-                  {r.debit > 0 ? fmt(r.debit) : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right font-medium text-foreground">
-                  {r.credit > 0 ? fmt(r.credit) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot className="border-t-2 border-border bg-muted/50 font-bold text-foreground">
-            <tr>
-              <td colSpan={2} className="px-4 py-3 uppercase tracking-wider font-sans text-xs">
-                Grand Total
-              </td>
-              <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 text-sm">
-                NPR {fmt(totalDebits)}
-              </td>
-              <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 text-sm">
-                NPR {fmt(totalCredits)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      {/* Trial Balance ConstructionTable */}
+      <ConstructionTable<TrialBalanceRow>
+        data={rows}
+        columns={columns}
+        searchPlaceholder="Search account head or group..."
+        searchFilterKeys={["head", "group"]}
+        summaryFooterLabel="Grand Total"
+        exportExcel={{
+          filename: `TrialBalance_${format(new Date(), "yyyy-MM-dd")}`,
+          sheetName: "TrialBalance",
+        }}
+        emptyState={{
+          title: "No ledger accounts found",
+          description: "Trial balance will be generated once vouchers and journal entries are recorded.",
+        }}
+      />
     </div>
   );
 }

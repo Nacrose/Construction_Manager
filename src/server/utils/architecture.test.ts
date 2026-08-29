@@ -132,4 +132,28 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
       expect(secret.length).toBeGreaterThan(0);
     });
   });
+
+  describe("5. Central Security Control Plane Policy Procedures", () => {
+    it("exports declarative security procedure factories", async () => {
+      const trpc = await import("@/server/trpc");
+      expect(trpc.orgAdminProcedure).toBeDefined();
+      expect(trpc.superAdminProcedure).toBeDefined();
+      expect(trpc.projectProcedure).toBeDefined();
+      expect(trpc.financialProcedure).toBeDefined();
+    });
+
+    it("projectProcedure factory returns a callable tRPC procedure with role middleware", async () => {
+      const { projectProcedure } = await import("@/server/trpc");
+      const proc = projectProcedure("write");
+      expect(proc).toBeDefined();
+      expect(typeof proc.input).toBe("function");
+    });
+
+    it("financialProcedure factory accepts valid DelegationActions and returns procedure", async () => {
+      const { financialProcedure } = await import("@/server/trpc");
+      const proc = financialProcedure("record_jv_payout");
+      expect(proc).toBeDefined();
+      expect(typeof proc.input).toBe("function");
+    });
+  });
 });

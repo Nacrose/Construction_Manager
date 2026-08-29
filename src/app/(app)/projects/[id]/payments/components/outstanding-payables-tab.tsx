@@ -1,30 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CreditCard,
   Building2,
   Users,
-  Search,
-  ArrowUpRight,
   AlertCircle,
-  Clock,
-  CheckCircle2,
-  FileText,
   Phone,
 } from "lucide-react";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+type OutstandingPayableItem = {
+  id: string;
+  entityType: "vendor" | "subcontractor" | "staff";
+  entityId: string;
+  entityName: string;
+  entityPan?: string | null;
+  entityPhone?: string | null;
+  billNumber: string;
+  billDate: string | Date;
+  poNumber?: string | null;
+  grossAmount: number;
+  tdsAmount: number;
+  tdsPercent?: number;
+  netPayable: number;
+  paidAmount: number;
+  balanceDue: number;
+  category: string;
+};
 
 interface OutstandingPayablesTabProps {
   projectId: string;
@@ -42,11 +53,10 @@ interface OutstandingPayablesTabProps {
 
 export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayablesTabProps) {
   const [filterType, setFilterType] = useState<"all" | "vendor" | "subcontractor" | "staff">("all");
-  const [search, setSearch] = useState("");
 
   const { data, isLoading } = trpc.projectOps.payment.outstandingPayables.useQuery({ projectId });
 
-  const payables = data?.payables || [];
+  const payables: OutstandingPayableItem[] = (data?.payables || []) as OutstandingPayableItem[];
   const summary = data?.summary || {
     totalVendorDue: 0,
     totalSubcontractorDue: 0,
@@ -56,18 +66,143 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
     totalCount: 0,
   };
 
-  const filtered = payables.filter((p) => {
-    if (filterType !== "all" && p.entityType !== filterType) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const matchName = p.entityName.toLowerCase().includes(q);
-      const matchBill = p.billNumber.toLowerCase().includes(q);
-      const matchPan = p.entityPan?.toLowerCase().includes(q);
-      const matchPo = p.poNumber?.toLowerCase().includes(q);
-      if (!matchName && !matchBill && !matchPan && !matchPo) return false;
-    }
-    return true;
-  });
+  const filtered = useMemo(() => {
+    if (filterType === "all") return payables;
+    return payables.filter((p) => p.entityType === filterType);
+  }, [payables, filterType]);
+
+  const columns: ConstructionTableColumn<OutstandingPayableItem>[] = useMemo(
+    () => [
+      {
+        key: "entityName",
+        header: "Payee / Party",
+        accessor: (r) => r.entityName,
+        sortable: true,
+        render: (_, item) => (
+          <div>
+            <div className="font-semibold text-foreground font-sans text-xs">
+              {item.entityName}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
+              {item.entityPan && (
+                <span className="bg-muted px-1.5 py-0.2 rounded">
+                  PAN: {item.entityPan}
+                </span>
+              )}
+              {item.entityPhone && (
+                <span className="flex items-center gap-0.5">
+                  <Phone className="h-2.5 w-2.5" />
+                  {item.entityPhone}
+                </span>
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "entityType",
+        header: "Type",
+        width: "110px",
+        render: (_, item) =>
+          item.entityType === "vendor" ? (
+            <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300">
+              Supplier
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300">
+              Subcontractor
+            </Badge>
+          ),
+      },
+      {
+        key: "billNumber",
+        header: "Bill Ref / Date",
+        width: "140px",
+        render: (_, item) => {
+          let bsDate = "—";
+          try {
+            bsDate = adToBs(new Date(item.billDate)).formatted;
+          } catch {}
+          return (
+            <div>
+              <div className="font-bold text-foreground text-xs font-mono">{item.billNumber}</div>
+              <div className="text-[10px] text-muted-foreground font-mono">
+                {bsDate} ({format(new Date(item.billDate), "yyyy-MM-dd")})
+              </div>
+              {item.poNumber && <div className="text-[10px] text-primary font-mono">PO: {item.poNumber}</div>}
+            </div>
+          );
+        },
+      },
+      {
+        key: "grossAmount",
+        header: "Gross",
+        align: "right",
+        width: "120px",
+        render: (val) => <span className="text-muted-foreground font-mono">{formatNpr(val)}</span>,
+      },
+      {
+        key: "tdsAmount",
+        header: "TDS",
+        align: "right",
+        width: "100px",
+        render: (val) => <span className="text-muted-foreground font-mono">{formatNpr(val)}</span>,
+      },
+      {
+        key: "netPayable",
+        header: "Net Payable",
+        align: "right",
+        width: "120px",
+        render: (val) => <span className="font-medium text-foreground font-mono">{formatNpr(val)}</span>,
+      },
+      {
+        key: "paidAmount",
+        header: "Paid",
+        align: "right",
+        width: "120px",
+        render: (val) => <span className="text-emerald-600 dark:text-emerald-400 font-mono">{formatNpr(val)}</span>,
+      },
+      {
+        key: "balanceDue",
+        header: "Balance Due",
+        align: "right",
+        width: "130px",
+        render: (val) => (
+          <span className="font-bold text-red-600 dark:text-red-400 text-xs font-mono">
+            {formatNpr(val)}
+          </span>
+        ),
+      },
+      {
+        key: "action",
+        header: "Action",
+        align: "center",
+        width: "100px",
+        render: (_, item) => (
+          <Button
+            size="sm"
+            className="h-7 gap-1 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            onClick={() =>
+              onPayNow({
+                entityType: item.entityType,
+                entityId: item.entityId,
+                entityName: item.entityName,
+                entityPan: item.entityPan,
+                billNumber: item.billNumber,
+                balanceDue: item.balanceDue,
+                tdsAmount: (item.balanceDue * (item.tdsPercent || 1.5)) / 100,
+                category: item.category,
+              })
+            }
+          >
+            <CreditCard className="h-3 w-3" />
+            Pay Now
+          </Button>
+        ),
+      },
+    ],
+    [onPayNow]
+  );
 
   if (isLoading) {
     return (
@@ -83,7 +218,7 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* KPI Top Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Total Outstanding */}
@@ -97,10 +232,10 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
             </Badge>
           </div>
           <div className="mt-2 text-2xl font-bold font-mono text-red-900 dark:text-red-100">
-            NPR {fmt(summary.totalDue)}
+            {formatNpr(summary.totalDue)}
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground font-mono">
-            Unsettled vendor & subcontractor balances
+            Unsettled vendor &amp; subcontractor balances
           </div>
         </div>
 
@@ -115,10 +250,10 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
             </Badge>
           </div>
           <div className="mt-2 text-2xl font-bold font-mono text-amber-900 dark:text-amber-100">
-            NPR {fmt(summary.totalVendorDue)}
+            {formatNpr(summary.totalVendorDue)}
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground font-mono">
-            Cement, rebar, fuel & site supplies
+            Cement, rebar, fuel &amp; site supplies
           </div>
         </div>
 
@@ -133,7 +268,7 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
             </Badge>
           </div>
           <div className="mt-2 text-2xl font-bold font-mono text-indigo-900 dark:text-indigo-100">
-            NPR {fmt(summary.totalSubcontractorDue)}
+            {formatNpr(summary.totalSubcontractorDue)}
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground font-mono">
             Certified bills pending disbursement
@@ -141,9 +276,13 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
         </div>
       </div>
 
-      {/* Filter & Search Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      {/* Filter Tabs & ConstructionTable */}
+      <ConstructionTable<OutstandingPayableItem>
+        data={filtered}
+        columns={columns}
+        searchPlaceholder="Search vendor, subcontractor, bill #, PAN..."
+        searchFilterKeys={["entityName", "billNumber", "entityPan", "poNumber"]}
+        headerActions={
           <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
             <button
               onClick={() => setFilterType("all")}
@@ -173,155 +312,16 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
               Subcontractors ({summary.subBillsCount})
             </button>
           </div>
-        </div>
-
-        <div className="relative w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search vendor, bill #, PAN..."
-            className="pl-8 text-xs h-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Payables Table */}
-      {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-12 text-center">
-          <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500 mb-2" />
-          <p className="text-sm font-semibold text-foreground">All Payables are Settled!</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            There are no outstanding vendor or subcontractor bills awaiting payment for this project.
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b bg-muted/60 font-mono uppercase text-[10px] text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">Payee / Party</th>
-                <th className="px-3 py-3">Type</th>
-                <th className="px-3 py-3">Bill Ref / Date</th>
-                <th className="px-3 py-3 text-right">Gross (NPR)</th>
-                <th className="px-3 py-3 text-right">TDS (1.5%)</th>
-                <th className="px-3 py-3 text-right">Net Payable</th>
-                <th className="px-3 py-3 text-right">Paid</th>
-                <th className="px-4 py-3 text-right">Balance Due</th>
-                <th className="px-4 py-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border font-mono">
-              {filtered.map((item) => {
-                let bsDate = "—";
-                try {
-                  bsDate = adToBs(new Date(item.billDate)).formatted;
-                } catch {}
-
-                return (
-                  <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                    {/* Payee */}
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground font-sans text-sm">
-                        {item.entityName}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
-                        {item.entityPan && (
-                          <span className="bg-muted px-1.5 py-0.2 rounded font-mono text-[10px]">
-                            PAN: {item.entityPan}
-                          </span>
-                        )}
-                        {item.entityPhone && (
-                          <span className="flex items-center gap-0.5">
-                            <Phone className="h-2.5 w-2.5" />
-                            {item.entityPhone}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Type Badge */}
-                    <td className="px-3 py-3">
-                      {item.entityType === "vendor" ? (
-                        <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300">
-                          Supplier
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300">
-                          Subcontractor
-                        </Badge>
-                      )}
-                    </td>
-
-                    {/* Bill Ref & Date */}
-                    <td className="px-3 py-3">
-                      <div className="font-bold text-foreground">
-                        {item.billNumber}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {bsDate} ({format(new Date(item.billDate), "yyyy-MM-dd")})
-                      </div>
-                      {item.poNumber && (
-                        <div className="text-[10px] text-primary">PO: {item.poNumber}</div>
-                      )}
-                    </td>
-
-                    {/* Gross */}
-                    <td className="px-3 py-3 text-right text-muted-foreground">
-                      {fmt(item.grossAmount)}
-                    </td>
-
-                    {/* TDS */}
-                    <td className="px-3 py-3 text-right text-muted-foreground">
-                      {fmt(item.tdsAmount)}
-                    </td>
-
-                    {/* Net Payable */}
-                    <td className="px-3 py-3 text-right font-medium text-foreground">
-                      {fmt(item.netPayable)}
-                    </td>
-
-                    {/* Paid */}
-                    <td className="px-3 py-3 text-right text-emerald-600 dark:text-emerald-400">
-                      {fmt(item.paidAmount)}
-                    </td>
-
-                    {/* Balance Due */}
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-bold text-red-600 dark:text-red-400 text-sm">
-                        NPR {fmt(item.balanceDue)}
-                      </span>
-                    </td>
-
-                    {/* Action button */}
-                    <td className="px-4 py-3 text-center">
-                      <Button
-                        size="sm"
-                        className="h-7 gap-1 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                        onClick={() =>
-                          onPayNow({
-                            entityType: item.entityType,
-                            entityId: item.entityId,
-                            entityName: item.entityName,
-                            entityPan: item.entityPan,
-                            billNumber: item.billNumber,
-                            balanceDue: item.balanceDue,
-                            tdsAmount: (item.balanceDue * (item.tdsPercent || 1.5)) / 100,
-                            category: item.category,
-                          })
-                        }
-                      >
-                        <CreditCard className="h-3 w-3" />
-                        Pay Now
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+        }
+        exportExcel={{
+          filename: `Outstanding_Payables_${format(new Date(), "yyyy-MM-dd")}`,
+          sheetName: "Payables",
+        }}
+        emptyState={{
+          title: "All Payables are Settled!",
+          description: "There are no outstanding vendor or subcontractor bills awaiting payment for this project.",
+        }}
+      />
     </div>
   );
 }

@@ -10,11 +10,10 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, t } from "@/server/trpc";
+import { router, superAdminProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from "@/lib/auth";
-import { setOrgContext } from "@/lib/rls";
 import { ensureSchema } from "@/lib/ensure-schema";
 import { Prisma } from "@prisma/client";
 
@@ -30,34 +29,6 @@ function impersonationMeta(ctx: { user: AuthUser }) {
   }
   return {};
 }
-
-/**
- * Platform-admin procedure. Requires the real superadmin status
- * (`isPlatformAdmin`) AND an admin-kind session (issued only by
- * /api/auth/admin-login). This enforces the separate admin identity plane —
- * superadmins cannot reach the console with a normal user session. Note we
- * check `isPlatformAdmin` (not the effective `isSuperAdmin`) so the console
- * remains usable while a superadmin is impersonating a tenant (they can stop
- * impersonation from here). The console always operates with full
- * cross-tenant (god-view) RLS.
- */
-const superAdminProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
-  }
-  if (!ctx.user.isPlatformAdmin) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Superadmin access required." });
-  }
-  if (ctx.user.sessionKind !== "admin") {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Use the platform admin login to access this area.",
-    });
-  }
-  // Admin console always has full cross-tenant visibility.
-  await setOrgContext(db, "", true);
-  return next({ ctx: { ...ctx, user: ctx.user } });
-});
 
 /** Derive a unique org code from a display name. */
 async function generateOrgCode(name: string): Promise<string> {

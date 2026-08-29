@@ -21,15 +21,9 @@ import {
   Wallet,
   Plus,
   Loader2,
-  CheckCircle2,
-  CreditCard,
-  Building,
 } from "lucide-react";
 import { toast } from "sonner";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatNpr } from "@/lib/currency";
 
 export function OrgBanksTab() {
   const utils = trpc.useUtils();
@@ -61,7 +55,7 @@ export function OrgBanksTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const totalBankBalance = accounts.reduce((s, a) => s + a.currentBalance, 0);
+  const totalBankBalance = accounts.reduce((s, a) => s + (a.currentBalance || 0), 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +88,7 @@ export function OrgBanksTab() {
               Total Company Liquid Balances (कुल नगद तथा बैंक मौज्दात)
             </div>
             <div className="text-2xl font-bold font-mono text-foreground">
-              NPR {fmt(totalBankBalance)}
+              {formatNpr(totalBankBalance)}
             </div>
           </div>
         </div>
@@ -102,7 +96,7 @@ export function OrgBanksTab() {
         <Button
           size="sm"
           onClick={() => setAddOpen(true)}
-          className="gap-1.5 font-semibold text-xs h-9 shadow-sm"
+          className="gap-1.5 font-semibold text-xs h-9 shadow-sm font-mono"
         >
           <Plus className="h-4 w-4" />
           Add Company Bank Account
@@ -120,10 +114,10 @@ export function OrgBanksTab() {
         <div className="rounded-xl border border-dashed p-12 text-center bg-card">
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
           <h3 className="text-base font-bold text-foreground">No Company Bank Accounts Registered</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto font-mono">
             Add your central company bank accounts (e.g. Nabil Bank, Global IME Bank, Head Office Cash) to issue payments and track live balances.
           </p>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="mt-4 gap-1.5 text-xs">
+          <Button size="sm" onClick={() => setAddOpen(true)} className="mt-4 gap-1.5 text-xs font-mono">
             <Plus className="h-4 w-4" />
             Add First Bank Account
           </Button>
@@ -143,11 +137,12 @@ export function OrgBanksTab() {
                         </Badge>
                       )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                    <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
                       {acc.branch ? `${acc.branch} • ` : ""}
                       {acc.accountType.toUpperCase()} A/C
                     </div>
                   </div>
+
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {acc.accountType}
                   </Badge>
@@ -160,7 +155,7 @@ export function OrgBanksTab() {
                   </div>
                   <div className="text-xs flex justify-between items-baseline pt-1">
                     <span className="text-[10px] text-muted-foreground uppercase">Current Balance:</span>
-                    <span className="text-base font-bold text-primary">NPR {fmt(acc.currentBalance)}</span>
+                    <span className="text-base font-bold text-primary">{formatNpr(acc.currentBalance || 0)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -169,12 +164,12 @@ export function OrgBanksTab() {
         </div>
       )}
 
-      {/* Add Bank Account Dialog */}
+      {/* Add Bank Account Dialog with Backdrop Blur */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base text-white">
+              <Building2 className="h-5 w-5 text-emerald-400" />
               Add Company Bank Account
             </DialogTitle>
           </DialogHeader>
@@ -185,7 +180,7 @@ export function OrgBanksTab() {
               <Input
                 required
                 placeholder="e.g. Nabil Bank Ltd / Head Office Petty Cash"
-                className="h-8 text-xs"
+                className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono"
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
               />
@@ -197,7 +192,7 @@ export function OrgBanksTab() {
                 <Input
                   required
                   placeholder="01201017500..."
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                 />
@@ -206,10 +201,10 @@ export function OrgBanksTab() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Account Type</Label>
                 <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
                     <SelectItem value="current">Current Account (चालु)</SelectItem>
                     <SelectItem value="saving">Saving Account (बचत)</SelectItem>
                     <SelectItem value="overdraft">Overdraft / OD</SelectItem>
@@ -224,7 +219,7 @@ export function OrgBanksTab() {
               <Input
                 required
                 placeholder="Company legal title"
-                className="h-8 text-xs"
+                className="h-8 text-xs bg-white/5 border-white/10 text-white"
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
               />
@@ -235,7 +230,7 @@ export function OrgBanksTab() {
                 <Label className="text-xs">Branch (Optional)</Label>
                 <Input
                   placeholder="e.g. Hetauda / New Road"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                 />
@@ -246,18 +241,18 @@ export function OrgBanksTab() {
                 <Input
                   type="number"
                   step="any"
-                  className="h-8 text-xs font-mono"
+                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                   value={openingBalance}
                   onChange={(e) => setOpeningBalance(e.target.value)}
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)}>
+            <DialogFooter className="gap-2 pt-2 border-t border-white/10">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs font-mono">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMutation.isPending}>
+              <Button type="submit" size="sm" disabled={createMutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Bank Account
               </Button>

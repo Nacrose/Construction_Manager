@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, ChevronRight, ChevronDown, Check, X, Loader2, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
+import { formatNpr } from "@/lib/construction-finance";
 
 const UNITS = ["cum", "sqm", "no", "m", "kg", "ton", "set", "lot", "hrs", "bag", "day"];
 
@@ -218,7 +219,6 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
   const eqpTotal = fixed.filter((i) => i.type === "equipment").reduce((s, i) => s + i.amount, 0);
   const ovhTotal = fixed.filter((i) => i.type === "overhead").reduce((s, i) => s + i.amount, 0);
   const totalAll = ingredients.reduce((s, i) => s + i.amount, 0);
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
 
   return (
     <Card>
@@ -282,15 +282,15 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                       <td className="p-2 text-right"><PEdit value={ing.percentage > 0 ? String(ing.percentage) : "0"} type="number" onSave={(v) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, percentage: parseFloat(v) || 0 })} className="w-12 text-right" /></td>
                       <td className="p-2"><select value={ing.unit} onChange={(e) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, unit: e.target.value })} className="h-7 w-16 rounded border bg-background px-1 text-xs">{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select></td>
                       <td className="p-2 text-right"><PEdit value={String(ing.rate)} type="number" onSave={(v) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, rate: parseFloat(v) || 0 })} className="w-24 text-right" /></td>
-                      <td className="p-2 text-right font-medium">{fmt(ing.amount)}</td>
+                      <td className="p-2 text-right font-medium">{formatNpr(ing.amount)}</td>
                       <td className="p-2"><button onClick={() => deleteMutation.mutate({ presetId: preset.id, ingredientId: ing.id })} className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X className="h-3 w-3" /></button></td>
                     </tr>
                   );
                 })}
-                {matTotal > 0 && <tr key="sub-mat" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Materials:</td><td className="p-2 text-right font-medium">{fmt(matTotal)}</td><td></td></tr>}
-                {labTotal > 0 && <tr key="sub-lab" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Labor:</td><td className="p-2 text-right font-medium">{fmt(labTotal)}</td><td></td></tr>}
-                {eqpTotal > 0 && <tr key="sub-eqp" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Equipment:</td><td className="p-2 text-right font-medium">{fmt(eqpTotal)}</td><td></td></tr>}
-                {ovhTotal > 0 && <tr key="sub-ovh" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Overhead:</td><td className="p-2 text-right font-medium">{fmt(ovhTotal)}</td><td></td></tr>}
+                {matTotal > 0 && <tr key="sub-mat" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Materials:</td><td className="p-2 text-right font-medium">{formatNpr(matTotal)}</td><td></td></tr>}
+                {labTotal > 0 && <tr key="sub-lab" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Labor:</td><td className="p-2 text-right font-medium">{formatNpr(labTotal)}</td><td></td></tr>}
+                {eqpTotal > 0 && <tr key="sub-eqp" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Equipment:</td><td className="p-2 text-right font-medium">{formatNpr(eqpTotal)}</td><td></td></tr>}
+                {ovhTotal > 0 && <tr key="sub-ovh" className="bg-muted/5"><td colSpan={6} className="p-2 text-right text-muted-foreground">Overhead:</td><td className="p-2 text-right font-medium">{formatNpr(ovhTotal)}</td><td></td></tr>}
                 {pct.map((ing) => (
                   <tr key={ing.id} className="border-b bg-amber-50/30 dark:bg-amber-950/10">
                     <td className="p-2"><PEdit value={ing.name} onSave={(v) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, name: v })} className="w-28" /></td>
@@ -298,7 +298,7 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                     <td className="p-2"></td>
                     <td className="p-2 text-right"><PEdit value={String(ing.percentage)} type="number" onSave={(v) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, percentage: parseFloat(v) || 0 })} className="w-12 text-right" /></td>
                     <td className="p-2" colSpan={2}><select value={ing.pctBase} onChange={(e) => updateMutation.mutate({ presetId: preset.id, ingredientId: ing.id, pctBase: e.target.value })} className="h-7 w-full rounded border bg-background px-1 text-xs">{Object.entries(PCT_BASE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></td>
-                    <td className="p-2 text-right font-medium text-amber-700">{fmt(ing.amount)}</td>
+                    <td className="p-2 text-right font-medium text-amber-700">{formatNpr(ing.amount)}</td>
                     <td className="p-2"><button onClick={() => deleteMutation.mutate({ presetId: preset.id, ingredientId: ing.id })} className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X className="h-3 w-3" /></button></td>
                   </tr>
                 ))}
@@ -312,7 +312,7 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                         <td className="p-2"><input value={newPct} onChange={(e) => setNewPct(e.target.value)} type="text" inputMode="decimal" placeholder="0" className="h-7 w-12 rounded border bg-background px-1 text-right text-xs" /></td>
                         <td className="p-2"><select value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className="h-7 w-16 rounded border bg-background px-1 text-xs">{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select></td>
                         <td className="p-2"><input value={newRate} onChange={(e) => setNewRate(e.target.value)} type="text" inputMode="decimal" placeholder="0" className="h-7 w-24 rounded border bg-background px-1 text-right text-xs" /></td>
-                        <td className="p-2 text-right text-muted-foreground">NPR {((parseFloat(newQty) || 0) * (1 + (parseFloat(newPct) || 0) / 100) * (parseFloat(newRate) || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-right text-muted-foreground">NPR {formatNpr(((parseFloat(newQty) || 0) * (1 + (parseFloat(newPct) || 0) / 100) * (parseFloat(newRate) || 0)))}</td>
                       </>
                     ) : (
                       <>
@@ -343,7 +343,7 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                 <tfoot>
                   <tr className="border-t-2 bg-emerald-50 dark:bg-emerald-950/30 font-bold">
                     <td colSpan={6} className="p-2 text-right">Total:</td>
-                    <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">NPR {fmt(totalAll)}</td>
+                    <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">NPR {formatNpr(totalAll)}</td>
                     <td></td>
                   </tr>
                 </tfoot>

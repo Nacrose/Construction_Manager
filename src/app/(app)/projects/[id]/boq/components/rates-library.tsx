@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { UNITS } from "../types";
 import { InlineEdit } from "./inline-edit";
+import { formatNpr } from "@/lib/currency";
 
 const DISCIPLINE_TAGS = [
   "Civil & Concrete",
@@ -355,7 +356,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
                                 <td className="p-2.5 text-right font-mono font-bold text-emerald-600">
                                   {canWrite ? (
                                     <InlineEdit value={item.rate.toString()} onSave={(v) => updateItem.mutate({ projectId, profileId: selectedProfile, itemId: item.id, rate: parseFloat(v) || 0 })} className="w-24 text-right" />
-                                  ) : `NPR ${item.rate.toLocaleString()}`}
+                                  ) : formatNpr(item.rate)}
                                 </td>
                                 {canWrite && (
                                   <td className="p-2.5 text-center">

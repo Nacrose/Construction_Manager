@@ -1,19 +1,11 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Plus, Search, Mail, Clock, Send, AlertTriangle, CheckCircle2,
-  Loader2, FileText, Inbox, ArrowDownLeft, ArrowUpRight,
+  Plus, Mail, FileText, AlertTriangle, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -22,6 +14,8 @@ import { CATEGORIES, CATEGORY_COLORS } from "./components/constants";
 import { StatCard } from "./components/stat-card";
 import { LogLetterDialog } from "./components/log-letter-dialog";
 import { LetterDetailDialog } from "./components/letter-detail-dialog";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const WF_TABS = [
   { label: "RFIs", href: "/workflow/rfi" },
@@ -31,42 +25,133 @@ const WF_TABS = [
   { label: "Meetings", href: "/meetings" },
 ];
 
-const REPLY_STATUS_CONFIG = {
-  not_started: { label: "Not Started", icon: Clock, color: "text-slate-500", bg: "bg-slate-100 dark:bg-slate-800" },
-  in_progress: { label: "In Progress", icon: Loader2, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-950" },
-  drafted: { label: "Drafted", icon: FileText, color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-950" },
-  sent: { label: "Sent", icon: Send, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-950" },
-  closed: { label: "Closed", icon: CheckCircle2, color: "text-slate-400", bg: "bg-slate-100 dark:bg-slate-800" },
+type CorrespondenceLetter = {
+  id: string;
+  direction: string;
+  ourRef?: string | null;
+  theirRef?: string | null;
+  subject: string;
+  fromName?: string | null;
+  fromParty?: string | null;
+  category: string;
+  letterType: string;
+  replyStatus: string;
+  replyDueDate?: Date | string | null;
+  date: Date | string;
 };
 
 export default function CorrespondencePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const utils = trpc.useUtils();
 
-  const [search, setSearch] = useState("");
-  const [filterDirection, setFilterDirection] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterOverdue, setFilterOverdue] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const { data, isLoading } = trpc.correspondence.list.useQuery({
     projectId: id,
-    direction: filterDirection === "all" ? undefined : filterDirection,
-    replyStatus: filterStatus === "all" ? undefined : filterStatus,
-    category: filterCategory === "all" ? undefined : filterCategory,
-    q: search || undefined,
-    overdue: filterOverdue || undefined,
   });
 
   const { data: statsData } = trpc.correspondence.stats.useQuery({ projectId: id });
-  const letters = data?.letters ?? [];
+  const letters = (data?.letters ?? []) as CorrespondenceLetter[];
+
+  const columns: ConstructionTableColumn<CorrespondenceLetter>[] = useMemo(
+    () => [
+      {
+        key: "direction",
+        header: "Dir",
+        width: "50px",
+        align: "center",
+        render: (val) =>
+          val === "incoming" ? (
+            <span className="inline-flex items-center text-blue-400 font-mono text-xs" title="Incoming">
+              <ArrowDownLeft className="h-4 w-4" />
+            </span>
+          ) : (
+            <span className="inline-flex items-center text-emerald-400 font-mono text-xs" title="Outgoing">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          ),
+      },
+      {
+        key: "ourRef",
+        header: "Ref No.",
+        width: "130px",
+        sortable: true,
+        render: (val, r) => (
+          <div>
+            <span className="font-mono font-bold text-primary text-xs">{val || r.theirRef || "—"}</span>
+            {val && r.theirRef && (
+              <span className="block text-[10px] text-muted-foreground font-mono">
+                Ext: {r.theirRef}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "subject",
+        header: "Subject",
+        sortable: true,
+        render: (val) => <span className="font-medium text-foreground text-xs">{val}</span>,
+      },
+      {
+        key: "fromName",
+        header: "From / To Party",
+        width: "160px",
+        render: (val, r) => (
+          <span className="text-muted-foreground text-xs">
+            {val || r.fromParty || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "category",
+        header: "Category",
+        width: "110px",
+        render: (val) => (
+          <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase font-mono", CATEGORY_COLORS[String(val)] ?? "bg-slate-800 text-slate-300")}>
+            {CATEGORIES.find((c) => c.value === val)?.label ?? val}
+          </span>
+        ),
+      },
+      {
+        key: "replyStatus",
+        header: "Reply Status",
+        width: "130px",
+        render: (val) => <StatusBadge status={val} />,
+      },
+      {
+        key: "replyDueDate",
+        header: "Due Date",
+        width: "110px",
+        render: (val, r) => {
+          if (!val) return <span className="text-muted-foreground font-mono text-xs">—</span>;
+          const isOverdue = new Date(val) < new Date() && (r.replyStatus === "not_started" || r.replyStatus === "in_progress");
+          return (
+            <span className={cn("font-mono text-xs", isOverdue ? "text-red-400 font-bold" : "text-muted-foreground")}>
+              {format(new Date(val), "dd MMM yyyy")} {isOverdue && "⚠️"}
+            </span>
+          );
+        },
+      },
+      {
+        key: "date",
+        header: "Letter Date",
+        width: "120px",
+        render: (val) => (
+          <span className="text-muted-foreground font-mono text-xs">
+            {format(new Date(val), "dd MMM yyyy")}
+          </span>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <>
       <ModuleTabs projectId={id} tabs={WF_TABS} />
-      <div className="space-y-4 pb-8">
+      <div className="space-y-4 pb-8 font-sans">
         {/* Stats bar */}
         {statsData && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -78,149 +163,61 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* Single-Row Action & Filter Toolbar */}
+        {/* Action Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search subject, ref, from..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
-            </div>
-            <Select value={filterDirection} onValueChange={setFilterDirection}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Types</SelectItem><SelectItem value="incoming">Incoming</SelectItem><SelectItem value="outgoing">Outgoing</SelectItem></SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="not_started">Not Started</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="drafted">Drafted</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="qc">QC</SelectItem>
-                <SelectItem value="design">Design</SelectItem>
-                <SelectItem value="site">Site</SelectItem>
-                <SelectItem value="account">Account</SelectItem>
-                <SelectItem value="contract">Contract</SelectItem>
-                <SelectItem value="safety">Safety</SelectItem>
-                <SelectItem value="procurement">Procurement</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+            <Mail className="h-4 w-4 text-emerald-400" />
+            <span>Official Site Correspondence &amp; Notices</span>
           </div>
 
           <Dialog open={logOpen} onOpenChange={setLogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
-                <Plus className="h-3.5 w-3.5" /> + Log Letter
+              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-mono">
+                <Plus className="h-3.5 w-3.5" /> Log Letter
               </Button>
             </DialogTrigger>
-            <LogLetterDialog projectId={id} onDone={() => { setLogOpen(false); utils.correspondence.list.invalidate({ projectId: id }); utils.correspondence.stats.invalidate({ projectId: id }); }} />
+            <LogLetterDialog
+              projectId={id}
+              onDone={() => {
+                setLogOpen(false);
+                utils.correspondence.list.invalidate({ projectId: id });
+                utils.correspondence.stats.invalidate({ projectId: id });
+              }}
+            />
           </Dialog>
         </div>
 
-      {/* Letter list */}
-      {isLoading ? (
-        <Skeleton className="h-96" />
-      ) : letters.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Inbox className="h-12 w-12 text-muted-foreground/40 mb-3" />
-            <p className="text-sm font-medium text-muted-foreground">No letters logged</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">Click "Log Letter" to start tracking correspondence.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/30">
-              <tr>
-                <th className="p-2 text-left font-medium text-muted-foreground">Dir</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Our Ref</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Their Ref</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Subject</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">From</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Category</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Type</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Reply Status</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Due</th>
-                <th className="p-2 text-left font-medium text-muted-foreground">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {letters.map((l) => {
-                const isOverdue = l.replyDueDate && new Date(l.replyDueDate) < new Date() && (l.replyStatus === "not_started" || l.replyStatus === "in_progress");
-                const replyCfg = REPLY_STATUS_CONFIG[l.replyStatus as keyof typeof REPLY_STATUS_CONFIG] ?? REPLY_STATUS_CONFIG.not_started;
-                const ReplyIcon = replyCfg.icon;
-                return (
-                  <tr key={l.id} className="border-t hover:bg-muted/20 cursor-pointer" onClick={() => setDetailId(l.id)}>
-                    <td className="p-2">
-                      {l.direction === "incoming" ? (
-                        <ArrowDownLeft className="h-3.5 w-3.5 text-blue-600" />
-                      ) : (
-                        <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
-                      )}
-                    </td>
-                    <td className="p-2 font-mono text-[10px]">{l.ourRef ?? "—"}</td>
-                    <td className="p-2 font-mono text-[10px] text-muted-foreground">{l.theirRef ?? "—"}</td>
-                    <td className="p-2 max-w-48 truncate font-medium">{l.subject}</td>
-                    <td className="p-2 text-muted-foreground">{l.fromName ?? l.fromParty ?? "—"}</td>
-                    <td className="p-2">
-                      <span className={cn("rounded px-1 text-[9px] font-medium uppercase", CATEGORY_COLORS[l.category])}>
-                        {CATEGORIES.find(c => c.value === l.category)?.label ?? l.category}
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      {l.letterType === "actionable" ? (
-                        <span className="text-amber-600 font-medium text-[9px]">⚡ Action</span>
-                      ) : (
-                        <span className="text-slate-400 text-[9px]">ℹ Info</span>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      <span className={cn("inline-flex items-center gap-0.5 rounded px-1 text-[9px] font-medium", replyCfg.bg, replyCfg.color)}>
-                        <ReplyIcon className="h-2 w-2" /> {replyCfg.label}
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      {l.replyDueDate ? (
-                        <span className={cn("text-[10px]", isOverdue ? "text-red-600 font-bold" : "text-muted-foreground")}>
-                          {format(new Date(l.replyDueDate), "dd MMM")}
-                          {isOverdue && " ⚠"}
-                        </span>
-                      ) : "—"}
-                    </td>
-                    <td className="p-2 text-[10px] text-muted-foreground">{format(new Date(l.date), "dd MMM yy")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Detail dialog */}
-      {detailId && (
-        <LetterDetailDialog
-          letterId={detailId}
-          projectId={id}
-          onClose={() => setDetailId(null)}
-          onUpdated={() => {
-            utils.correspondence.list.invalidate({ projectId: id });
-            utils.correspondence.stats.invalidate({ projectId: id });
+        {/* ConstructionTable Integration */}
+        <ConstructionTable<CorrespondenceLetter>
+          data={letters}
+          columns={columns}
+          isLoading={isLoading}
+          searchPlaceholder="Search ref number, subject, party..."
+          searchFilterKeys={["ourRef", "theirRef", "subject", "fromName", "fromParty", "category"]}
+          onRowClick={(row) => setDetailId(row.id)}
+          exportExcel={{
+            filename: `Correspondence_Register_${format(new Date(), "yyyy-MM-dd")}`,
+            sheetName: "Correspondence",
+          }}
+          emptyState={{
+            title: "No Correspondence Logged",
+            description: "Log official incoming and outgoing contractual letters, notices, and client communications.",
           }}
         />
-      )}
+
+        {/* Detail dialog */}
+        {detailId && (
+          <LetterDetailDialog
+            letterId={detailId}
+            projectId={id}
+            onClose={() => setDetailId(null)}
+            onUpdated={() => {
+              utils.correspondence.list.invalidate({ projectId: id });
+              utils.correspondence.stats.invalidate({ projectId: id });
+            }}
+          />
+        )}
       </div>
     </>
   );
 }
-
-

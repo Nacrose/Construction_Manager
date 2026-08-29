@@ -4,20 +4,9 @@ import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ShieldAlert, CalendarClock, ArrowRight, Building2 } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtShort(n: number) {
-  if (Math.abs(n) >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (Math.abs(n) >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  return `Rs. ${fmt(n)}`;
-}
+import { formatNpr } from "@/lib/currency";
 
 export function GuaranteesAlertCard() {
   const { data, isLoading } = trpc.bankGuarantee.portfolioAlerts.useQuery(undefined, {
@@ -35,7 +24,7 @@ export function GuaranteesAlertCard() {
   }
 
   return (
-    <Card className="border-red-300 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20 shadow-md overflow-hidden">
+    <Card className="border-red-300 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20 shadow-md overflow-hidden font-sans">
       <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -82,7 +71,7 @@ export function GuaranteesAlertCard() {
                   <div className="font-bold text-foreground mt-1 truncate">
                     {g.guaranteeNumber}
                   </div>
-                  <div className="text-[11px] text-muted-foreground truncate">
+                  <div className="text-[11px] text-muted-foreground truncate font-mono">
                     {g.issuingBank} • {g.type.replace(/_/g, " ").toUpperCase()}
                   </div>
                 </div>
@@ -90,7 +79,7 @@ export function GuaranteesAlertCard() {
                 <div className="pt-2 border-t flex items-center justify-between font-mono">
                   <div>
                     <div className="text-[9px] text-muted-foreground uppercase">Value</div>
-                    <div className="font-bold text-foreground">{fmtShort(g.amount)}</div>
+                    <div className="font-bold text-foreground">{formatNpr(g.amount)}</div>
                   </div>
                   <Button asChild size="sm" variant="ghost" className="h-6 px-2 text-xs font-sans text-primary">
                     <Link href={`/projects/${g.projectId}/guarantees`}>

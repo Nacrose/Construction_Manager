@@ -1,10 +1,8 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
 import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -12,11 +10,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  TrendingUp, TrendingDown, Wallet, Calendar, Download, Loader2,
+  TrendingUp, TrendingDown, Wallet, Calendar, Loader2,
 } from "lucide-react";
 import { AnimatedPage } from "@/components/ui/animated-page";
-import { toast } from "sonner";
 import { ModuleTabs } from "@/components/module-tabs";
+import { formatNpr } from "@/lib/currency";
 
 const FIN_TABS = [
   { label: "Payments", href: "/payments" },
@@ -26,10 +24,6 @@ const FIN_TABS = [
   { label: "Cash Flow", href: "/cash-flow" },
   { label: "Budget vs Actual", href: "/budget-variance" },
 ];
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
 
 export default function CashFlowPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -51,10 +45,10 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-mono">Period:</span>
             <Select value={String(months)} onValueChange={(v) => setMonths(parseInt(v))}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl">
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl font-mono">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs font-mono">
                 <SelectItem value="6">6 months</SelectItem>
                 <SelectItem value="12">12 months</SelectItem>
                 <SelectItem value="18">18 months</SelectItem>
@@ -69,19 +63,19 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : !data ? (
-        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
+        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground font-mono">
           No data available.
         </CardContent></Card>
       ) : (
         <>
           {/* Totals */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 font-mono">
             <Card className="p-4">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3 w-3" /> Total Planned
               </p>
               <p className="mt-1 text-lg font-semibold text-blue-600">
-                NPR {fmt(data.totals.totalPlanned)}
+                {formatNpr(data.totals.totalPlanned)}
               </p>
             </Card>
             <Card className="p-4">
@@ -89,7 +83,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                 <TrendingDown className="h-3 w-3" /> Total Actual Costs
               </p>
               <p className="mt-1 text-lg font-semibold text-amber-600">
-                NPR {fmt(data.totals.totalActual)}
+                {formatNpr(data.totals.totalActual)}
               </p>
             </Card>
             <Card className="p-4">
@@ -97,7 +91,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                 <Wallet className="h-3 w-3" /> Total IPC Paid
               </p>
               <p className="mt-1 text-lg font-semibold text-purple-600">
-                NPR {fmt(data.totals.totalIpcPaid)}
+                {formatNpr(data.totals.totalIpcPaid)}
               </p>
             </Card>
             <Card className="p-4 border-emerald-300 dark:border-emerald-800 bg-emerald-50/20">
@@ -109,7 +103,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                   ? "text-emerald-600"
                   : "text-red-600"
               }`}>
-                NPR {fmt(data.totals.totalPlanned - data.totals.totalActual)}
+                {formatNpr(data.totals.totalPlanned - data.totals.totalActual)}
               </p>
             </Card>
           </div>
@@ -117,7 +111,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
           {/* Chart — simple bar chart with CSS */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Monthly Cash Flow</CardTitle>
+              <CardTitle className="text-base font-mono">Monthly Cash Flow</CardTitle>
             </CardHeader>
             <CardContent>
               <CashFlowChart months={data.months} />
@@ -127,7 +121,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
           {/* Cumulative S-curve */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Cumulative S-Curve</CardTitle>
+              <CardTitle className="text-base font-mono">Cumulative S-Curve</CardTitle>
             </CardHeader>
             <CardContent>
               <CumulativeChart months={data.months} />
@@ -137,12 +131,12 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
           {/* Monthly table */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Monthly Breakdown</CardTitle>
+              <CardTitle className="text-base font-mono">Monthly Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="font-mono text-xs">
                     <TableHead>Month</TableHead>
                     <TableHead className="text-right">Planned</TableHead>
                     <TableHead className="text-right">Actual Costs</TableHead>
@@ -154,14 +148,14 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                 </TableHeader>
                 <TableBody>
                   {data.months.map((m) => (
-                    <TableRow key={m.month}>
+                    <TableRow key={m.month} className="font-mono text-xs">
                       <TableCell className="font-medium">{m.label}</TableCell>
-                      <TableCell className="text-right font-mono text-blue-600">{fmt(m.plannedCost)}</TableCell>
-                      <TableCell className="text-right font-mono text-amber-600">{fmt(m.actualCost)}</TableCell>
-                      <TableCell className="text-right font-mono text-purple-600">{fmt(m.ipcPaid)}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold">{fmt(m.netCashFlow)}</TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">{fmt(m.cumulativePlanned)}</TableCell>
-                      <TableCell className="text-right font-mono text-muted-foreground">{fmt(m.cumulativeActual)}</TableCell>
+                      <TableCell className="text-right text-blue-600">{formatNpr(m.plannedCost)}</TableCell>
+                      <TableCell className="text-right text-amber-600">{formatNpr(m.actualCost)}</TableCell>
+                      <TableCell className="text-right text-purple-600">{formatNpr(m.ipcPaid)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatNpr(m.netCashFlow)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatNpr(m.cumulativePlanned)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatNpr(m.cumulativeActual)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -186,7 +180,7 @@ function CashFlowChart({ months }: { months: Array<{ label: string; plannedCost:
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-mono">
       {/* Legend */}
       <div className="flex gap-4 text-xs">
         <span className="flex items-center gap-1">
@@ -209,19 +203,19 @@ function CashFlowChart({ months }: { months: Array<{ label: string; plannedCost:
               <div
                 className="w-1/3 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors"
                 style={{ height: `${(m.plannedCost / maxVal) * 100}%`, minHeight: m.plannedCost > 0 ? "2px" : "0" }}
-                title={`Planned: NPR ${fmt(m.plannedCost)}`}
+                title={`Planned: ${formatNpr(m.plannedCost)}`}
               />
               {/* Actual */}
               <div
                 className="w-1/3 bg-amber-500 rounded-t hover:bg-amber-600 transition-colors"
                 style={{ height: `${(m.actualCost / maxVal) * 100}%`, minHeight: m.actualCost > 0 ? "2px" : "0" }}
-                title={`Actual: NPR ${fmt(m.actualCost)}`}
+                title={`Actual: ${formatNpr(m.actualCost)}`}
               />
               {/* IPC Paid */}
               <div
                 className="w-1/3 bg-purple-500 rounded-t hover:bg-purple-600 transition-colors"
                 style={{ height: `${(m.ipcPaid / maxVal) * 100}%`, minHeight: m.ipcPaid > 0 ? "2px" : "0" }}
-                title={`IPC Paid: NPR ${fmt(m.ipcPaid)}`}
+                title={`IPC Paid: ${formatNpr(m.ipcPaid)}`}
               />
             </div>
           </div>
@@ -265,7 +259,7 @@ function CumulativeChart({ months }: { months: Array<{ label: string; cumulative
   const actualPath = actualPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-mono">
       <div className="flex gap-4 text-xs">
         <span className="flex items-center gap-1">
           <span className="h-0.5 w-4 bg-blue-500" /> Cumulative Planned

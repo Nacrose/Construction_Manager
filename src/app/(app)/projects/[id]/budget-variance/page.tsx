@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
 import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +8,12 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  TrendingUp, TrendingDown, Scale, AlertTriangle, CheckCircle2, Loader2, ChevronDown, ChevronRight,
+  TrendingUp, TrendingDown, CheckCircle2, Loader2, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
+import { formatNpr } from "@/lib/currency";
 
 const FIN_TABS = [
   { label: "Payments", href: "/payments" },
@@ -23,10 +23,6 @@ const FIN_TABS = [
   { label: "Cash Flow", href: "/cash-flow" },
   { label: "Budget vs Actual", href: "/budget-variance" },
 ];
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export default function BudgetVariancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -59,17 +55,17 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
       ) : (
         <>
           {/* Totals */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 font-mono">
             <Card className="p-4">
-              <p className="text-xs text-muted-foreground">Total Budget</p>
+              <p className="text-xs text-muted-foreground uppercase">Total Budget</p>
               <p className="mt-1 text-lg font-semibold text-blue-600">
-                NPR {fmt(data.totals.totalBudget)}
+                {formatNpr(data.totals.totalBudget)}
               </p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-muted-foreground">Total Actual</p>
+              <p className="text-xs text-muted-foreground uppercase">Total Actual</p>
               <p className="mt-1 text-lg font-semibold text-amber-600">
-                NPR {fmt(data.totals.totalActual)}
+                {formatNpr(data.totals.totalActual)}
               </p>
             </Card>
             <Card className={cn(
@@ -78,19 +74,19 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                 ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/20"
                 : "border-red-300 dark:border-red-800 bg-red-50/20"
             )}>
-              <p className="text-xs text-muted-foreground">Variance</p>
+              <p className="text-xs text-muted-foreground uppercase">Variance</p>
               <p className={cn(
                 "mt-1 text-lg font-bold",
                 data.totals.totalVariance >= 0 ? "text-emerald-600" : "text-red-600"
               )}>
-                {data.totals.totalVariance >= 0 ? "+" : ""}NPR {fmt(data.totals.totalVariance)}
+                {data.totals.totalVariance >= 0 ? "+" : ""}{formatNpr(data.totals.totalVariance)}
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground font-sans">
                 ({data.totals.totalVariance >= 0 ? "under budget" : "over budget"})
               </p>
             </Card>
             <Card className="p-4">
-              <p className="text-xs text-muted-foreground">Variance %</p>
+              <p className="text-xs text-muted-foreground uppercase">Variance %</p>
               <p className={cn(
                 "mt-1 text-lg font-bold",
                 data.totals.totalVariancePercent >= 0 ? "text-emerald-600" : "text-red-600"
@@ -107,12 +103,12 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
           {/* Section summary */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Variance by Section</CardTitle>
+              <CardTitle className="text-base font-mono">Variance by Section</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="font-mono text-xs">
                     <TableHead>Section</TableHead>
                     <TableHead className="text-right">Budget</TableHead>
                     <TableHead className="text-right">Actual</TableHead>
@@ -124,32 +120,32 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                 <TableBody>
                   {data.sections.map((s) => (
                     <TableRow key={s.section}>
-                      <TableCell className="font-medium">{s.section}</TableCell>
-                      <TableCell className="text-right font-mono text-blue-600">{fmt(s.budgetAmount)}</TableCell>
-                      <TableCell className="text-right font-mono text-amber-600">{fmt(s.actualAmount)}</TableCell>
+                      <TableCell className="font-medium text-xs">{s.section}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-blue-600">{formatNpr(s.budgetAmount)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-amber-600">{formatNpr(s.actualAmount)}</TableCell>
                       <TableCell className={cn(
-                        "text-right font-mono font-semibold",
+                        "text-right font-mono text-xs font-semibold",
                         s.variance >= 0 ? "text-emerald-600" : "text-red-600"
                       )}>
-                        {s.variance >= 0 ? "+" : ""}{fmt(s.variance)}
+                        {s.variance >= 0 ? "+" : ""}{formatNpr(s.variance)}
                       </TableCell>
                       <TableCell className={cn(
-                        "text-right font-mono",
+                        "text-right font-mono text-xs",
                         s.variancePercent >= 0 ? "text-emerald-600" : "text-red-600"
                       )}>
                         {s.variancePercent >= 0 ? "+" : ""}{s.variancePercent.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-center">
                         {s.variance > 0 ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px]">
                             <TrendingUp className="h-3 w-3 mr-1" /> Under
                           </Badge>
                         ) : s.variance < 0 ? (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 text-[10px]">
                             <TrendingDown className="h-3 w-3 mr-1" /> Over
                           </Badge>
                         ) : (
-                          <Badge variant="outline">
+                          <Badge variant="outline" className="text-[10px]">
                             <CheckCircle2 className="h-3 w-3 mr-1" /> On Track
                           </Badge>
                         )}
@@ -164,7 +160,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
           {/* Detailed item-level breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Item-Level Breakdown</CardTitle>
+              <CardTitle className="text-base font-mono">Item-Level Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
@@ -181,23 +177,23 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
                       <span className="font-medium text-sm flex-1">{section.section}</span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground font-mono">
                         {section.items.length} items
                       </span>
                       <span className={cn(
                         "text-xs font-mono font-semibold",
                         section.variance >= 0 ? "text-emerald-600" : "text-red-600"
                       )}>
-                        {section.variance >= 0 ? "+" : ""}{fmt(section.variance)}
+                        {section.variance >= 0 ? "+" : ""}{formatNpr(section.variance)}
                       </span>
                     </button>
 
                     {/* Items — only show when expanded */}
                     {expandedSections.has(section.section) && (
-                      <div className="ml-6 mb-2">
+                      <div className="ml-6 mb-2 overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow>
+                            <TableRow className="font-mono text-xs">
                               <TableHead className="text-xs">Code</TableHead>
                               <TableHead className="text-xs">Description</TableHead>
                               <TableHead className="text-right text-xs">Budget Qty</TableHead>
@@ -212,17 +208,17 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                             {section.items.map((item) => (
                               <TableRow key={item.boqItemId}>
                                 <TableCell className="text-xs font-mono">{item.code}</TableCell>
-                                <TableCell className="text-xs">{item.description}</TableCell>
+                                <TableCell className="text-xs font-sans">{item.description}</TableCell>
                                 <TableCell className="text-right text-xs font-mono">{item.budgetQty} {item.unit}</TableCell>
                                 <TableCell className="text-right text-xs font-mono">{item.actualQty} {item.unit}</TableCell>
-                                <TableCell className="text-right text-xs font-mono">{fmt(item.rate)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono text-blue-600">{fmt(item.budgetAmount)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono text-amber-600">{fmt(item.actualAmount)}</TableCell>
+                                <TableCell className="text-right text-xs font-mono">{formatNpr(item.rate)}</TableCell>
+                                <TableCell className="text-right text-xs font-mono text-blue-600">{formatNpr(item.budgetAmount)}</TableCell>
+                                <TableCell className="text-right text-xs font-mono text-amber-600">{formatNpr(item.actualAmount)}</TableCell>
                                 <TableCell className={cn(
                                   "text-right text-xs font-mono font-semibold",
                                   item.variance >= 0 ? "text-emerald-600" : "text-red-600"
                                 )}>
-                                  {item.variance >= 0 ? "+" : ""}{fmt(item.variance)}
+                                  {item.variance >= 0 ? "+" : ""}{formatNpr(item.variance)}
                                 </TableCell>
                               </TableRow>
                             ))}

@@ -14,16 +14,10 @@ import {
   FolderTree,
   Search,
   Download,
-  Printer,
-  FileText,
-  CreditCard,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatNpr } from "@/lib/currency";
 
 export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   const [searchAccount, setSearchAccount] = useState("");
@@ -126,14 +120,14 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search party or account..."
-            className="pl-8 h-8 text-xs bg-[#121820] text-white border-white/10"
+            className="pl-8 h-8 text-xs bg-[#121820] text-white border-white/10 font-mono"
             value={searchAccount}
             onChange={(e) => setSearchAccount(e.target.value)}
           />
         </div>
 
         {/* Category Pill Filters */}
-        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-white/5 text-[11px] font-medium">
+        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-white/5 text-[11px] font-medium font-mono">
           <button
             type="button"
             onClick={() => setCategoryFilter("all")}
@@ -212,7 +206,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
               >
                 <div className="space-y-0.5 overflow-hidden pr-2">
                   <div className="font-semibold text-foreground truncate">{acc.name}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{acc.group}</div>
+                  <div className="text-[10px] text-muted-foreground truncate font-mono">{acc.group}</div>
                 </div>
                 {acc.type === "vendor" ? (
                   <Building2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -238,7 +232,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-foreground">{activeAccount.name}</h3>
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-[10px] font-mono">
                     {activeAccount.group}
                   </Badge>
                 </div>
@@ -252,7 +246,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                 <div className="text-right font-mono">
                   <div className="text-[10px] uppercase text-muted-foreground">Current Balance</div>
                   <div className="text-sm font-bold text-foreground">
-                    NPR {fmt(Math.abs(closingBalance))} {closingBalance >= 0 ? "(Cr)" : "(Dr)"}
+                    {formatNpr(Math.abs(closingBalance))} {closingBalance >= 0 ? "(Cr)" : "(Dr)"}
                   </div>
                 </div>
                 <Button
@@ -273,7 +267,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                 <Skeleton className="h-40 w-full rounded-xl" />
               </div>
             ) : transactions.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-xs">
+              <div className="p-12 text-center text-muted-foreground text-xs font-mono">
                 No transactions recorded for this account yet.
               </div>
             ) : (
@@ -302,10 +296,10 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                         <td className="px-3 py-2 text-primary font-bold">{t.voucherNo}</td>
                         <td className="px-3 py-2">{t.voucherType}</td>
                         <td className="px-4 py-2 font-sans text-foreground">{t.particulars}</td>
-                        <td className="px-3 py-2 text-right">{t.debit > 0 ? fmt(t.debit) : "—"}</td>
-                        <td className="px-3 py-2 text-right">{t.credit > 0 ? fmt(t.credit) : "—"}</td>
+                        <td className="px-3 py-2 text-right">{t.debit > 0 ? formatNpr(t.debit) : "—"}</td>
+                        <td className="px-3 py-2 text-right">{t.credit > 0 ? formatNpr(t.credit) : "—"}</td>
                         <td className="px-3 py-2 text-right font-bold">
-                          {fmt(Math.abs(t.runningBalance))}
+                          {formatNpr(Math.abs(t.runningBalance))}
                         </td>
                       </tr>
                     ))}
@@ -316,13 +310,13 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                         Account Total
                       </td>
                       <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                        NPR {fmt(totalDebit)}
+                        {formatNpr(totalDebit)}
                       </td>
                       <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                        NPR {fmt(totalCredit)}
+                        {formatNpr(totalCredit)}
                       </td>
                       <td className="px-3 py-2.5 text-right font-bold text-foreground">
-                        NPR {fmt(Math.abs(closingBalance))}
+                        {formatNpr(Math.abs(closingBalance))}
                       </td>
                     </tr>
                   </tfoot>
@@ -331,7 +325,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
             )}
           </>
         ) : (
-          <div className="p-12 text-center text-muted-foreground text-xs">
+          <div className="p-12 text-center text-muted-foreground text-xs font-mono">
             Select an account from the left to view statement.
           </div>
         )}
