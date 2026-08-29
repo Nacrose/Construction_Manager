@@ -198,8 +198,10 @@ export const vendorBillRouter = router({
         }
       }
 
-      const vatAmount = (input.grossAmount * (input.vatPercent || 13)) / 100;
-      const tdsAmount = (input.grossAmount * (input.tdsPercent || 1.5)) / 100;
+      // `??` (not `||`): a VAT/TDS-exempt bill passes 0, which is a valid
+      // rate — `0 || 13` silently billed VAT-exempt bills at 13%.
+      const vatAmount = (input.grossAmount * (input.vatPercent ?? 13)) / 100;
+      const tdsAmount = (input.grossAmount * (input.tdsPercent ?? 1.5)) / 100;
       const netPayable = input.grossAmount + vatAmount - tdsAmount;
 
       // FISCAL YEAR LOCK: check BEFORE any write. Previously this ran

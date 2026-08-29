@@ -167,6 +167,13 @@ export const subcontractorBillRouter = router({
     await assertCanWrite(ctx.user, input.projectId);
     await assertDelegation(ctx.user, "create_subcontractor_bill");
 
+    // FISCAL YEAR LOCK — BEFORE any write (matches vendor-bill.create).
+    // Previously this ran AFTER the bill row was committed: on a locked
+    // year the mutation threw but a draft bill had already been persisted
+    // without its journal entry. Bill date is server-defaulted to now(),
+    // so the effective transaction date is "now".
+    await assertNotLocked(ctx.user.organizationId, new Date());
+
     // Validate subcontractor exists
     const sub = await db.subcontractor.findFirst({
       where: { id: input.subcontractorId, projectId: input.projectId },
@@ -291,12 +298,12 @@ export const subcontractorBillRouter = router({
     //     Recoverable) — it previously posted to an account that did not
     //     exist in the chart at all.
     //
-    // FISCAL YEAR LOCK + ATOMICITY: the lock check runs BEFORE any write
-    // and the JE shares the bill's transaction. Previously the bill was
-    // committed first and the JE was posted separately via `db` — a JE
-    // failure left an un-journaled bill with no retry path.
-    await assertNotLocked(ctx.user.organizationId, bill.billDate);
-
+    // ATOMICITY NOTE: the fiscal-year lock was already enforced BEFORE the
+    // create loop above (it previously ran here — after the bill row was
+    // committed — which left orphan draft bills on locked years). The JE
+    // is written against the committed bill in a follow-up transaction
+    // (the create runs in its own number-collision retry loop); a JE
+    // failure surfaces loudly instead of silently skipping the entry.
     const billWithLines = await db.$transaction(async (tx) => {
       // Re-read inside the transaction so the JE is written against the
       // committed bill (the create above ran in its own retry loop).
