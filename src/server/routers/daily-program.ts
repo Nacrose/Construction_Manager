@@ -79,15 +79,19 @@ const TaskSchema = z.object({
   boqItemId: z.string().nullable().optional(),
   boqCode: z.string().optional(),
   boqDesc: z.string().optional(),
-  plannedQty: z.number().default(0),
+  // Quantities must be non-negative — planned/actual/batched/payable feed
+  // progress, certification (payableQty) and yield-reconciliation math;
+  // a negative value would corrupt all of them (same class as the
+  // phase-4 negative-amount fixes).
+  plannedQty: z.number().min(0).default(0),
   unit: z.string().optional(),
   paymentType: z.enum(["payable", "unpayable", "temporary"]).default("payable"),
   assignedTo: z.string().optional(),
   remarks: z.string().optional(),
   executionStatus: z.enum(["planned", "done", "partially_completed", "uncompleted", "postponed"]).default("planned"),
-  actualQty: z.number().optional(),
-  batchedQty: z.number().optional(),
-  payableQty: z.number().optional(),
+  actualQty: z.number().min(0).optional(),
+  batchedQty: z.number().min(0).optional(),
+  payableQty: z.number().min(0).optional(),
   delayReason: z.string().nullable().optional(),
   delayNotes: z.string().nullable().optional(),
   isEotCandidate: z.boolean().default(false),
@@ -821,9 +825,9 @@ export const dailyProgramRouter = router({
     .input(z.object({
       taskId: z.string(),
       executionStatus: z.enum(["planned", "done", "partially_completed", "uncompleted", "postponed"]),
-      actualQty: z.number().optional(),
-      batchedQty: z.number().optional(),
-      payableQty: z.number().optional(),
+      actualQty: z.number().min(0).optional(),
+      batchedQty: z.number().min(0).optional(),
+      payableQty: z.number().min(0).optional(),
       delayReason: z.string().nullable().optional(),
       delayNotes: z.string().nullable().optional(),
       isEotCandidate: z.boolean().default(false),

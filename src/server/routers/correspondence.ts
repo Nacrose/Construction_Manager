@@ -41,7 +41,7 @@ const CreateCorrespondenceSchema = z.object({
   replyDraftedBy: z.string().optional(),
   replyDueDate: z.string().datetime().optional(),
   // EOT fields
-  eotDaysClaimed: z.number().optional(),
+  eotDaysClaimed: z.number().min(0).optional(),
   eotLinkedTaskIds: z.string().optional(), // JSON array string
   fileData: z.string().max(20_000_000).optional(),
   fileName: z.string().max(255).optional(),
@@ -57,9 +57,9 @@ const UpdateReplySchema = z.object({
   replyStatus: z.enum(["not_started", "in_progress", "drafted", "sent", "closed"]).optional(),
   replyOurRef: z.string().optional(),
   replyNotes: z.string().optional(),
-  replyFileData: z.string().optional(),
-  replyFileName: z.string().optional(),
-  replyFileType: z.string().optional(),
+  replyFileData: z.string().max(20_000_000).optional(),
+  replyFileName: z.string().max(255).optional(),
+  replyFileType: z.string().max(100).optional(),
   replySentDate: z.string().datetime().optional(),
 });
 
@@ -120,6 +120,23 @@ export const correspondenceRouter = router({
     .input(CreateCorrespondenceSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // The thread parent must belong to the SAME project — otherwise a
+      // writer on project A could attach their letter as a reply to
+      // project B's letter, and the foreign letter's getThread would then
+      // include (leak) this letter through the LetterThread relation.
+      if (input.repliesToId) {
+        const parent = await db.correspondence.findFirst({
+          where: { id: input.repliesToId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!parent) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Parent letter not found in this project.",
+          });
+        }
+      }
 
       // Validate file size
       if (input.fileData) {
@@ -190,6 +207,15 @@ export const correspondenceRouter = router({
       const existing = await db.correspondence.findUnique({ where: { id: input.id } });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Letter not found." });
       await assertCanWrite(ctx.user, existing.projectId);
+
+      // Validate reply file size — same cap as the incoming letter file
+      // (previously only `create` checked; a reply could exceed the limit).
+      if (input.replyFileData) {
+        const estBytes = Math.ceil((input.replyFileData.length * 3) / 4);
+        if (estBytes > MAX_FILE_SIZE) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` });
+        }
+      }
 
       // Build status history entry
       const history = existing.statusHistory ? JSON.parse(existing.statusHistory) : [];
@@ -327,7 +353,7 @@ export const correspondenceRouter = router({
     .input(z.object({
       id: z.string(),
       eotStatus: z.enum(["submitted", "under_review", "approved", "rejected", "partially_approved"]),
-      eotDaysGranted: z.number().optional(),
+      eotDaysGranted: z.number().min(0).optional(),
       notes: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {

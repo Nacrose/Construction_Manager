@@ -7,6 +7,7 @@ import { router, protectedProcedure, mergeRouters } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createNotification, notifyProject } from "@/server/utils/notify";
 import { escapeHtml } from "@/server/utils/email";
 import { deleteFile } from "@/lib/storage";
@@ -352,6 +353,16 @@ const dailyReportCoreRouter = router({
             code: "BAD_REQUEST",
             message: `Status transition ${transition} is not permitted for your role.`,
           });
+        }
+        // Fiscal-year lock: both "submitted" (processReportSubmission
+        // writes stock-issue transactions) and "approved" (the deduction
+        // block below) mutate the material stock ledger — the same ledger
+        // materialTransaction.createTransaction guards with
+        // assertNotLocked. Check BEFORE any write so a locked year can't
+        // leave a half-approved report (status flipped, deductions
+        // blocked) or back-date stock issues into a closed period.
+        if (data.status === "submitted" || data.status === "approved") {
+          await assertNotLocked(ctx.user.organizationId);
         }
         updateData.status = data.status;
         if (data.status === "submitted") {

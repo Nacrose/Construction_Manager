@@ -181,6 +181,21 @@ export const documentRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { projectId, ...data } = input;
       await assertCanWrite(ctx.user, projectId);
+      // The drawing may only reference a Gantt task in its OWN project —
+      // otherwise listDrawings' ganttTask include would render another
+      // project's task code/name inside this project's listing.
+      if (data.ganttTaskId) {
+        const task = await db.ganttTask.findFirst({
+          where: { id: data.ganttTaskId, projectId },
+          select: { id: true },
+        });
+        if (!task) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Gantt task not found in this project.",
+          });
+        }
+      }
       const drawing = await db.drawing.create({
         data: {
           projectId,
@@ -372,6 +387,20 @@ export const documentRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // The drawing must belong to the SAME project — otherwise a writer on
+      // project A could pin an RFI onto (and later render through the
+      // drawing relation) project B's drawing.
+      const drawing = await db.drawing.findFirst({
+        where: { id: input.drawingId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!drawing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Drawing not found in this project.",
+        });
+      }
 
       // Generate RFI number
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -609,6 +638,22 @@ export const documentRouter = router({
       });
       if (!drawing) throw new TRPCError({ code: "NOT_FOUND", message: "Drawing not found." });
       await assertCanWrite(ctx.user, drawing.projectId);
+
+      // The set (when provided) must belong to the drawing's project —
+      // otherwise listDrawings' drawingSet include would render another
+      // project's set name inside this project's listing.
+      if (input.setId) {
+        const set = await db.drawingSet.findFirst({
+          where: { id: input.setId, projectId: drawing.projectId },
+          select: { id: true },
+        });
+        if (!set) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Drawing set not found in this project.",
+          });
+        }
+      }
 
       await db.drawing.update({
         where: { id: input.drawingId },

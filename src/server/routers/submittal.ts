@@ -84,6 +84,16 @@ export const submittalRouter = router({
       const s = await db.submittal.findUnique({ where: { id: input.id } });
       if (!s) throw new TRPCError({ code: "NOT_FOUND" });
       await assertCanWrite(ctx.user, s.projectId);
+      // State guard: only drafts (first submission) and revise_resubmit
+      // decisions (the resubmission loop) may be submitted. Without this,
+      // an already approved/rejected submittal could be flipped back to
+      // "submitted", silently destroying the review decision.
+      if (s.status !== "draft" && s.status !== "revise_resubmit") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Only draft or revise-resubmit submittals can be submitted (current status: ${s.status}).`,
+        });
+      }
       const updated = await db.submittal.update({
         where: { id: input.id },
         data: { status: "submitted", submittedDate: new Date() },
@@ -105,6 +115,16 @@ export const submittalRouter = router({
       const s = await db.submittal.findUnique({ where: { id: input.id } });
       if (!s) throw new TRPCError({ code: "NOT_FOUND" });
       await assertCanWrite(ctx.user, s.projectId);
+      // State guard: only submitted submittals are in the reviewer's court.
+      // Without this, a draft could be approved without ever being
+      // submitted (bypassing the consultant workflow) and a decided
+      // submittal could be re-reviewed, overwriting the first decision.
+      if (s.status !== "submitted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Only submitted submittals can be reviewed (current status: ${s.status}).`,
+        });
+      }
       const updated = await db.submittal.update({
         where: { id: input.id },
         data: {
