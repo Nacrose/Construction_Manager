@@ -12,15 +12,14 @@ import { createSession } from "@/lib/auth";
  * or when an authenticated super admin is creating accounts.
  */
 
-// Single source of truth for signup input validation. Previously this
-// route used a hand-rolled email regex that disagreed with zod's
-// .email() validator used in /api/auth/login — switch to zod everywhere
-// for consistency.
+import { passwordSchema } from "@/lib/password-policy";
+
+// Single source of truth for signup input validation.
 const SignupSchema = z.object({
   orgName: z.string().min(1).max(200),
   name: z.string().min(1).max(200),
   email: z.string().email().toLowerCase().trim(),
-  password: z.string().min(8).max(200),
+  password: passwordSchema,
 });
 
 export async function POST(req: NextRequest) {

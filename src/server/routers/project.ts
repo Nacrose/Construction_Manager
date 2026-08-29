@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
+import { passwordSchema } from "@/lib/password-policy";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -640,7 +641,7 @@ export const projectRouter = router({
     .input(z.object({
       name: z.string().min(1),
       email: z.string().email().toLowerCase(),
-      password: z.string().min(8),
+      password: passwordSchema,
       role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -724,7 +725,7 @@ export const projectRouter = router({
   resetOrgUserPassword: protectedProcedure
     .input(z.object({
       userId: z.string(),
-      newPassword: z.string().min(8),
+      newPassword: passwordSchema,
     }))
     .mutation(async ({ ctx, input }) => {
       assertOrgAdmin(ctx.user);

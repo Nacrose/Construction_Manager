@@ -16,6 +16,7 @@ import { audit } from "@/lib/audit";
 import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from "@/lib/auth";
 import { ensureSchema } from "@/lib/ensure-schema";
 import { Prisma } from "@prisma/client";
+import { passwordSchema } from "@/lib/password-policy";
 
 const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspector"] as const;
 
@@ -94,7 +95,7 @@ export const adminRouter = router({
         // Optional initial org-admin account
         adminName: z.string().optional(),
         adminEmail: z.string().min(3).optional(),
-        adminPassword: z.string().min(8).optional(),
+        adminPassword: passwordSchema.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -225,7 +226,7 @@ export const adminRouter = router({
       z.object({
         name: z.string().min(1),
         email: z.string().email().toLowerCase(),
-        password: z.string().min(8),
+        password: passwordSchema,
         role: z.enum(ROLES),
         organizationId: z.string().nullable().optional(),
         orgRole: z.enum(["org_admin", "member"]).default("member"),
