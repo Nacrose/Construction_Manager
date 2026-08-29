@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -15,8 +16,12 @@ const isDev = process.env.NODE_ENV === "development";
  *   URLs may be inline base64 scans OR absolute web links (see
  *   src/lib/safe-url.ts allowlist).
  * - connect-src is 'self' — the app talks to its own API only; dev adds
- *   ws/wss for HMR.
+ *   ws/wss for HMR. When Sentry is enabled, the deployment also sets
+ *   NEXT_PUBLIC_SENTRY_CSP_INGEST (e.g. https://abc123.ingest.sentry.io)
+ *   so the browser SDK can POST events — env-driven on purpose so
+ *   Sentry-less builds keep the strictest possible CSP.
  */
+const sentryIngest = process.env.NEXT_PUBLIC_SENTRY_CSP_INGEST;
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -25,7 +30,7 @@ const csp = [
   "font-src 'self' data:",
   "frame-src 'self' data: blob:", // inline PDF scan iframes
   "media-src 'self' blob:", // voice recorder / site media
-  `connect-src 'self'${isDev ? " ws: wss: http://localhost:*" : ""}`,
+  `connect-src 'self'${sentryIngest ? ` ${sentryIngest}` : ""}${isDev ? " ws: wss: http://localhost:*" : ""}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -88,4 +93,15 @@ const nextConfig: NextConfig = {
   ],
 };
 
-export default nextConfig;
+/**
+ * Sentry wrapper — inert unless a DSN is configured at runtime. Source
+ * maps are built by Next in production and uploaded at build time only
+ * when SENTRY_AUTH_TOKEN is present (local + CI-without-secrets stay
+ * quiet). See docs/plans/sentry-integration.md §3.7.
+ */
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+});

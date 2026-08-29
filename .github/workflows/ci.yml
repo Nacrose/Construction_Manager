@@ -42,4 +42,10 @@ jobs:
           # runtime when AUTH_SECRET is missing, but the build itself stays
           # environment-independent.
           NEXT_TELEMETRY_DISABLED: "1"
+          # Sentry source-map upload — inert unless the three secrets are
+          # configured on the repo (no DSN → SDK no-ops at runtime too).
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build

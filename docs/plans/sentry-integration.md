@@ -1,8 +1,10 @@
 # Error Tracking Integration Plan — Sentry
 
-**Status:** DRAFT — awaiting go-ahead before installing any dependency
+**Status:** WIRED (2026-08-30) — SDK installed and inert-by-default; **activation requires setting `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` (+ optional CSP ingest + CI secrets) in the deployment environment**. Deploy inert-first, then flip the DSN on (plan §4 step 7).
 **Scope:** App-wide error tracking (server + client + tRPC), release tracking, source maps, for a Next.js 16 App Router deployment.
 **Author:** repo governance agent · **Date:** 2026-08-30
+
+> **As-built note (§3.5):** tRPC v11's `initTRPC.create()` does NOT accept an `onError` option (unlike some adapters) — the funnel therefore lives in the fetch adapter handler at `src/app/api/trpc/[trpc]/route.ts` (`fetchRequestHandler({ onError })`), not in `src/server/trpc.ts`. Filtering of expected error codes (zod/authz/lock guards) happens in `src/lib/error-tracking.ts` (`captureServerError`), which is the single import point for the SDK outside the instrumentation files.
 
 ---
 
