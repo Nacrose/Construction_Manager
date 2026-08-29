@@ -578,9 +578,9 @@ export const catalogV2Router = router({
   /** Check deletion impact for single/multiple materials */
   getDeleteImpact: protectedProcedure
     .input(z.object({ ids: z.array(z.string()) }))
-    .query(async ({ input }) => {
-      const ids = input.ids;
-      if (ids.length === 0) {
+    .query(async ({ ctx, input }) => {
+      const inputIds = input.ids;
+      if (inputIds.length === 0) {
         return {
           rateCatalogItems: 0,
           projectMaterials: 0,
@@ -590,6 +590,24 @@ export const catalogV2Router = router({
           hasImpact: false,
         };
       }
+
+      // M-2 FIX (cross-tenant read): previously ANY authenticated user could
+      // probe arbitrary material IDs and learn cross-tenant reference counts.
+      // Scope-check every material first — mirrors bulkDeleteMaterials.
+      const materials = await db.catalogMaterial.findMany({
+        where: { id: { in: inputIds } },
+        select: { id: true, scope: true, organizationId: true, projectId: true },
+      });
+      for (const m of materials) {
+        if (m.scope === "org") {
+          assertOrgMember(ctx, m.organizationId);
+        } else if (m.scope === "project") {
+          await assertProjectMember(ctx, m.projectId!);
+        }
+        // scope === "global" → readable by every tenant, no check needed.
+      }
+      const ids = materials.map((m) => m.id);
+
       const [
         rateEntries,
         projectMaterials,
@@ -642,6 +660,22 @@ export const catalogV2Router = router({
       if (input.projectId) {
         await assertProjectMember(ctx, input.projectId);
         where.projectId = input.projectId;
+      }
+
+      // M-2 FIX (cross-tenant read): an unscoped query (no organizationId /
+      // projectId) previously aggregated materials across ALL tenants.
+      // Restrict to the catalogs the caller can actually see: global + own
+      // org + own projects. Superadmins keep the god-view.
+      if (!input.organizationId && !input.projectId && !ctx.user.isSuperAdmin) {
+        const memberships = await db.projectMember.findMany({
+          where: { userId: ctx.user.id },
+          select: { projectId: true },
+        });
+        where.OR = [
+          { scope: "global" },
+          { organizationId: ctx.user.organizationId ?? "__none__" },
+          { projectId: { in: memberships.map((m) => m.projectId) } },
+        ];
       }
 
       const materials = await db.catalogMaterial.findMany({
@@ -2105,7 +2139,22 @@ export const catalogV2Router = router({
             linkedCount++;
           } else if (item.action === "add_alias" && item.targetId) {
             const target = await tx.catalogMaterial.findUnique({ where: { id: item.targetId } });
-            if (target && !target.aliases.includes(item.rawName)) {
+            if (!target) {
+              throw new TRPCError({ code: "NOT_FOUND", message: `Import target material not found: ${item.targetId}` });
+            }
+            // M-2 FIX (cross-tenant write): an alias write must stay inside
+            // the catalogs the caller administers. Previously an org admin
+            // could attach aliases to ANY tenant's material by ID.
+            if (target.scope === "global") {
+              await assertGlobalAdmin(ctx);
+            } else if (target.scope === "org") {
+              if (target.organizationId !== orgId && !ctx.user.isSuperAdmin) {
+                throw new TRPCError({ code: "FORBIDDEN", message: "Cannot add an alias to another organization's material." });
+              }
+            } else if (target.scope === "project") {
+              await assertProjectWriter(ctx, target.projectId!);
+            }
+            if (!target.aliases.includes(item.rawName)) {
               await tx.catalogMaterial.update({
                 where: { id: item.targetId },
                 data: { aliases: [...target.aliases, item.rawName] },

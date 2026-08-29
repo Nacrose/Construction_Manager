@@ -43,7 +43,17 @@ git push -u origin main
 5. Under **Environment Variables**, add:
    - `DATABASE_URL` = (your Neon connection string from step 2)
    - `AUTH_SECRET` = (any random 32+ char string — use `openssl rand -hex 32`)
+   - `SETUP_SECRET` = (any random string — REQUIRED to call `/api/setup` and
+     `/api/seed`; without it first-run setup will refuse to run)
+   - Optionally, storage variables — see `.env.example` for the full list
+     (`STORAGE_PROVIDER`, R2/S3 keys). Default `local` provider keeps files
+     private and streams them via the authenticated `/api/files/[key]` route.
 6. Click **Deploy**
+
+> **Note on superadmin bootstrap:** do NOT rely on
+> `scripts/setup-superadmin.ts` defaults in production — set
+> `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` env vars (12+ chars) or the
+> script will refuse to run against a production `DATABASE_URL`.
 
 ## 4. First-run setup
 
