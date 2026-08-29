@@ -117,6 +117,18 @@ export const equipmentRentalProcedures = {
       await assertCanWrite(ctx.user, input.projectId);
       await assertNotLocked(ctx.user.organizationId, input.startDate ? new Date(input.startDate) : new Date());
 
+      // Cross-project guard: the equipment must belong to the rental's
+      // project — without this, a caller with write access to project A
+      // could rent (and flip the status of) equipment belonging to
+      // project B.
+      const equipment = await db.equipment.findFirst({
+        where: { id: input.equipmentId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!equipment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Equipment not found in this project." });
+      }
+
       const existing = await db.equipmentRental.findFirst({
         where: {
           equipmentId: input.equipmentId,
@@ -207,6 +219,13 @@ export const equipmentRentalProcedures = {
       });
       if (!rental) throw new TRPCError({ code: "NOT_FOUND", message: "Rental not found." });
       await assertCanWrite(ctx.user, rental.projectId);
+
+      // State machine: a returned rental is a closed record — re-returning
+      // it would overwrite actualReturnDate/totalRentalCost (settled money
+      // figures) after the fact.
+      if (rental.status === "returned") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Rental has already been returned." });
+      }
 
       const returnDate = input.actualReturnDate ? new Date(input.actualReturnDate) : new Date();
 

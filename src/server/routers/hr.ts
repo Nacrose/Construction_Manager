@@ -438,6 +438,19 @@ export const hrRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // Cross-project guard: the advance must be issued to a staff member
+      // of THIS project — without this, a caller with write access to
+      // project A could attach advances to staff in project B (leaking
+      // their names via the advances list and corrupting payroll
+      // recovery inputs).
+      const staff = await db.staff.findFirst({
+        where: { id: input.staffId, projectId: input.projectId },
+        select: { id: true },
+      });
+      if (!staff) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff not found in this project." });
+      }
+
       const advance = await db.staffAdvance.create({
         data: {
           projectId: input.projectId,

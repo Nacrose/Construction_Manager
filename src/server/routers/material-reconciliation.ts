@@ -4,6 +4,7 @@ import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 export const materialReconciliationProcedures = {
   getRequirements: protectedProcedure
@@ -149,18 +150,13 @@ export const materialReconciliationProcedures = {
         orderBy: { date: "asc" },
       });
 
-      const priorTransactions = await db.materialTransaction.findMany({
-        where: {
-          projectId: input.projectId,
-          date: { lt: startDate },
-        },
-        select: {
-          materialId: true,
-          type: true,
-          quantity: true,
-        },
-      });
-
+      // Opening stock = stock at startDate, derived by walking the period's
+      // movements backwards from today's closing stock. Transfers are
+      // store-to-store moves that NEVER change project-level stock (see
+      // material-transaction createTransaction: delta 0 for transfers), so
+      // they are skipped here. Prior-period transactions must NOT be applied:
+      // doing so added their net movement onto the opening stock and
+      // fabricated variance for every historical period.
       const openingStockMap = new Map<string, number>();
       for (const mat of materials) {
         openingStockMap.set(mat.id, mat.currentStock);
@@ -169,16 +165,8 @@ export const materialReconciliationProcedures = {
         const current = openingStockMap.get(txn.materialId) ?? 0;
         if (txn.type === "receive" || txn.type === "adjustment") {
           openingStockMap.set(txn.materialId, current - txn.quantity);
-        } else if (txn.type === "issue" || txn.type === "transfer") {
+        } else if (txn.type === "issue") {
           openingStockMap.set(txn.materialId, current + txn.quantity);
-        }
-      }
-      for (const txn of priorTransactions) {
-        const current = openingStockMap.get(txn.materialId) ?? 0;
-        if (txn.type === "receive" || txn.type === "adjustment") {
-          openingStockMap.set(txn.materialId, current + txn.quantity);
-        } else if (txn.type === "issue" || txn.type === "transfer") {
-          openingStockMap.set(txn.materialId, current - txn.quantity);
         }
       }
 
@@ -199,7 +187,10 @@ export const materialReconciliationProcedures = {
           .filter(t => t.type === "adjustment")
           .reduce((s, t) => s + t.quantity, 0);
 
-        const expectedClosing = opening + received + adjustments - issued - transfersOut;
+        // Transfers are store-level moves (project stock unchanged), so
+        // transfersOut is reported for information but does not affect the
+        // expected closing stock.
+        const expectedClosing = opening + received + adjustments - issued;
         const actualClosing = mat.currentStock;
         const variance = actualClosing - expectedClosing;
         const variancePct = expectedClosing !== 0 ? Math.round((variance / expectedClosing) * 100) : 0;
@@ -238,6 +229,9 @@ export const materialReconciliationProcedures = {
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // Same fiscal-year lock as createTransaction — a physical count
+      // adjustment writes a MaterialTransaction into the current period.
+      await assertNotLocked(ctx.user.organizationId);
 
       const material = await db.material.findFirst({
         where: { id: input.materialId, projectId: input.projectId },
@@ -366,8 +360,12 @@ export const materialReconciliationProcedures = {
         const desc = row.boqDesc || boqItem?.description || row.taskDescription || "General Work";
         const unit = row.unit || boqItem?.unit || "";
 
-        const batched = Number(row.batchedQty) || Number(row.actualQty) || 0;
-        const payable = Number(row.payableQty) || Number(row.actualQty) || 0;
+        // Explicit zeros are meaningful: payableQty = 0 means "nothing
+        // certified payable" (100% wastage — a state daily-program writes),
+        // batchedQty = 0 means "nothing batched". Fall back to actualQty
+        // only when the field is null/undefined (legacy rows).
+        const batched = row.batchedQty != null ? Number(row.batchedQty) : (Number(row.actualQty) || 0);
+        const payable = row.payableQty != null ? Number(row.payableQty) : (Number(row.actualQty) || 0);
         const planned = Number(row.plannedQty) || 0;
 
         const existing = itemSummaries.get(code);

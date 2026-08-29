@@ -29,9 +29,12 @@ export const UpdateMaterialSchema = z.object({
   catalogMaterialId: z.string().nullable().optional(),
   materialCatalogId: z.string().nullable().optional(),
   unit: z.string().optional(),
-  minStock: z.number().optional(),
-  currentStock: z.number().optional(),
-  reorderLevel: z.number().optional(),
+  // Non-negative thresholds on update too — create validates min(0); update
+  // must not silently accept negative stock baselines (they corrupt
+  // low-stock alerting and stock math).
+  minStock: z.number().min(0).optional(),
+  currentStock: z.number().min(0).optional(),
+  reorderLevel: z.number().min(0).optional(),
 });
 
 export const materialCrudProcedures = {
@@ -175,8 +178,20 @@ export const materialCrudProcedures = {
 
   checkProjectDeleteImpact: protectedProcedure
     .input(z.object({ itemIds: z.array(z.string()) }))
-    .query(async ({ input }) => {
-      const ids = input.itemIds;
+    .query(async ({ ctx, input }) => {
+      // Cross-tenant read guard (same class as catalog-v2 M-2): previously
+      // ANY authenticated user could probe arbitrary material ids and learn
+      // cross-tenant reference counts with no membership check at all.
+      // Scope-check every material first — mirrors deleteMany below.
+      const materials = await db.material.findMany({
+        where: { id: { in: input.itemIds } },
+        select: { id: true, projectId: true },
+      });
+      const projectIds = new Set(materials.map((m) => m.projectId));
+      for (const pId of projectIds) {
+        await assertProjectMember(ctx.user, pId);
+      }
+      const ids = materials.map((m) => m.id);
       const [transactions, purchaseOrderItems, boqIngredients, requisitionItems] = await Promise.all([
         db.materialTransaction.count({ where: { materialId: { in: ids } } }),
         db.purchaseOrderItem.count({ where: { materialId: { in: ids } } }),
