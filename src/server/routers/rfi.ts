@@ -625,7 +625,10 @@ export const rfiRouter = router({
       data: z.string().min(1).max(14 * 1024 * 1024), // base64-encoded file content
     }))
     .mutation(async ({ ctx, input }) => {
-      const rfi = await db.rfi.findUnique({ where: { id: input.rfiId }, select: { projectId: true } });
+      const rfi = await db.rfi.findUnique({
+        where: { id: input.rfiId },
+        select: { projectId: true, project: { select: { organizationId: true } } },
+      });
       if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
       await assertProjectMember(ctx.user, rfi.projectId);
 
@@ -633,8 +636,16 @@ export const rfiRouter = router({
       // formats that could be served back as active content.
       assertAllowedAttachmentType(input.fileType);
 
-      // Upload to storage
-      const stored = await uploadFile(input.data, input.fileName, input.fileType);
+      // Upload to storage — registered to the owning org so
+      // /api/files/[key] can enforce tenant isolation (audit C-4).
+      const orgId = rfi.project.organizationId ?? ctx.user.organizationId;
+      if (!orgId) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Project has no owning organization; cannot register stored file." });
+      }
+      const stored = await uploadFile(input.data, input.fileName, input.fileType, {
+        organizationId: orgId,
+        projectId: rfi.projectId,
+      });
 
       const attachment = await db.rfiAttachment.create({
         data: {

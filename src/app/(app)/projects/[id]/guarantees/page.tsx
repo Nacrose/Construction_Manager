@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc-client";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { ModuleTabs } from "@/components/module-tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -366,7 +367,7 @@ export default function BankGuaranteesPage({
                       <td className="px-3 py-3 text-center">
                         {g.documentUrl ? (
                           <a
-                            href={g.documentUrl}
+                            href={sanitizeUrl(g.documentUrl) ?? "#"}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center text-primary hover:underline"

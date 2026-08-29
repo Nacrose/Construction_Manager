@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,7 +231,7 @@ export function IpcScannedBillCard({
             <DialogTitle className="text-sm font-semibold flex items-center justify-between">
               <span>Scanned Bill: {scannedBillName || "Document"}</span>
               <a
-                href={scannedBillUrl || "#"}
+                href={sanitizeUrl(scannedBillUrl) ?? "#"}
                 download={scannedBillName || "scanned-invoice"}
                 className="text-xs text-primary underline"
               >

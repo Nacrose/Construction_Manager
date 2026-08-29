@@ -22,6 +22,7 @@ import {
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { formatNpr } from "@/lib/construction-finance";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -265,7 +266,7 @@ export function PurchaseRegisterTab({
               <span>Scanned Invoice: {selectedScan?.name}</span>
               {selectedScan && (
                 <a
-                  href={selectedScan.url}
+                  href={sanitizeUrl(selectedScan.url) ?? "#"}
                   download={`invoice-${selectedScan.name}`}
                   className="text-xs text-primary underline"
                 >

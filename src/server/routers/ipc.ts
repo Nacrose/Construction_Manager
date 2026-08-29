@@ -2,6 +2,7 @@
  * tRPC router for Interim Payment Certificates (IPCs) and line items.
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import {db} from "@/lib/db";
@@ -55,7 +56,7 @@ const UpdateIpcSchema = z.object({
   previousAdvanceRecovery: z.number().nullable().optional(),
   previousRetentionAmount: z.number().nullable().optional(),
   previousTdsAmount: z.number().nullable().optional(),
-  scannedBillUrl: z.string().nullable().optional(),
+  scannedBillUrl: safeUrlSchema.nullable().optional(),
   scannedBillName: z.string().nullable().optional(),
   isBillAttached: z.boolean().optional(),
 });

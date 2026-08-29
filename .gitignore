@@ -80,3 +80,7 @@ download/constructflow-cloud.zip
 .zscripts/dev.pid
 .node-env/
 
+
+# private file storage (served ONLY via authenticated /api/files/[key])
+/uploads/
+/public/uploads/

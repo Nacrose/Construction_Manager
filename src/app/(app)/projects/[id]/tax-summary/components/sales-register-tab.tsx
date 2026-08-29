@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { formatNpr } from "@/lib/currency";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 type SalesRow = {
@@ -284,7 +285,7 @@ export function SalesRegisterTab({
               <span>Scanned Client Invoice / Certificate: {selectedScan?.name}</span>
               {selectedScan && (
                 <a
-                  href={selectedScan.url}
+                  href={sanitizeUrl(selectedScan.url) ?? "#"}
                   download={`sales-invoice-${selectedScan.name}`}
                   className="text-xs text-emerald-400 hover:underline font-mono"
                 >

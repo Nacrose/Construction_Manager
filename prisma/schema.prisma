@@ -3755,6 +3755,24 @@ model HeadOfficeExpense {
 //   - Tally/Swastik export
 //   - Audit trail for every financial movement
 
+// Registry of every file written by the storage abstraction (src/lib/storage.ts).
+// Maps an opaque storage key -> owning org/project so /api/files/[key] can
+// enforce tenant isolation before streaming bytes. WITHOUT this registry,
+// uploaded files are served as unauthenticated static assets (C-4).
+model StoredFile {
+  id             String   @id @default(cuid())
+  key            String   @unique // <epochMs>-<16 hex chars>.<ext>
+  organizationId String // owning tenant
+  projectId      String? // set when the file belongs to a specific project
+  fileName       String? // original client filename (Content-Disposition)
+  mimeType       String
+  size           Int?
+  externalUrl    String? // provider URL when not reconstructable (e.g. Vercel Blob)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
 model JournalEntry {
   id              String   @id @default(cuid())
   entryNumber     String   @unique // e.g. JE-2026-0001

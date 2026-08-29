@@ -2,6 +2,7 @@
  * tRPC router for Vendor Bills, 3-Way Matching, and Accounts Payable Payments.
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
@@ -21,7 +22,7 @@ const CreateVendorBillSchema = z.object({
   grossAmount: z.number().nonnegative(),
   vatPercent: z.number().min(0).max(100).optional().default(13),
   tdsPercent: z.number().min(0).max(100).optional().default(1.5),
-  fileUrl: z.string().optional().nullable(),
+  fileUrl: safeUrlSchema.optional().nullable(),
   remarks: z.string().optional().nullable(),
 });
 

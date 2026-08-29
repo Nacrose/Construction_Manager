@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/construction-finance";
@@ -200,7 +201,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         render: (val) =>
           val ? (
             <a
-              href={val}
+              href={sanitizeUrl(val) ?? "#"}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center justify-center p-1 rounded hover:bg-emerald-500/20 text-emerald-400"

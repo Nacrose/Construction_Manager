@@ -71,7 +71,7 @@ export const dailyReportAttachmentsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const report = await db.dailyReport.findUnique({
         where: { id: input.reportId },
-        select: { projectId: true },
+        select: { projectId: true, project: { select: { organizationId: true } } },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
       // Use assertCanWrite (not assertProjectMember) so read-only roles
@@ -82,7 +82,16 @@ export const dailyReportAttachmentsRouter = router({
       // formats that could be served back as active content (SVG XSS, etc.).
       assertAllowedAttachmentType(input.fileType);
 
-      const stored = await uploadFile(input.data, input.fileName, input.fileType);
+      // Upload to storage — registered to the owning org so
+      // /api/files/[key] can enforce tenant isolation (audit C-4).
+      const orgId = report.project.organizationId ?? ctx.user.organizationId;
+      if (!orgId) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Project has no owning organization; cannot register stored file." });
+      }
+      const stored = await uploadFile(input.data, input.fileName, input.fileType, {
+        organizationId: orgId,
+        projectId: report.projectId,
+      });
 
       const attachment = await db.dailyReportAttachment.create({
         data: {

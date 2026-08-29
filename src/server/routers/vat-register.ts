@@ -6,6 +6,7 @@
  * - Standalone VAT Bill Entry & Scanned Copy Management
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
@@ -28,7 +29,7 @@ const DirectVatBillSchema = z.object({
   tdsPercent: z.number().min(0).max(100).default(0),
   category: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
-  scannedBillUrl: z.string().optional().nullable(),
+  scannedBillUrl: safeUrlSchema.optional().nullable(),
   scannedBillName: z.string().optional().nullable(),
 });
 
@@ -582,7 +583,7 @@ export const vatRegisterRouter = router({
         projectId: z.string(),
         targetType: z.enum(["material_grn", "client_ipc", "subcontractor_bill", "direct_bill", "direct_sales", "equipment_spot"]),
         targetId: z.string(),
-        scannedBillUrl: z.string().min(1),
+        scannedBillUrl: safeUrlSchema,
         scannedBillName: z.string().optional(),
       })
     )

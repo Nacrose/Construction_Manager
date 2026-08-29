@@ -3,6 +3,7 @@
  * Manages Performance Bonds, APG, CAR Insurance, and Retention Guarantees with automated expiry alerts.
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertOrgAdmin } from "@/lib/authz";
@@ -210,7 +211,7 @@ export const bankGuaranteeRouter = router({
         marginAmount: z.number().default(0),
         commissionRate: z.number().default(0),
         commissionPaid: z.number().default(0),
-        documentUrl: z.string().optional(),
+        documentUrl: safeUrlSchema.optional(),
         documentName: z.string().optional(),
         notes: z.string().optional(),
       })
@@ -428,7 +429,7 @@ export const bankGuaranteeRouter = router({
         marginAmount: z.number().optional(),
         commissionRate: z.number().optional(),
         commissionPaid: z.number().optional(),
-        documentUrl: z.string().optional(),
+        documentUrl: safeUrlSchema.optional(),
         documentName: z.string().optional(),
         notes: z.string().optional(),
       })

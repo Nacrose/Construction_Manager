@@ -2,6 +2,7 @@
  * tRPC router for Purchase Requisitions / Quotation Comparisons & PO Generation.
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
@@ -20,7 +21,7 @@ const RequisitionItemSchema = z.object({
   unit: z.string().min(1),
   selectedPartnerId: z.string().min(1),
   justification: z.string().optional().nullable(),
-  fileUrl: z.string().optional().nullable(),
+  fileUrl: safeUrlSchema.optional().nullable(),
   quotes: z.array(RequisitionItemQuoteSchema).min(3, { message: "Each item must have quotes from at least 3 vendors." }),
 });
 

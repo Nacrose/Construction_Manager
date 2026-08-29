@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
@@ -46,7 +47,7 @@ export const GateEntrySchema = z.object({
   tareWeight: z.number().optional().nullable(),
   netWeight: z.number().optional().nullable(),
   unit: z.string().optional().nullable(),
-  fileUrl: z.string().optional().nullable(),
+  fileUrl: safeUrlSchema.optional().nullable(),
 });
 
 export const materialTransactionProcedures = {
@@ -671,7 +672,7 @@ export const materialTransactionProcedures = {
         // Invoicing & Attachments
         invoiceNumber: z.string().optional().nullable(),
         challanNo: z.string().optional().nullable(),
-        fileUrl: z.string().optional().nullable(),
+        fileUrl: safeUrlSchema.optional().nullable(),
         // Landing & Incidental Costs with independent payments & VAT option
         transportationCost: z.number().nonnegative().default(0),
         transportIsVat: z.boolean().default(false),

@@ -3,6 +3,7 @@
  * Each is a separate sub-router for clean separation.
  */
 import { z } from "zod";
+import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
@@ -96,7 +97,7 @@ const paymentRouter = router({
         accountingSoftware: z.enum(["tally", "swastik", "other"]).optional(),
         accountingVoucherNo: z.string().optional(),
         voucherType: z.enum(["payment", "bank_payment", "cash_payment", "journal"]).optional().default("payment"),
-        scannedBillUrl: z.string().optional(),
+        scannedBillUrl: safeUrlSchema.optional(),
         scannedBillName: z.string().optional(),
         // Central bank account the payment is drawn on (org-scoped).
         // When set, the account's currentBalance is decremented in the
@@ -632,7 +633,7 @@ const paymentRouter = router({
       z.object({
         projectId: z.string(),
         paymentId: z.string(),
-        scannedBillUrl: z.string().min(1),
+        scannedBillUrl: safeUrlSchema,
         scannedBillName: z.string().optional(),
       })
     )

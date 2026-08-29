@@ -1249,6 +1249,26 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `CREATE INDEX IF NOT EXISTS "BankReconciliation_bankAccountId_periodStart_idx" ON "BankReconciliation"("bankAccountId", "periodStart")`,
     `CREATE INDEX IF NOT EXISTS "BankReconciliation_status_idx" ON "BankReconciliation"("status")`,
     `ALTER TABLE "BankReconciliation" ADD CONSTRAINT IF NOT EXISTS "BankReconciliation_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "CompanyBankAccount"("id") ON DELETE CASCADE`,
+
+    // Stored File Registry — ownership map for the authenticated
+    // /api/files/[key] streaming route (audit C-4 fix). Every file written
+    // by src/lib/storage.ts gets a row here; the route rejects any key
+    // without a registry entry (fail closed).
+    `CREATE TABLE IF NOT EXISTS "StoredFile" (
+      "id" TEXT NOT NULL,
+      "key" TEXT NOT NULL,
+      "organizationId" TEXT NOT NULL,
+      "projectId" TEXT,
+      "fileName" TEXT,
+      "mimeType" TEXT NOT NULL,
+      "size" INTEGER,
+      "externalUrl" TEXT,
+      "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "StoredFile_pkey" PRIMARY KEY ("id")
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "StoredFile_key_key" ON "StoredFile"("key")`,
+    `CREATE INDEX IF NOT EXISTS "StoredFile_organizationId_idx" ON "StoredFile"("organizationId")`,
+    `ALTER TABLE "StoredFile" ADD CONSTRAINT IF NOT EXISTS "StoredFile_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE`,
   ];
 
   for (const stmt of financialArchStatements) {
