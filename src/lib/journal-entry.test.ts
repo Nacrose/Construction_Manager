@@ -4,6 +4,7 @@ import {
   reverseJournalEntry,
   vendorPaymentEntry,
   ipcBillingEntry,
+  clientReceiptEntry,
   type JournalEntryInput,
 } from "@/lib/journal-entry";
 
@@ -274,6 +275,72 @@ describe("Journal Entry Helpers — Balance Validation", () => {
       });
       const codes = entry.lines.map((l) => l.accountCode);
       expect(codes).not.toContain("1400");
+    });
+  });
+
+  // ── clientReceiptEntry — the cash-in side of the GL ──────────────
+  describe("clientReceiptEntry", () => {
+    const base = {
+      receiptId: "pay-1",
+      receivedFrom: "Department of Roads",
+      amount: 500000,
+      projectId: "proj-1",
+      date: new Date("2026-03-01"),
+    };
+
+    it.each([
+      ["Client IPC Running Bill", "1100"],
+      ["Mobilization Advance", "2050"],
+      ["Partner Capital Deposit", "3000"],
+      ["Security Deposit Refund", "1110"],
+      ["Other Site Inflow", "4100"],
+    ] as const)("credits the correct account for %s", (inflowType, expectedCreditCode) => {
+      const je = clientReceiptEntry({ ...base, inflowType, paymentMode: "bank_transfer" });
+      expect(je.lines).toHaveLength(2);
+      const credit = je.lines.find((l) => (l.credit ?? 0) > 0)!;
+      expect(credit.accountCode).toBe(expectedCreditCode);
+      expect(credit.credit).toBe(500000);
+    });
+
+    it("debits Bank (1010) for bank transfers and Cash (1001) for cash", () => {
+      const bankJe = clientReceiptEntry({ ...base, inflowType: "Client IPC Running Bill", paymentMode: "bank_transfer" });
+      expect(bankJe.lines.find((l) => (l.debit ?? 0) > 0)!.accountCode).toBe("1010");
+
+      const cashJe = clientReceiptEntry({ ...base, inflowType: "Client IPC Running Bill", paymentMode: "cash" });
+      expect(cashJe.lines.find((l) => (l.debit ?? 0) > 0)!.accountCode).toBe("1001");
+    });
+
+    it("always produces a balanced entry", () => {
+      for (const inflowType of [
+        "Client IPC Running Bill",
+        "Mobilization Advance",
+        "Partner Capital Deposit",
+        "Security Deposit Refund",
+        "Other Site Inflow",
+      ] as const) {
+        const je = clientReceiptEntry({ ...base, inflowType, paymentMode: "cheque" });
+        const { balanced } = checkBalance(je);
+        expect(balanced).toBe(true);
+      }
+    });
+
+    it("client IPC receipt does NOT credit revenue (revenue was recognized at IPC certification)", () => {
+      const je = clientReceiptEntry({ ...base, inflowType: "Client IPC Running Bill", paymentMode: "bank_transfer" });
+      const codes = je.lines.map((l) => l.accountCode);
+      expect(codes).not.toContain("4001");
+    });
+
+    it("throws on non-positive amount", () => {
+      expect(() =>
+        clientReceiptEntry({ ...base, inflowType: "Other Site Inflow", amount: 0, paymentMode: "cash" }),
+      ).toThrow(/positive/);
+    });
+
+    it("uses source 'receipt' and links the Payment row", () => {
+      const je = clientReceiptEntry({ ...base, inflowType: "Other Site Inflow", paymentMode: "bank_transfer" });
+      expect(je.source).toBe("receipt");
+      expect(je.sourceRefId).toBe("pay-1");
+      expect(je.sourceRefType).toBe("Payment");
     });
   });
 });

@@ -10,6 +10,7 @@ import {
   siteOverheadCodeForCategory,
   hoOverheadCodeForCategory,
   accountNameForCode,
+  paymentDebitAccountForCategory,
 } from "./overhead-account-mapping";
 
 describe("Overhead Account Mapping", () => {
@@ -124,6 +125,45 @@ describe("Overhead Account Mapping", () => {
     it("returns null for an unknown code", () => {
       expect(accountNameForCode("9999")).toBeNull();
       expect(accountNameForCode("")).toBeNull();
+    });
+  });
+
+  // Direct payments with no bill linkage must debit an EXPENSE account,
+  // never a payable (2001/2002) — the audit found every unlinked payment
+  // debiting Sundry Creditors, producing negative payables in the TB.
+  describe("paymentDebitAccountForCategory", () => {
+    it("NEVER returns a payable account code", () => {
+      for (const category of [null, undefined, "", "materials", "labor", "fuel", "unknown", "Site Overhead", "Equipment"] as const) {
+        for (const payeeType of ["vendor", "subcontractor", "supplier", "staff", "other", undefined] as const) {
+          const code = paymentDebitAccountForCategory(category, payeeType);
+          expect(code).not.toBe("2001");
+          expect(code).not.toBe("2002");
+        }
+      }
+    });
+
+    it("maps payment categories to the correct expense accounts", () => {
+      expect(paymentDebitAccountForCategory("Materials")).toBe("5001");
+      expect(paymentDebitAccountForCategory("material")).toBe("5001");
+      expect(paymentDebitAccountForCategory("labor")).toBe("5010");
+      expect(paymentDebitAccountForCategory("fuel")).toBe("6003");
+      expect(paymentDebitAccountForCategory("food")).toBe("6004");
+      expect(paymentDebitAccountForCategory("transport")).toBe("5050");
+      expect(paymentDebitAccountForCategory("Equipment")).toBe("5031");
+      expect(paymentDebitAccountForCategory("Subcontractor")).toBe("5020");
+      expect(paymentDebitAccountForCategory("Wages")).toBe("5010");
+      expect(paymentDebitAccountForCategory("completely-unknown")).toBe("6006");
+    });
+
+    it("falls back to Direct Labor for staff payees with no category, misc for others", () => {
+      expect(paymentDebitAccountForCategory(null, "staff")).toBe("5010");
+      expect(paymentDebitAccountForCategory(undefined, "vendor")).toBe("6006");
+      expect(paymentDebitAccountForCategory(null)).toBe("6006");
+    });
+
+    it("is case-insensitive", () => {
+      expect(paymentDebitAccountForCategory("  Materials  ")).toBe("5001");
+      expect(paymentDebitAccountForCategory("LABOR")).toBe("5010");
     });
   });
 });

@@ -17,6 +17,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import type { Prisma } from "@prisma/client";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
@@ -1115,15 +1116,23 @@ export const financialReportingRouter = router({
     .query(async ({ ctx, input }) => {
       // Scope by project membership
       let projectIds: string[] = [];
+      let userOrgId: string | null = null;
       if (input.projectId) {
         await assertProjectMember(ctx.user, input.projectId);
         projectIds = [input.projectId];
+        // Still need the org for org-level (projectId=null) lines.
+        const caller = await db.user.findUnique({
+          where: { id: ctx.user.id },
+          select: { organizationId: true },
+        });
+        userOrgId = caller?.organizationId ?? null;
       } else {
         // Use org-wide scoping so org admins see all org projects.
         const user = await db.user.findUniqueOrThrow({
           where: { id: ctx.user.id },
           select: { organizationId: true },
         });
+        userOrgId = user.organizationId;
         if (user.organizationId) {
           const orgProjects = await db.project.findMany({
             where: { organizationId: user.organizationId },
@@ -1144,34 +1153,47 @@ export const financialReportingRouter = router({
       if (input.toDate) dateFilter.lte = new Date(input.toDate);
       const hasDate = input.fromDate || input.toDate;
 
-      // Query journal entries that have at least one line linked to
-      // a project the caller can access, OR lines with projectId=null
-      // (org-level entries like head-office expenses — these belong to
-      // the org as a whole, not any specific project).
+      // TENANT ISOLATION: an entry is visible when EITHER
+      //   (a) it has at least one line linked to a project the caller can
+      //       access, OR
+      //   (b) it is an org-level entry (all lines projectId=null — e.g. HO
+      //       expenses) OWNED BY THE CALLER'S ORG, via JournalEntry.
+      //       organizationId.
+      // Previously the org-level branch was just `{ projectId: null }`,
+      // which matched head-office entries of EVERY organization — a
+      // cross-tenant leak of other orgs' journals.
+      // Org-less users (superadmin-created or org deletion) get project
+      // lines only — they have no org-level entries to see.
+      const accessCondition: Prisma.JournalEntryWhereInput = userOrgId
+        ? {
+            OR: [
+              { lines: { some: { projectId: { in: projectIds } } } },
+              { organizationId: userOrgId },
+            ],
+          }
+        : {
+            lines: { some: { projectId: { in: projectIds } } },
+          };
+
       const entries = await db.journalEntry.findMany({
         where: {
           ...(input.source ? { source: input.source } : {}),
           ...(input.isPosted !== undefined ? { isPosted: input.isPosted } : {}),
           ...(hasDate ? { entryDate: dateFilter } : {}),
-          lines: {
-            some: {
-              OR: [
-                { projectId: { in: projectIds } },
-                { projectId: null }, // org-level entries (HO expenses, etc.)
-              ],
-            },
-          },
+          ...accessCondition,
         },
         include: {
-          // Only include lines for projects the caller can access,
-          // plus org-level lines (projectId null).
+          // Only include lines for projects the caller can access, plus
+          // org-level lines (projectId null) belonging to the caller's org.
           lines: {
-            where: {
-              OR: [
-                { projectId: { in: projectIds } },
-                { projectId: null },
-              ],
-            },
+            where: userOrgId
+              ? {
+                  OR: [
+                    { projectId: { in: projectIds } },
+                    { journalEntry: { organizationId: userOrgId } },
+                  ],
+                }
+              : { projectId: { in: projectIds } },
             orderBy: { lineNumber: "asc" },
           },
         },
@@ -1607,93 +1629,101 @@ export const financialReportingRouter = router({
         };
       }
 
-      // Generate journal entries for client retention release
-      // Dr Client Receivable (retention now due)
-      //    Cr Retention Receivable (released)
-      for (const ipc of ipcsWithRetention) {
-        await createJournalEntry(db, {
-          source: "retention_release",
-          sourceRefId: ipc.id,
-          sourceRefType: "IPC",
-          description: `Retention released for IPC ${ipc.number} — project completion`,
-          entryDate: new Date(),
-          postedById: ctx.user.id,
-          lines: [
-            {
-              accountCode: "1100",
-              accountName: "Client Receivables",
-              debit: ipc.retentionAmount,
-              credit: 0,
-              description: `Retention due from client — IPC ${ipc.number}`,
-              projectId: input.projectId,
-            },
-            {
-              accountCode: "1110",
-              accountName: "Retention Receivable (from Client)",
-              debit: 0,
-              credit: ipc.retentionAmount,
-              description: `Retention released — project completed`,
-              projectId: input.projectId,
-            },
-          ],
-        });
+      // Generate journal entries + release markers ATOMICALLY. Previously
+      // each JE was created via `db` and then the IPC/sub-bill was updated
+      // separately — a failure in between left a posted JE for a release
+      // that was never marked, and re-running the mutation would post a
+      // SECOND identical JE. One transaction makes the pair idempotent.
+      //
+      // Client retention release:
+      //   Dr Client Receivable (retention now due)
+      //      Cr Retention Receivable (released)
+      //
+      // Subcontractor retention release:
+      //   Dr Retention Payable (no longer held)
+      //      Cr Subcontractor Payables (now due to sub)
+      await db.$transaction(async (tx) => {
+        for (const ipc of ipcsWithRetention) {
+          await createJournalEntry(tx, {
+            source: "retention_release",
+            sourceRefId: ipc.id,
+            sourceRefType: "IPC",
+            description: `Retention released for IPC ${ipc.number} — project completion`,
+            entryDate: new Date(),
+            postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
+            lines: [
+              {
+                accountCode: "1100",
+                accountName: "Client Receivables",
+                debit: ipc.retentionAmount,
+                credit: 0,
+                description: `Retention due from client — IPC ${ipc.number}`,
+                projectId: input.projectId,
+              },
+              {
+                accountCode: "1110",
+                accountName: "Retention Receivable (from Client)",
+                debit: 0,
+                credit: ipc.retentionAmount,
+                description: `Retention released — project completed`,
+                projectId: input.projectId,
+              },
+            ],
+          });
 
-        // Mark the IPC as released so a subsequent run of this mutation
-        // (double-click, accidental re-trigger) skips it. Without this
-        // update, the query above would return the same IPCs every time
-        // and generate duplicate journal entries.
-        await db.ipc.update({
-          where: { id: ipc.id },
-          data: {
-            retentionReleasedAt: new Date(),
-            retentionReleasedById: ctx.user.id,
-          },
-        });
-      }
-
-      // Generate journal entries for subcontractor retention release
-      // Dr Retention Payable (no longer held)
-      //    Cr Subcontractor Payables (now due to sub)
-      for (const bill of subsWithRetention) {
-        await createJournalEntry(db, {
-          source: "retention_release",
-          sourceRefId: bill.id,
-          sourceRefType: "SubcontractorBill",
-          description: `Retention released to subcontractor — bill ${bill.number}`,
-          entryDate: new Date(),
-          postedById: ctx.user.id,
-          lines: [
-            {
-              accountCode: "2010",
-              accountName: "Retention Payable (to Subcontractors)",
-              debit: bill.retentionAmount,
-              credit: 0,
-              description: `Retention released — project completed`,
-              projectId: input.projectId,
-              partnerId: bill.subcontractorId ?? undefined,
+          // Mark the IPC as released so a subsequent run of this mutation
+          // (double-click, accidental re-trigger) skips it. Same transaction
+          // as the JE above — both commit or neither does.
+          await tx.ipc.update({
+            where: { id: ipc.id },
+            data: {
+              retentionReleasedAt: new Date(),
+              retentionReleasedById: ctx.user.id,
             },
-            {
-              accountCode: "2002",
-              accountName: "Subcontractor Payables",
-              debit: 0,
-              credit: bill.retentionAmount,
-              description: `Retention now due to subcontractor`,
-              projectId: input.projectId,
-              partnerId: bill.subcontractorId ?? undefined,
-            },
-          ],
-        });
+          });
+        }
 
-        // Mark the subcontractor bill as released, mirroring the IPC
-        // update above. Same idempotency rationale.
-        await db.subcontractorBill.update({
-          where: { id: bill.id },
-          data: {
-            retentionReleasedAt: new Date(),
-            retentionReleasedById: ctx.user.id,
-          },
-        });
-      }
+        for (const bill of subsWithRetention) {
+          await createJournalEntry(tx, {
+            source: "retention_release",
+            sourceRefId: bill.id,
+            sourceRefType: "SubcontractorBill",
+            description: `Retention released to subcontractor — bill ${bill.number}`,
+            entryDate: new Date(),
+            postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
+            lines: [
+              {
+                accountCode: "2010",
+                accountName: "Retention Payable (to Subcontractors)",
+                debit: bill.retentionAmount,
+                credit: 0,
+                description: `Retention released — project completed`,
+                projectId: input.projectId,
+                partnerId: bill.subcontractorId ?? undefined,
+              },
+              {
+                accountCode: "2002",
+                accountName: "Subcontractor Payables",
+                debit: 0,
+                credit: bill.retentionAmount,
+                description: `Retention now due to subcontractor`,
+                projectId: input.projectId,
+                partnerId: bill.subcontractorId ?? undefined,
+              },
+            ],
+          });
+
+          await tx.subcontractorBill.update({
+            where: { id: bill.id },
+            data: {
+              retentionReleasedAt: new Date(),
+              retentionReleasedById: ctx.user.id,
+            },
+          });
+        }
+      });
 
       await audit({
         userId: ctx.user.id,

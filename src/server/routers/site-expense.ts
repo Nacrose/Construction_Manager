@@ -221,52 +221,63 @@ export const siteExpenseRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending expenses can be approved." });
       }
 
-      const updated = await db.siteExpense.update({
-        where: { id: input.id },
-        data: {
-          status: "approved",
-          approvedById: ctx.user.id,
-          approvedAt: new Date(),
-        },
-      });
+      // STATUS UPDATE + JOURNAL ENTRY — ONE TRANSACTION. Previously the
+      // status flipped to "approved" first and the JE was posted via `db`
+      // afterwards — a JE failure (unbalanced line, entry-number
+      // collision) left an approved expense with no GL trace, and
+      // re-approval is impossible ("only pending expenses can be
+      // approved"), so the GL entry could never be recovered.
+      const updated = await db.$transaction(async (tx) => {
+        const exp = await tx.siteExpense.update({
+          where: { id: input.id },
+          data: {
+            status: "approved",
+            approvedById: ctx.user.id,
+            approvedAt: new Date(),
+          },
+        });
 
-      // Generate journal entry for the site expense:
-      // Dr Site Overhead (6001-6006 based on category) NPR totalAmount
-      //    Cr Bank / Cash (1010/1001) NPR totalAmount
-      //
-      // Previously this hardcoded `overheadAccountCode = "6006"` (Site
-      // Overhead - Misc) regardless of `updated.category`, so every
-      // site expense ledgered as "Misc" — defeating the chart-of-accounts
-      // breakdown (Rent, Utilities, Fuel & Vehicle, Food & Mess, Safety).
-      // Now we map the category to the proper code via the shared helper.
-      const bankCode = updated.paymentMode === "cash" ? "1001" : "1010";
-      const overheadAccountCode = siteOverheadCodeForCategory(updated.category);
-      const overheadAccountName = accountNameForCode(overheadAccountCode) || "Site Overhead";
-      await createJournalEntry(db, {
-        source: "site_expense",
-        sourceRefId: input.id,
-        sourceRefType: "SiteExpense",
-        description: `Site expense approved: ${updated.description}`,
-        entryDate: updated.date,
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: overheadAccountCode,
-            accountName: overheadAccountName,
-            debit: updated.totalAmount,
-            credit: 0,
-            description: updated.description,
-            projectId: expense.projectId,
-          },
-          {
-            accountCode: bankCode,
-            accountName: updated.paymentMode === "cash" ? "Cash" : "Bank",
-            debit: 0,
-            credit: updated.totalAmount,
-            description: `Paid via ${updated.paymentMode}`,
-            projectId: expense.projectId,
-          },
-        ],
+        // Generate journal entry for the site expense:
+        // Dr Site Overhead (6001-6006 based on category) NPR totalAmount
+        //    Cr Bank / Cash (1010/1001) NPR totalAmount
+        //
+        // Previously this hardcoded `overheadAccountCode = "6006"` (Site
+        // Overhead - Misc) regardless of `exp.category`, so every
+        // site expense ledgered as "Misc" — defeating the chart-of-accounts
+        // breakdown (Rent, Utilities, Fuel & Vehicle, Food & Mess, Safety).
+        // Now we map the category to the proper code via the shared helper.
+        const bankCode = exp.paymentMode === "cash" ? "1001" : "1010";
+        const overheadAccountCode = siteOverheadCodeForCategory(exp.category);
+        const overheadAccountName = accountNameForCode(overheadAccountCode) || "Site Overhead";
+        await createJournalEntry(tx, {
+          source: "site_expense",
+          sourceRefId: input.id,
+          sourceRefType: "SiteExpense",
+          description: `Site expense approved: ${exp.description}`,
+          entryDate: exp.date,
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+          lines: [
+            {
+              accountCode: overheadAccountCode,
+              accountName: overheadAccountName,
+              debit: exp.totalAmount,
+              credit: 0,
+              description: exp.description,
+              projectId: expense.projectId,
+            },
+            {
+              accountCode: bankCode,
+              accountName: exp.paymentMode === "cash" ? "Cash" : "Bank",
+              debit: 0,
+              credit: exp.totalAmount,
+              description: `Paid via ${exp.paymentMode}`,
+              projectId: expense.projectId,
+            },
+          ],
+        });
+
+        return exp;
       });
 
       await audit({

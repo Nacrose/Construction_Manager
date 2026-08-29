@@ -294,7 +294,11 @@ export const ipcRouter = router({
                 projectId: certifiedIpc.projectId,
                 date: new Date(),
               });
-              await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
+              await createJournalEntry(tx, {
+                ...jeInput,
+                postedById: ctx.user.id,
+                organizationId: ctx.user.organizationId ?? undefined,
+              });
             }
           }
         }

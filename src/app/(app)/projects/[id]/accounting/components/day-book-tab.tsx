@@ -495,6 +495,13 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                   date: new Date(inflowDate).toISOString(),
                   debitAccountId: inflowBank || "cash_petty",
                   creditAccountId: "revenue_client",
+                  inflowType: inflowCategory as
+                    | "Client IPC Running Bill"
+                    | "Mobilization Advance"
+                    | "Partner Capital Deposit"
+                    | "Security Deposit Refund"
+                    | "Other Site Inflow",
+                  receivedFrom: inflowSource.trim(),
                   amount: amt,
                   narration: `${inflowCategory}: Received from ${inflowSource} ${inflowRefNo ? `(Ref: ${inflowRefNo})` : ""} - ${inflowNotes}`,
                   source: "manual",

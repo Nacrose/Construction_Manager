@@ -6,11 +6,12 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
-import { createJournalEntry } from "@/lib/journal-entry";
+import { createJournalEntry, reverseJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
+import { paymentDebitAccountForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 
 // ─── Payment Router ─────────────────────────────────────────
 const paymentRouter = router({
@@ -97,6 +98,10 @@ const paymentRouter = router({
         voucherType: z.enum(["payment", "bank_payment", "cash_payment", "journal"]).optional().default("payment"),
         scannedBillUrl: z.string().optional(),
         scannedBillName: z.string().optional(),
+        // Central bank account the payment is drawn on (org-scoped).
+        // When set, the account's currentBalance is decremented in the
+        // same transaction — matching the central cheque-run path.
+        companyBankAccountId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -136,96 +141,171 @@ const paymentRouter = router({
         if (sub) resolvedSubCategory = sub.name;
       }
 
-      const payment = await db.payment.create({
-        data: {
-          projectId,
-          ...data,
-          category: resolvedCategory,
-          subCategory: resolvedSubCategory,
-          paymentDate,
-          // Use ?? (not ||) so a legitimate netPaid=0 (full TDS deduction)
-          // is preserved instead of being overridden.
-          netPaid: finalNetPaid,
-          isBillAttached: Boolean(data.scannedBillUrl),
-          createdById: ctx.user.id,
-        },
-      });
-
-      // JOURNAL ENTRY: generate the payment JE so the GL reflects this
-      // payment. Previously this route created Payment records and updated
-      // bill statuses but NEVER called createJournalEntry — the GL was
-      // silently missing every payment created via the project-level
-      // Payments tab (the primary payment creation path for most users).
+      // ── PRE-WRITE RESOLUTION ─────────────────────────────────────
+      // Bill linkage is resolved BEFORE any write so that (a) the
+      // overpayment check can reject before a Payment row is committed,
+      // and (b) the journal entry debits the correct account.
       //
-      // Dr Sundry Creditors (2001) / Subcontractor Payables (2002) = amount
-      //    Cr TDS Payable (2020) = tdsDeducted (if any)
-      //    Cr Bank (1010) / Cash (1001) = netPaid
-      const creditorAccountCode = data.payeeType === "subcontractor" ? "2002" : "2001";
-      const creditorAccountName = data.payeeType === "subcontractor" ? "Subcontractor Payables" : "Sundry Creditors";
-      const bankCode = data.paymentMode === "cash" ? "1001" : "1010";
-      const bankName = data.paymentMode === "cash" ? "Cash" : "Bank";
+      // Previously: payment + JE were committed first, THEN the bill was
+      // looked up — an overpayment error at that point left a committed
+      // payment (and posted JE) despite the user seeing a failure toast.
+      // Worse, EVERY payment debited Sundry Creditors / Subcontractor
+      // Payables even when no bill existed, producing negative payables
+      // in the Trial Balance for direct cash/site purchases.
+      let linkedVendorBill: { id: string; billNumber: string; paidAmount: number; netPayable: number } | null = null;
+      let linkedSubBill: { id: string; number: string; paidAmount: number; netPayable: number } | null = null;
 
-      await createJournalEntry(db, {
-        source: "payment",
-        sourceRefId: payment.id,
-        sourceRefType: "Payment",
-        description: `Payment to ${data.payeeName} — ${data.invoiceNumber || "direct"}`,
-        entryDate: paymentDate,
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: creditorAccountCode,
-            accountName: creditorAccountName,
-            debit: input.amount,
-            credit: 0,
-            description: `Payment to ${data.payeeName}`,
-            projectId,
-          },
-          ...(input.tdsDeducted > 0 ? [{
-            accountCode: "2020" as const,
-            accountName: "TDS Payable",
-            debit: 0,
-            credit: input.tdsDeducted,
-            description: `TDS deducted from ${data.payeeName}`,
-            projectId,
-          }] : []),
-          {
-            accountCode: bankCode,
-            accountName: bankName,
-            debit: 0,
-            credit: finalNetPaid,
-            description: `Net payment via ${data.paymentMode}`,
-            projectId,
-          },
-        ],
-      });
-
-      // If linked to a Vendor Bill, update bill's paidAmount and status
       if (data.invoiceNumber && data.payeeType === "vendor") {
         const vBill = await db.vendorBill.findFirst({
           where: { projectId, billNumber: data.invoiceNumber },
+          select: { id: true, billNumber: true, paidAmount: true, netPayable: true },
         });
         if (vBill) {
           const newPaid = (vBill.paidAmount || 0) + data.amount;
-          // OVERPAYMENT CHECK: reject if payment exceeds remaining balance.
           if (newPaid > vBill.netPayable + 0.01) {
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: `Overpayment: bill ${vBill.billNumber} has remaining balance ${vBill.netPayable - vBill.paidAmount} but payment amount is ${data.amount}.`,
             });
           }
-          const isFullyPaid = newPaid >= vBill.netPayable - 0.01;
-          await db.vendorBill.update({
-            where: { id: vBill.id },
+          linkedVendorBill = vBill;
+        }
+      }
+
+      if (data.invoiceNumber && data.payeeType === "subcontractor") {
+        const subBill = await db.subcontractorBill.findFirst({
+          where: { projectId, number: data.invoiceNumber },
+          select: { id: true, number: true, paidAmount: true, netPayable: true },
+        });
+        if (subBill) {
+          const newPaid = (subBill.paidAmount || 0) + data.amount;
+          if (newPaid > subBill.netPayable + 0.01) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Overpayment: bill ${subBill.number} has remaining balance ${subBill.netPayable - (subBill.paidAmount || 0)} but payment amount is ${data.amount}.`,
+            });
+          }
+          linkedSubBill = subBill;
+        }
+      }
+
+      // DEBIT ACCOUNT: settling a known bill debits the payable. An
+      // unlinked payment (no bill found / no invoice number) debits the
+      // expense account its category maps to via the central
+      // paymentDebitAccountForCategory helper — never a payable.
+      const debitAccountCode = linkedVendorBill
+        ? "2001"
+        : linkedSubBill
+          ? "2002"
+          : paymentDebitAccountForCategory(resolvedCategory, data.payeeType);
+      const debitAccountName = accountNameForCode(debitAccountCode) || "Site Expenses";
+      const bankCode = data.paymentMode === "cash" ? "1001" : "1010";
+      const bankName = data.paymentMode === "cash" ? "Cash" : "Bank";
+
+      // BANK ACCOUNT SCOPE: verify the central bank account belongs to the
+      // caller's org BEFORE using it — the raw balance decrement below must
+      // never be able to touch another org's account.
+      if (data.companyBankAccountId) {
+        await assertOrgBankAccount(data.companyBankAccountId, ctx.user.organizationId);
+      }
+
+      // ── SINGLE TRANSACTION: payment + JE + bill settle + bank balance ──
+      const payment = await db.$transaction(async (tx) => {
+        const created = await tx.payment.create({
+          data: {
+            projectId,
+            payeeType: data.payeeType,
+            payeeName: data.payeeName,
+            partyPan: data.partyPan,
+            payeeId: data.payeeId,
+            ipcId: data.ipcId,
+            invoiceNumber: data.invoiceNumber,
+            amount: data.amount,
+            tdsDeducted: data.tdsDeducted,
+            vatIncluded: data.vatIncluded,
+            paymentDate,
+            paymentMiti: data.paymentMiti,
+            paymentMode: data.paymentMode,
+            chequeNo: data.chequeNo,
+            bankRef: data.bankRef,
+            bankAccount: data.bankAccount,
+            retentionReleased: data.retentionReleased,
+            notes: data.notes,
+            categoryId: data.categoryId,
+            subCategoryId: data.subCategoryId,
+            category: resolvedCategory,
+            subCategory: resolvedSubCategory,
+            allocationType: data.allocationType,
+            accountingSoftware: data.accountingSoftware,
+            accountingVoucherNo: data.accountingVoucherNo,
+            voucherType: data.voucherType,
+            scannedBillUrl: data.scannedBillUrl,
+            scannedBillName: data.scannedBillName,
+            companyBankAccountId: data.companyBankAccountId || null,
+            // Use ?? (not ||) so a legitimate netPaid=0 (full TDS deduction)
+            // is preserved instead of being overridden.
+            netPaid: finalNetPaid,
+            isBillAttached: Boolean(data.scannedBillUrl),
+            createdById: ctx.user.id,
+          },
+        });
+
+        // JOURNAL ENTRY: Dr <payable-or-expense> / Cr TDS Payable / Cr Bank.
+        // Atomic with the payment row — a failure rolls both back.
+        await createJournalEntry(tx, {
+          source: "payment",
+          sourceRefId: created.id,
+          sourceRefType: "Payment",
+          description: `Payment to ${data.payeeName} — ${data.invoiceNumber || "direct"}`,
+          entryDate: paymentDate,
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+          lines: [
+            {
+              accountCode: debitAccountCode,
+              accountName: debitAccountName,
+              debit: input.amount,
+              credit: 0,
+              description: linkedVendorBill || linkedSubBill
+                ? `Bill settlement payment to ${data.payeeName}`
+                : `Direct payment to ${data.payeeName} (${resolvedCategory || "uncategorized"})`,
+              projectId,
+              partnerId: data.payeeId || undefined,
+            },
+            ...(input.tdsDeducted > 0 ? [{
+              accountCode: "2020" as const,
+              accountName: "TDS Payable",
+              debit: 0,
+              credit: input.tdsDeducted,
+              description: `TDS deducted from ${data.payeeName}`,
+              projectId,
+            }] : []),
+            {
+              accountCode: bankCode,
+              accountName: bankName,
+              debit: 0,
+              credit: finalNetPaid,
+              description: `Net payment via ${data.paymentMode}`,
+              projectId,
+            },
+          ],
+        });
+
+        // Settle the linked Vendor Bill (validated above).
+        if (linkedVendorBill) {
+          const newPaid = (linkedVendorBill.paidAmount || 0) + data.amount;
+          const isFullyPaid = newPaid >= linkedVendorBill.netPayable - 0.01;
+          await tx.vendorBill.update({
+            where: { id: linkedVendorBill.id },
             data: {
               paidAmount: newPaid,
               status: isFullyPaid ? "paid" : "partially_paid",
             },
           });
-          await db.vendorPayment.create({
+          await tx.vendorPayment.create({
             data: {
               projectId,
-              vendorBillId: vBill.id,
+              vendorBillId: linkedVendorBill.id,
               amount: data.amount,
               paymentDate,
               paymentMethod: data.paymentMode || "bank_transfer",
@@ -235,32 +315,33 @@ const paymentRouter = router({
             },
           });
         }
-      }
 
-      // If linked to a Subcontractor Bill, update bill's paidAmount
-      if (data.invoiceNumber && data.payeeType === "subcontractor") {
-        const subBill = await db.subcontractorBill.findFirst({
-          where: { projectId, number: data.invoiceNumber },
-        });
-        if (subBill) {
-          const newPaid = (subBill.paidAmount || 0) + data.amount;
-          // OVERPAYMENT CHECK
-          if (newPaid > subBill.netPayable + 0.01) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Overpayment: bill ${subBill.number} has remaining balance ${subBill.netPayable - (subBill.paidAmount || 0)} but payment amount is ${data.amount}.`,
-            });
-          }
-          const isFullyPaid = newPaid >= subBill.netPayable - 0.01;
-          await db.subcontractorBill.update({
-            where: { id: subBill.id },
+        // Settle the linked Subcontractor Bill (validated above).
+        if (linkedSubBill) {
+          const newPaid = (linkedSubBill.paidAmount || 0) + data.amount;
+          const isFullyPaid = newPaid >= linkedSubBill.netPayable - 0.01;
+          await tx.subcontractorBill.update({
+            where: { id: linkedSubBill.id },
             data: {
               paidAmount: newPaid,
               status: isFullyPaid ? "paid" : "certified",
             },
           });
         }
-      }
+
+        // Keep the central bank account in sync when the payment is drawn
+        // on one (same behavior as the central cheque-run path). Atomic
+        // decrement inside the same transaction.
+        if (data.companyBankAccountId) {
+          await tx.$executeRaw`
+            UPDATE "CompanyBankAccount"
+            SET "currentBalance" = "currentBalance" - ${finalNetPaid}
+            WHERE "id" = ${data.companyBankAccountId}
+          `;
+        }
+
+        return created;
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -312,64 +393,75 @@ const paymentRouter = router({
         .sort((a, b) => a.getTime() - b.getTime())[0] ?? new Date();
       await assertNotLocked(ctx.user.organizationId, earliestDate);
 
-      const createdPayments: any[] = [];
-      for (const p of input.payments) {
-        const paymentDate = p.paymentDate ? new Date(p.paymentDate) : new Date();
-        const item = await db.payment.create({
-          data: {
-            projectId: input.projectId,
-            ...p,
-            paymentDate,
-            netPaid: p.amount - (p.tdsDeducted || 0),
-            createdById: ctx.user.id,
-          },
-        });
-        createdPayments.push(item);
-
-        // JOURNAL ENTRY for each bulk-imported payment — same pattern
-        // as single create. Without this, bulk-imported payments are
-        // missing from the GL.
-        const creditorAccountCode = p.payeeType === "subcontractor" ? "2002" : "2001";
-        const creditorAccountName = p.payeeType === "subcontractor" ? "Subcontractor Payables" : "Sundry Creditors";
-        const bankCode = p.paymentMode === "cash" ? "1001" : "1010";
-        const bankName = p.paymentMode === "cash" ? "Cash" : "Bank";
-        const netPaid = p.amount - (p.tdsDeducted || 0);
-
-        await createJournalEntry(db, {
-          source: "payment",
-          sourceRefId: item.id,
-          sourceRefType: "Payment",
-          description: `Bulk payment to ${p.payeeName}`,
-          entryDate: paymentDate,
-          postedById: ctx.user.id,
-          lines: [
-            {
-              accountCode: creditorAccountCode,
-              accountName: creditorAccountName,
-              debit: p.amount,
-              credit: 0,
-              description: `Payment to ${p.payeeName}`,
+      // ALL-OR-NOTHING IMPORT: every payment + its journal entry share one
+      // transaction. Previously each pair committed independently — a
+      // failure midway (unbalanced line, sequence collision) left half the
+      // import posted with the user seeing only an error, and a retry
+      // would duplicate the already-committed half.
+      //
+      // DEBIT ACCOUNT: bulk imports are direct payments (Tally/Swastik
+      // vouchers) with no bill linkage, so the debit goes to the
+      // category-mapped expense account — never Sundry Creditors, which
+      // would create negative payables for vendors we may not owe.
+      const createdPayments = await db.$transaction(async (tx) => {
+        const results: any[] = [];
+        for (const p of input.payments) {
+          const paymentDate = p.paymentDate ? new Date(p.paymentDate) : new Date();
+          const item = await tx.payment.create({
+            data: {
               projectId: input.projectId,
+              ...p,
+              paymentDate,
+              netPaid: p.amount - (p.tdsDeducted || 0),
+              createdById: ctx.user.id,
             },
-            ...((p.tdsDeducted || 0) > 0 ? [{
-              accountCode: "2020" as const,
-              accountName: "TDS Payable",
-              debit: 0,
-              credit: p.tdsDeducted,
-              description: `TDS deducted from ${p.payeeName}`,
-              projectId: input.projectId,
-            }] : []),
-            {
-              accountCode: bankCode,
-              accountName: bankName,
-              debit: 0,
-              credit: netPaid,
-              description: `Net payment via ${p.paymentMode}`,
-              projectId: input.projectId,
-            },
-          ],
-        });
-      }
+          });
+          results.push(item);
+
+          const debitAccountCode = paymentDebitAccountForCategory(p.category, p.payeeType);
+          const debitAccountName = accountNameForCode(debitAccountCode) || "Site Expenses";
+          const bankCode = p.paymentMode === "cash" ? "1001" : "1010";
+          const bankName = p.paymentMode === "cash" ? "Cash" : "Bank";
+          const netPaid = p.amount - (p.tdsDeducted || 0);
+
+          await createJournalEntry(tx, {
+            source: "payment",
+            sourceRefId: item.id,
+            sourceRefType: "Payment",
+            description: `Bulk payment to ${p.payeeName}`,
+            entryDate: paymentDate,
+            postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
+            lines: [
+              {
+                accountCode: debitAccountCode,
+                accountName: debitAccountName,
+                debit: p.amount,
+                credit: 0,
+                description: `Bulk import payment to ${p.payeeName} (${p.category || "uncategorized"})`,
+                projectId: input.projectId,
+              },
+              ...((p.tdsDeducted || 0) > 0 ? [{
+                accountCode: "2020" as const,
+                accountName: "TDS Payable",
+                debit: 0,
+                credit: p.tdsDeducted,
+                description: `TDS deducted from ${p.payeeName}`,
+                projectId: input.projectId,
+              }] : []),
+              {
+                accountCode: bankCode,
+                accountName: bankName,
+                debit: 0,
+                credit: netPaid,
+                description: `Net payment via ${p.paymentMode}`,
+                projectId: input.projectId,
+              },
+            ],
+          });
+        }
+        return results;
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -475,7 +567,7 @@ const paymentRouter = router({
       // IDOR FIX: verify the payment belongs to input.projectId.
       const existing = await db.payment.findFirst({
         where: { id: input.id, projectId: input.projectId },
-        select: { id: true, paymentDate: true },
+        select: { id: true, paymentDate: true, amount: true, payeeName: true, companyBankAccountId: true, netPaid: true },
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found in this project." });
@@ -484,7 +576,53 @@ const paymentRouter = router({
       // FISCAL YEAR LOCK
       await assertNotLocked(ctx.user.organizationId, existing.paymentDate);
 
-      await db.payment.delete({ where: { id: input.id } });
+      // JE REVERSAL + DELETE — ATOMIC. Previously deleting a payment left
+      // its journal entry permanently orphaned in the GL: the Trial
+      // Balance kept reflecting a payment that no longer existed, with no
+      // way to reconcile. Now every JE generated from this payment
+      // (sourceRefId/sourceRefType) is reversed via the engine's
+      // reverseJournalEntry (mirror entry, debits/credits swapped) in the
+      // same transaction as the delete.
+      await db.$transaction(async (tx) => {
+        const linkedEntries = await tx.journalEntry.findMany({
+          where: { sourceRefId: input.id, sourceRefType: "Payment" },
+          select: { id: true },
+        });
+
+        for (const je of linkedEntries) {
+          // Skip entries that already have a reversal (idempotency).
+          const alreadyReversed = await tx.journalEntry.findFirst({
+            where: { reversalOfId: je.id },
+            select: { id: true },
+          });
+          if (!alreadyReversed) {
+            await reverseJournalEntry(
+              tx,
+              je.id,
+              `Payment deleted — ${existing.payeeName} (NPR ${existing.amount.toLocaleString()})`,
+            );
+          }
+        }
+
+        // If the payment had drawn on a central bank account, restore the
+        // balance (money never left). Receipts (inflows) have
+        // voucherType "receipt" and INCREASED the balance.
+        if (existing.companyBankAccountId) {
+          const receipt = await tx.payment.findUnique({
+            where: { id: input.id },
+            select: { voucherType: true },
+          });
+          const isReceipt = receipt?.voucherType === "receipt";
+          const delta = existing.netPaid ?? existing.amount;
+          await tx.$executeRaw`
+            UPDATE "CompanyBankAccount"
+            SET "currentBalance" = "currentBalance" + ${isReceipt ? -delta : delta}
+            WHERE "id" = ${existing.companyBankAccountId}
+          `;
+        }
+
+        await tx.payment.delete({ where: { id: input.id } });
+      });
       return { ok: true };
     }),
 
@@ -820,62 +958,73 @@ const paymentRouter = router({
         });
       }
 
-      // Create payment record
-      const payment = await db.payment.create({
-        data: {
-          projectId: input.projectId,
-          payeeType: "subcontractor",
-          payeeId: input.subcontractorId,
-          payeeName: sub.name,
-          amount: input.amount,
-          netPaid: input.amount,
-          retentionReleased: input.amount,
-          paymentDate,
-          paymentMode: input.paymentMode,
-          chequeNo: input.chequeNo,
-          bankRef: input.bankRef,
-          notes: input.notes || "Retention release",
-          status: "paid",
-          createdById: ctx.user.id,
-        },
-      });
-
-      // JOURNAL ENTRY: retention release to subcontractor.
-      // Dr Retention Payable (2010) = amount
-      //    Cr Subcontractor Payables (2002) = amount
-      await createJournalEntry(db, {
-        source: "retention_release",
-        sourceRefId: payment.id,
-        sourceRefType: "Payment",
-        description: `Retention release to ${sub.name}`,
-        entryDate: paymentDate,
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: "2010",
-            accountName: "Retention Payable (to Subcontractors)",
-            debit: input.amount,
-            credit: 0,
-            description: `Retention released to ${sub.name}`,
+      // PAYMENT + JE + SUB UPDATE — ONE TRANSACTION. Previously the three
+      // writes committed independently: a JE failure after the payment row
+      // existed left an un-journaled retention release with no retry, and
+      // a failed sub update left the payment posted without the released
+      // total being tracked (so the over-release check would drift).
+      const payment = await db.$transaction(async (tx) => {
+        const created = await tx.payment.create({
+          data: {
             projectId: input.projectId,
+            payeeType: "subcontractor",
+            payeeId: input.subcontractorId,
+            payeeName: sub.name,
+            amount: input.amount,
+            netPaid: input.amount,
+            retentionReleased: input.amount,
+            paymentDate,
+            paymentMode: input.paymentMode,
+            chequeNo: input.chequeNo,
+            bankRef: input.bankRef,
+            notes: input.notes || "Retention release",
+            status: "paid",
+            createdById: ctx.user.id,
           },
-          {
-            accountCode: "2002",
-            accountName: "Subcontractor Payables",
-            debit: 0,
-            credit: input.amount,
-            description: `Retention now due to ${sub.name}`,
-            projectId: input.projectId,
-          },
-        ],
-      });
+        });
 
-      // Update subcontractor's released total
-      await db.subcontractor.update({
-        where: { id: input.subcontractorId },
-        data: {
-          totalRetentionReleased: sub.totalRetentionReleased + input.amount,
-        },
+        // JOURNAL ENTRY: retention release to subcontractor.
+        // Dr Retention Payable (2010) = amount
+        //    Cr Subcontractor Payables (2002) = amount
+        await createJournalEntry(tx, {
+          source: "retention_release",
+          sourceRefId: created.id,
+          sourceRefType: "Payment",
+          description: `Retention release to ${sub.name}`,
+          entryDate: paymentDate,
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+          lines: [
+            {
+              accountCode: "2010",
+              accountName: "Retention Payable (to Subcontractors)",
+              debit: input.amount,
+              credit: 0,
+              description: `Retention released to ${sub.name}`,
+              projectId: input.projectId,
+              partnerId: input.subcontractorId,
+            },
+            {
+              accountCode: "2002",
+              accountName: "Subcontractor Payables",
+              debit: 0,
+              credit: input.amount,
+              description: `Retention now due to ${sub.name}`,
+              projectId: input.projectId,
+              partnerId: input.subcontractorId,
+            },
+          ],
+        });
+
+        // Update subcontractor's released total
+        await tx.subcontractor.update({
+          where: { id: input.subcontractorId },
+          data: {
+            totalRetentionReleased: sub.totalRetentionReleased + input.amount,
+          },
+        });
+
+        return created;
       });
 
       await audit({

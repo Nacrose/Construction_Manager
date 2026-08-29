@@ -3,7 +3,6 @@ import { router, protectedProcedure } from "../trpc";
 import { getFreshDb } from "@/lib/db";
 import { assertCanWrite, assertProjectMember } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
-import { createJournalEntry } from "@/lib/journal-entry";
 import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
 
@@ -278,57 +277,20 @@ export const variationOrderRouter = router({
           data: updateData,
         });
 
-        // VO JE must be ATOMIC with the status update. Previously this
-        // was outside the transaction — a failure between the transaction
-        // committing and the JE being created would leave an "approved"
-        // VO permanently un-journaled with no retry path. Now the JE is
-        // created inside the same transaction so any failure rolls back
-        // the status change too.
+        // VO APPROVAL — NO REVENUE JOURNAL ENTRY (intentionally).
         //
-        // #6 FIX: items without baseline data now use item.newQty * newRate
-        // as a FALLBACK ESTIMATE (instead of being skipped entirely).
-        if (input.status === "approved") {
-          let totalValueChange = 0;
-          for (const item of vo.items) {
-            if (item.boqItemId) {
-              const prevValue = (item.previousQty ?? 0) * (item.previousRate ?? 0);
-              const newValue = item.newQty * item.newRate;
-              totalValueChange += (newValue - prevValue);
-            } else {
-              // New item added: full value
-              totalValueChange += item.newQty * item.newRate;
-            }
-          }
-
-          if (Math.abs(totalValueChange) > 0.01) {
-            await createJournalEntry(tx, {
-              source: "variation_order",
-              sourceRefId: input.id,
-              sourceRefType: "VariationOrder",
-              description: `Variation Order ${vo.number} approved — contract value change`,
-              entryDate: new Date(),
-              postedById: ctx.user.id,
-              lines: [
-                {
-                  accountCode: "1100",
-                  accountName: "Client Receivables",
-                  debit: Math.max(0, totalValueChange),
-                  credit: Math.max(0, -totalValueChange),
-                  description: `VO ${vo.number} — contract value adjustment`,
-                  projectId: input.projectId,
-                },
-                {
-                  accountCode: "4001",
-                  accountName: "Contract Revenue",
-                  debit: Math.max(0, -totalValueChange),
-                  credit: Math.max(0, totalValueChange),
-                  description: `VO ${vo.number} — variation revenue`,
-                  projectId: input.projectId,
-                },
-              ],
-            });
-          }
-        }
+        // A VO approval is a CONTRACT-VALUE event, not a revenue event:
+        // this mutation copies the VO items into an approved BoqVersion,
+        // and subsequent IPCs bill those BOQ quantities — at which point
+        // ipcBillingEntry recognizes the revenue (Dr 1100 / Cr 4001).
+        //
+        // The previous code ALSO posted "Dr Client Receivables / Cr
+        // Contract Revenue" here at approval time, which double-counted
+        // every VO with IPC billing (two Cr 4001 postings for the same
+        // quantities), inflated Client Receivables by the VO delta, and
+        // had no idempotency guard (re-approval = duplicate JE).
+        // Removing this entry fixes all three issues; the audit metadata
+        // after the transaction still records the value change.
       }); // end of $transaction
 
       // Audit log (was missing entirely)

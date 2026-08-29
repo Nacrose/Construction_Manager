@@ -3761,6 +3761,7 @@ model JournalEntry {
   entryDate       DateTime @default(now())
   miti            String?  // BS date
   fiscalYearId    String?  // links to FiscalYearLock
+  organizationId  String?  // owning org (org-level entries have projectId=null lines; this is the ONLY reliable org scope)
   source          String   // payment | vendor_bill | subcontractor_bill | ipc | site_expense | payroll | bank_charge | journal_voucher
   sourceRefId     String?  // the record ID that generated this entry
   sourceRefType   String?  // model name for reverse lookup
@@ -3780,6 +3781,7 @@ model JournalEntry {
   @@index([source, sourceRefId])
   @@index([fiscalYearId])
   @@index([isPosted])
+  @@index([organizationId])
 }
 
 model JournalEntryLine {

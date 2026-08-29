@@ -41,6 +41,7 @@ export type JournalEntryInput = {
   description: string;
   entryDate?: Date;
   miti?: string;
+  organizationId?: string; // owning org — REQUIRED for org-level entries (lines with projectId=null); the only reliable org scope
   lines: JournalLineInput[];
   isPosted?: boolean;
   postedById?: string; // user who posted the entry
@@ -66,6 +67,26 @@ export async function createJournalEntry(
     );
   }
 
+  // Resolve the fiscal year this entry belongs to (period lookup, not
+  // just locked years). Falls back to null when no period covers the
+  // date — fiscalYearId is informational for period reporting; lock
+  // enforcement happens in the routers via assertNotLocked.
+  let fiscalYearId: string | null = null;
+  try {
+    const fy = await tx.fiscalYearLock.findFirst({
+      where: {
+        startDate: { lte: input.entryDate ?? new Date() },
+        endDate: { gte: input.entryDate ?? new Date() },
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+      },
+      select: { id: true },
+    });
+    fiscalYearId = fy?.id ?? null;
+  } catch {
+    // FiscalYearLock table may not exist yet on fresh databases.
+    fiscalYearId = null;
+  }
+
   // Generate entry number (JE-YYYY-NNNN) with retry on collision.
   // The unique constraint on entryNumber prevents duplicates — if a
   // concurrent request inserts the same number, we retry.
@@ -85,6 +106,8 @@ export async function createJournalEntry(
           entryNumber,
           entryDate: input.entryDate ?? new Date(),
           miti: input.miti,
+          fiscalYearId,
+          organizationId: input.organizationId || null,
           source: input.source,
           sourceRefId: input.sourceRefId || null,
           sourceRefType: input.sourceRefType || null,
@@ -178,6 +201,9 @@ export async function reverseJournalEntry(
           isPosted: true,
           postedAt: new Date(),
           reversalOfId: originalEntryId,
+          // Preserve org ownership so org-scoped queries still see the
+          // reversal alongside the original entry.
+          organizationId: original.organizationId,
           lines: {
             create: reversedLines.map((line, idx) => ({
               lineNumber: idx + 1,
@@ -396,5 +422,78 @@ export function ipcBillingEntry(params: {
     description: `IPC ${params.ipcNumber} certified`,
     entryDate: params.date,
     lines,
+  };
+}
+
+/**
+ * Inflow nature → credit account mapping for money received by the
+ * contractor. This is the missing "cash-in" side of the GL: previously NO
+ * posting anywhere debited Bank/Cash (1001/1010), so the bank ledger and
+ * Trial Balance could never reflect receipts.
+ *
+ * Each nature credits the economically correct account:
+ *   - Client IPC Running Bill → Client Receivables (1100): settles the
+ *     receivable recognized at IPC certification. NOT revenue — revenue
+ *     was already recognized by ipcBillingEntry.
+ *   - Mobilization Advance    → Mobilization Advance Received (2050): a
+ *     liability until amortized against future IPCs.
+ *   - Partner Capital Deposit → Owner's Capital (3000): JV equity in.
+ *   - Security Deposit Refund → Retention Receivable (1110): retention
+ *     finally received from the client.
+ *   - Other Site Inflow       → Other Income (4100).
+ */
+export const INFLOW_CREDIT_ACCOUNTS = {
+  "Client IPC Running Bill": { code: "1100", name: "Client Receivables" },
+  "Mobilization Advance": { code: "2050", name: "Mobilization Advance Received (from Client)" },
+  "Partner Capital Deposit": { code: "3000", name: "Owner's Capital" },
+  "Security Deposit Refund": { code: "1110", name: "Retention Receivable (from Client)" },
+  "Other Site Inflow": { code: "4100", name: "Other Income" },
+} as const;
+
+export type InflowType = keyof typeof INFLOW_CREDIT_ACCOUNTS;
+
+export function clientReceiptEntry(params: {
+  receiptId: string; // Payment row id acting as the receipt voucher
+  inflowType: InflowType;
+  receivedFrom: string;
+  amount: number;
+  paymentMode: string; // cash → 1001, anything else → 1010
+  projectId?: string;
+  date: Date;
+}): JournalEntryInput {
+  if (params.amount <= 0) {
+    throw new Error(`clientReceiptEntry: amount must be positive, got ${params.amount}.`);
+  }
+
+  const creditAccount =
+    INFLOW_CREDIT_ACCOUNTS[params.inflowType] ?? INFLOW_CREDIT_ACCOUNTS["Other Site Inflow"];
+
+  const bankCode = params.paymentMode === "cash" ? "1001" : "1010";
+  const bankName = params.paymentMode === "cash" ? "Cash on Hand" : "Bank - Current Account";
+
+  return {
+    source: "receipt",
+    sourceRefId: params.receiptId,
+    sourceRefType: "Payment",
+    description: `Money in — ${params.inflowType} from ${params.receivedFrom}`,
+    entryDate: params.date,
+    lines: [
+      {
+        accountCode: bankCode,
+        accountName: bankName,
+        debit: params.amount,
+        credit: 0,
+        description: `Received from ${params.receivedFrom} via ${params.paymentMode}`,
+        projectId: params.projectId,
+      },
+      {
+        accountCode: creditAccount.code,
+        accountName: creditAccount.name,
+        debit: 0,
+        credit: params.amount,
+        description: `${params.inflowType} — ${params.receivedFrom}`,
+        projectId: params.projectId,
+      },
+    ],
   };
 }

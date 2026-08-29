@@ -201,91 +201,104 @@ export const vendorBillRouter = router({
       const tdsAmount = (input.grossAmount * (input.tdsPercent || 1.5)) / 100;
       const netPayable = input.grossAmount + vatAmount - tdsAmount;
 
-      const bill = await db.vendorBill.create({
-        data: {
-          projectId: input.projectId,
-          partnerId: input.partnerId,
-          purchaseOrderId: input.purchaseOrderId || null,
-          billNumber: input.billNumber.trim(),
-          billDate: new Date(input.billDate),
-          dueDate: input.dueDate ? new Date(input.dueDate) : null,
-          grossAmount: input.grossAmount,
-          vatAmount,
-          tdsAmount,
-          netPayable,
-          paidAmount: 0,
-          status: "unpaid",
-          fileUrl: input.fileUrl || null,
-          remarks: input.remarks || null,
-        },
-        include: {
-          partner: true,
-          purchaseOrder: true,
-        },
-      });
-
-      // LIABILITY JOURNAL ENTRY: record the liability when the bill is
-      // created, not just when it's paid. Without this, Sundry Creditors
-      // (2001) only ever gets DEBITED (at payment time) but never CREDITED
-      // — so the Trial Balance won't tie out as long as any bill is
-      // outstanding.
-      //
-      // Correct Nepal double-entry for a vendor bill:
-      //   Dr Purchases / Material (5001)     = grossAmount
-      //   Dr Input VAT Receivable (1400)     = vatAmount   (recoverable from IRD)
-      //      Cr TDS Payable (2020)           = tdsAmount   (must deposit to IRD)
-      //      Cr Sundry Creditors (2001)      = netPayable  (what we owe vendor)
-      //
-      // Balance check: Dr = grossAmount + vatAmount
-      //                Cr = tdsAmount + (grossAmount + vatAmount - tdsAmount) = grossAmount + vatAmount ✓
-      //
-      // FISCAL YEAR LOCK: use the bill date (not today) so back-dated bills
-      // to locked fiscal years are correctly rejected.
+      // FISCAL YEAR LOCK: check BEFORE any write. Previously this ran
+      // AFTER the bill row was already committed — a locked year would
+      // throw, but the bill existed without its journal entry, and the
+      // JE was also created outside the bill's transaction so any JE
+      // failure (unbalanced line, sequence collision) left a permanently
+      // un-journaled bill. Both writes now share one transaction.
       await assertNotLocked(ctx.user.organizationId, new Date(input.billDate));
 
-      await createJournalEntry(db, {
-        source: "vendor_bill",
-        sourceRefId: bill.id,
-        sourceRefType: "VendorBill",
-        description: `Vendor bill ${bill.billNumber} — liability recorded`,
-        entryDate: new Date(input.billDate),
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: "5001",
-            accountName: "Material / Purchases",
-            debit: input.grossAmount,
-            credit: 0,
-            description: `Purchase from ${bill.partner?.name || bill.billNumber}`,
+      const bill = await db.$transaction(async (tx) => {
+        const created = await tx.vendorBill.create({
+          data: {
             projectId: input.projectId,
-            partnerId: bill.partnerId || undefined,
+            partnerId: input.partnerId,
+            purchaseOrderId: input.purchaseOrderId || null,
+            billNumber: input.billNumber.trim(),
+            billDate: new Date(input.billDate),
+            dueDate: input.dueDate ? new Date(input.dueDate) : null,
+            grossAmount: input.grossAmount,
+            vatAmount,
+            tdsAmount,
+            netPayable,
+            paidAmount: 0,
+            status: "unpaid",
+            fileUrl: input.fileUrl || null,
+            remarks: input.remarks || null,
           },
-          ...(vatAmount > 0 ? [{
-            accountCode: "1400" as const,
-            accountName: "Input VAT Receivable",
-            debit: vatAmount,
-            credit: 0,
-            description: `Input VAT on vendor bill ${bill.billNumber}`,
-            projectId: input.projectId,
-          }] : []),
-          ...(tdsAmount > 0 ? [{
-            accountCode: "2020" as const,
-            accountName: "TDS Payable",
-            debit: 0,
-            credit: tdsAmount,
-            description: `TDS to deposit on behalf of ${bill.partner?.name || bill.billNumber}`,
-            projectId: input.projectId,
-          }] : []),
-          {
-            accountCode: "2001",
-            accountName: "Sundry Creditors",
-            debit: 0,
-            credit: netPayable,
-            description: `Payable to ${bill.partner?.name || bill.billNumber}`,
-            projectId: input.projectId,
-            partnerId: bill.partnerId || undefined,
+          include: {
+            partner: true,
+            purchaseOrder: true,
           },
-        ],
+        });
+
+        // LIABILITY JOURNAL ENTRY: record the liability when the bill is
+        // created, not just when it's paid. Without this, Sundry Creditors
+        // (2001) only ever gets DEBITED (at payment time) but never CREDITED
+        // — so the Trial Balance won't tie out as long as any bill is
+        // outstanding.
+        //
+        // Correct Nepal double-entry for a vendor bill:
+        //   Dr Purchases / Material (5001)     = grossAmount
+        //   Dr Input VAT Receivable (1410)     = vatAmount   (recoverable from IRD)
+        //      Cr TDS Payable (2020)           = tdsAmount   (must deposit to IRD)
+        //      Cr Sundry Creditors (2001)      = netPayable  (what we owe vendor)
+        //
+        // Balance check: Dr = grossAmount + vatAmount
+        //                Cr = tdsAmount + (grossAmount + vatAmount - tdsAmount) = grossAmount + vatAmount ✓
+        //
+        // ACCOUNT CODE FIX: Input VAT previously shared 1400 with TDS
+        // Receivable (two different asset balances on one account — VAT
+        // reports and TDS reports both read the wrong totals). Input VAT
+        // now has its own account, 1410.
+        await createJournalEntry(tx, {
+          source: "vendor_bill",
+          sourceRefId: created.id,
+          sourceRefType: "VendorBill",
+          description: `Vendor bill ${created.billNumber} — liability recorded`,
+          entryDate: new Date(input.billDate),
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+          lines: [
+            {
+              accountCode: "5001",
+              accountName: "Material / Purchases",
+              debit: input.grossAmount,
+              credit: 0,
+              description: `Purchase from ${created.partner?.name || created.billNumber}`,
+              projectId: input.projectId,
+              partnerId: created.partnerId || undefined,
+            },
+            ...(vatAmount > 0 ? [{
+              accountCode: "1410" as const,
+              accountName: "Input VAT Receivable",
+              debit: vatAmount,
+              credit: 0,
+              description: `Input VAT on vendor bill ${created.billNumber}`,
+              projectId: input.projectId,
+            }] : []),
+            ...(tdsAmount > 0 ? [{
+              accountCode: "2020" as const,
+              accountName: "TDS Payable",
+              debit: 0,
+              credit: tdsAmount,
+              description: `TDS to deposit on behalf of ${created.partner?.name || created.billNumber}`,
+              projectId: input.projectId,
+            }] : []),
+            {
+              accountCode: "2001",
+              accountName: "Sundry Creditors",
+              debit: 0,
+              credit: netPayable,
+              description: `Payable to ${created.partner?.name || created.billNumber}`,
+              projectId: input.projectId,
+              partnerId: created.partnerId || undefined,
+            },
+          ],
+        });
+
+        return created;
       });
 
       return { bill };
@@ -362,7 +375,11 @@ export const vendorBillRouter = router({
           partnerId: bill.partner?.id,
           date: input.paymentDate ? new Date(input.paymentDate) : new Date(),
         });
-        await createJournalEntry(tx, { ...jeInput, postedById: ctx.user.id });
+        await createJournalEntry(tx, {
+          ...jeInput,
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+        });
 
         return p;
       });

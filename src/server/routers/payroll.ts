@@ -469,6 +469,7 @@ export const payrollRouter = router({
           description: `Payroll for ${input.month} — ${input.projectId}`,
           entryDate: new Date(),
           postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
           lines: [
             {
               accountCode: "5010",

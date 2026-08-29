@@ -98,3 +98,54 @@ export function hoOverheadCodeForCategory(
 export function accountNameForCode(code: string): string | null {
   return CHART_OF_ACCOUNTS.find((c) => c.code === code)?.name ?? null;
 }
+
+/**
+ * Direct-payment debit account resolution.
+ *
+ * When a Payment settles a known VendorBill/SubcontractorBill, the debit
+ * goes to the payable (2001/2002) — that is a settlement, not an expense.
+ * But when a payment is created with NO bill linkage (direct cash/site
+ * purchases — the primary path on the project Payments tab), debiting
+ * Sundry Creditors produces a negative payable: the Trial Balance shows a
+ * credit balance on a vendor we may not even owe. The economically correct
+ * entry for an unlinked payment is to debit the expense/asset account the
+ * money actually bought, derived from the payment's category.
+ *
+ * The lookup layers payment-specific categories (equipment hire,
+ * subcontractor, wages) on top of the shared site-overhead map.
+ * Lookup is case-insensitive; falls back to "6006" (Site Overhead - Misc)
+ * so no direct payment ever lands on a payable account by accident.
+ */
+const PAYMENT_DEBIT_CODES: Record<string, string> = {
+  // Equipment / plant payments are overwhelmingly hire-based (rentals,
+  // spot hire) — 5031 Equipment Cost - Rented.
+  equipment: "5031",
+  plant: "5031",
+  hire: "5031",
+  rental: "5031",
+  "spot hire": "5031",
+  // Subcontractor payments without a linked bill are subcontract cost.
+  subcontract: "5020",
+  subcontractor: "5020",
+  // Wages / salary payments are direct labor.
+  salary: "5010",
+  wages: "5010",
+  wage: "5010",
+  // Compound UI labels.
+  "site overhead": "6006",
+  overhead: "6006",
+};
+
+export function paymentDebitAccountForCategory(
+  category: string | null | undefined,
+  payeeType?: string | null,
+): string {
+  if (!category) {
+    // No category at all: staff payees are labor, everything else misc.
+    return payeeType === "staff" ? "5010" : "6006";
+  }
+  const key = category.trim().toLowerCase();
+  if (PAYMENT_DEBIT_CODES[key]) return PAYMENT_DEBIT_CODES[key];
+  const siteKey = key as keyof typeof SITE_OVERHEAD_CODES;
+  return SITE_OVERHEAD_CODES[siteKey] ?? "6006";
+}

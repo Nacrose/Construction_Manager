@@ -1113,6 +1113,7 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
       "entryDate" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "miti" TEXT,
       "fiscalYearId" TEXT,
+      "organizationId" TEXT,
       "source" TEXT NOT NULL,
       "sourceRefId" TEXT,
       "sourceRefType" TEXT,
@@ -1132,6 +1133,18 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `CREATE INDEX IF NOT EXISTS "JournalEntry_fiscalYearId_idx" ON "JournalEntry"("fiscalYearId")`,
     `CREATE INDEX IF NOT EXISTS "JournalEntry_isPosted_idx" ON "JournalEntry"("isPosted")`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "JournalEntry_entryNumber_key" ON "JournalEntry"("entryNumber")`,
+    // Multi-tenant org scope for journal entries. Org-level entries (HO
+    // expenses, head-office bank charges) have projectId=null LINES — the
+    // organizationId column is the ONLY reliable org scope for them.
+    `ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "organizationId" TEXT`,
+    `CREATE INDEX IF NOT EXISTS "JournalEntry_organizationId_idx" ON "JournalEntry"("organizationId")`,
+    // Backfill: derive org ownership from the posting user for legacy
+    // entries (idempotent — only touches rows still NULL).
+    `UPDATE "JournalEntry" SET "organizationId" = u."organizationId"
+       FROM "User" u
+       WHERE "JournalEntry"."postedById" = u."id"
+         AND u."organizationId" IS NOT NULL
+         AND "JournalEntry"."organizationId" IS NULL`,
 
     `CREATE TABLE IF NOT EXISTS "JournalEntryLine" (
       "id" TEXT NOT NULL,

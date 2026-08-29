@@ -1368,6 +1368,7 @@ export const financeRouter = router({
             description: `Central cheque run — ${b.billType} payment to ${b.supplierName} (${b.billNumber})`,
             entryDate: new Date(input.paymentDate),
             postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
             lines: [
               {
                 accountCode: creditorAccountCode,
@@ -1581,6 +1582,7 @@ export const financeRouter = router({
           description: `HO expense: ${input.particulars} (${input.category})`,
           entryDate: new Date(input.date),
           postedById: ctx.user.id,
+          organizationId: user.organizationId ?? undefined,
           lines: [
             {
               accountCode: hoAccountCode,

@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs } from "@/lib/nepali-calendar";
+import { createJournalEntry, clientReceiptEntry, type InflowType } from "@/lib/journal-entry";
+import { aggregateTrialBalance } from "@/server/utils/gl-trial-balance";
 
 export const accountingRouter = router({
   /**
@@ -700,30 +702,69 @@ export const accountingRouter = router({
             miti = adToBs(new Date(p.paymentDate)).formatted;
           } catch {}
 
+          // INFLOW DIRECTION: receipts (voucherType "receipt", or legacy
+          // inflows created before that flag existed with category
+          // "Project Inflow / Capital") are money INTO the bank/cash
+          // account — they must appear on the DEBIT side of the bank
+          // ledger (debit increases the balance, see running-balance
+          // loop below). Previously every payment was pushed as a credit,
+          // so a deposit reduced the bank balance in the statement.
+          const isInflow =
+            p.voucherType === "receipt" ||
+            p.category === "Project Inflow / Capital";
+
           if (input.accountType === "bank" && p.paymentMode !== "cash") {
-            txns.push({
-              id: p.id,
-              date: p.paymentDate.toISOString(),
-              miti,
-              voucherNo: p.accountingVoucherNo || `BP-${p.id.slice(-5)}`,
-              voucherType: "Bank Payment",
-              particulars: `Payment to ${p.payeeName} (${p.category})`,
-              debit: 0,
-              credit: p.netPaid || p.amount,
-              runningBalance: 0,
-            });
+            if (isInflow) {
+              txns.push({
+                id: p.id,
+                date: p.paymentDate.toISOString(),
+                miti,
+                voucherNo: p.accountingVoucherNo || `BR-${p.id.slice(-5)}`,
+                voucherType: "Bank Receipt",
+                particulars: `Received from ${p.payeeName} (${p.category})`,
+                debit: p.netPaid || p.amount,
+                credit: 0,
+                runningBalance: 0,
+              });
+            } else {
+              txns.push({
+                id: p.id,
+                date: p.paymentDate.toISOString(),
+                miti,
+                voucherNo: p.accountingVoucherNo || `BP-${p.id.slice(-5)}`,
+                voucherType: "Bank Payment",
+                particulars: `Payment to ${p.payeeName} (${p.category})`,
+                debit: 0,
+                credit: p.netPaid || p.amount,
+                runningBalance: 0,
+              });
+            }
           } else if (input.accountType === "cash" && p.paymentMode === "cash") {
-            txns.push({
-              id: p.id,
-              date: p.paymentDate.toISOString(),
-              miti,
-              voucherNo: p.accountingVoucherNo || `CP-${p.id.slice(-5)}`,
-              voucherType: "Cash Payment",
-              particulars: `Cash Payment to ${p.payeeName} (${p.category})`,
-              debit: 0,
-              credit: p.netPaid || p.amount,
-              runningBalance: 0,
-            });
+            if (isInflow) {
+              txns.push({
+                id: p.id,
+                date: p.paymentDate.toISOString(),
+                miti,
+                voucherNo: p.accountingVoucherNo || `CR-${p.id.slice(-5)}`,
+                voucherType: "Cash Receipt",
+                particulars: `Cash received from ${p.payeeName} (${p.category})`,
+                debit: p.netPaid || p.amount,
+                credit: 0,
+                runningBalance: 0,
+              });
+            } else {
+              txns.push({
+                id: p.id,
+                date: p.paymentDate.toISOString(),
+                miti,
+                voucherNo: p.accountingVoucherNo || `CP-${p.id.slice(-5)}`,
+                voucherType: "Cash Payment",
+                particulars: `Cash Payment to ${p.payeeName} (${p.category})`,
+                debit: 0,
+                credit: p.netPaid || p.amount,
+                runningBalance: 0,
+              });
+            }
           } else if (input.accountType === "expense_head") {
             const matchesCat = p.categoryId === input.accountId || (input.accountName && p.category?.toLowerCase() === input.accountName.toLowerCase());
             if (matchesCat) {
@@ -772,121 +813,83 @@ export const accountingRouter = router({
 
   /**
    * Trial Balance (सन्तुलन परीक्षण / वासलात)
-   * Consolidated balance check verifying Total Debits == Total Credits.
+   *
+   * GL-DRIVEN: aggregates the actual double-entry ledger
+   * (JournalEntryLine) for this project — the output of the journal-entry
+   * engine, which guarantees every posted entry is balanced at write
+   * time. Total Debits == Total Credits by construction.
+   *
+   * The previous implementation rebuilt the balance from ad-hoc
+   * single-entry queries over Payments/Bills/IPCs. That version could
+   * never tie out: it had no bank/cash rows (payments reduced nothing),
+   * no VAT/TDS double entries, recognized revenue only from IPC status,
+   * and contained a dead ternary (`? 0 : 0`) on the receivables line.
+   * It reported "balanced" only when a project happened to have no
+   * unpaid bills and no money in the bank.
+   *
+   * Aggregation lives in the central helper `aggregateTrialBalance`
+   * (unit-tested in gl-trial-balance.test.ts); this route only enforces
+   * access control and fetches the lines.
    */
   trialBalance: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      const [payments, vendorBills, subBills, ipcs, expenses] = await Promise.all([
-        db.payment.findMany({ where: { projectId: input.projectId, status: "paid" } }),
-        db.vendorBill.findMany({ where: { projectId: input.projectId } }),
-        db.subcontractorBill.findMany({ where: { projectId: input.projectId } }),
-        db.ipc.findMany({ where: { projectId: input.projectId } }),
-        db.siteExpense.findMany({ where: { projectId: input.projectId } }),
-      ]);
+      // Posted entries only — drafts are not part of the ledger.
+      const lines = await db.journalEntryLine.findMany({
+        where: {
+          projectId: input.projectId,
+          journalEntry: { isPosted: true },
+        },
+        select: {
+          accountCode: true,
+          accountName: true,
+          debit: true,
+          credit: true,
+        },
+        orderBy: { accountCode: "asc" },
+      });
 
-      // 1. Direct Project Costs (Debits)
-      // IMPORTANT: vendor/subcontractor bills already include the
-      // payment amount in their `paidAmount` field. Adding payments
-      // on top of bill gross amounts would double-count the expense.
-      // Correct accounting:
-      //   Debit: Material Purchases = vendorBills.grossAmount (expense)
-      //   Credit: Sundry Creditors = vendorBills.netPayable - paidAmount (outstanding)
-      //   When paid: Debit Sundry Creditors, Credit Cash/Bank
-      // Payments NOT linked to a bill (direct cash expenses for materials)
-      // can't be distinguished from bill-linked payments because Payment
-      // has no vendorBillId FK. So we only count bill gross amounts here;
-      // direct cash purchases will appear if a vendorBill wasn't created.
-      const materialsDebit = vendorBills.reduce((s, b) => s + b.grossAmount, 0);
-
-      const subcontractorDebit = subBills.reduce((s, b) => s + b.grossAmount, 0);
-
-      const laborDebit = payments
-        .filter((p) => p.payeeType === "staff" || p.category?.toLowerCase().includes("labor") || p.category?.toLowerCase().includes("wage"))
-        .reduce((s, p) => s + p.amount, 0);
-
-      const equipmentDebit = payments
-        .filter((p) => p.category?.toLowerCase().includes("equipment") || p.category?.toLowerCase().includes("plant"))
-        .reduce((s, p) => s + p.amount, 0);
-
-      const overheadsDebit = expenses.reduce((s, e) => s + e.amount, 0) +
-        payments
-          .filter((p) => p.category?.toLowerCase().includes("overhead") || p.category?.toLowerCase().includes("site expense"))
-          .reduce((s, p) => s + p.amount, 0);
-
-      // 2. Liabilities & Payables (Credits)
-      const vendorPayablesCredit = vendorBills.reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0);
-      const subPayablesCredit = subBills.reduce((s, b) => s + Math.max(0, b.netPayable - b.paidAmount), 0);
-      const retentionPayableCredit = subBills.reduce((s, b) => s + b.retentionAmount, 0);
-      // TDS payable: only count TDS from bills that haven't been fully paid
-      // (TDS on paid bills has already been remitted to IRD). Also avoid
-      // double-counting: payments.tdsDeducted captures TDS on direct cash
-      // payments (no bill), while vendorBills.tdsAmount captures TDS on
-      // credit purchases. These are mutually exclusive for a given bill.
-      const tdsPayableCredit = vendorBills.reduce((s, b) => s + (b.paidAmount > 0 ? 0 : b.tdsAmount), 0) +
-        subBills.reduce((s, b) => s + (b.paidAmount > 0 ? 0 : (b as any).tdsAmount || 0), 0) +
-        payments.filter((p) => !p.invoiceNumber).reduce((s, p) => s + p.tdsDeducted, 0);
-
-      // 3. Incomes & Revenue (Credits)
-      // Only count IPCs that have been submitted/certified/approved/paid —
-      // draft IPCs are not recognized as revenue.
-      const totalIpcRevenueCredit = ipcs
-        .filter((i) => i.status !== "draft")
-        .reduce((s, i) => s + i.grossAmount, 0);
-
-      // 4. Assets & Receivables (Debits)
-      // Client receivable = IPC gross minus what's been received (paid).
-      // For unpaid IPCs, the full gross is receivable.
-      // For paid IPCs, the receivable is 0 (fully settled).
-      // For partially-paid IPCs, the outstanding amount is receivable.
-      const clientReceivablesDebit = ipcs.reduce((s, i) => {
-        if (i.status === "paid") return s; // fully settled
-        return s + Math.max(0, i.grossAmount - (i.status === "certified" || i.status === "approved" ? 0 : 0));
-      }, 0);
-
-      const rows = [
-        // Assets & Receivables
-        { head: "Client Receivables (IPCs Due)", group: "Current Assets", debit: clientReceivablesDebit, credit: 0 },
-        // Direct Expenses
-        { head: "Material Purchases & Supplies", group: "Direct Project Costs", debit: materialsDebit, credit: 0 },
-        { head: "Subcontract Work & Labor", group: "Direct Project Costs", debit: subcontractorDebit, credit: 0 },
-        { head: "Direct Labor & Staff Payroll", group: "Direct Project Costs", debit: laborDebit, credit: 0 },
-        { head: "Plant & Equipment Costs", group: "Direct Project Costs", debit: equipmentDebit, credit: 0 },
-        { head: "Site Overheads & Admin Expenses", group: "Indirect Overheads", debit: overheadsDebit, credit: 0 },
-        // Liabilities & Payables
-        { head: "Sundry Creditors (Material Vendors)", group: "Current Liabilities", debit: 0, credit: vendorPayablesCredit },
-        { head: "Subcontractor Payables", group: "Current Liabilities", debit: 0, credit: subPayablesCredit },
-        { head: "Retention Held Payable", group: "Current Liabilities", debit: 0, credit: retentionPayableCredit },
-        { head: "TDS / Withholding Tax Payable", group: "Statutory Liabilities", debit: 0, credit: tdsPayableCredit },
-        // Incomes
-        { head: "Contract Billing & Revenue (IPC)", group: "Direct Incomes", debit: 0, credit: totalIpcRevenueCredit },
-      ];
-
-      const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
-      const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
-      const difference = Math.abs(totalDebits - totalCredits);
-
-      return {
-        rows,
-        totalDebits,
-        totalCredits,
-        difference,
-        isBalanced: difference < 1.0,
-      };
+      return aggregateTrialBalance(lines);
     }),
 
   /**
    * Log Manual Journal / Inflow Entry (जर्नल भौचर / आम्दानी प्रविष्टि)
+   *
+   * Records money RECEIVED by the contractor (the "Money In" dialog on
+   * the Day Book tab). This is the cash-in side of the GL:
+   *
+   *   Dr Bank (1010) / Cash (1001)          = amount
+   *      Cr <account per inflow nature>     = amount
+   *        Client IPC Running Bill → 1100 Client Receivables
+   *        Mobilization Advance     → 2050 Mobilization Advance Received
+   *        Partner Capital Deposit  → 3000 Owner's Capital
+   *        Security Deposit Refund  → 1110 Retention Receivable
+   *        Other Site Inflow        → 4100 Other Income
+   *
+   * Previously this created ONLY a Payment row with no journal entry —
+   * the GL had no cash-in side at all, the bank ledger never showed
+   * receipts, and the Trial Balance could not balance. The JE is built by
+   * the central engine helper `clientReceiptEntry` and posted in the SAME
+   * transaction as the Payment row and the CompanyBankAccount balance
+   * increment (when a central bank account is selected).
    */
   logJournalEntry: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         date: z.string(),
-        debitAccountId: z.string(),
-        creditAccountId: z.string(),
+        debitAccountId: z.string(), // CompanyBankAccount id, "cash_petty", or free-text account label
+        creditAccountId: z.string().optional(), // legacy free-text field (kept for UI compat, not used for posting)
+        inflowType: z.enum([
+          "Client IPC Running Bill",
+          "Mobilization Advance",
+          "Partner Capital Deposit",
+          "Security Deposit Refund",
+          "Other Site Inflow",
+        ]).default("Other Site Inflow"),
+        receivedFrom: z.string().min(1).max(200).default("Client"),
         amount: z.number().positive(),
         narration: z.string(),
         source: z.string().default("manual"),
@@ -896,22 +899,71 @@ export const accountingRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
       await assertNotLocked(ctx.user.organizationId, new Date(input.date));
 
-      // Create Payment entry as Inflow / Receipt
-      const payment = await db.payment.create({
-        data: {
-          projectId: input.projectId,
-          amount: input.amount,
-          netPaid: input.amount,
-          paymentDate: new Date(input.date),
-          paymentMode: input.debitAccountId.includes("cash") ? "cash" : "bank_transfer",
-          payeeName: input.creditAccountId.includes("revenue") ? "Client Billing / Deposit" : "Direct Inflow",
-          payeeType: "other",
-          category: "Project Inflow / Capital",
-          notes: input.narration,
-          status: "paid",
-          accountingVoucherNo: `CR-${Date.now().toString().slice(-6)}`,
-          createdById: ctx.user.id,
-        },
+      const entryDate = new Date(input.date);
+
+      // Resolve the deposit account: a real CompanyBankAccount id (scoped
+      // to the caller's org) selects that bank; anything else is cash.
+      // Org-less users (no organizationId) can't match a bank account —
+      // their inflows are treated as cash.
+      const bankAccount = ctx.user.organizationId
+        ? await db.companyBankAccount.findFirst({
+            where: {
+              id: input.debitAccountId,
+              organizationId: ctx.user.organizationId,
+              status: "active",
+            },
+            select: { id: true, accountType: true },
+          })
+        : null;
+      const isCash = !bankAccount || bankAccount.accountType === "petty_cash";
+      const paymentMode = isCash ? "cash" : "bank_transfer";
+
+      const payment = await db.$transaction(async (tx) => {
+        const receipt = await tx.payment.create({
+          data: {
+            projectId: input.projectId,
+            amount: input.amount,
+            netPaid: input.amount,
+            paymentDate: entryDate,
+            paymentMode,
+            payeeName: input.receivedFrom,
+            payeeType: "other",
+            category: input.inflowType,
+            notes: input.narration,
+            status: "paid",
+            voucherType: "receipt", // marks the direction for ledgers / day book
+            accountingVoucherNo: `CR-${Date.now().toString().slice(-6)}`,
+            companyBankAccountId: bankAccount?.id ?? null,
+            createdById: ctx.user.id,
+          },
+        });
+
+        // Balanced cash-in journal entry via the central engine.
+        await createJournalEntry(tx, {
+          ...clientReceiptEntry({
+            receiptId: receipt.id,
+            inflowType: input.inflowType as InflowType,
+            receivedFrom: input.receivedFrom,
+            amount: input.amount,
+            paymentMode,
+            projectId: input.projectId,
+            date: entryDate,
+          }),
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+        });
+
+        // Keep the central bank account balance in sync — money in
+        // INCREASES the balance (atomic increment, same transaction).
+        if (bankAccount && !isCash) {
+          await tx.$executeRaw`
+            UPDATE "CompanyBankAccount"
+            SET "currentBalance" = "currentBalance" + ${input.amount}
+            WHERE "id" = ${bankAccount.id}
+          `;
+        }
+
+        return receipt;
       });
 
       return { success: true, paymentId: payment.id };

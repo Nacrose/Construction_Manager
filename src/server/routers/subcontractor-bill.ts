@@ -269,11 +269,11 @@ export const subcontractorBillRouter = router({
     //
     // Correct Nepal double-entry for a subcontractor bill:
     //   Dr Subcontractor Cost (5020)          = grossAmount
-    //   Dr Input VAT Receivable (1400)         = vatAmount     (recoverable)
+    //   Dr Input VAT Receivable (1410)         = vatAmount     (recoverable)
     //      Cr TDS Payable (2020)               = tdsAmount     (deposit to IRD)
     //      Cr Retention Payable (2010)         = retentionAmount (held back)
     //      Cr Material Deduction (2003)        = materialDeduction (recovered)
-    //      Cr Advance Recovery (2040)          = advanceRecovery (recovered)
+    //      Cr Advance to Subcontractors (1130) = advanceRecovery (recovered)
     //      Cr Subcontractor Payables (2002)    = netPayable    (what we owe sub)
     //
     // Balance: Dr = grossAmount + vatAmount
@@ -281,80 +281,104 @@ export const subcontractorBillRouter = router({
     //             + (gross - retention + vat - tds - matDed - advRec)
     //             = gross + vat ✓
     //
-    // FISCAL YEAR LOCK: use the bill date so back-dated bills are rejected.
+    // ACCOUNT CODE FIXES:
+    //   - Input VAT: 1400 → 1410 (1400 is TDS Receivable; sharing one code
+    //     merged two different asset balances in every report).
+    //   - Advance recovery: 2040 (Staff Advances Recoverable) → 1130
+    //     (Advance to Subcontractors). This is a SUBCONTRACTOR advance
+    //     being recovered, not a staff advance.
+    //   - 2003 is now a real chart account (Material Deductions
+    //     Recoverable) — it previously posted to an account that did not
+    //     exist in the chart at all.
+    //
+    // FISCAL YEAR LOCK + ATOMICITY: the lock check runs BEFORE any write
+    // and the JE shares the bill's transaction. Previously the bill was
+    // committed first and the JE was posted separately via `db` — a JE
+    // failure left an un-journaled bill with no retry path.
     await assertNotLocked(ctx.user.organizationId, bill.billDate);
 
-    await createJournalEntry(db, {
-      source: "subcontractor_bill",
-      sourceRefId: bill.id,
-      sourceRefType: "SubcontractorBill",
-      description: `Subcontractor bill ${bill.number} — liability recorded`,
-      entryDate: bill.billDate,
-      postedById: ctx.user.id,
-      lines: [
-        {
-          accountCode: "5020",
-          accountName: "Subcontractor Cost",
-          debit: amounts.grossAmount,
-          credit: 0,
-          description: `Subcontractor work — ${bill.number}`,
-          projectId: input.projectId,
-          partnerId: input.subcontractorId,
-        },
-        ...(amounts.vatAmount > 0 ? [{
-          accountCode: "1400" as const,
-          accountName: "Input VAT Receivable",
-          debit: amounts.vatAmount,
-          credit: 0,
-          description: `Input VAT on sub bill ${bill.number}`,
-          projectId: input.projectId,
-        }] : []),
-        ...(amounts.tdsAmount > 0 ? [{
-          accountCode: "2020" as const,
-          accountName: "TDS Payable",
-          debit: 0,
-          credit: amounts.tdsAmount,
-          description: `TDS to deposit on sub bill ${bill.number}`,
-          projectId: input.projectId,
-        }] : []),
-        ...(amounts.retentionAmount > 0 ? [{
-          accountCode: "2010" as const,
-          accountName: "Retention Payable (to Subcontractors)",
-          debit: 0,
-          credit: amounts.retentionAmount,
-          description: `Retention held on sub bill ${bill.number}`,
-          projectId: input.projectId,
-          partnerId: input.subcontractorId,
-        }] : []),
-        ...((input.materialDeduction ?? 0) > 0 ? [{
-          accountCode: "2003" as const,
-          accountName: "Material Deductions",
-          debit: 0,
-          credit: input.materialDeduction ?? 0,
-          description: `Material deduction on sub bill ${bill.number}`,
-          projectId: input.projectId,
-        }] : []),
-        ...((input.advanceRecovery ?? 0) > 0 ? [{
-          accountCode: "2040" as const,
-          accountName: "Staff Advance Recoverable",
-          debit: 0,
-          credit: input.advanceRecovery ?? 0,
-          description: `Advance recovery on sub bill ${bill.number}`,
-          projectId: input.projectId,
-        }] : []),
-        {
-          accountCode: "2002",
-          accountName: "Subcontractor Payables",
-          debit: 0,
-          credit: amounts.netPayable,
-          description: `Payable for ${bill.number}`,
-          projectId: input.projectId,
-          partnerId: input.subcontractorId,
-        },
-      ],
+    const billWithLines = await db.$transaction(async (tx) => {
+      // Re-read inside the transaction so the JE is written against the
+      // committed bill (the create above ran in its own retry loop).
+      const fresh = await tx.subcontractorBill.findUniqueOrThrow({
+        where: { id: bill.id },
+      });
+
+      await createJournalEntry(tx, {
+        source: "subcontractor_bill",
+        sourceRefId: bill.id,
+        sourceRefType: "SubcontractorBill",
+        description: `Subcontractor bill ${bill.number} — liability recorded`,
+        entryDate: bill.billDate,
+        postedById: ctx.user.id,
+        organizationId: ctx.user.organizationId ?? undefined,
+        lines: [
+          {
+            accountCode: "5020",
+            accountName: "Subcontractor Cost",
+            debit: amounts.grossAmount,
+            credit: 0,
+            description: `Subcontractor work — ${bill.number}`,
+            projectId: input.projectId,
+            partnerId: input.subcontractorId,
+          },
+          ...(amounts.vatAmount > 0 ? [{
+            accountCode: "1410" as const,
+            accountName: "Input VAT Receivable",
+            debit: amounts.vatAmount,
+            credit: 0,
+            description: `Input VAT on sub bill ${bill.number}`,
+            projectId: input.projectId,
+          }] : []),
+          ...(amounts.tdsAmount > 0 ? [{
+            accountCode: "2020" as const,
+            accountName: "TDS Payable",
+            debit: 0,
+            credit: amounts.tdsAmount,
+            description: `TDS to deposit on sub bill ${bill.number}`,
+            projectId: input.projectId,
+          }] : []),
+          ...(amounts.retentionAmount > 0 ? [{
+            accountCode: "2010" as const,
+            accountName: "Retention Payable (to Subcontractors)",
+            debit: 0,
+            credit: amounts.retentionAmount,
+            description: `Retention held on sub bill ${bill.number}`,
+            projectId: input.projectId,
+            partnerId: input.subcontractorId,
+          }] : []),
+          ...((input.materialDeduction ?? 0) > 0 ? [{
+            accountCode: "2003" as const,
+            accountName: "Material Deductions Recoverable",
+            debit: 0,
+            credit: input.materialDeduction ?? 0,
+            description: `Material deduction on sub bill ${bill.number}`,
+            projectId: input.projectId,
+          }] : []),
+          ...((input.advanceRecovery ?? 0) > 0 ? [{
+            accountCode: "1130" as const,
+            accountName: "Advance to Subcontractors",
+            debit: 0,
+            credit: input.advanceRecovery ?? 0,
+            description: `Advance recovery on sub bill ${bill.number}`,
+            projectId: input.projectId,
+          }] : []),
+          {
+            accountCode: "2002",
+            accountName: "Subcontractor Payables",
+            debit: 0,
+            credit: amounts.netPayable,
+            description: `Payable for ${bill.number}`,
+            projectId: input.projectId,
+            partnerId: input.subcontractorId,
+          },
+        ],
+      });
+
+      return fresh;
     });
 
-    return { bill };
+    return { bill: billWithLines };
   }),
 
   /** Update bill fields and optionally replace line items. */
@@ -526,57 +550,65 @@ export const subcontractorBillRouter = router({
       const isFull = newPaidAmount >= bill.netPayable - 0.01;
       const newStatus = isFull ? "paid" : "certified";
 
-      // Atomic increment to avoid lost-update race on concurrent payments.
-      // Previously this used `bill.paidAmount + input.amount` (read-then-write)
-      // — two concurrent markPaid calls would race and one payment would be lost.
-      await db.$executeRaw`
-        UPDATE "SubcontractorBill"
-        SET "paidAmount" = "paidAmount" + ${input.amount},
-            "status" = ${newStatus}
-        WHERE "id" = ${input.billId}
-      `;
-
-      // Generate journal entry for subcontractor payment.
-      //
-      // SOURCE COLLISION FIX: use `source: "subcontractor_payment"` (NOT
-      // `"subcontractor_bill"`) so this JE is distinguishable from the
-      // liability-creation JE. Both previously used the same source +
-      // sourceRefId, making idempotency checks impossible.
-      //
-      // Dr Subcontractor Payables (2002) = input.amount
-      //    Cr Bank (1010)               = input.amount
       const subName = bill.subcontractor?.name || "Subcontractor";
-      const bankCode = "1010";
-      await createJournalEntry(db, {
-        source: "subcontractor_payment",
-        sourceRefId: input.billId,
-        sourceRefType: "SubcontractorBill",
-        description: `Subcontractor payment to ${subName} — ${bill.number}`,
-        entryDate: new Date(),
-        postedById: ctx.user.id,
-        lines: [
-          {
-            accountCode: "2002",
-            accountName: "Subcontractor Payables",
-            debit: input.amount,
-            credit: 0,
-            description: `Payment to ${subName}`,
-            projectId: input.projectId,
-            partnerId: bill.subcontractor?.id,
-          },
-          {
-            accountCode: bankCode,
-            accountName: "Bank",
-            debit: 0,
-            credit: input.amount,
-            description: `Payment via bank transfer`,
-            projectId: input.projectId,
-          },
-        ],
-      });
 
-      const updated = await db.subcontractorBill.findUniqueOrThrow({
-        where: { id: input.billId },
+      // ATOMICITY FIX: the bill increment and the payment journal entry
+      // now share ONE transaction. Previously the raw UPDATE committed
+      // first and the JE was posted separately — a JE failure (unbalanced
+      // line, entry-number collision) left the bill marked paid with no
+      // GL trace of the payment, and no retry path.
+      const updated = await db.$transaction(async (tx) => {
+        // Atomic increment to avoid lost-update race on concurrent payments.
+        // Previously this used `bill.paidAmount + input.amount` (read-then-write)
+        // — two concurrent markPaid calls would race and one payment would be lost.
+        await tx.$executeRaw`
+          UPDATE "SubcontractorBill"
+          SET "paidAmount" = "paidAmount" + ${input.amount},
+              "status" = ${newStatus}
+          WHERE "id" = ${input.billId}
+        `;
+
+        // Generate journal entry for subcontractor payment.
+        //
+        // SOURCE COLLISION FIX: use `source: "subcontractor_payment"` (NOT
+        // `"subcontractor_bill"`) so this JE is distinguishable from the
+        // liability-creation JE. Both previously used the same source +
+        // sourceRefId, making idempotency checks impossible.
+        //
+        // Dr Subcontractor Payables (2002) = input.amount
+        //    Cr Bank (1010)               = input.amount
+        await createJournalEntry(tx, {
+          source: "subcontractor_payment",
+          sourceRefId: input.billId,
+          sourceRefType: "SubcontractorBill",
+          description: `Subcontractor payment to ${subName} — ${bill.number}`,
+          entryDate: new Date(),
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+          lines: [
+            {
+              accountCode: "2002",
+              accountName: "Subcontractor Payables",
+              debit: input.amount,
+              credit: 0,
+              description: `Payment to ${subName}`,
+              projectId: input.projectId,
+              partnerId: bill.subcontractor?.id,
+            },
+            {
+              accountCode: "1010",
+              accountName: "Bank",
+              debit: 0,
+              credit: input.amount,
+              description: `Payment via bank transfer`,
+              projectId: input.projectId,
+            },
+          ],
+        });
+
+        return tx.subcontractorBill.findUniqueOrThrow({
+          where: { id: input.billId },
+        });
       });
 
       await audit({
