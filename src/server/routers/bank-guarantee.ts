@@ -425,10 +425,14 @@ export const bankGuaranteeRouter = router({
         issuingBank: z.string().optional(),
         branch: z.string().optional(),
         beneficiary: z.string().optional(),
-        amount: z.number().optional(),
-        marginAmount: z.number().optional(),
-        commissionRate: z.number().optional(),
-        commissionPaid: z.number().optional(),
+        // Mirrors create's validation: a guarantee amount must be positive,
+        // margins/commissions non-negative — previously these were plain
+        // z.number().optional() and a typo'd negative value would silently
+        // flip the org's exposure KPIs and margin math.
+        amount: z.number().positive().optional(),
+        marginAmount: z.number().nonnegative().optional(),
+        commissionRate: z.number().min(0).max(100).optional(),
+        commissionPaid: z.number().nonnegative().optional(),
         documentUrl: safeUrlSchema.optional(),
         documentName: z.string().optional(),
         notes: z.string().optional(),
