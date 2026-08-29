@@ -1,6 +1,17 @@
 # Workspace Rules
 
 - **CRITICAL DIRECTIVE FOR ALL AI AGENTS**: ALWAYS consult the user and present findings/proposed changes for explicit confirmation BEFORE modifying or creating files. Never edit files unannounced.
+- **MANDATORY ENGINE REUSE & EVOLUTION DIRECTIVE (ZERO AD-HOC DUPLICATION RULE)**:
+  - **MANDATORY: ALWAYS USE THE EXISTING CENTRAL ENGINE OR EVOLVE/REMAKE THE ENGINE. NEVER RE-IMPLEMENT AD-HOC DUPLICATES.**
+  - **Tables & Data Grids**: ALWAYS use `<ConstructionTable />` (`@/components/ui/construction-table`) for all tabular data, search, column filters, pagination, summary calculation footers, and Excel exports. **NEVER** write manual HTML `<table>` elements with custom ad-hoc state.
+  - **Currency & Number Formatting**: ALWAYS import and use `formatNpr()` from `@/lib/currency`. **NEVER** write local `fmt()`, `npr()`, or ad-hoc `.toLocaleString()` formatting functions.
+  - **Badges & Status Chips**: ALWAYS use `<StatusBadge />` (`@/components/ui/status-badge`) or standard workflow badges.
+  - **Modals & Dialog Overlays**: ALWAYS ensure all modals utilize dark glass backdrop blur (`backdrop-blur-md bg-black/85 border-white/10 text-white`).
+  - **Domain Calculators & Utilities**: ALWAYS import from centralized domain libraries and barrel exports:
+    - `@/lib/construction-finance` for `currency.ts`, `pan-vat.ts`, `construction-tax.ts`, `procurement-match.ts`.
+    - `@/lib/field-engineering` for `measurement-calc.ts`, `equipment-telemetry.ts`.
+    - Central server utils in `@/server/utils/` (`date-miti.ts`, `stock-ledger.ts`, `sequence-generator.ts`, `domain-events.ts`, `state-machine.ts`, etc.).
+  - **Rule for Missing Engine Capabilities**: If a feature requires a capability that an existing engine does not yet support, **YOU MUST EXTEND OR REFACTOR THE CENTRAL ENGINE ITSELF** so that all modules benefit, rather than creating a one-off ad-hoc implementation.
 - **MANDATORY REUSE & MINIMALISM DIRECTIVE (STRICT USER RULE)**:
   - **ALWAYS check and confirm if existing models, components, dialogs, routers, and tabs can be reused or extended before adding new ones.**
   - **NEVER create duplicate buttons, duplicate models, or new sub-tabs when an existing workflow (e.g. Day Book, Record Payment dialog, Project dropdown) can handle it naturally.**
@@ -21,7 +32,7 @@
   - Never wrap form sections inside small boxed cards with separate header title text/borders within borders.
   - Forms must be clean, spacious, frameless/borderless layouts with natural flow, crisp subtle field labels, and zero visual clutter.
 - **Background Blur on Modals**:
-  - Whenever a modal or form is open, the background must ALWAYS have a strong dark glass backdrop blur (`backdrop-blur-md bg-black/75`).
+  - Whenever a modal or form is open, the background must ALWAYS have a strong dark glass backdrop blur (`backdrop-blur-md bg-black/85`).
 - **Zero Scroll & 16:10 Aspect Ratio Preference (Strict Directive)**:
   - All dialogs, forms, and modals MUST strictly follow a landscape **16:10 aspect ratio (width > height, aspect-[16/10] / widescreen proportional)** unless explicitly stated otherwise by the user.
   - Wide screen layouts where all inputs and actions fit comfortably on screen with zero vertical scrollbars.
