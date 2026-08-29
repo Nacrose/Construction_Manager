@@ -126,10 +126,38 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
       expect(COOKIE_NAME).toBe("cf_session");
     });
 
-    it("resolves a Uint8Array secret", () => {
+    it("resolves a Uint8Array secret in development", () => {
       const secret = getAuthSecret();
       expect(secret).toBeInstanceOf(Uint8Array);
       expect(secret.length).toBeGreaterThan(0);
+    });
+
+    it("throws a loud fatal error in production if AUTH_SECRET is missing", () => {
+      const origEnv = process.env.NODE_ENV;
+      const origSecret = process.env.AUTH_SECRET;
+      try {
+        (process.env as any).NODE_ENV = "production";
+        delete process.env.AUTH_SECRET;
+        delete process.env.NEXT_PHASE;
+        expect(() => getAuthSecret()).toThrow("[FATAL] AUTH_SECRET");
+      } finally {
+        (process.env as any).NODE_ENV = origEnv;
+        if (origSecret) process.env.AUTH_SECRET = origSecret;
+      }
+    });
+
+    it("throws a loud fatal error in production if AUTH_SECRET is too short (< 32 chars)", () => {
+      const origEnv = process.env.NODE_ENV;
+      const origSecret = process.env.AUTH_SECRET;
+      try {
+        (process.env as any).NODE_ENV = "production";
+        process.env.AUTH_SECRET = "too-short-secret";
+        delete process.env.NEXT_PHASE;
+        expect(() => getAuthSecret()).toThrow("too short");
+      } finally {
+        (process.env as any).NODE_ENV = origEnv;
+        if (origSecret) process.env.AUTH_SECRET = origSecret;
+      }
     });
   });
 

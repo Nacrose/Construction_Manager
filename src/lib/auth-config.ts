@@ -7,26 +7,38 @@ export const COOKIE_NAME = "cf_session";
 
 export function getAuthSecret(): Uint8Array {
   const secretValue = process.env.AUTH_SECRET;
-  if (!secretValue) {
-    // Treat any non-local-dev environment as production: Vercel preview,
-    // staging, and any environment where VERCEL_ENV is set.
-    const isProdLike =
-      process.env.NODE_ENV === "production" ||
-      process.env.VERCEL_ENV === "preview" ||
-      process.env.VERCEL_ENV === "production" ||
-      Boolean(process.env.VERCEL_ENV);
 
+  const isProdLike =
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.VERCEL_ENV === "production" ||
+    Boolean(process.env.VERCEL_ENV);
+
+  if (!secretValue) {
     if (isProdLike) {
-      // In production/staging/preview environments, fail closed:
-      // use a non-verifying secret placeholder so tokens cannot verify
-      // against a known dev secret.
-      return new TextEncoder().encode("__missing_auth_secret__");
+      // If during Next.js static build phase, return a dummy placeholder so build passes.
+      // But at runtime, refuse to operate and fail loudly!
+      if (process.env.NEXT_PHASE === "phase-production-build") {
+        return new TextEncoder().encode("__build_placeholder_secret_min_32_bytes__");
+      }
+
+      throw new Error(
+        "[FATAL] AUTH_SECRET environment variable is missing in production. A secure secret of at least 32 characters is mandatory."
+      );
     }
 
     // Development fallback (insecure — only for local dev)
     return new TextEncoder().encode(
       "dev-only-insecure-secret-please-set-AUTH_SECRET-in-production-32bytes-min"
     );
+  }
+
+  if (isProdLike && secretValue.length < 32) {
+    if (process.env.NEXT_PHASE !== "phase-production-build") {
+      throw new Error(
+        `[FATAL] AUTH_SECRET in production is too short (${secretValue.length} chars). Minimum 32 characters required for cryptographic security.`
+      );
+    }
   }
 
   return new TextEncoder().encode(secretValue);

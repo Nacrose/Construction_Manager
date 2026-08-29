@@ -240,9 +240,19 @@ export const jvPartnerRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const payout = await db.jvCommissionPayout.findUniqueOrThrow({
-        where: { id: input.payoutId },
+      const payout = await db.jvCommissionPayout.findFirst({
+        where: {
+          id: input.payoutId,
+          agreement: { projectId: input.projectId },
+        },
       });
+
+      if (!payout) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Payout record not found for this project.",
+        });
+      }
 
       // Restore bank account balance if previously deducted (verifying org ownership)
       if (payout.bankAccountId) {
