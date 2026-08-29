@@ -376,11 +376,23 @@ export const payrollRouter = router({
           });
         }
 
+        // IDEMPOTENCY: check for an existing payroll JE before creating JE and deducting advances.
+        // Re-saving a draft (or using reopen) would otherwise duplicate
+        // the journal entry and double-deduct staff advances. This is
+        // normal workflow, not an edge case.
+        const existingJe = await tx.journalEntry.findFirst({
+          where: { source: "payroll", sourceRefId: run.id },
+          select: { id: true, entryNumber: true },
+        });
+        if (existingJe) {
+          // JE already exists for this payroll run — advances were already recovered.
+          // Skip creation and avoid double-deduction.
+          return run;
+        }
+
         // Mark associated unrecovered advances as recovered in this payroll run.
         // IMPORTANT: Only mark the DEDUCTED PORTION as recovered, not the full
-        // advance amount. Previously this marked ALL unrecovered advances as
-        // fully recovered, even if only a partial deduction was made — silently
-        // writing off the remaining balance.
+        // advance amount. Only runs once when the payroll run and JE are first generated.
         //
         // Strategy: for each staff member, deduct advances in FIFO order
         // (oldest first) until the deducted amount is consumed. Any advance
@@ -449,26 +461,6 @@ export const payrollRouter = router({
         //    Cr Staff Advance Recoverable (2040) = totalAdvancesRecovered
         //    Cr Cash (1001) = totalMessDeductions + totalOtherDeductions
         //    (Dr Staff Advance Recoverable (2040) = deductionExcess if any clamp)
-        //
-        // The `totalMessAndOther` and `deductionExcess` are computed above
-        // the transaction so they're available here. We use them to build
-        // the balanced JE — `deductionExcess` adds a debit line ONLY when
-        // at least one staff member was clamped (preventing the JE from
-        // failing with "Unbalanced journal entry").
-        // IDEMPOTENCY: check for an existing payroll JE before creating.
-        // Re-saving a draft (or using reopen) would otherwise duplicate
-        // the journal entry and double-deduct staff advances. This is
-        // normal workflow, not an edge case.
-        const existingJe = await tx.journalEntry.findFirst({
-          where: { source: "payroll", sourceRefId: run.id },
-          select: { id: true, entryNumber: true },
-        });
-        if (existingJe) {
-          // JE already exists for this payroll run — skip creation.
-          // If the amounts changed, the old JE should be reversed via
-          // reverseJournalEntry BEFORE re-saving (separate workflow).
-          return run;
-        }
 
         await createJournalEntry(tx, {
           source: "payroll",

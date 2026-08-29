@@ -81,4 +81,43 @@ describe("Construction HR & Payroll Calculations", () => {
       expect(effectiveDays).toBe(21);
     });
   });
+
+  describe("Advance Recovery FIFO Simulation", () => {
+    it("deducts advances in FIFO order and leaves unconsumed balances unrecovered", () => {
+      const advances = [
+        { id: "adv-1", amount: 2000, isRecovered: false },
+        { id: "adv-2", amount: 3000, isRecovered: false },
+        { id: "adv-3", amount: 5000, isRecovered: false },
+      ];
+
+      const totalDeduction = 4000;
+      let remainingDeduction = totalDeduction;
+      const updatedAdvances: Array<{ id: string; amount: number; isRecovered: boolean }> = [];
+
+      for (const adv of advances) {
+        if (remainingDeduction <= 0) {
+          updatedAdvances.push(adv);
+          continue;
+        }
+        if (adv.amount <= remainingDeduction + 0.01) {
+          updatedAdvances.push({ ...adv, isRecovered: true, amount: adv.amount });
+          remainingDeduction -= adv.amount;
+        } else {
+          updatedAdvances.push({
+            ...adv,
+            amount: adv.amount - remainingDeduction,
+            isRecovered: false,
+          });
+          remainingDeduction = 0;
+        }
+      }
+
+      expect(updatedAdvances[0].isRecovered).toBe(true); // adv-1 fully consumed
+      expect(updatedAdvances[1].isRecovered).toBe(false); // adv-2 partially consumed (3000 - 2000 = 1000 remaining)
+      expect(updatedAdvances[1].amount).toBe(1000);
+      expect(updatedAdvances[2].isRecovered).toBe(false); // adv-3 untouched
+      expect(updatedAdvances[2].amount).toBe(5000);
+      expect(remainingDeduction).toBe(0);
+    });
+  });
 });
