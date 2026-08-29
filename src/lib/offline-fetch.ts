@@ -190,12 +190,14 @@ async function enqueueAndReturn(
     else bodyStr = String(init.body);
   }
 
-  // Build headers
+  // Build headers (exclude Authorization header so credentials are not persisted in IndexedDB)
   const headers: Record<string, string> = {};
   if (init?.headers) {
     const h = new Headers(init.headers);
     h.forEach((v, k) => {
-      headers[k] = v;
+      if (k.toLowerCase() !== "authorization") {
+        headers[k] = v;
+      }
     });
   }
   if (!headers["Content-Type"] && isTrpcMutation) {

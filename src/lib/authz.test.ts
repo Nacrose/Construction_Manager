@@ -157,4 +157,84 @@ describe("Authorization Status Mapping & Security Guards", () => {
       expect(canMutateGlobal).toBe(true);
     });
   });
+
+  describe("Catalog Scope & Multi-Tenant Merge Boundary Validation", () => {
+    it("rejects material merge across different organizations", () => {
+      const winner = { id: "mat-1", scope: "org", organizationId: "org-1", projectId: null };
+      const loser = { id: "mat-2", scope: "org", organizationId: "org-2", projectId: null };
+
+      const isMergeAllowed =
+        winner.scope === loser.scope &&
+        winner.organizationId === loser.organizationId &&
+        winner.projectId === loser.projectId;
+
+      expect(isMergeAllowed).toBe(false);
+    });
+
+    it("rejects material merge across different scopes (global vs org)", () => {
+      const winner = { id: "mat-1", scope: "global", organizationId: null, projectId: null };
+      const loser = { id: "mat-2", scope: "org", organizationId: "org-1", projectId: null };
+
+      const isMergeAllowed =
+        winner.scope === loser.scope &&
+        winner.organizationId === loser.organizationId &&
+        winner.projectId === loser.projectId;
+
+      expect(isMergeAllowed).toBe(false);
+    });
+
+    it("allows material merge within same organization", () => {
+      const winner = { id: "mat-1", scope: "org", organizationId: "org-1", projectId: null };
+      const loser = { id: "mat-2", scope: "org", organizationId: "org-1", projectId: null };
+
+      const isMergeAllowed =
+        winner.scope === loser.scope &&
+        winner.organizationId === loser.organizationId &&
+        winner.projectId === loser.projectId;
+
+      expect(isMergeAllowed).toBe(true);
+    });
+  });
+
+  describe("Formula Injection & Offline Token Sanitization", () => {
+    function sanitizeFormulaCell(val: any): any {
+      if (typeof val === "string" && /^[=\+\-\@\t\r]/.test(val)) {
+        return `'${val}`;
+      }
+      return val;
+    }
+
+    it.each([
+      { input: "=SUM(A1:A10)", expected: "'=SUM(A1:A10)" },
+      { input: "+12345", expected: "'+12345" },
+      { input: "-@calc", expected: "'-@calc" },
+      { input: "@cmd|' /C calc'!A0", expected: "'@cmd|' /C calc'!A0" },
+      { input: "\tTabbed", expected: "'\tTabbed" },
+      { input: "Normal Text", expected: "Normal Text" },
+      { input: 12345, expected: 12345 },
+    ])("sanitizes formula injection payload $input -> $expected", ({ input, expected }) => {
+      expect(sanitizeFormulaCell(input)).toBe(expected);
+    });
+
+    it("strips Authorization header from offline queue storage", () => {
+      const rawHeaders = new Headers({
+        "Authorization": "Bearer sensitive-jwt-token-12345",
+        "Content-Type": "application/json",
+        "X-Custom-Header": "Site-1",
+      });
+
+      const queuedHeaders: Record<string, string> = {};
+      rawHeaders.forEach((v, k) => {
+        if (k.toLowerCase() !== "authorization") {
+          queuedHeaders[k] = v;
+        }
+      });
+
+      expect(queuedHeaders["authorization"]).toBeUndefined();
+      expect(queuedHeaders["Authorization"]).toBeUndefined();
+      expect(queuedHeaders["content-type"]).toBe("application/json");
+      expect(queuedHeaders["x-custom-header"]).toBe("Site-1");
+    });
+  });
 });
+

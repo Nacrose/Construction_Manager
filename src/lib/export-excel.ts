@@ -5,6 +5,23 @@
  * initial bundle (~516 KB). Only loads when the user clicks Export.
  */
 
+function sanitizeCell(val: any): any {
+  if (typeof val === "string" && /^[=\+\-\@\t\r]/.test(val)) {
+    return `'${val}`;
+  }
+  return val;
+}
+
+function sanitizeRows<T extends Record<string, any>>(rows: T[]): T[] {
+  return rows.map((r) => {
+    const clean: any = {};
+    for (const [k, v] of Object.entries(r)) {
+      clean[k] = sanitizeCell(v);
+    }
+    return clean;
+  });
+}
+
 type IpcTaxRow = {
   number: string;
   period: string | null;
@@ -52,21 +69,23 @@ export async function exportIpcTaxToXlsx(
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Per-IPC breakdown
-  const ipcRows = ipcs.map((i) => ({
-    "IPC #": i.number,
-    "Period": i.period ?? "",
-    "Status": i.status,
-    "Subcontractor": i.subcontractorName ?? "",
-    "Issue Date": i.issueDate ? new Date(i.issueDate).toLocaleDateString() : "",
-    "Gross (NPR)": i.grossAmount,
-    "VAT %": i.vatPercent,
-    "VAT Amount (NPR)": i.vatAmount,
-    "TDS %": i.tdsPercent,
-    "TDS Amount (NPR)": i.tdsAmount,
-    "Retention (NPR)": i.retentionAmount,
-    "Advance Recovery (NPR)": i.advanceRecovery,
-    "Final Payable (NPR)": i.finalPayable,
-  }));
+  const ipcRows = sanitizeRows(
+    ipcs.map((i) => ({
+      "IPC #": i.number,
+      "Period": i.period ?? "",
+      "Status": i.status,
+      "Subcontractor": i.subcontractorName ?? "",
+      "Issue Date": i.issueDate ? new Date(i.issueDate).toLocaleDateString() : "",
+      "Gross (NPR)": i.grossAmount,
+      "VAT %": i.vatPercent,
+      "VAT Amount (NPR)": i.vatAmount,
+      "TDS %": i.tdsPercent,
+      "TDS Amount (NPR)": i.tdsAmount,
+      "Retention (NPR)": i.retentionAmount,
+      "Advance Recovery (NPR)": i.advanceRecovery,
+      "Final Payable (NPR)": i.finalPayable,
+    }))
+  );
   const ws1 = XLSX.utils.json_to_sheet(ipcRows);
   ws1["!cols"] = [
     { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 12 },
@@ -76,27 +95,29 @@ export async function exportIpcTaxToXlsx(
   XLSX.utils.book_append_sheet(wb, ws1, "IPC Breakdown");
 
   // Sheet 2: Monthly trend
-  const monthRows = byMonth.map((m) => ({
-    "Month": m.month,
-    "Gross (NPR)": m.grossAmount,
-    "VAT (NPR)": m.vatAmount,
-    "TDS (NPR)": m.tdsAmount,
-    "Retention (NPR)": m.retentionAmount,
-    "Final Payable (NPR)": m.finalPayable,
-  }));
+  const monthRows = sanitizeRows(
+    byMonth.map((m) => ({
+      "Month": m.month,
+      "Gross (NPR)": m.grossAmount,
+      "VAT (NPR)": m.vatAmount,
+      "TDS (NPR)": m.tdsAmount,
+      "Retention (NPR)": m.retentionAmount,
+      "Final Payable (NPR)": m.finalPayable,
+    }))
+  );
   const ws2 = XLSX.utils.json_to_sheet(monthRows);
   ws2["!cols"] = [{ wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, ws2, "Monthly Trend");
 
   // Sheet 3: Totals
-  const totalsRows = [
+  const totalsRows = sanitizeRows([
     { "Metric": "Total IPCs", "Value": totals.count },
     { "Metric": "Total Gross (NPR)", "Value": totals.totalGross },
     { "Metric": "Total VAT Collected (NPR)", "Value": totals.totalVat },
     { "Metric": "Total TDS Deducted (NPR)", "Value": totals.totalTds },
     { "Metric": "Total Retention (NPR)", "Value": totals.totalRetention },
     { "Metric": "Total Final Payable (NPR)", "Value": totals.totalFinalPayable },
-  ];
+  ]);
   const ws3 = XLSX.utils.json_to_sheet(totalsRows);
   ws3["!cols"] = [{ wch: 30 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, ws3, "Totals");
@@ -121,21 +142,23 @@ export async function exportMaterialTaxToXlsx(
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Per-transaction
-  const txnRows = transactions.map((t) => ({
-    "Date": new Date(t.date).toLocaleDateString(),
-    "Material": t.materialName,
-    "Qty": t.quantity,
-    "Unit": t.unit,
-    "Rate (NPR)": t.rate,
-    "Base Amount (NPR)": t.baseAmount,
-    "VAT %": t.vatPercent,
-    "VAT Amount (NPR)": t.vatAmount,
-    "TDS %": t.tdsPercent,
-    "TDS Amount (NPR)": t.tdsAmount,
-    "Net Payable (NPR)": t.netPayable,
-    "Supplier Invoice": t.supplierInvoiceNo ?? "",
-    "Supplier PAN": t.supplierPan ?? "",
-  }));
+  const txnRows = sanitizeRows(
+    transactions.map((t) => ({
+      "Date": new Date(t.date).toLocaleDateString(),
+      "Material": t.materialName,
+      "Qty": t.quantity,
+      "Unit": t.unit,
+      "Rate (NPR)": t.rate,
+      "Base Amount (NPR)": t.baseAmount,
+      "VAT %": t.vatPercent,
+      "VAT Amount (NPR)": t.vatAmount,
+      "TDS %": t.tdsPercent,
+      "TDS Amount (NPR)": t.tdsAmount,
+      "Net Payable (NPR)": t.netPayable,
+      "Supplier Invoice": t.supplierInvoiceNo ?? "",
+      "Supplier PAN": t.supplierPan ?? "",
+    }))
+  );
   const ws1 = XLSX.utils.json_to_sheet(txnRows);
   ws1["!cols"] = [
     { wch: 12 }, { wch: 25 }, { wch: 8 }, { wch: 6 }, { wch: 10 },
@@ -145,39 +168,43 @@ export async function exportMaterialTaxToXlsx(
   XLSX.utils.book_append_sheet(wb, ws1, "Transactions");
 
   // Sheet 2: By supplier
-  const supplierRows = bySupplier.map((s) => ({
-    "Supplier PAN": s.supplierPan ?? "",
-    "Invoice #": s.supplierInvoiceNo ?? "",
-    "Transactions": s.count,
-    "Base Amount (NPR)": s.baseAmount,
-    "VAT (NPR)": s.vatAmount,
-    "TDS (NPR)": s.tdsAmount,
-    "Net Payable (NPR)": s.netPayable,
-  }));
+  const supplierRows = sanitizeRows(
+    bySupplier.map((s) => ({
+      "Supplier PAN": s.supplierPan ?? "",
+      "Invoice #": s.supplierInvoiceNo ?? "",
+      "Transactions": s.count,
+      "Base Amount (NPR)": s.baseAmount,
+      "VAT (NPR)": s.vatAmount,
+      "TDS (NPR)": s.tdsAmount,
+      "Net Payable (NPR)": s.netPayable,
+    }))
+  );
   const ws2 = XLSX.utils.json_to_sheet(supplierRows);
   ws2["!cols"] = [{ wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, ws2, "By Supplier");
 
   // Sheet 3: Monthly trend
-  const monthRows = byMonth.map((m) => ({
-    "Month": m.month,
-    "Base (NPR)": m.baseAmount,
-    "VAT (NPR)": m.vatAmount,
-    "TDS (NPR)": m.tdsAmount,
-    "Net Payable (NPR)": m.netPayable,
-  }));
+  const monthRows = sanitizeRows(
+    byMonth.map((m) => ({
+      "Month": m.month,
+      "Base (NPR)": m.baseAmount,
+      "VAT (NPR)": m.vatAmount,
+      "TDS (NPR)": m.tdsAmount,
+      "Net Payable (NPR)": m.netPayable,
+    }))
+  );
   const ws3 = XLSX.utils.json_to_sheet(monthRows);
   ws3["!cols"] = [{ wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, ws3, "Monthly Trend");
 
   // Sheet 4: Totals
-  const totalsRows = [
+  const totalsRows = sanitizeRows([
     { "Metric": "Total Transactions", "Value": totals.count },
     { "Metric": "Total Base Amount (NPR)", "Value": totals.totalBaseAmount },
     { "Metric": "Total VAT Collected (NPR)", "Value": totals.totalVatAmount },
     { "Metric": "Total TDS Deducted (NPR)", "Value": totals.totalTdsAmount },
     { "Metric": "Total Net Payable (NPR)", "Value": totals.totalNetPayable },
-  ];
+  ]);
   const ws4 = XLSX.utils.json_to_sheet(totalsRows);
   ws4["!cols"] = [{ wch: 30 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, ws4, "Totals");
@@ -205,17 +232,19 @@ export async function exportDailyReportsToXlsx(
 ) {
   const XLSX = await import("@e965/xlsx");
 
-  const rows = reports.map((r) => ({
-    "Report #": r.number,
-    "Date": new Date(r.reportDate).toLocaleDateString(),
-    "Status": r.status,
-    "Weather": r.weather ?? "",
-    "Workforce": r.workforce ?? "",
-    "Work Progress": r.workProgress ?? "",
-    "Problems": r.problems ?? "",
-    "Safety Notes": r.safetyNotes ?? "",
-    "Remarks": r.remarks ?? "",
-  }));
+  const rows = sanitizeRows(
+    reports.map((r) => ({
+      "Report #": r.number,
+      "Date": new Date(r.reportDate).toLocaleDateString(),
+      "Status": r.status,
+      "Weather": r.weather ?? "",
+      "Workforce": r.workforce ?? "",
+      "Work Progress": r.workProgress ?? "",
+      "Problems": r.problems ?? "",
+      "Safety Notes": r.safetyNotes ?? "",
+      "Remarks": r.remarks ?? "",
+    }))
+  );
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -247,16 +276,18 @@ export async function exportProjectCostsToXlsx(
 ) {
   const XLSX = await import("@e965/xlsx");
 
-  const rows = costs.map((c) => ({
-    "Date": new Date(c.date).toLocaleDateString(),
-    "Category": c.category,
-    "Subcategory": c.subcategory ?? "",
-    "Description": c.description,
-    "Amount (NPR)": c.amount,
-    "BOQ Item": c.boqItemCode ?? "",
-    "Gantt Task": c.ganttTaskName ?? "",
-    "Created By": c.createdBy ?? "",
-  }));
+  const rows = sanitizeRows(
+    costs.map((c) => ({
+      "Date": new Date(c.date).toLocaleDateString(),
+      "Category": c.category,
+      "Subcategory": c.subcategory ?? "",
+      "Description": c.description,
+      "Amount (NPR)": c.amount,
+      "BOQ Item": c.boqItemCode ?? "",
+      "Gantt Task": c.ganttTaskName ?? "",
+      "Created By": c.createdBy ?? "",
+    }))
+  );
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -271,9 +302,11 @@ export async function exportProjectCostsToXlsx(
   for (const c of costs) {
     categoryMap.set(c.category, (categoryMap.get(c.category) ?? 0) + c.amount);
   }
-  const summaryRows = Array.from(categoryMap.entries())
-    .map(([category, amount]) => ({ Category: category, "Total (NPR)": amount }))
-    .sort((a, b) => b["Total (NPR)"] - a["Total (NPR)"]);
+  const summaryRows = sanitizeRows(
+    Array.from(categoryMap.entries())
+      .map(([category, amount]) => ({ Category: category, "Total (NPR)": amount }))
+      .sort((a, b) => b["Total (NPR)"] - a["Total (NPR)"])
+  );
   const ws2 = XLSX.utils.json_to_sheet(summaryRows);
   ws2["!cols"] = [{ wch: 15 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, ws2, "Summary by Category");

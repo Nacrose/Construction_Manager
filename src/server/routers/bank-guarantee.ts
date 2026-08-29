@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertProjectManager } from "@/lib/authz";
+import { assertProjectMember, assertProjectManager, assertOrgAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs, bsToAd } from "@/lib/nepali-calendar";
@@ -44,6 +44,19 @@ export const bankGuaranteeRouter = router({
       const orgId = ctx.user.role === "superadmin" && input.organizationId ? input.organizationId : ctx.user.organizationId;
       if (input.projectId) {
         await assertProjectMember(ctx.user, input.projectId);
+      } else if (!orgId) {
+        return {
+          items: [],
+          kpis: {
+            totalActiveExposure: 0,
+            totalMarginHeld: 0,
+            totalCommissionPaid: 0,
+            expiringWithin30DaysCount: 0,
+            expiredCount: 0,
+            activeCount: 0,
+            totalCount: 0,
+          },
+        };
       }
 
       const where: any = {};
@@ -128,12 +141,16 @@ export const bankGuaranteeRouter = router({
       select: { projectId: true },
     });
     const projectIds = memberships.map((m) => m.projectId);
+    const hasOrg = Boolean(ctx.user.organizationId);
+    if (projectIds.length === 0 && !hasOrg) {
+      return { expiringSoon: [], totalActiveExposure: 0 };
+    }
 
     const activeGuarantees = await db.bankGuarantee.findMany({
       where: {
         OR: [
-          { projectId: { in: projectIds } },
-          { organizationId: ctx.user.organizationId || undefined },
+          ...(projectIds.length > 0 ? [{ projectId: { in: projectIds } }] : []),
+          ...(hasOrg ? [{ organizationId: ctx.user.organizationId! }] : []),
         ],
         status: { in: ["active", "extended"] },
       },
@@ -199,11 +216,18 @@ export const bankGuaranteeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const orgId = input.organizationId || ctx.user.organizationId;
       if (input.projectId) {
         await assertProjectManager(ctx.user, input.projectId);
+      } else {
+        assertOrgAdmin(ctx.user);
       }
-      await assertNotLocked(orgId, input.issuedDate ? new Date(input.issuedDate) : new Date());
+
+      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
+      if (!orgId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
+      }
+
+      await assertNotLocked(ctx.user.organizationId, input.issuedDate ? new Date(input.issuedDate) : new Date());
 
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);

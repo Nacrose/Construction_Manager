@@ -85,9 +85,13 @@ export const globalPresetRouter = router({
         limit: z.number().min(1).max(500).default(500),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const presets = await db.globalPresetAnalysis.findMany({
         where: {
+          OR: [
+            { organizationId: null },
+            ...(ctx.user.organizationId ? [{ organizationId: ctx.user.organizationId }] : []),
+          ],
           ...(input.category && input.category !== "all" && { category: input.category }),
           ...(input.q && {
             OR: [
@@ -207,6 +211,14 @@ export const globalPresetRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertPresetWriteAccess(ctx.user, input.presetId);
       const { ingredientId, presetId, materialCatalogId, catalogMaterialId, ...data } = input;
+
+      const existing = await db.globalPresetIngredient.findFirst({
+        where: { id: ingredientId, presetId },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ingredient not found in this preset." });
+      }
+
       const finalCatalogId =
         catalogMaterialId !== undefined
           ? catalogMaterialId
@@ -236,6 +248,14 @@ export const globalPresetRouter = router({
     .input(z.object({ presetId: z.string(), ingredientId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertPresetWriteAccess(ctx.user, input.presetId);
+
+      const existing = await db.globalPresetIngredient.findFirst({
+        where: { id: input.ingredientId, presetId: input.presetId },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Ingredient not found in this preset." });
+      }
+
       await db.globalPresetIngredient.delete({ where: { id: input.ingredientId } });
       return { ok: true };
     }),
@@ -551,19 +571,31 @@ export const globalPresetRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (!isOrgAdmin(ctx.user) && ctx.user.orgRole !== "org_admin" && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
+      }
+
       const source = await db.globalPresetAnalysis.findUnique({
         where: { id: input.sourcePresetId },
         include: { ingredients: true },
       });
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "Source preset not found." });
 
-      const orgId = input.organizationId ?? ctx.user.organizationId;
+      // IDOR guard: org-scoped presets are only copyable by members of that org
+      if (source.organizationId && source.organizationId !== ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This preset belongs to a different organization." });
+      }
+
+      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
+      if (!orgId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No organization assigned." });
+      }
+
       const factor = 1 + input.inflationPct / 100;
 
       const preset = await db.globalPresetAnalysis.create({
         data: {
-          organizationId:
-            source.organizationId === null && !isOrgAdmin(ctx.user) ? orgId : source.organizationId,
+          organizationId: orgId,
           name: input.name,
           source: source.source,
           category: source.category,

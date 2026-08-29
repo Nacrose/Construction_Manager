@@ -284,12 +284,12 @@ export const analysisLibraryRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // Get library info
-      const library = await db.analysisLibrary.findUnique({
-        where: { id: input.libraryId },
+      // Get library info scoped to authorized project
+      const library = await db.analysisLibrary.findFirst({
+        where: { id: input.libraryId, projectId: input.projectId },
         select: { name: true, purpose: true },
       });
-      if (!library) throw new TRPCError({ code: "NOT_FOUND", message: "Library not found." });
+      if (!library) throw new TRPCError({ code: "NOT_FOUND", message: "Library not found in this project." });
 
       // Get all BOQ items
       const boqItems = await db.boqItem.findMany({

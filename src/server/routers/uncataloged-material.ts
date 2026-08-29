@@ -15,7 +15,7 @@ export const uncatalogedMaterialRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const orgId = input.organizationId ?? ctx.user.organizationId;
+      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
       const where: any = { level: input.level };
 
       if (input.level === "org") {
@@ -67,7 +67,7 @@ export const uncatalogedMaterialRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const orgId = input.organizationId ?? ctx.user.organizationId;
+      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
       const where: any = { level: input.level };
       if (input.level === "org" && orgId) {
         where.organizationId = orgId;
@@ -452,7 +452,11 @@ export const uncatalogedMaterialRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const orgId = input.organizationId ?? ctx.user.organizationId;
+      if (input.level === "global" && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only superadmins can scan at global level." });
+      }
+
+      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
       if (input.level === "org" && !orgId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Organization ID is required." });
       }

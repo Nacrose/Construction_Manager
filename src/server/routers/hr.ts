@@ -230,10 +230,19 @@ export const hrRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
+      // Verify all staff IDs belong to input.projectId to prevent cross-project attendance overwrites
+      const staffIds = input.records.map((r) => r.staffId);
+      const validStaff = await db.staff.findMany({
+        where: { projectId: input.projectId, id: { in: staffIds } },
+        select: { id: true },
+      });
+      const validStaffIdSet = new Set(validStaff.map((s) => s.id));
+      const validRecords = input.records.filter((r) => validStaffIdSet.has(r.staffId));
+
       const targetDate = new Date(`${input.date}T00:00:00.000Z`);
 
       await db.$transaction(async (tx) => {
-        for (const record of input.records) {
+        for (const record of validRecords) {
           await tx.staffAttendance.upsert({
             where: {
               staffId_date: {

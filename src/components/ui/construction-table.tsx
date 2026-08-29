@@ -219,13 +219,20 @@ export function ConstructionTable<T extends Record<string, any>>({
   const handleExportExcel = () => {
     if (data.length === 0) return;
     try {
-      const headers = columns.map((c) => c.header);
+      const sanitizeCell = (val: any) => {
+        if (typeof val === "string" && /^[=\+\-\@\t\r]/.test(val)) {
+          return `'${val}`;
+        }
+        return val;
+      };
+
+      const headers = columns.map((c) => sanitizeCell(c.header));
       const rows = filteredData.map((row, idx) => {
         return columns.map((col) => {
           if (col.key === "sn" || col.key === "index") return idx + 1;
           const rawVal = col.accessor ? col.accessor(row) : row[col.key];
           if (col.format === "currency") return typeof rawVal === "number" ? rawVal : parseFloat(rawVal) || 0;
-          return rawVal ?? "";
+          return sanitizeCell(rawVal ?? "");
         });
       });
 
@@ -246,7 +253,7 @@ export function ConstructionTable<T extends Record<string, any>>({
         });
       }
 
-      const titleHeader = title ? [[title.toUpperCase()], [`Export Date: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], []] : [];
+      const titleHeader = title ? [[sanitizeCell(title.toUpperCase())], [`Export Date: ${format(new Date(), "yyyy-MM-dd HH:mm")}`], []] : [];
       const wsData = [...titleHeader, headers, ...rows, ...(hasSummary ? [summaryRow] : [])];
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);

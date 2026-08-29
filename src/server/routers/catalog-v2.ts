@@ -156,9 +156,13 @@ export const catalogV2Router = router({
       if (input.scope === "global") {
         where.scope = "global";
       } else if (input.scope === "org") {
-        const orgId = input.organizationId ?? ctx.user.organizationId;
+        const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
+        assertOrgMember(ctx, orgId);
+        where.scope = "org";
         where.organizationId = orgId;
       } else if (input.scope === "project" && input.projectId) {
+        await assertProjectMember(ctx, input.projectId);
+        where.scope = "project";
         where.projectId = input.projectId;
       }
 
@@ -911,8 +915,8 @@ export const catalogV2Router = router({
       }
 
       // Determine source organization if source is 'org'
-      let sourceOrgId = input.sourceOrganizationId;
-      if (input.sourceScope === "org" && !sourceOrgId) {
+      let sourceOrgId: string | undefined = undefined;
+      if (input.sourceScope === "org") {
         if (targetProjId) {
           const proj = await db.project.findUnique({
             where: { id: targetProjId },
@@ -922,6 +926,13 @@ export const catalogV2Router = router({
         } else {
           sourceOrgId = ctx.user.organizationId ?? undefined;
         }
+        if (ctx.user.isSuperAdmin && input.sourceOrganizationId) {
+          sourceOrgId = input.sourceOrganizationId;
+        }
+        if (!sourceOrgId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Source organization could not be resolved." });
+        }
+        assertOrgMember(ctx, sourceOrgId);
       }
 
       // Find source materials
@@ -1087,8 +1098,8 @@ export const catalogV2Router = router({
       }
 
       // Determine source organization if source is 'org'
-      let sourceOrgId = input.sourceOrganizationId;
-      if (input.sourceScope === "org" && !sourceOrgId) {
+      let sourceOrgId: string | undefined = undefined;
+      if (input.sourceScope === "org") {
         if (targetProjId) {
           const proj = await db.project.findUnique({
             where: { id: targetProjId },
@@ -1098,6 +1109,13 @@ export const catalogV2Router = router({
         } else {
           sourceOrgId = ctx.user.organizationId ?? undefined;
         }
+        if (ctx.user.isSuperAdmin && input.sourceOrganizationId) {
+          sourceOrgId = input.sourceOrganizationId;
+        }
+        if (!sourceOrgId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Source organization could not be resolved." });
+        }
+        assertOrgMember(ctx, sourceOrgId);
       }
 
       const sourceWhere: any = { scope: input.sourceScope, isActive: true };
@@ -1188,39 +1206,14 @@ export const catalogV2Router = router({
 
       if (sourceRates.length > 0) {
         // Resolve target-scope materials (map from source material IDs to target material IDs)
-        const targetMatWhere: any = { scope: input.scope, isActive: true };
-        if (input.scope === "org") targetMatWhere.organizationId = input.organizationId ?? ctx.user.organizationId;
-        if (input.scope === "project") targetMatWhere.projectId = input.projectId;
-
-        const targetMaterials = await db.catalogMaterial.findMany({ where: targetMatWhere });
-        const matBySourceId = new Map<string, string>();
-        const matByName = new Map<string, string>();
-        for (const tm of targetMaterials) {
-          if (tm.sourceMaterialId) matBySourceId.set(tm.sourceMaterialId, tm.id);
-          matByName.set(tm.normalizedName || tm.name.toLowerCase().trim(), tm.id);
-        }
-
-        const rateEntriesToCreate: any[] = [];
-        for (const r of sourceRates) {
-          let targetMaterialId = r.materialId;
-          if (input.scope !== "global") {
-            const mappedId = matBySourceId.get(r.materialId) || matByName.get(r.material?.name?.toLowerCase().trim() || "");
-            if (mappedId) {
-              targetMaterialId = mappedId;
-            }
-          }
-          rateEntriesToCreate.push({
-            materialId: targetMaterialId,
-            rateCatalogId: catalog.id,
-            district: r.district,
-            rate: r.rate,
-            sourceRateEntryId: r.id,
-          });
-        }
-
         await db.rateEntry.createMany({
-          data: rateEntriesToCreate,
-          skipDuplicates: true,
+          data: sourceRates.map((sr: any) => ({
+            materialId: sr.materialId,
+            rateCatalogId: catalog.id,
+            district: sr.district,
+            rate: sr.rate,
+            sourceRateEntryId: sr.id,
+          })),
         });
       }
 
@@ -1237,15 +1230,21 @@ export const catalogV2Router = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const where: any = {};
+      const where: any = { isActive: true };
       if (input.scope) where.scope = input.scope;
-      if (input.organizationId) {
-        // Cross-org guard: verify caller belongs to this org.
-        assertOrgMember(ctx, input.organizationId);
-        where.organizationId = input.organizationId;
-      } else if (!input.scope) where.organizationId = ctx.user.organizationId;
+
+      if (input.scope === "org" || (!input.scope && !input.projectId)) {
+        const orgId = input.organizationId ?? ctx.user.organizationId;
+        if (input.organizationId) assertOrgMember(ctx, input.organizationId);
+        if (orgId) {
+          where.OR = [
+            { scope: "global" },
+            { scope: "org", organizationId: orgId },
+          ];
+        }
+      }
+
       if (input.projectId) {
-        // Project-scoped: verify membership.
         await assertProjectMember(ctx, input.projectId);
         where.projectId = input.projectId;
       }
@@ -1264,51 +1263,18 @@ export const catalogV2Router = router({
   /** Get a rate catalog with its rates */
   getRateCatalog: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const catalog = await db.rateBook.findUnique({
         where: { id: input.id },
       });
       if (!catalog) throw new TRPCError({ code: "NOT_FOUND", message: "Rate catalog not found." });
 
-      // Auto-ensure missing rate entries for all active materials at this scope
-      const matWhere: any = { scope: catalog.scope, isActive: true };
-      if (catalog.scope === "org") matWhere.organizationId = catalog.organizationId;
-      if (catalog.scope === "project") matWhere.projectId = catalog.projectId;
-
-      const scopeMaterials = await db.catalogMaterial.findMany({
-        where: matWhere,
-        select: { id: true, defaultRate: true },
-      });
-
-      if (scopeMaterials.length > 0) {
-        const existingEntries = await db.rateEntry.findMany({
-          where: { rateCatalogId: catalog.id },
-          select: { materialId: true, district: true },
-        });
-        const existingKeys = new Set(existingEntries.map((r) => `${r.materialId}::${r.district}`));
-        const districts = catalog.districts?.length ? catalog.districts : ["Default"];
-
-        const entriesToInsert: any[] = [];
-        for (const m of scopeMaterials) {
-          for (const d of districts) {
-            if (!existingKeys.has(`${m.id}::${d}`)) {
-              entriesToInsert.push({
-                materialId: m.id,
-                rateCatalogId: catalog.id,
-                district: d,
-                rate: m.defaultRate || 0,
-              });
-              existingKeys.add(`${m.id}::${d}`);
-            }
-          }
-        }
-
-        if (entriesToInsert.length > 0) {
-          await db.rateEntry.createMany({
-            data: entriesToInsert,
-            skipDuplicates: true,
-          });
-        }
+      // Tenant & project boundary check (C-1 fix)
+      if (catalog.scope === "org" && catalog.organizationId && catalog.organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't have access to this organization's rate catalog." });
+      }
+      if (catalog.scope === "project" && catalog.projectId) {
+        await assertProjectMember(ctx, catalog.projectId);
       }
 
       const fullCatalog = await db.rateBook.findUnique({
@@ -1602,7 +1568,16 @@ export const catalogV2Router = router({
   /** List substitutes for a material */
   listSubstitutes: protectedProcedure
     .input(z.object({ materialId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      const mat = await db.catalogMaterial.findUnique({
+        where: { id: input.materialId },
+        select: { scope: true, organizationId: true, projectId: true },
+      });
+      if (mat) {
+        if (mat.scope === "org" && mat.organizationId) assertOrgMember(ctx, mat.organizationId);
+        else if (mat.scope === "project" && mat.projectId) await assertProjectMember(ctx, mat.projectId);
+      }
+
       const subs = await db.materialSubstitute.findMany({
         where: { materialId: input.materialId },
         include: {
@@ -1780,7 +1755,7 @@ export const catalogV2Router = router({
         loserId: z.string(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       if (input.winnerId === input.loserId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Winner and loser cannot be the same material." });
       }
@@ -1799,6 +1774,23 @@ export const catalogV2Router = router({
 
       if (!winner || !loser) {
         throw new TRPCError({ code: "NOT_FOUND", message: "One or both materials not found." });
+      }
+
+      if (
+        winner.scope !== loser.scope ||
+        winner.organizationId !== loser.organizationId ||
+        winner.projectId !== loser.projectId
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot merge materials across different scopes, organizations, or projects.",
+        });
+      }
+
+      if (winner.scope === "org" && winner.organizationId) {
+        assertOrgMember(ctx, winner.organizationId);
+      } else if (winner.scope === "project" && winner.projectId) {
+        await assertProjectMember(ctx, winner.projectId);
       }
 
       const totalRows =
@@ -1844,6 +1836,17 @@ export const catalogV2Router = router({
       const winner = await db.catalogMaterial.findUnique({ where: { id: input.winnerId } });
       const loser = await db.catalogMaterial.findUnique({ where: { id: input.loserId } });
       if (!winner || !loser) throw new TRPCError({ code: "NOT_FOUND", message: "Material not found." });
+
+      if (
+        winner.scope !== loser.scope ||
+        winner.organizationId !== loser.organizationId ||
+        winner.projectId !== loser.projectId
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Cannot merge materials across different scopes, organizations, or projects.",
+        });
+      }
 
       if (input.level === "global" || winner.scope === "global") await assertGlobalAdmin(ctx);
       else if (input.level === "org" || winner.scope === "org") await assertOrgAdmin(ctx, winner.organizationId!);
