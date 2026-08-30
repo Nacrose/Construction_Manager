@@ -1,13 +1,31 @@
-"use client";
-
-import { trpc } from "@/lib/trpc-client";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Building2, Users, Database, BookOpen } from "lucide-react";
+import { Building2, Users, Database, BookOpen, CalendarDays } from "lucide-react";
 
-export default function AdminSettings() {
-  const { data } = trpc.admin.stats.useQuery();
+/**
+ * Admin settings — SERVER COMPONENT (pure read; the guard mirrors the
+ * tRPC superAdminProcedure middleware: platform-admin flag AND admin-kind
+ * session).
+ */
+export default async function AdminSettings() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/admin/login");
+  if (!user.isPlatformAdmin || user.sessionKind !== "admin") redirect("/dashboard");
+
+  await setOrgContext(db, "", true);
+
+  const [orgCount, userCount, activeUsers, projectCount] = await Promise.all([
+    db.organization.count(),
+    db.user.count(),
+    db.user.count({ where: { deactivatedAt: null } }),
+    db.project.count(),
+  ]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -23,19 +41,19 @@ export default function AdminSettings() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <div className="text-2xl font-bold">{data?.orgCount ?? "—"}</div>
+            <div className="text-2xl font-bold">{orgCount}</div>
             <div className="text-muted-foreground text-xs">Organizations</div>
           </div>
           <div>
-            <div className="text-2xl font-bold">{data?.userCount ?? "—"}</div>
+            <div className="text-2xl font-bold">{userCount}</div>
             <div className="text-muted-foreground text-xs">Users</div>
           </div>
           <div>
-            <div className="text-2xl font-bold">{data?.activeUsers ?? "—"}</div>
+            <div className="text-2xl font-bold">{activeUsers}</div>
             <div className="text-muted-foreground text-xs">Active Users</div>
           </div>
           <div>
-            <div className="text-2xl font-bold">{data?.projectCount ?? "—"}</div>
+            <div className="text-2xl font-bold">{projectCount}</div>
             <div className="text-muted-foreground text-xs">Projects</div>
           </div>
         </CardContent>
@@ -61,6 +79,11 @@ export default function AdminSettings() {
           <Link href="/admin/rate-catalogs">
             <Button variant="outline" className="w-full justify-start gap-2">
               <BookOpen className="h-4 w-4" /> Rate Catalogs
+            </Button>
+          </Link>
+          <Link href="/admin/holidays">
+            <Button variant="outline" className="w-full justify-start gap-2">
+              <CalendarDays className="h-4 w-4" /> Holiday Calendar
             </Button>
           </Link>
           <Link href="/admin/database">

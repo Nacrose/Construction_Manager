@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import {
   LayoutDashboard, Building2, Users, History,
   Database, Settings, HardDrive, ShieldAlert,
-  BookOpen,
+  BookOpen, CalendarDays,
 } from "lucide-react";
 import { getUser } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ const NAV_SECTIONS = [
     label: "System",
     items: [
       { label: "Audit Log", href: "/admin/audit", icon: History },
+      { label: "Holiday Calendar", href: "/admin/holidays", icon: CalendarDays },
       { label: "Database", href: "/admin/database", icon: HardDrive },
       { label: "Settings", href: "/admin/settings", icon: Settings },
     ],

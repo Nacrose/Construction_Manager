@@ -85,3 +85,7 @@ download/constructflow-cloud.zip
 /uploads/
 /public/uploads/
 .rls-lab-pgdata*/
+
+# Playwright E2E artifacts
+/test-results/
+/playwright-report/

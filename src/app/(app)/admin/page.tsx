@@ -1,13 +1,41 @@
-"use client";
-
-import { trpc } from "@/lib/trpc-client";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users, UserCheck, ArrowRight, FolderOpen, Activity, Shield, BookOpen } from "lucide-react";
 import Link from "next/link";
 
-export default function AdminDashboard() {
-  const { data, isLoading } = trpc.admin.stats.useQuery();
-  const { data: auditData } = trpc.admin.listAuditLogs.useQuery({ take: 10 });
+/**
+ * Platform Admin dashboard — SERVER COMPONENT.
+ *
+ * Pure read page rendered on the server (stats + recent audit). The guard
+ * mirrors the tRPC superAdminProcedure middleware EXACTLY: platform-admin
+ * flag AND an admin-kind session (a regular user session tagged
+ * isSuperAdmin must not see this). The admin layout keeps a client-side
+ * guard as a second layer; this one is authoritative.
+ */
+export default async function AdminDashboard() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/admin/login");
+  if (!user.isPlatformAdmin || user.sessionKind !== "admin") redirect("/dashboard");
+
+  // Cross-org read (mirrors enforceSuperAdmin's context).
+  await setOrgContext(db, "", true);
+
+  const [[orgCount, userCount, activeUsers, projectCount], recentLogs] = await Promise.all([
+    Promise.all([
+      db.organization.count(),
+      db.user.count(),
+      db.user.count({ where: { deactivatedAt: null } }),
+      db.project.count(),
+    ]),
+    db.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      include: { user: { select: { name: true, email: true } } },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -26,7 +54,7 @@ export default function AdminDashboard() {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{isLoading ? "…" : data?.orgCount}</div>
+            <div className="text-3xl font-bold">{orgCount}</div>
             <Link href="/admin/organizations" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
               Manage <ArrowRight className="h-3 w-3" />
             </Link>
@@ -38,7 +66,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{isLoading ? "…" : data?.userCount}</div>
+            <div className="text-3xl font-bold">{userCount}</div>
             <Link href="/admin/users" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
               Manage <ArrowRight className="h-3 w-3" />
             </Link>
@@ -50,9 +78,9 @@ export default function AdminDashboard() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{isLoading ? "…" : data?.activeUsers}</div>
+            <div className="text-3xl font-bold">{activeUsers}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {data?.userCount ? `${Math.round((data.activeUsers / data.userCount) * 100)}% of total` : ""}
+              {userCount ? `${Math.round((activeUsers / userCount) * 100)}% of total` : ""}
             </p>
           </CardContent>
         </Card>
@@ -62,7 +90,7 @@ export default function AdminDashboard() {
             <FolderOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{isLoading ? "…" : data?.projectCount ?? "—"}</div>
+            <div className="text-3xl font-bold">{projectCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -82,6 +110,10 @@ export default function AdminDashboard() {
             <Link href="/admin/rate-catalogs" className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors">
               <BookOpen className="h-4 w-4 text-muted-foreground" />
               Rate Catalogs
+            </Link>
+            <Link href="/admin/holidays" className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              Holiday Calendar
             </Link>
             <Link href="/admin/audit" className="flex items-center gap-2 rounded-md p-2 text-sm hover:bg-muted transition-colors">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -103,9 +135,9 @@ export default function AdminDashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {auditData && auditData.length > 0 ? (
+            {recentLogs.length > 0 ? (
               <div className="space-y-2">
-                {auditData.slice(0, 8).map((log) => (
+                {recentLogs.map((log) => (
                   <div key={log.id} className="flex items-center gap-3 text-sm">
                     <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
                     <div className="flex-1 min-w-0">

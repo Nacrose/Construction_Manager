@@ -1,12 +1,21 @@
-"use client";
-
-import { fetchWithAuth } from "@/lib/client-auth";
-import { useQuery } from "@tanstack/react-query";
-import {Card, CardContent} from "@/components/ui/card";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { setOrgContext } from "@/lib/rls";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { History, Inbox } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+
+/**
+ * Activity Log — SERVER COMPONENT.
+ *
+ * This page is a pure read (no interactivity), so it renders on the server:
+ * no client JS for the page itself, no /api/audit round-trip after hydration,
+ * and the HTML streams instantly (the (app) loading.tsx covers the wait).
+ * The query mirrors GET /api/audit exactly (org RLS context + membership
+ * scoping + same take limit).
+ */
 
 type Log = {
   id: string;
@@ -15,7 +24,7 @@ type Log = {
   entityId: string;
   metadata: string | null;
   ipAddress: string | null;
-  createdAt: string;
+  createdAt: Date;
   user: { id: string; name: string; email: string } | null;
   project: { id: string; name: string; code: string } | null;
 };
@@ -38,13 +47,26 @@ function actionBadge(action: string) {
   );
 }
 
-export default function ActivityPage() {
-  const { data, isLoading } = useQuery<{ logs: Log[] }>({
-    queryKey: ["audit"],
-    queryFn: async () => {
-      const res = await fetchWithAuth("/api/audit?limit=100");
-      if (!res.ok) throw new Error("Failed to load activity");
-      return res.json();
+export default async function ActivityPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  // RLS defense-in-depth (the membership where-clause is the primary filter).
+  await setOrgContext(db, user.organizationId, !!user.isSuperAdmin);
+
+  const memberships = await db.projectMember.findMany({
+    where: { userId: user.id },
+    select: { projectId: true },
+  });
+  const projectIds = memberships.map((m) => m.projectId);
+
+  const logs: Log[] = await db.auditLog.findMany({
+    where: { projectId: { in: projectIds } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      project: { select: { id: true, name: true, code: true } },
     },
   });
 
@@ -57,11 +79,7 @@ export default function ActivityPage() {
         <p className="text-sm text-muted-foreground">Audit trail of all actions across your projects.</p>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
-        </div>
-      ) : !data?.logs.length ? (
+      {logs.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <Inbox className="h-12 w-12 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
@@ -70,7 +88,7 @@ export default function ActivityPage() {
         <Card>
           <CardContent className="p-0">
             <ul className="divide-y">
-              {data.logs.map((log) => {
+              {logs.map((log) => {
                 const meta = log.metadata ? (() => { try { return JSON.parse(log.metadata); } catch { return null; } })() : null;
                 return (
                   <li key={log.id} className="flex items-start gap-3 p-3 hover:bg-muted/20">
