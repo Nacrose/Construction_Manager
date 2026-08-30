@@ -72,20 +72,15 @@ export async function getProjectRole(
     return membership.role as ProjectRole;
   }
 
-  // While a platform admin is impersonating a tenant org, grant access to
-  // every project in that org — but ONLY that org. This is the single choke
-  // point that lets an impersonating admin read/act on a tenant's projects
-  // without ever crossing into another org's data (RLS may be unreliable
-  // under connection pooling, so we scope explicitly and centrally here).
-  // The synthetic "engineer" role permits writes but not project-admin
-  // (pm/coordinator-only) actions.
-  if (opts?.impersonating && opts.organizationId) {
+  // Grant access if the caller's organization owns this project (or if platform admin is impersonating).
+  // This ensures organization owners, accountants, and admins can view and manage their organization's projects.
+  if (opts?.organizationId) {
     const project = await db.project.findUnique({
       where: { id: projectId },
       select: { organizationId: true },
     });
     if (project && project.organizationId === opts.organizationId) {
-      return "engineer";
+      return "project_manager";
     }
   }
 

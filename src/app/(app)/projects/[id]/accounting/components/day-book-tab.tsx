@@ -82,7 +82,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
     }
   }, [bankAndCashAccounts, inflowBank]);
 
-  const { data, isLoading } = trpc.accounting.dayBook.useQuery({
+  const { data, isLoading, isError, error, refetch } = trpc.accounting.dayBook.useQuery({
     projectId: projectId || undefined,
   });
 
@@ -131,8 +131,8 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         header: "Date (Miti / AD)",
         render: (_val, row) => (
           <div>
-            <div className="font-bold text-white leading-tight">{row.miti || "—"}</div>
-            <div className="text-[10px] text-gray-400 leading-tight">
+            <div className="font-bold text-foreground leading-tight">{row.miti || "—"}</div>
+            <div className="text-[10px] text-muted-foreground leading-tight">
               {format(new Date(row.date), "yyyy-MM-dd")}
             </div>
           </div>
@@ -142,7 +142,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         key: "projectCode",
         header: "Project",
         render: (val) => (
-          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-emerald-400">
+          <Badge variant="outline" className="text-[10px] font-bold bg-card border-border text-primary">
             {val || "SITE"}
           </Badge>
         ),
@@ -150,7 +150,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
       {
         key: "voucherNo",
         header: "Voucher #",
-        className: "font-bold text-emerald-400",
+        className: "font-bold text-primary",
       },
       {
         key: "voucherType",
@@ -163,9 +163,9 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         className: "font-sans",
         render: (val, row) => (
           <div>
-            <div className="font-semibold text-white truncate max-w-md text-xs">{val}</div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400 font-mono">
-              <span className="bg-[#121820] px-1.5 py-0.2 rounded text-emerald-400 border border-white/5 font-semibold">
+            <div className="font-semibold text-foreground truncate max-w-md text-xs">{val}</div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
+              <span className="bg-card px-1.5 py-0.2 rounded text-primary border border-border font-semibold">
                 {row.accountHead}
               </span>
               {row.partyPan && <span>PAN: {row.partyPan}</span>}
@@ -176,7 +176,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
       {
         key: "paymentMode",
         header: "Mode",
-        render: (val) => <span className="capitalize text-gray-300">{val?.replace(/_/g, " ") || "—"}</span>,
+        render: (val) => <span className="capitalize text-muted-foreground">{val?.replace(/_/g, " ") || "—"}</span>,
       },
       {
         key: "debit",
@@ -198,7 +198,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         key: "runningBalance",
         header: "Balance",
         align: "right",
-        className: "font-bold font-mono text-white",
+        className: "font-bold font-mono text-foreground",
         render: (val) => formatNpr(val),
       },
       {
@@ -211,13 +211,13 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               href={sanitizeUrl(val) ?? "#"}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center p-1 rounded hover:bg-emerald-500/20 text-emerald-400"
+              className="inline-flex items-center justify-center p-1 rounded hover:bg-primary/20 text-primary"
               title="View Scanned Attachment"
             >
               <Eye className="h-3.5 w-3.5" />
             </a>
           ) : (
-            <span className="text-gray-600">—</span>
+            <span className="text-muted-foreground">—</span>
           ),
       },
     ],
@@ -226,9 +226,33 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-16 w-full rounded-2xl bg-white/5" />
-        <Skeleton className="h-64 w-full rounded-2xl bg-white/5" />
+      <div className="space-y-4 font-mono">
+        <div className="h-14 w-full rounded-xl bg-card/60 border border-border/40 animate-pulse flex items-center justify-between px-4">
+          <div className="flex gap-4 items-center">
+            <div className="h-4 w-32 bg-muted/60 rounded" />
+            <div className="h-4 w-32 bg-muted/60 rounded" />
+            <div className="h-4 w-32 bg-muted/60 rounded" />
+          </div>
+          <div className="h-4 w-20 bg-muted/60 rounded" />
+        </div>
+        <div className="h-96 w-full rounded-xl bg-card/60 border border-border/40 animate-pulse p-4 space-y-3">
+          <div className="h-8 w-full bg-muted/40 rounded" />
+          <div className="h-8 w-full bg-muted/30 rounded" />
+          <div className="h-8 w-full bg-muted/30 rounded" />
+          <div className="h-8 w-full bg-muted/30 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8 text-center bg-card/85 border border-destructive/40 rounded-xl space-y-3 font-mono">
+        <div className="text-destructive font-bold text-sm">Failed to load Day Book</div>
+        <p className="text-xs text-muted-foreground">{error?.message || "An unexpected error occurred while fetching accounting entries."}</p>
+        <Button size="sm" variant="outline" onClick={() => refetch()} className="text-xs">
+          Retry
+        </Button>
       </div>
     );
   }
@@ -236,20 +260,20 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   return (
     <div className="space-y-3">
       {/* Single-Line Summary Strip (Khatabook Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-white/10 bg-[#0c1015] text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-border bg-card/90 text-xs font-mono">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Total Inflow (Dr):</span>
+            <span className="text-muted-foreground">Total Inflow (Dr):</span>
             <span className="font-bold text-emerald-400">NPR {formatNpr(summary.totalDebit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-white/10" />
+          <div className="h-3 w-[1px] bg-border" />
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Total Disbursements (Cr):</span>
+            <span className="text-muted-foreground">Total Disbursements (Cr):</span>
             <span className="font-bold text-red-400">NPR {formatNpr(summary.totalCredit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-white/10" />
+          <div className="h-3 w-[1px] bg-border" />
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Net Flow:</span>
+            <span className="text-muted-foreground">Net Flow:</span>
             <span
               className={cn(
                 "font-bold",
@@ -261,7 +285,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
           </div>
         </div>
 
-        <div className="text-[11px] text-gray-500 font-mono">
+        <div className="text-[11px] text-muted-foreground font-mono">
           {entries.length} Day Book Records
         </div>
       </div>
