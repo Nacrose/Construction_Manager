@@ -10,6 +10,7 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { recalculateWbsCodes } from "@/lib/wbs";
+import { withOrgContext } from "@/lib/rls";
 import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 import { BUILT_IN_TEMPLATES, type WorkPackageTemplateDef } from "@/server/utils/work-package-templates";
 
@@ -565,16 +566,19 @@ export const ganttTasksRouter = router({
             message: "Already the first sibling.",
           });
         const prev = siblings[idx - 1];
-        await db.$transaction([
-          db.ganttTask.update({
+        // Converted from array-form $transaction (RLS phase 3c): GanttTask
+        // is FORCE-scoped — updates need transaction-scoped org context.
+        await db.$transaction(async (tx) => {
+          await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: GanttTask is FORCE-scoped (phase 3c)
+          await tx.ganttTask.update({
             where: { id: input.taskId },
             data: { sortOrder: prev.sortOrder },
-          }),
-          db.ganttTask.update({
+          });
+          await tx.ganttTask.update({
             where: { id: prev.id },
             data: { sortOrder: task.sortOrder },
-          }),
-        ]);
+          });
+        });
       } else if (input.direction === "down") {
         if (idx === siblings.length - 1)
           throw new TRPCError({
@@ -582,16 +586,19 @@ export const ganttTasksRouter = router({
             message: "Already the last sibling.",
           });
         const next = siblings[idx + 1];
-        await db.$transaction([
-          db.ganttTask.update({
+        // Converted from array-form $transaction (RLS phase 3c): GanttTask
+        // is FORCE-scoped — updates need transaction-scoped org context.
+        await db.$transaction(async (tx) => {
+          await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: GanttTask is FORCE-scoped (phase 3c)
+          await tx.ganttTask.update({
             where: { id: input.taskId },
             data: { sortOrder: next.sortOrder },
-          }),
-          db.ganttTask.update({
+          });
+          await tx.ganttTask.update({
             where: { id: next.id },
             data: { sortOrder: task.sortOrder },
-          }),
-        ]);
+          });
+        });
       } else if (input.direction === "indent") {
         if (idx === 0)
           throw new TRPCError({
@@ -629,21 +636,24 @@ export const ganttTasksRouter = router({
           select: { id: true, sortOrder: true },
         });
         const toBump = parentSiblings.filter((s) => s.sortOrder > parent.sortOrder);
-        await db.$transaction([
-          ...toBump.map((s) =>
-            db.ganttTask.update({
+        // Converted from array-form $transaction (RLS phase 3c): GanttTask
+        // is FORCE-scoped — updates need transaction-scoped org context.
+        await db.$transaction(async (tx) => {
+          await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: GanttTask is FORCE-scoped (phase 3c)
+          for (const s of toBump) {
+            await tx.ganttTask.update({
               where: { id: s.id },
               data: { sortOrder: s.sortOrder + 1 },
-            })
-          ),
-          db.ganttTask.update({
+            });
+          }
+          await tx.ganttTask.update({
             where: { id: input.taskId },
             data: {
               parentId: parent.parentId,
               sortOrder: parent.sortOrder + 1,
             },
-          }),
-        ]);
+          });
+        });
       }
 
       await recalculateWbsCodes(input.projectId, task.versionId);

@@ -5,6 +5,7 @@ import { assertCanWrite, assertProjectMember } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 
 export const variationOrderRouter = router({
   /** List all Variation Orders for a project */
@@ -110,6 +111,7 @@ export const variationOrderRouter = router({
 
       // We'll update the VO details, delete old items, and insert new items.
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         await tx.variationOrder.update({
           where: { id: input.id },
           data: {
@@ -172,6 +174,7 @@ export const variationOrderRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const updateData: any = { status: input.status };
 
         if (input.status === "approved") {

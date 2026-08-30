@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 
 const CreateStoreLocationSchema = z.object({
   projectId: z.string(),
@@ -226,6 +227,7 @@ export const storeLocationRouter = router({
       const transferDate = input.date ? new Date(input.date) : new Date();
 
       const result = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m MISS: MaterialTransaction is FORCE-scoped since 20260830030000
         // 1. Deduct from source store
         await tx.materialStoreStock.upsert({
           where: {

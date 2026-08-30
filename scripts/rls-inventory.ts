@@ -33,6 +33,10 @@ const TRACKER = path.join(ROOT, "prisma/rls-tracker.json");
 const schema = fs.readFileSync(SCHEMA, "utf8");
 
 type Scoped = { orgScoped: string[]; projectScoped: string[] };
+// Model name -> physical table name. Prisma @@map renames tables (e.g.
+// model RateBook lives in table "RateCatalog"); RLS migrations and audit
+// SQL must target the PHYSICAL name or they fail on apply.
+export const TABLE_OF: Record<string, string> = {};
 const { orgScoped, projectScoped }: Scoped = (() => {
   const org: string[] = [];
   const proj: string[] = [];
@@ -41,6 +45,8 @@ const { orgScoped, projectScoped }: Scoped = (() => {
   while ((m = blockRe.exec(schema)) !== null) {
     const name = m[1];
     const body = m[2];
+    const mapMatch = body.match(/@@map\("(\w+)"\)/);
+    TABLE_OF[name] = mapMatch ? mapMatch[1] : name;
     const hasOrg = /^\s+organizationId\s+\w+/m.test(body);
     const hasProject = /^\s+projectId\s+\w+/m.test(body);
     if (hasOrg) org.push(name);
@@ -48,6 +54,13 @@ const { orgScoped, projectScoped }: Scoped = (() => {
   }
   return { orgScoped: org.sort(), projectScoped: proj.sort() };
 })();
+const mapped = Object.entries(TABLE_OF).filter(([m, t]) => m !== t);
+if (mapped.length) {
+  console.log(
+    "[rls-inventory] @@map models (tracker uses model names, SQL uses table names): " +
+      mapped.map(([m, t]) => `${m}->${t}`).join(", "),
+  );
+}
 
 // ── 2. Phase assignment ─────────────────────────────────────────
 // Tables where RLS is the WRONG tool (queried pre-auth, before any org
@@ -134,13 +147,17 @@ console.log(`[rls-inventory] tracker written: prisma/rls-tracker.json`);
 // ── 5. NULL audit SQL (gap G-3) ─────────────────────────────────
 const auditLines: string[] = [];
 for (const t of orgScoped) {
+  const tbl = TABLE_OF[t];
+  const label = tbl === t ? t : `${t}(map:${tbl})`;
   auditLines.push(
-    `SELECT '${t}' AS tbl, count(*) AS null_org_rows FROM "${t}" WHERE "organizationId" IS NULL`,
+    `SELECT '${label}' AS tbl, count(*) AS null_org_rows FROM "${tbl}" WHERE "organizationId" IS NULL`,
   );
 }
 for (const t of projectScoped) {
+  const tbl = TABLE_OF[t];
+  const label = tbl === t ? t : `${t}(map:${tbl})`;
   auditLines.push(
-    `SELECT '${t}' AS tbl, count(*) AS null_project_rows FROM "${t}" WHERE "projectId" IS NULL`,
+    `SELECT '${label}' AS tbl, count(*) AS null_project_rows FROM "${tbl}" WHERE "projectId" IS NULL`,
   );
 }
 const auditSql =

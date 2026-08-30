@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { recalcAnalysis } from "@/server/utils/boq-calc";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 
 export const analysisLibraryRouter = router({
   /** List all analysis libraries for the project (auto-ensures standard 3 libraries exist). */
@@ -40,6 +41,7 @@ export const analysisLibraryRouter = router({
           const exists = libraries.some((l) => l.purpose === std.purpose);
           if (!exists) {
             await db.$transaction(async (tx) => {
+              await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
               const created = await tx.analysisLibrary.upsert({
                 where: {
                   projectId_purpose: {
@@ -134,6 +136,7 @@ export const analysisLibraryRouter = router({
       });
 
       const library = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         // If setting as default, unset other defaults
         if (input.isDefault) {
           await tx.analysisLibrary.updateMany({
@@ -226,6 +229,7 @@ export const analysisLibraryRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         // 1. Clear isDefault on all sibling libraries
         await tx.analysisLibrary.updateMany({
           where: { projectId: input.projectId, isDefault: true },

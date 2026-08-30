@@ -7,6 +7,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 import { cloneDependencies, cloneResourceAssignments } from "./gantt-versions";
 import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 
@@ -88,6 +89,7 @@ export const ganttAnalyticsRouter = router({
       const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
 
       const execVersion = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         await tx.ganttVersion.updateMany({
           where: {
             projectId: input.projectId,
@@ -810,6 +812,7 @@ export const ganttAnalyticsRouter = router({
       const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
 
       const scenario = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const sc = await tx.ganttVersion.create({
           data: {
             projectId: input.projectId,

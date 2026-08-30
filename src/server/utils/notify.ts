@@ -11,6 +11,7 @@
  *   → Email (via sendEmail)
  */
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { sendEmail } from "./email";
 
 /**
@@ -32,64 +33,91 @@ export async function createNotification(params: {
   emailTo?: string; // specific email address (external party)
 }): Promise<void> {
   try {
-    // 1. Create in-app notification
-    await db.notification.create({
-      data: {
-        userId: params.userId,
-        projectId: params.projectId ?? null,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        metadata: params.metadata ? JSON.stringify(params.metadata) : null,
-      },
-    });
-
-    // 2. Post to project's notification channel (internal communication)
-    if (params.postToChannel && params.projectId) {
-      // Find or create the project's #notifications channel
-      let channel = await db.chatChannel.findFirst({
-        where: { projectId: params.projectId, type: "public", name: "Notifications" },
+    // RLS (phase 3c): Notification, ChatChannel and ProjectMember are
+    // FORCE-scoped. This helper runs on arbitrary pooled connections
+    // (often from after()-style flows) where the best-effort session GUC
+    // may be absent — the writes run inside an interactive transaction
+    // with the org context derived explicitly. Bootstrap as superadmin
+    // first (the Project lookup below is itself RLS-guarded since
+    // phase 4), then set the derived context before any write.
+    await db.$transaction(async (tx) => {
+      await withOrgContext(tx, null, true); // bootstrap: Project lookups
+      let orgId: string | null = null;
+      const recipient = await tx.user.findUnique({
+        where: { id: params.userId },
+        select: { organizationId: true },
       });
-
-      if (!channel) {
-        // Auto-create the notifications channel if it doesn't exist
-        channel = await db.chatChannel.create({
-          data: {
-            projectId: params.projectId,
-            name: "Notifications",
-            type: "public",
-            description: "System notifications — RFI updates, report submissions, stock alerts",
-          },
+      orgId = recipient?.organizationId ?? null;
+      if (!orgId && params.projectId) {
+        const project = await tx.project.findUnique({
+          where: { id: params.projectId },
+          select: { organizationId: true },
         });
-        // Add all project members to this channel
-        const members = await db.projectMember.findMany({
-          where: { projectId: params.projectId },
-          select: { userId: true },
-        });
-        await db.chatMember.createMany({
-          data: members.map(m => ({ channelId: channel!.id, userId: m.userId, role: "member" })),
-          skipDuplicates: true,
-        });
+        orgId = project?.organizationId ?? null;
       }
+      // No derivable org (org-less user, org-less project) → superadmin
+      // context: the row is written and stays superadmin-visible only.
+      await withOrgContext(tx, orgId, !orgId);
 
-      // Post the notification as a system message
-      await db.chatMessage.create({
+      // 1. Create in-app notification
+      await tx.notification.create({
         data: {
-          channelId: channel.id,
           userId: params.userId,
-          text: `🔔 **${params.title}**\n${params.message}`,
-          linkedEntityType: params.metadata?.entityType as string || undefined,
-          linkedEntityId: params.metadata?.entityId as string || undefined,
+          projectId: params.projectId ?? null,
+          type: params.type,
+          title: params.title,
+          message: params.message,
+          metadata: params.metadata ? JSON.stringify(params.metadata) : null,
         },
       });
 
-      // Update channel timestamp
-      await db.chatChannel.update({
-        where: { id: channel.id },
-        data: { updatedAt: new Date() },
-      });
-    }
+      // 2. Post to project's notification channel (internal communication)
+      if (params.postToChannel && params.projectId) {
+        // Find or create the project's #notifications channel
+        let channel = await tx.chatChannel.findFirst({
+          where: { projectId: params.projectId, type: "public", name: "Notifications" },
+        });
 
+        if (!channel) {
+          // Auto-create the notifications channel if it doesn't exist
+          channel = await tx.chatChannel.create({
+            data: {
+              projectId: params.projectId,
+              name: "Notifications",
+              type: "public",
+              description: "System notifications — RFI updates, report submissions, stock alerts",
+            },
+          });
+          // Add all project members to this channel
+          const members = await tx.projectMember.findMany({
+            where: { projectId: params.projectId },
+            select: { userId: true },
+          });
+          await tx.chatMember.createMany({
+            data: members.map(m => ({ channelId: channel!.id, userId: m.userId, role: "member" })),
+            skipDuplicates: true,
+          });
+        }
+
+        // Post the notification as a system message
+        await tx.chatMessage.create({
+          data: {
+            channelId: channel.id,
+            userId: params.userId,
+            text: `🔔 **${params.title}**\n${params.message}`,
+            linkedEntityType: params.metadata?.entityType as string || undefined,
+            linkedEntityId: params.metadata?.entityId as string || undefined,
+          },
+        });
+
+        // Update channel timestamp
+        await tx.chatChannel.update({
+          where: { id: channel.id },
+          data: { updatedAt: new Date() },
+        });
+      }
+
+    });
     // 3. Send email (ONLY for external-facing events)
     if (params.emailSubject && params.emailHtml) {
       if (params.emailTo) {
@@ -130,33 +158,40 @@ export async function notifyProjectMembers(params: {
   postToChannel?: boolean;
 }): Promise<void> {
   try {
-    const members = await db.projectMember.findMany({
-      where: {
-        projectId: params.projectId,
-        ...(params.excludeUserId ? { userId: { not: params.excludeUserId } } : {}),
-      },
-      select: { userId: true },
-    });
-
-    for (const member of members) {
-      await createNotification({
-        userId: member.userId,
-        projectId: params.projectId,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        metadata: params.metadata,
-        postToChannel: params.postToChannel,
+    // RLS (phase 3c): ProjectMember and Notification are FORCE-scoped —
+    // wrap in an interactive transaction with derived org context (the
+    // project's org; notifications for a project's members are all
+    // same-org). Channel posts happen via notifyProject.
+    await db.$transaction(async (tx) => {
+      await withOrgContext(tx, null, true); // bootstrap: Project lookup
+      const project = await tx.project.findUnique({
+        where: { id: params.projectId },
+        select: { organizationId: true },
       });
-    }
+      const orgId = project?.organizationId ?? null;
+      await withOrgContext(tx, orgId, !orgId);
 
-    // Post to channel once (not per-user)
-    if (params.postToChannel && members.length > 0) {
-      // Already handled in createNotification for the first user
-      // But we only want one channel message, so let's post separately
-      // Actually, createNotification posts per-user which is wrong.
-      // Let's fix: only post to channel once.
-    }
+      const members = await tx.projectMember.findMany({
+        where: {
+          projectId: params.projectId,
+          ...(params.excludeUserId ? { userId: { not: params.excludeUserId } } : {}),
+        },
+        select: { userId: true },
+      });
+
+      for (const member of members) {
+        await tx.notification.create({
+          data: {
+            userId: member.userId,
+            projectId: params.projectId,
+            type: params.type,
+            title: params.title,
+            message: params.message,
+            metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+          },
+        });
+      }
+    });
   } catch (err) {
     console.error("[notify] Failed to notify project members:", err);
   }
@@ -181,73 +216,86 @@ export async function notifyProject(params: {
   externalEmailHtml?: string;
 }): Promise<void> {
   try {
-    // 1. Post to notification channel (once)
-    if (params.postToChannel) {
-      let channel = await db.chatChannel.findFirst({
-        where: { projectId: params.projectId, type: "public", name: "Notifications" },
+    // RLS (phase 3c): ChatChannel/ProjectMember/Notification are
+    // FORCE-scoped — one interactive transaction with the project's org
+    // context (channel + members + notifications are all same-org).
+    await db.$transaction(async (tx) => {
+      await withOrgContext(tx, null, true); // bootstrap: Project lookup
+      const project = await tx.project.findUnique({
+        where: { id: params.projectId },
+        select: { organizationId: true },
       });
+      const orgId = project?.organizationId ?? null;
+      await withOrgContext(tx, orgId, !orgId);
 
-      if (!channel) {
-        channel = await db.chatChannel.create({
-          data: {
-            projectId: params.projectId,
-            name: "Notifications",
-            type: "public",
-            description: "System notifications",
-          },
+      // 1. Post to notification channel (once)
+      if (params.postToChannel) {
+        let channel = await tx.chatChannel.findFirst({
+          where: { projectId: params.projectId, type: "public", name: "Notifications" },
         });
-        const members = await db.projectMember.findMany({
+
+        if (!channel) {
+          channel = await tx.chatChannel.create({
+            data: {
+              projectId: params.projectId,
+              name: "Notifications",
+              type: "public",
+              description: "System notifications",
+            },
+          });
+          const members = await tx.projectMember.findMany({
+            where: { projectId: params.projectId },
+            select: { userId: true },
+          });
+          await tx.chatMember.createMany({
+            data: members.map(m => ({ channelId: channel!.id, userId: m.userId, role: "member" })),
+            skipDuplicates: true,
+          });
+        }
+
+        // Use the triggering user's ID (or first member) as the message author
+        const authorId = params.excludeUserId ?? (await tx.projectMember.findFirst({
           where: { projectId: params.projectId },
           select: { userId: true },
-        });
-        await db.chatMember.createMany({
-          data: members.map(m => ({ channelId: channel!.id, userId: m.userId, role: "member" })),
-          skipDuplicates: true,
-        });
+        }))?.userId;
+
+        if (authorId) {
+          await tx.chatMessage.create({
+            data: {
+              channelId: channel.id,
+              userId: authorId,
+              text: `🔔 **${params.title}**\n${params.message}`,
+              linkedEntityType: params.metadata?.entityType as string || undefined,
+              linkedEntityId: params.metadata?.entityId as string || undefined,
+            },
+          });
+          await tx.chatChannel.update({ where: { id: channel.id }, data: { updatedAt: new Date() } });
+        }
       }
 
-      // Use the triggering user's ID (or first member) as the message author
-      const authorId = params.excludeUserId ?? (await db.projectMember.findFirst({
-        where: { projectId: params.projectId },
+      // 2. Create in-app notifications for all members (internal)
+      const members = await tx.projectMember.findMany({
+        where: {
+          projectId: params.projectId,
+          ...(params.excludeUserId ? { userId: { not: params.excludeUserId } } : {}),
+        },
         select: { userId: true },
-      }))?.userId;
+      });
 
-      if (authorId) {
-        await db.chatMessage.create({
+      for (const member of members) {
+        await tx.notification.create({
           data: {
-            channelId: channel.id,
-            userId: authorId,
-            text: `🔔 **${params.title}**\n${params.message}`,
-            linkedEntityType: params.metadata?.entityType as string || undefined,
-            linkedEntityId: params.metadata?.entityId as string || undefined,
+            userId: member.userId,
+            projectId: params.projectId,
+            type: params.type,
+            title: params.title,
+            message: params.message,
+            metadata: params.metadata ? JSON.stringify(params.metadata) : null,
           },
         });
-        await db.chatChannel.update({ where: { id: channel.id }, data: { updatedAt: new Date() } });
       }
-    }
 
-    // 2. Create in-app notifications for all members (internal)
-    const members = await db.projectMember.findMany({
-      where: {
-        projectId: params.projectId,
-        ...(params.excludeUserId ? { userId: { not: params.excludeUserId } } : {}),
-      },
-      select: { userId: true },
     });
-
-    for (const member of members) {
-      await db.notification.create({
-        data: {
-          userId: member.userId,
-          projectId: params.projectId,
-          type: params.type,
-          title: params.title,
-          message: params.message,
-          metadata: params.metadata ? JSON.stringify(params.metadata) : null,
-        },
-      });
-    }
-
     // 3. Send external email (ONLY if externalEmail is provided)
     if (params.externalEmail && params.externalEmailSubject && params.externalEmailHtml) {
       await sendEmail({

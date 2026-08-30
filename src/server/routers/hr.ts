@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 
 const CreateStaffSchema = z.object({
   projectId: z.string(),
@@ -242,6 +243,7 @@ export const hrRouter = router({
       const targetDate = new Date(`${input.date}T00:00:00.000Z`);
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         for (const record of validRecords) {
           await tx.staffAttendance.upsert({
             where: {

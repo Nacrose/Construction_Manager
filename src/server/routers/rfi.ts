@@ -9,6 +9,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { createNotification, notifyProject } from "@/server/utils/notify";
 import { uploadFile, deleteFile } from "@/lib/storage";
+import { withOrgContext } from "@/lib/rls";
 import {
   isAllowedAttachmentType,
   snapshotRfiItems,
@@ -556,23 +557,28 @@ export const rfiRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted RFIs can be responded to." });
       }
 
-      const [response] = await db.$transaction([
-        db.rfiResponse.create({
+      // Converted from array-form $transaction (RLS phase 3c): array form
+      // cannot run set_config, and Rfi is now FORCE-scoped — the update
+      // would fail closed on a context-less connection.
+      const [response] = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: Rfi is FORCE-scoped
+        const created = await tx.rfiResponse.create({
           data: {
             rfiId: input.id,
             responderId: ctx.user.id,
             response: input.response,
             decision: input.decision,
           },
-        }),
-        db.rfi.update({
+        });
+        await tx.rfi.update({
           where: { id: input.id },
           data: {
             status: input.decision === "approved" ? "approved" : input.decision === "rejected" ? "rejected" : "submitted",
             respondedAt: new Date(),
           },
-        }),
-      ]);
+        });
+        return [created] as const;
+      });
 
       await audit({
         userId: ctx.user.id,

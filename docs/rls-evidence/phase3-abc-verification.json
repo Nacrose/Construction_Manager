@@ -1,0 +1,194 @@
+{
+  "phases": [
+    "3a",
+    "3b",
+    "3c",
+    "4"
+  ],
+  "verdict": "PASS",
+  "passed": 30,
+  "total": 30,
+  "checks": [
+    {
+      "id": "A.1",
+      "group": "A migration chain applies end-to-end",
+      "ok": true,
+      "detail": "0_init \u2192 phase-4 chain applied cleanly (SQL valid against the real schema)"
+    },
+    {
+      "id": "B.1",
+      "group": "B every covered table is ENABLED + FORCEd + has policies",
+      "ok": true,
+      "detail": "78/78 covered tables (model names, @@map-resolved) have RLS+FORCE+policies"
+    },
+    {
+      "id": "B.2",
+      "group": "B every covered table is ENABLED + FORCEd + has policies",
+      "ok": true,
+      "detail": "Project: rls=True forced=True policies=4 (phase 4)"
+    },
+    {
+      "id": "C.app_user.same-org",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "same-org counts Payment/Material/Staff/Rfi/Project = [1, 1, 1, 1, 1]"
+    },
+    {
+      "id": "C.app_user.cross-org",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org counts = [0, 0, 0, 0, 0] (all zero)"
+    },
+    {
+      "id": "C.app_user.insert-deny",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org INSERT denied: new row violates row-level security policy for table \"Payment\""
+    },
+    {
+      "id": "C.app_user.update-delete",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org UPDATE=0 DELETE=0"
+    },
+    {
+      "id": "C.app_user.fail-closed",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "no-context counts = [0, 0, 0, 0, 0]"
+    },
+    {
+      "id": "C.app_user.superadmin",
+      "group": "C tenant matrix (app_user)",
+      "ok": true,
+      "detail": "superadmin sees both orgs: [2, 2, 2, 2, 2]"
+    },
+    {
+      "id": "C.owner_role.same-org",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "same-org counts Payment/Material/Staff/Rfi/Project = [1, 1, 1, 1, 1]"
+    },
+    {
+      "id": "C.owner_role.cross-org",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "cross-org counts = [0, 0, 0, 0, 0] (all zero)"
+    },
+    {
+      "id": "C.owner_role.insert-deny",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "cross-org INSERT denied: new row violates row-level security policy for table \"Payment\""
+    },
+    {
+      "id": "C.owner_role.update-delete",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "cross-org UPDATE=0 DELETE=0"
+    },
+    {
+      "id": "C.owner_role.fail-closed",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "no-context counts = [0, 0, 0, 0, 0]"
+    },
+    {
+      "id": "C.owner_role.superadmin",
+      "group": "C tenant matrix (owner_role)",
+      "ok": true,
+      "detail": "superadmin sees both orgs: [2, 2, 2, 2, 2]"
+    },
+    {
+      "id": "D.1",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org A sees own notifications (project + org-level): 2/2"
+    },
+    {
+      "id": "D.2",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org B recipient notifications invisible: 0"
+    },
+    {
+      "id": "D.3",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org A sees own audit rows (project + user-level): 2/2"
+    },
+    {
+      "id": "D.4",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org B project audit rows invisible: 0"
+    },
+    {
+      "id": "D.5",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org A sees its 3 channels (project/org_order/personal-via-member): 3/3"
+    },
+    {
+      "id": "D.6",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org B channels invisible: 0"
+    },
+    {
+      "id": "D.7",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "AuditLog UPDATE=0/DELETE=0 rows affected (append-only, org context)"
+    },
+    {
+      "id": "D.8",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "superadmin UPDATE=0/DELETE=0 rows (tamper-evident trail)"
+    },
+    {
+      "id": "D.9",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "AuditLog INSERT works without org context (after()-hook safe)"
+    },
+    {
+      "id": "D.10",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "org B personal channel visible via member branch: 1/1"
+    },
+    {
+      "id": "D.11",
+      "group": "D composite tables (Notification/AuditLog/ChatChannel)",
+      "ok": true,
+      "detail": "own-creator org_order insert ok (True); foreign-project channel insert denied (True)"
+    },
+    {
+      "id": "E.1",
+      "group": "E/F phase-4 backfill semantics + loud guard",
+      "ok": true,
+      "detail": "guard fails loudly on unresolvable NULL-org project: RLS phase-4: 1 projects still have organizationId NULL after the creator backfill (creator missing or org-less). Assign "
+    },
+    {
+      "id": "E.2",
+      "group": "E/F phase-4 backfill semantics + loud guard",
+      "ok": true,
+      "detail": "creator backfill assigned P-Y \u2192 y-org"
+    },
+    {
+      "id": "E.3",
+      "group": "E/F phase-4 backfill semantics + loud guard",
+      "ok": true,
+      "detail": "manual fix preserved: P-X \u2192 x-org"
+    },
+    {
+      "id": "E.4",
+      "group": "E/F phase-4 backfill semantics + loud guard",
+      "ok": true,
+      "detail": "NULL-org project retired: org user sees 0, superadmin sees 1"
+    }
+  ],
+  "pg_version": "PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.2.1 20210130 (R"
+}

@@ -20,7 +20,7 @@ SELECT 'JournalEntry' AS tbl, count(*) AS null_org_rows FROM "JournalEntry" WHER
 UNION ALL
 SELECT 'Project' AS tbl, count(*) AS null_org_rows FROM "Project" WHERE "organizationId" IS NULL
 UNION ALL
-SELECT 'RateBook' AS tbl, count(*) AS null_org_rows FROM "RateBook" WHERE "organizationId" IS NULL
+SELECT 'RateBook(map:RateCatalog)' AS tbl, count(*) AS null_org_rows FROM "RateCatalog" WHERE "organizationId" IS NULL
 UNION ALL
 SELECT 'RateProfile' AS tbl, count(*) AS null_org_rows FROM "RateProfile" WHERE "organizationId" IS NULL
 UNION ALL

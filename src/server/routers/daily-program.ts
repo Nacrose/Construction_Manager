@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
 
 /**
@@ -954,6 +955,7 @@ export const dailyProgramRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         // Delete all old tasks first
         await tx.dailyProgramTask.deleteMany({
           where: { programId: input.programId },

@@ -8,6 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 import { recalcItemRate, resolvePercentageBase } from "@/server/utils/boq-calc";
 
 // ─── Zod schemas ───────────────────────────────────────────────
@@ -136,6 +137,7 @@ export const boqRouter = router({
       // in a single transaction so we don't end up with an orphan BOQ item
       // if analysis creation fails midway.
       const item = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const created = await tx.boqItem.create({
           data: {
             projectId: input.projectId,
@@ -237,6 +239,7 @@ export const boqRouter = router({
       // a DB error during recalc would leave the item with updated
       // quantity but stale rate/amount.
       let updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const result = await tx.boqItem.update({
           where: { id: itemId },
           data: {

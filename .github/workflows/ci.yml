@@ -49,3 +49,43 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           SENTRY_RELEASE: ${{ github.sha }}
         run: npm run build
+
+  rls:
+    name: RLS integration gate (scratch Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rls
+          POSTGRES_PASSWORD: rls
+          POSTGRES_DB: rls_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rls"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: RLS integration tests (migrations + tenant isolation)
+        env:
+          TEST_DATABASE_URL: postgresql://rls:rls@localhost:5432/rls_test
+        run: npx vitest run src/server/routers/__tests__/rls-integration.test.ts

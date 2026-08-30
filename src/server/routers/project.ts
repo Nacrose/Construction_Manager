@@ -10,6 +10,7 @@ import { assertProjectMember, assertProjectManager, assertProjectAdmin } from "@
 import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { passwordSchema } from "@/lib/password-policy";
+import { withOrgContext } from "@/lib/rls";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -285,6 +286,7 @@ export const projectRouter = router({
       }
 
       const project = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const proj = await tx.project.create({
           data: {
             name: input.name,

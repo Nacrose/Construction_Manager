@@ -7,6 +7,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 import { notifyProjectMembers } from "@/server/utils/notify";
 
 /**
@@ -166,6 +167,7 @@ export const ganttVersionsRouter = router({
       const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
 
       const newVersion = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const newVer = await tx.ganttVersion.create({
           data: {
             projectId: input.projectId,
@@ -294,6 +296,7 @@ export const ganttVersionsRouter = router({
       });
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         if (currentActive) {
           await tx.ganttVersion.update({
             where: { id: currentActive.id },
@@ -364,6 +367,7 @@ export const ganttVersionsRouter = router({
       const nextVersionNumber = (maxVersion._max.versionNumber ?? 0) + 1;
 
       const revision = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         const rev = await tx.ganttVersion.create({
           data: {
             projectId: input.projectId,
@@ -559,6 +563,7 @@ export const ganttVersionsRouter = router({
       }
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         if (version.revisionOfId) {
           await tx.ganttVersion.update({
             where: { id: version.revisionOfId },

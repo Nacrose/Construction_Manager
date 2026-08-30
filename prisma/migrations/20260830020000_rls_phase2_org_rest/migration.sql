@@ -280,12 +280,12 @@ CREATE POLICY "report_template_delete_org_check" ON "ReportTemplate"
 --   ALTER TABLE "ReportTemplate" NO FORCE ROW LEVEL SECURITY;
 --   ALTER TABLE "ReportTemplate" DISABLE ROW LEVEL SECURITY;
 
--- ── RateBook (scope global/org/project) — shape C (+ global SELECT) ──
-ALTER TABLE "RateBook" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "RateBook" FORCE ROW LEVEL SECURITY;
+-- ── RateBook → table "RateCatalog" (@@map; scope global/org/project) — shape C (+ global SELECT) ──
+ALTER TABLE "RateCatalog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "RateCatalog" FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "rate_book_org_isolation" ON "RateBook";
-CREATE POLICY "rate_book_org_isolation" ON "RateBook"
+DROP POLICY IF EXISTS "rate_catalog_org_isolation" ON "RateCatalog";
+CREATE POLICY "rate_catalog_org_isolation" ON "RateCatalog"
   FOR SELECT
   USING (
     current_setting('app.is_superadmin', true) = 'true'
@@ -293,33 +293,33 @@ CREATE POLICY "rate_book_org_isolation" ON "RateBook"
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     OR EXISTS (
       SELECT 1 FROM "Project" p
-      WHERE p."id" = "RateBook"."projectId"
+      WHERE p."id" = "RateCatalog"."projectId"
         AND p."organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     )
   );
 
-DROP POLICY IF EXISTS "rate_book_insert_org_check" ON "RateBook";
-CREATE POLICY "rate_book_insert_org_check" ON "RateBook"
+DROP POLICY IF EXISTS "rate_catalog_insert_org_check" ON "RateCatalog";
+CREATE POLICY "rate_catalog_insert_org_check" ON "RateCatalog"
   FOR INSERT
   WITH CHECK (
     current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     OR EXISTS (
       SELECT 1 FROM "Project" p
-      WHERE p."id" = "RateBook"."projectId"
+      WHERE p."id" = "RateCatalog"."projectId"
         AND p."organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     )
   );
 
-DROP POLICY IF EXISTS "rate_book_update_org_check" ON "RateBook";
-CREATE POLICY "rate_book_update_org_check" ON "RateBook"
+DROP POLICY IF EXISTS "rate_catalog_update_org_check" ON "RateCatalog";
+CREATE POLICY "rate_catalog_update_org_check" ON "RateCatalog"
   FOR UPDATE
   USING (
     current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     OR EXISTS (
       SELECT 1 FROM "Project" p
-      WHERE p."id" = "RateBook"."projectId"
+      WHERE p."id" = "RateCatalog"."projectId"
         AND p."organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     )
   )
@@ -328,30 +328,30 @@ CREATE POLICY "rate_book_update_org_check" ON "RateBook"
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     OR EXISTS (
       SELECT 1 FROM "Project" p
-      WHERE p."id" = "RateBook"."projectId"
+      WHERE p."id" = "RateCatalog"."projectId"
         AND p."organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     )
   );
 
-DROP POLICY IF EXISTS "rate_book_delete_org_check" ON "RateBook";
-CREATE POLICY "rate_book_delete_org_check" ON "RateBook"
+DROP POLICY IF EXISTS "rate_catalog_delete_org_check" ON "RateCatalog";
+CREATE POLICY "rate_catalog_delete_org_check" ON "RateCatalog"
   FOR DELETE
   USING (
     current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     OR EXISTS (
       SELECT 1 FROM "Project" p
-      WHERE p."id" = "RateBook"."projectId"
+      WHERE p."id" = "RateCatalog"."projectId"
         AND p."organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
     )
   );
 -- rollback:
---   DROP POLICY IF EXISTS "rate_book_org_isolation" ON "RateBook";
---   DROP POLICY IF EXISTS "rate_book_insert_org_check" ON "RateBook";
---   DROP POLICY IF EXISTS "rate_book_update_org_check" ON "RateBook";
---   DROP POLICY IF EXISTS "rate_book_delete_org_check" ON "RateBook";
---   ALTER TABLE "RateBook" NO FORCE ROW LEVEL SECURITY;
---   ALTER TABLE "RateBook" DISABLE ROW LEVEL SECURITY;
+--   DROP POLICY IF EXISTS "rate_catalog_org_isolation" ON "RateCatalog";
+--   DROP POLICY IF EXISTS "rate_catalog_insert_org_check" ON "RateCatalog";
+--   DROP POLICY IF EXISTS "rate_catalog_update_org_check" ON "RateCatalog";
+--   DROP POLICY IF EXISTS "rate_catalog_delete_org_check" ON "RateCatalog";
+--   ALTER TABLE "RateCatalog" NO FORCE ROW LEVEL SECURITY;
+--   ALTER TABLE "RateCatalog" DISABLE ROW LEVEL SECURITY;
 
 -- ── RateProfile (organizationId always NULL on create; scoped by project) — shape C ──
 ALTER TABLE "RateProfile" ENABLE ROW LEVEL SECURITY;

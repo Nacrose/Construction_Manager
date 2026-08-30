@@ -1,6 +1,6 @@
 # RLS Rollout Plan — Row-Level Security Beyond `Project`
 
-**Status:** Phases 0–2 and 3m IMPLEMENTED (2026-08-30) — Phase 3a/3b/3c awaiting green week on 3m
+**Status:** ALL PHASES IMPLEMENTED (2026-08-30) — 0, 1, 2, 3m, 3a, 3b, 3c, 4. Awaiting staging deploy + 48 h watch per §6.
 **Scope:** Extend PostgreSQL Row-Level Security from the single `Project` table to the full tenant-scoped surface (17 org-scoped + 62 project-scoped models — corrected by `scripts/rls-inventory.ts`; the draft's "50/71" counts were raw line matches, not model classifications).
 **Author:** repo governance agent · **Date:** 2026-08-30
 
@@ -8,7 +8,7 @@
 
 ## 1. Current state
 
-- RLS exists **only** on `"Project"` (`src/lib/rls.ts`, applied manually — not in a Prisma migration).
+- (Historical, pre-rollout state — see §4 for the implemented reality.) RLS existed **only** on `"Project"` (`src/lib/rls.ts`, applied manually — not in a Prisma migration).
 - `setOrgContext(db, orgId, isSuperAdmin)` is called from the three tRPC procedure families in `src/server/trpc.ts` (`protectedProcedure`, `orgProcedure`, `superAdminProcedure`) via session-level `set_config('app.organization_id', …, false)`.
 - App-level org/project filtering in routers is the **primary** defense and is now well-tested (22 router test files, incl. `tenant-isolation.test.ts`). RLS is defense-in-depth: it contains the blast radius of any future missing-`where` bug at the database layer.
 
@@ -111,11 +111,26 @@ The Phase-3 gating questions were answered in a dedicated embedded-PG16 lab (34/
 - Migration sequencing is load-bearing (each rule was learned from a lab failure): superadmin GUC first (a FORCEd table with zero policies is default-deny for everyone), policy swap before backfill (SELECT-only policies silently deny UPDATE — 0 rows, no error), backfill while the target subquery tables are still RLS-free.
 Routers owning FORCEd phase-3m tables with interactive transactions were retrofitted with `withOrgContext` (material-transaction, requisition, purchase-order, site-expense, daily-report — 9 sites) and added to the MONEY_ROUTERS drift guard. Same 48 h watch window after deploy.
 
-### Phase 3a/3b/3c — Remaining project-scoped tables (49 tables)
-- 3a procurement/materials (5): `Material`, `StoreLocation`, `Supplier`, `EquipmentVendor`, `MarketRateRevisionLog`
-- 3b HR/equipment (11): `Staff`, `StaffAdvance`, `StaffAttendance`, `StaffRole`, `LeaveRequest`, `LeaveBalance`, `Equipment`, `EquipmentLog`, `EquipmentMaintenance`, `EquipmentRental`, `EquipmentSpotHire`
-- 3c documents/site/other (33): `DailyReport`, `Rfi`, `Submittal`, `Correspondence`, `Drawing*`, `Document*`, `Gantt*`, `Boq*`, `Chat*`, `Notification`, `AuditLog`, …
-Each sub-batch ships only after the previous one is green in prod for a week.
+### Phase 3a/3b/3c — Remaining project-scoped tables (49 tables) ✅ DONE (2026-08-30)
+- 3a procurement/materials (5): `Material`, `StoreLocation`, `Supplier`, `EquipmentVendor`, `MarketRateRevisionLog` — migration `20260830040000`.
+- 3b HR/equipment (11): `Staff`, `StaffAdvance`, `StaffAttendance`, `StaffRole`, `LeaveRequest`, `LeaveBalance`, `Equipment`, `EquipmentLog`, `EquipmentMaintenance`, `EquipmentRental`, `EquipmentSpotHire` — migration `20260830050000`.
+- 3c documents/site/other (33): 30 plain §3.2 tables + 3 composite tables — migration `20260830060000`.
+- All 46 plain tables have `projectId NOT NULL` (schema-verified) → plain §3.2. The 3 composites (`projectId String?`):
+  - **AuditLog** — SELECT: superadmin OR project-EXISTS OR acting-user's org (NULL-project rows = project-less actions). INSERT: deliberately permissive (`WITH CHECK (true)`) — audit rows are written from `after()` hooks on arbitrary pooled connections where the org GUC may be absent; an INSERT-side tenant check would silently drop audit rows. NO UPDATE/DELETE policies at all → the trail is append-only at the DB layer for every role including superadmin (tamper-evident); `src/lib/audit.ts` retrofitted to derive org (user → project → superadmin fallback) inside a transaction anyway.
+  - **Notification** — superadmin OR project-EXISTS OR recipient's org (`userId → User.organizationId`). `src/server/utils/notify.ts` retrofitted: all three flows (createNotification / notifyProjectMembers / notifyProject) now run inside `withOrgContext` transactions with the org derived from recipient/project (bootstrap-superadmin lookups first — Project itself is FORCEd after phase 4).
+  - **ChatChannel** — superadmin OR project-EXISTS OR creator's org (org_order channels) OR any-member's org (personal/group via ChatMember→User). WITH CHECK omits the member branch (membership is post-insert state).
+- Array-form `$transaction` sites eliminated (they cannot set RLS context): `rfi.ts` (respond), `gantt-tasks.ts` (reorder up/down/indent ×3) converted to interactive form with `withOrgContext`. The drift guard now BANS array-form transactions in all 26 guarded routers.
+- Retrofits: 17 more `withOrgContext` sites (analysis-library ×3, boq ×2, daily-program, gantt-analytics ×2, gantt-versions ×4, hr, project, variation-order ×2) + **store-location (phase-3m miss caught here: its transfer transaction writes MaterialTransaction without context — the feature was fail-closed since 3m)**.
+- Verified on the REAL migration chain (see Phase 4 below): 30/30 lab checks in `docs/rls-evidence/phase3-abc-verification.md`.
+
+### Phase 4 — Hardening & maintenance ✅ DONE (2026-08-30)
+1. **Schema drift repair (`20260830000001_repair_schema_drift`)** — prerequisite discovered while building the CI gate: 27 tables (JournalEntry, HeadOfficeExpense, CatalogMaterial, PayrollRun, VatBill, …), 89 added columns and 190 constraints/indexes existed in the production database (via `prisma db push`) but in NO migration — a fresh database could not be built from the chain, and phase-1+ migrations failed on clean environments. The repair is the additive-only part of `prisma migrate diff` (0_init-state → schema), fully idempotent (IF NOT EXISTS / duplicate_object guards) → no-op on prod, complete on fresh DBs. All DROPs in the diff (legacy rate-catalog system) are deliberately EXCLUDED — those tables still hold data and need a reviewed retirement migration.
+2. **@@map bug fix** — phase-2's RateBook policy targeted table `"RateBook"`, but the model is `@@map`-ed to `"RateCatalog"`: the migration could not apply on ANY environment. Fixed in place (the migration provably never applied anywhere), and the drift guard + inventory script + null-audit SQL are now @@map-aware.
+3. **Project FORCE + legacy NULL-org retirement (`20260830070000_rls_phase4_project_force`)** — creator-based backfill (createdById → User.organizationId), loud guard if any NULL-org project survives, §3.1-shape per-command policies (with the superadmin branch the baseline lacked), FORCE. Gap G-1 and G-3 closed.
+4. **CI integration gate** — `src/server/routers/__tests__/rls-integration.test.ts` (skipped unless `TEST_DATABASE_URL` is set): applies the full migration chain via `prisma migrate deploy`, then asserts the tenant-isolation contract — coverage state, same-org CRUD, cross-org deny (SELECT 0 rows / INSERT 42501 / UPDATE+DELETE 0 rows), fail-closed without context, superadmin bypass, Project FORCE, NULL-org retirement, AuditLog append-only. CI job `rls` (postgres:16 service) runs it on every push/PR. The drift guard + inventory already run in the existing `verify` job via `npm test`.
+5. **Lab evidence** — `docs/rls-evidence/phase3-abc-verification.md` (30/30): the REAL chain 0_init → phase 4 applied to scratch PG16; tenant matrix in both connection modes; composite semantics; phase-4 backfill/guard/retirement (guard-failure path proven on a second database). Reproduce: `python scripts/rls-phase3abc-lab.py`.
+
+The original plan shipped 3a/3b/3c only after green weeks; the user's "finish all" instruction overrides the pacing — the rollback SQL per table in every migration keeps the blast radius of any single batch at one `ALTER TABLE` round-trip, and the §6 smoke checklist still gates prod.
 
 ### Phase 4 — Hardening & maintenance
 - Add `FORCE` to `"Project"` itself and retire the legacy NULL-org policies.

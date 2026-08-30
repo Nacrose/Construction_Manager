@@ -49,6 +49,21 @@ const projectScoped: string[] = [];
 }
 const scopedModels = new Set([...orgScoped, ...projectScoped]);
 
+// Physical table names: Prisma @@map renames tables (model RateBook ->
+// table "RateCatalog"); migrations and audit SQL target PHYSICAL names,
+// the tracker stores MODEL names. Translate model -> table for every
+// migration-side comparison.
+const TABLE_OF: Record<string, string> = {};
+{
+  const blockRe = /^model (\w+) \{([\s\S]*?)^\}/gm;
+  let m: RegExpExecArray | null;
+  while ((m = blockRe.exec(SCHEMA)) !== null) {
+    const mapMatch = m[2].match(/@@map\("(\w+)"\)/);
+    TABLE_OF[m[1]] = mapMatch ? mapMatch[1] : m[1];
+  }
+}
+const tableOf = (model: string) => TABLE_OF[model] ?? model;
+
 // ── tracker buckets ──
 const covered: string[] = TRACKER.covered ?? [];
 const excluded: string[] = Object.keys(TRACKER.excluded ?? {});
@@ -103,7 +118,7 @@ describe("RLS drift guard (schema ↔ tracker ↔ migrations)", () => {
 
   it("every covered table has ENABLE ROW LEVEL SECURITY + CREATE POLICY in migrations", () => {
     const missing = covered.filter(
-      (t) => !rlsEnabledTables.has(t) || !policyTables.has(t),
+      (t) => !rlsEnabledTables.has(tableOf(t)) || !policyTables.has(tableOf(t)),
     );
     expect(
       missing,
@@ -112,9 +127,11 @@ describe("RLS drift guard (schema ↔ tracker ↔ migrations)", () => {
   });
 
   it("every table with RLS SQL in migrations is a scoped, covered model", () => {
-    const stray = [...rlsEnabledTables].filter(
-      (t) => !scopedModels.has(t) || !covered.includes(t),
-    );
+    const modelOfTable = new Map(Object.entries(TABLE_OF).map(([m, t]) => [t, m]));
+    const stray = [...rlsEnabledTables].filter((t) => {
+      const model = modelOfTable.get(t) ?? t;
+      return !scopedModels.has(model) || !covered.includes(model);
+    });
     expect(
       stray,
       `tables with RLS SQL in migrations but not scoped/covered in the tracker (stale rename? forgot to move from planned to covered?): ${stray.join(", ")}`,
@@ -127,32 +144,32 @@ describe("RLS drift guard (schema ↔ tracker ↔ migrations)", () => {
   });
 });
 
-describe("RLS Phase 0: money-router interactive transactions set org context", () => {
+describe("RLS: router interactive transactions set org context", () => {
   // Any interactive $transaction in a router whose tables are RLS-covered
   // (FORCEd) MUST open with withOrgContext(tx, ...) — transaction-scoped
   // set_config is the only reliable RLS context under Prisma connection
-  // pooling (see rls.ts). Array-form $transaction([...]) sites are exempt
-  // here but must be converted when their tables get RLS
-  // (docs/plans/rls-rollout.md §4).
+  // pooling (see rls.ts). Array-form $transaction([...]) sites cannot run
+  // set_config and are FORBIDDEN in these routers (all known sites were
+  // converted to interactive form in phases 3a–3c: rfi, gantt-tasks).
   //
-  // Phase 1/2 additions: catalog-v2 (CatalogMaterial/RateBook) and
-  // financial-reporting (JournalEntry/ReportSnapshot) now own FORCEd
-  // tables and are therefore enforced here too.
-  //
-  // Phase 3m additions: material-transaction (MaterialTransaction/
-  // Payment/VatBill/Ipc/PurchaseOrder), requisition (PurchaseOrder/
-  // PurchaseRequisition), purchase-order (PurchaseOrder/
-  // MaterialTransaction), site-expense (SiteExpense), daily-report
-  // (MaterialTransaction).
-  const MONEY_ROUTERS = [
+  // Phase 1/2: catalog-v2, financial-reporting. Phase 3m:
+  // material-transaction, requisition, purchase-order, site-expense,
+  // daily-report. Phases 3a/3b/3c: analysis-library, boq, daily-program,
+  // gantt-analytics, gantt-versions, gantt-tasks, hr, project,
+  // variation-order — plus store-location (phase-3m table
+  // MaterialTransaction, retroactively caught in phase 3a).
+  const RLS_TX_ROUTERS = [
     "accounting", "finance", "vendor-bill", "payroll", "fiscal-year",
     "ipc", "project-ops", "subcontractor-bill",
     "catalog-v2", "financial-reporting",
     "material-transaction", "requisition", "purchase-order",
     "site-expense", "daily-report",
+    "analysis-library", "boq", "daily-program", "gantt-analytics",
+    "gantt-versions", "gantt-tasks", "hr", "project", "rfi",
+    "variation-order", "store-location",
   ];
 
-  for (const name of MONEY_ROUTERS) {
+  for (const name of RLS_TX_ROUTERS) {
     it(`${name}.ts: every interactive $transaction opens with withOrgContext`, () => {
       const file = path.join(ROOT, `src/server/routers/${name}.ts`);
       const src = fs.readFileSync(file, "utf8");
@@ -169,6 +186,18 @@ describe("RLS Phase 0: money-router interactive transactions set org context", (
       expect(
         offenders,
         `${name}.ts interactive transaction(s) at line(s) ${offenders.join(", ")} do not set org context — insert \`await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);\` as the first statement`,
+      ).toEqual([]);
+
+      // Array-form $transaction([...]) cannot run set_config — with FORCEd
+      // tables it fails closed on a context-less connection. All known
+      // sites were converted in phases 3a–3c; this keeps new ones out.
+      const arrayOffenders: number[] = [];
+      lines.forEach((line, i) => {
+        if (/\$transaction\(\[/.test(line)) arrayOffenders.push(i + 1);
+      });
+      expect(
+        arrayOffenders,
+        `${name}.ts array-form $transaction at line(s) ${arrayOffenders.join(", ")} — convert to interactive form and open with withOrgContext (see src/lib/rls.ts)`,
       ).toEqual([]);
     });
   }
