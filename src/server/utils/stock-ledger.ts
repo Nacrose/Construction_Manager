@@ -8,7 +8,6 @@
  * - Wastage, Breakage & Physical Reconciliation Adjustments
  */
 import { TRPCError } from "@trpc/server";
-import { type Prisma } from "@prisma/client";
 import type { DbTxClient } from "@/lib/db";
 
 export type StockMovementType = "receive" | "issue" | "transfer" | "adjustment";

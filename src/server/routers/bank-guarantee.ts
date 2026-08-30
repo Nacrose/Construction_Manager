@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertOrgAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
-import { adToBs, bsToAd } from "@/lib/nepali-calendar";
+import { adToBs } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
 
 async function assertGuaranteeAccess(

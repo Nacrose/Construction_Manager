@@ -156,7 +156,6 @@ export const interSiteTransferRouter = router({
           });
 
           // 4. If Instant Transfer: Immediately receive at Destination Project
-          let destMaterialId = originMat.id;
           if (input.isInstantTransfer) {
             // Find or create matching material on destination project
             let destMat = await tx.material.findFirst({
@@ -189,7 +188,6 @@ export const interSiteTransferRouter = router({
                 },
               });
             }
-            destMaterialId = destMat.id;
 
             // If destination store location specified, increment store stock
             if (input.destinationStoreLocationId) {

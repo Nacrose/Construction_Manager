@@ -31,7 +31,6 @@ import { projectCostRouter } from "../project-cost";
 
 const anyDb = db as any;
 const ENGINEER = buildUser();
-const PM = buildUser({ id: "pm-1" });
 
 function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);

@@ -297,7 +297,7 @@ export const requisitionRouter = router({
       });
 
       const formattedRequisitions = requisitions.map((pr) => {
-        let totalItems = pr.items.length;
+        const totalItems = pr.items.length;
         let fullyOrderedCount = 0;
         let partiallyOrderedCount = 0;
 

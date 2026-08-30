@@ -272,12 +272,20 @@ export const correspondenceRouter = router({
 
   /** Get stats for dashboard (overdue, pending, by category). */
   stats: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      const where: any = {};
+      if (input.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+        where.projectId = input.projectId;
+      } else {
+        const orgId = ctx.user.organizationId;
+        if (!orgId) throw new TRPCError({ code: "FORBIDDEN", message: "User not in an organization" });
+        where.project = { organizationId: orgId };
+      }
 
       const letters = await db.correspondence.findMany({
-        where: { projectId: input.projectId },
+        where,
         select: {
           direction: true,
           letterType: true,

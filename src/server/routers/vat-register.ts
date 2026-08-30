@@ -12,7 +12,6 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { format } from "date-fns";
 
 const DirectVatBillSchema = z.object({
   projectId: z.string(),

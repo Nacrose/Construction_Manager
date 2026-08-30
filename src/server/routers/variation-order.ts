@@ -299,7 +299,7 @@ export const variationOrderRouter = router({
       // Audit log (was missing entirely)
       // Recompute itemsWithoutBaseline for the audit metadata — it was
       // computed inside the transaction but we need it here too.
-      let itemsWithoutBaselineAudit: string[] = [];
+      const itemsWithoutBaselineAudit: string[] = [];
       let totalValueChangeAudit = 0;
       if (input.status === "approved") {
         for (const item of vo.items) {

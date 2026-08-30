@@ -6,7 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Plus, Mail, AlertTriangle, ArrowDownLeft, ArrowUpRight, Clock,
-  FileText, Building2, Filter,
+  FileText, Building2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { LogLetterDialog } from "@/app/(app)/projects/[id]/correspondence/components/log-letter-dialog";
@@ -23,15 +23,19 @@ type CorrespondenceLetter = {
   theirRef?: string | null;
   subject: string;
   fromName?: string | null;
-  fromParty?: string | null;
   toName?: string | null;
+  fromParty?: string | null;
   toParty?: string | null;
   category: string;
   letterType: string;
   replyStatus: string;
-  replyDueDate?: Date | string | null;
+  replyDueDate?: string | null;
   date: Date | string;
-  project?: { id: string; name: string; code: string } | null;
+  project?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 };
 
 export default function OrgCorrespondencePage() {
@@ -50,19 +54,17 @@ export default function OrgCorrespondencePage() {
     letterType: letterTypeFilter === "all" ? undefined : letterTypeFilter,
   });
 
-  const letters = (data?.letters ?? []) as CorrespondenceLetter[];
+  const { data: statsData } = trpc.correspondence.stats.useQuery({
+    projectId: selectedProjectId === "all" ? undefined : selectedProjectId,
+  });
 
-  // KPI Metrics Calculation
-  const totalCount = letters.length;
-  const actionablePending = letters.filter(
-    (l) => l.letterType === "actionable" && l.replyStatus !== "sent" && l.replyStatus !== "closed"
-  ).length;
-  const overdueCount = letters.filter((l) => {
-    if (l.letterType !== "actionable" || !l.replyDueDate) return false;
-    if (l.replyStatus === "sent" || l.replyStatus === "closed") return false;
-    return new Date(l.replyDueDate).getTime() < Date.now();
-  }).length;
-  const eotClaimsCount = letters.filter((l) => l.letterType === "eot_claim").length;
+  const letters = useMemo(() => (data?.letters ?? []) as CorrespondenceLetter[], [data?.letters]);
+
+  // KPI Metrics from backend stats
+  const totalCount = statsData?.total ?? letters.length;
+  const actionablePending = statsData?.pendingReply ?? 0;
+  const overdueCount = statsData?.overdue ?? 0;
+  const eotClaimsCount = useMemo(() => letters.filter((l) => l.letterType === "eot_claim").length, [letters]);
 
   const columns: ConstructionTableColumn<CorrespondenceLetter>[] = useMemo(
     () => [
@@ -172,15 +174,9 @@ export default function OrgCorrespondencePage() {
           }
           if (!val) return <span className="text-[10px] text-gray-500 font-mono">—</span>;
           const dueDate = new Date(val);
-          const isOverdue = dueDate.getTime() < Date.now();
           return (
-            <span
-              className={`text-xs font-mono font-semibold ${
-                isOverdue ? "text-rose-400 font-bold" : "text-gray-300"
-              }`}
-            >
+            <span className="text-xs font-mono font-semibold text-gray-300">
               {format(dueDate, "dd MMM yyyy")}
-              {isOverdue && <span className="block text-[9px] text-rose-400">⚠️ OVERDUE</span>}
             </span>
           );
         },

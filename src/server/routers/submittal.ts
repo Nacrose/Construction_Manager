@@ -9,8 +9,6 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
 export const submittalRouter = router({
   list: protectedProcedure
     .input(z.object({

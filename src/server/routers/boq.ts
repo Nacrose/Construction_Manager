@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
-import { recalcItemRate, resolvePercentageBase } from "@/server/utils/boq-calc";
+import { resolvePercentageBase } from "@/server/utils/boq-calc";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 

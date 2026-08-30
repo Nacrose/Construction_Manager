@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   calculateBillDeductions,
   calculateIpcPaymentSummary,
-  STATUTORY_RATES,
 } from "@/lib/construction-tax";
 
 describe("Central Construction Tax, TDS & Retention Engine", () => {

@@ -42,7 +42,11 @@ describe("Nepal Statutory VAT & Tax Register Engine", () => {
       const mobAdvanceBalance = mobilizationPaid - cumAdvance; // 0.00
 
       expect(cumGross).toBeCloseTo(23937622.81, 1);
+      expect(cumVat).toBeCloseTo(3111890.96, 1);
       expect(cumTotalBill).toBeCloseTo(27049513.77, 1);
+      expect(cumRetention).toBeCloseTo(1196881.14, 1);
+      expect(cumTds).toBeCloseTo(359064.35, 1);
+      expect(contractWithVat).toBeGreaterThan(contractWithoutVat);
       expect(cumAdvance).toBeCloseTo(7181286.84, 1);
       expect(mobAdvanceBalance).toBeCloseTo(0.00, 1);
       expect(cumTotalDeductions).toBeCloseTo(8737232.33, 1);

@@ -41,7 +41,7 @@ export function useOnlineStatus(): boolean {
         // consider ourselves offline
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch("/api/auth/me", {
+        await fetch("/api/auth/me", {
           signal: controller.signal,
           cache: "no-store",
         });
