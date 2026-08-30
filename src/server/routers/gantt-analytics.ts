@@ -7,9 +7,12 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { withOrgContext } from "@/lib/rls";
+import { withOrgContext, withTenantTx } from "@/lib/rls";
 import { cloneDependencies, cloneResourceAssignments } from "./gantt-versions";
-import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
+import {
+  recalculateProjectSchedule,
+  recalculateProjectScheduleForUser,
+} from "@/server/utils/gantt-cpm-engine";
 
 export const ganttAnalyticsRouter = router({
   /** List all schedules (planning + execution) with revision chain info. */
@@ -455,7 +458,57 @@ export const ganttAnalyticsRouter = router({
       );
 
       const conflicts = detectConflicts(assignments as any);
-      const levelingProposals = proposeLeveling(conflicts);
+
+      // Float-aware leveling: run the CPM backward pass over the same
+      // version so proposals delay the task with MORE slack, never the
+      // critical one when avoidable. Fail-soft: without float data the
+      // heuristic falls back to delaying the later task.
+      let floatByTaskId: Map<string, number> | undefined;
+      try {
+        const { computeCpmSchedule } = await import(
+          "@/server/utils/gantt-cpm-engine"
+        );
+        const [schedTasks, schedDeps] = await Promise.all([
+          db.ganttTask.findMany({
+            where: { versionId: input.versionId },
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              duration: true,
+              isMilestone: true,
+              ignoreResourceCalendar: true,
+            },
+          }),
+          db.taskDependency.findMany({
+            where: { successor: { versionId: input.versionId } },
+            select: {
+              predecessorId: true,
+              successorId: true,
+              type: true,
+              offset: true,
+            },
+          }),
+        ]);
+        const { metrics } = computeCpmSchedule(
+          schedTasks,
+          schedDeps.map((d) => ({
+            predecessorId: d.predecessorId,
+            successorId: d.successorId,
+            type: d.type as any,
+            offset: d.offset,
+          })),
+          { useCalendar: true }
+        );
+        floatByTaskId = new Map(
+          Array.from(metrics.values(), (m) => [m.id, m.totalFloatDays])
+        );
+      } catch {
+        /* float data optional */
+      }
+
+      const levelingProposals = proposeLeveling(conflicts, floatByTaskId);
 
       return {
         conflicts,
@@ -584,7 +637,11 @@ export const ganttAnalyticsRouter = router({
       });
 
       const { calculateEVM } = await import("@/server/utils/evm");
-      const result = calculateEVM(evmTasks);
+      // Calendar-aware PV: planned value accrues over WORKING days only,
+      // so Saturdays/Dashain no longer register as phantom schedule slip.
+      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      await refreshHolidayCache();
+      const result = calculateEVM(evmTasks, undefined, { useCalendar: true });
 
       return result;
     }),
@@ -635,25 +692,30 @@ export const ganttAnalyticsRouter = router({
       }
 
       const results: Array<{ taskId: string; success: boolean }> = [];
-      for (const proposal of input.proposals) {
-        try {
-          await db.ganttTask.update({
-            where: { id: proposal.taskId },
-            data: {
-              startDate: new Date(proposal.newStartDate),
-              endDate: new Date(proposal.newEndDate),
-            },
-          });
-          results.push({ taskId: proposal.taskId, success: true });
-        } catch {
-          results.push({ taskId: proposal.taskId, success: false });
+      // RLS: GanttTask is FORCE-scoped — the whole batch applies in one
+      // context-pinned transaction (atomic: no half-leveled schedule).
+      await withTenantTx(ctx.user, async (tx) => {
+        for (const proposal of input.proposals) {
+          try {
+            await tx.ganttTask.update({
+              where: { id: proposal.taskId },
+              data: {
+                startDate: new Date(proposal.newStartDate),
+                endDate: new Date(proposal.newEndDate),
+              },
+            });
+            results.push({ taskId: proposal.taskId, success: true });
+          } catch {
+            results.push({ taskId: proposal.taskId, success: false });
+          }
         }
-      }
+      });
 
       const appliedCount = results.filter((r) => r.success).length;
       if (appliedCount > 0) {
         for (const vId of versionIds) {
-          await recalculateProjectSchedule(input.projectId, vId);
+          // RLS: tenant-context-pinned recalc (GanttTask is FORCE-scoped).
+          await recalculateProjectScheduleForUser(ctx.user, input.projectId, vId);
         }
       }
 

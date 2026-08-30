@@ -7,7 +7,6 @@
  * - Leaves, RFIs, Daily Reports, Drawing Approvals
  */
 import { TRPCError } from "@trpc/server";
-import { type Prisma } from "@prisma/client";
 import type { DbTxClient } from "@/lib/db";
 import { emitDomainEvent } from "./domain-events";
 
@@ -107,7 +106,11 @@ export async function transitionEntityState(
   // 5. Emit Domain Event
   if (!input.skipEventEmit && input.projectId) {
     emitDomainEvent({
-      type: "expense.created",
+      // Generic lifecycle event — the previous hard-coded "expense.created"
+      // mislabeled every transition (leave requests, RFIs, POs...) as
+      // expense events. Model + from/to travel in metadata; title/message
+      // stay human-readable.
+      type: "lifecycle.transitioned",
       projectId: input.projectId,
       actorUserId: input.userId,
       entityType: input.model,
@@ -116,6 +119,7 @@ export async function transitionEntityState(
       message: input.notes || `State transitioned from ${currentStatus} to ${input.targetState}.`,
       metadata: {
         entityId: input.id,
+        model: input.model,
         previousState: currentStatus,
         newState: input.targetState,
       },

@@ -17,7 +17,13 @@
  * - EAC  (Estimate at Completion) = BAC / CPI  (forecasted total cost)
  * - VAC  (Variance at Completion) = BAC - EAC  (projected savings/overrun)
  * - ETC  (Estimate to Complete) = EAC - AC  (remaining cost to finish)
+ *
+ * Calendar awareness: with `{ useCalendar: true }`, PV accrues over WORKING
+ * days only (Nepal Saturdays + holidays via nepal-calendar). Without it,
+ * PV interpolates linearly over calendar days (legacy behavior, kept for
+ * backward compatibility with existing tests/callers).
  */
+import { countWorkingDays, isWorkingDay } from "./nepal-calendar";
 
 export type EVMTask = {
   id: string;
@@ -59,13 +65,29 @@ export type EVMResult = {
   }>;
 };
 
+export type EVMOptions = {
+  /**
+   * When true, PV accrues over working days only (Nepal calendar) — a
+   * task's planned value does NOT burn during Saturdays/Dashain, so
+   * legitimate site closures stop registering as phantom schedule slip.
+   * Default: false (legacy calendar-day interpolation).
+   */
+  useCalendar?: boolean;
+};
+
 /**
  * Calculate EVM metrics for a set of tasks.
  *
  * @param tasks Array of tasks with dates, progress, planned/actual costs
  * @param asOfDate The date to calculate PV against (default: today)
+ * @param options `{ useCalendar }` — working-day PV accrual (default off)
  */
-export function calculateEVM(tasks: EVMTask[], asOfDate: Date = new Date()): EVMResult {
+export function calculateEVM(
+  tasks: EVMTask[],
+  asOfDate: Date = new Date(),
+  options: EVMOptions = {}
+): EVMResult {
+  const useCalendar = options.useCalendar === true;
   const today = asOfDate.getTime();
 
   let bac = 0;
@@ -88,15 +110,34 @@ export function calculateEVM(tasks: EVMTask[], asOfDate: Date = new Date()): EVM
     // How much of this task's cost should be earned by today?
     // If task hasn't started yet → PV = 0
     // If task is fully in the past → PV = full planned cost
-    // If task is in progress → PV = linear interpolation based on time elapsed
+    // If task is in progress → interpolation based on time elapsed:
+    //   - calendar mode: fraction of WORKING days elapsed (site closures
+    //     don't burn planned value — no phantom schedule slip over
+    //     Saturdays/Dashain)
+    //   - legacy mode: linear fraction of calendar days
     let taskPV = 0;
     if (today >= taskEnd) {
       taskPV = taskPlannedCost; // Task should be 100% done
     } else if (today >= taskStart) {
-      // Linear: fraction of time elapsed × planned cost
-      const elapsed = today - taskStart;
-      const total = taskEnd - taskStart || 1;
-      taskPV = taskPlannedCost * Math.min(elapsed / total, 1);
+      if (useCalendar) {
+        const startD = new Date(taskStart);
+        const endD = new Date(taskEnd);
+        const asOfD = new Date(Math.min(today, taskEnd));
+        const totalWorking = countWorkingDays(startD, endD);
+        if (totalWorking <= 1) {
+          // Zero/one-working-day task (or a span that is all closure):
+          // earned once work has (or had) a chance to happen.
+          taskPV = isWorkingDay(asOfD) ? taskPlannedCost : 0;
+        } else {
+          const elapsedWorking = countWorkingDays(startD, asOfD);
+          taskPV = taskPlannedCost * Math.min(elapsedWorking / totalWorking, 1);
+        }
+      } else {
+        // Linear: fraction of time elapsed × planned cost
+        const elapsed = today - taskStart;
+        const total = taskEnd - taskStart || 1;
+        taskPV = taskPlannedCost * Math.min(elapsed / total, 1);
+      }
     }
     pv += taskPV;
 

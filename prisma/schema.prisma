@@ -3933,3 +3933,49 @@ model BankReconciliation {
 }
 
 
+
+// ─── Platform-level tables (no tenant scoping — see rls-tracker.json) ────────
+
+/**
+ * Admin-editable Nepal public holidays.
+ *
+ * The compiled fallback constant lives in src/server/utils/nepal-calendar.ts
+ * (approximate lunar-calendar dates, 2025-2026 only). Rows in THIS table are
+ * authoritative for any year they cover: when at least one row exists for a
+ * year, the constant is ignored for that year (so wrong approximate dates can
+ * be corrected or removed, not just supplemented). Years with no rows fall
+ * back to the constant.
+ *
+ * Seeded from the constant (plus approximate 2027) by migration
+ * 20260830080000_holiday_loginattempt. Managed via admin router procedures.
+ */
+model Holiday {
+  id        String   @id @default(cuid())
+  date      String   @unique // YYYY-MM-DD
+  name      String
+  type      String   @default("public") // public | festival | optional
+  createdAt DateTime @default(now())
+}
+
+/**
+ * Durable login attempt log backing the rate limiter
+ * (src/lib/login-rate-limit.ts).
+ *
+ * The previous in-memory limiter reset on every serverless cold start and
+ * never shared state across instances. This table is the source of truth:
+ * N failed attempts per email (or M per IP) inside the window blocks the
+ * next attempt regardless of which instance serves it.
+ *
+ * Platform-level (no organizationId) — like Session/User. Rows older than
+ * 24h are pruned opportunistically.
+ */
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}

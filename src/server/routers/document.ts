@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
@@ -60,18 +61,20 @@ const UpdateDrawingSchema = z.object({
 });
 
 export const documentRouter = router({
-  /** List documents & transmittals for a project. */
+  /** List documents & transmittals for a project (bounded, cursor-paged). */
   listDocuments: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       type: z.string().optional().nullable(),
       q: z.string().optional().nullable(),
+      ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const queryStr = input.q?.toLowerCase();
 
-      const documents = await db.document.findMany({
+      const page = pageArgs(input);
+      const documentsRaw = await db.document.findMany({
         where: {
           projectId: input.projectId,
           ...(input.type && input.type !== "all" && { type: input.type }),
@@ -79,17 +82,33 @@ export const documentRouter = router({
             OR: [{ number: { contains: queryStr } }, { title: { contains: queryStr } }],
           }),
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         include: { _count: { select: { revisions: true } } },
       });
 
-      const transmittals = await db.transmittal.findMany({
+      const transmittalsRaw = await db.transmittal.findMany({
         where: { projectId: input.projectId },
-        orderBy: { date: "desc" },
+        // Transmittals stay ordered by document date (original behavior);
+        // bounded but not cursor-paged — the list is small and the UI's
+        // load-more follows the documents cursor.
+        orderBy: [{ date: "desc" }, { id: "desc" }],
+        take: (input.limit ?? 200) + 1,
         include: { _count: { select: { items: true } } },
       });
 
-      return { documents, transmittals };
+      const documents = pageResult(documentsRaw, input);
+      const transmittals = pageResult(transmittalsRaw, input);
+
+      return {
+        documents: documents.items,
+        documentsHasMore: documents.hasMore,
+        documentsNextCursor: documents.nextCursor,
+        transmittals: transmittals.items,
+        transmittalsHasMore: transmittals.hasMore,
+        transmittalsNextCursor: transmittals.nextCursor,
+      };
     }),
 
   /** Create a document. */
@@ -138,19 +157,21 @@ export const documentRouter = router({
       return { ok: true };
     }),
 
-  /** List drawings for a project. */
+  /** List drawings for a project (bounded, cursor-paged). */
   listDrawings: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       discipline: z.string().optional().nullable(),
       q: z.string().optional().nullable(),
       setId: z.string().optional().nullable(),
+      ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const queryStr = input.q?.toLowerCase();
 
-      const drawings = await db.drawing.findMany({
+      const page = pageArgs(input);
+      const drawingsRaw = await db.drawing.findMany({
         where: {
           projectId: input.projectId,
           ...(input.discipline && input.discipline !== "all" && { discipline: input.discipline }),
@@ -160,7 +181,9 @@ export const documentRouter = router({
             OR: [{ number: { contains: queryStr } }, { title: { contains: queryStr } }],
           }),
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         select: {
           id: true, number: true, title: true, discipline: true, status: true,
           revision: true, issuedDate: true, fileName: true, fileType: true,
@@ -172,7 +195,13 @@ export const documentRouter = router({
         },
       });
 
-      return { drawings };
+      const drawings = pageResult(drawingsRaw, input);
+
+      return {
+        drawings: drawings.items,
+        hasMore: drawings.hasMore,
+        nextCursor: drawings.nextCursor,
+      };
     }),
 
   /** Create a drawing. */

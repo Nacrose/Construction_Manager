@@ -1,13 +1,17 @@
 /**
  * Gantt CPM Scheduling Engine & Cycle Detection
- * Provides graph cycle validation and automatic downstream forward-pass date cascading.
+ * Provides graph cycle validation, automatic downstream forward-pass date
+ * cascading, and a full backward pass (late dates, total float, critical
+ * path identification).
  *
  * Calendar Awareness
  * ------------------
- * When `useCalendar: true` is passed, all forward-pass date arithmetic routes
- * through the Nepal working-day calendar (`nepal-calendar.ts`):
+ * When `useCalendar: true` is passed, all date arithmetic routes through
+ * the Nepal working-day calendar (`nepal-calendar.ts`):
  *   - Saturdays are non-working (Nepal weekend).
- *   - Public holidays (Dashain, Tihar, etc.) are non-working.
+ *   - Public holidays (Dashain, Tihar, etc.) are non-working — sourced
+ *     from the admin-editable `Holiday` table when available (see
+ *     `refreshHolidayCache`), with the compiled constant as fallback.
  *   - `addWorkingDays` is used to project task end dates from duration, and
  *     to honor dependency offsets.
  * Tasks with `ignoreResourceCalendar: true` keep the legacy 24h-calendar
@@ -17,11 +21,24 @@
  * and unit tests that assert raw millisecond offsets (e.g. Sept 6 → Sept 9)
  * keep passing. The DB-aware `recalculateProjectSchedule` enables it by default
  * because that is the production behavior we want on the live schedule.
+ *
+ * RLS
+ * ---
+ * GanttTask is FORCE-scoped (RLS phase 3c). Reads/writes on the pooled client
+ * only see rows when the org GUC is set — which is best-effort at session
+ * level. Callers must therefore either:
+ *   - use `recalculateProjectScheduleForUser(user, ...)` (opens its own
+ *     transaction with tenant context), or
+ *   - pass `{ tx }` from inside a `withTenantTx`/`withOrgContext` transaction.
+ * Otherwise the recalculation silently sees 0 tasks and no-ops.
  */
-import { db } from "@/lib/db";
+import { db, type DbTxClient } from "@/lib/db";
+import { withOrgContext, type TenantUser } from "@/lib/rls";
 import {
   isWorkingDay,
   addWorkingDays,
+  countWorkingDays,
+  refreshHolidayCache,
 } from "./nepal-calendar";
 
 export interface TaskDependencyEdge {
@@ -56,6 +73,33 @@ export interface CpmScheduleOptions {
    * (legacy 24h-calendar arithmetic).
    */
   useCalendar?: boolean;
+}
+
+/**
+ * Per-task CPM metrics from the backward pass. `earlyStart/earlyFinish`
+ * mirror the forward-pass cascade; `lateStart/lateFinish` are the latest
+ * dates the task can occupy without delaying the project finish;
+ * `totalFloatDays` is the slip budget in (working) days.
+ */
+export interface CpmTaskMetrics {
+  id: string;
+  earlyStart: Date;
+  earlyFinish: Date;
+  lateStart: Date;
+  lateFinish: Date;
+  /** Whole (working) days the task can slip before delaying the project. */
+  totalFloatDays: number;
+  /** True when total float is (near) zero — this task is on a critical path. */
+  isCritical: boolean;
+}
+
+/** A task whose stored duration disagrees with its stored date span. */
+export interface DurationMismatch {
+  id: string;
+  name: string;
+  duration: number;
+  /** Working-day (calendar mode) or calendar-day span implied by the dates. */
+  impliedDurationDays: number;
 }
 
 /**
@@ -149,6 +193,9 @@ export function detectCycle(
  * Calendar-awareness: pass `{ useCalendar: true }` to make the cascade
  * honor Nepal Saturdays and public holidays via `nepal-calendar.ts`.
  * Tasks with `ignoreResourceCalendar: true` always use 24h arithmetic.
+ *
+ * The result also carries the BACKWARD PASS (late dates, total float,
+ * critical path) — analysis only, it never changes persisted dates.
  */
 export function computeCpmSchedule(
   tasks: TaskScheduleData[],
@@ -159,6 +206,12 @@ export function computeCpmSchedule(
   changedTasks: Array<{ id: string; startDate: Date; endDate: Date }>;
   cycleDetected: boolean;
   cyclicTaskIds: string[];
+  /** Late dates / float per schedulable (acyclic) task. */
+  metrics: Map<string, CpmTaskMetrics>;
+  /** Topo-ordered ids of tasks with zero total float. */
+  criticalPathIds: string[];
+  /** Tasks with no predecessors whose stored duration contradicts their dates. */
+  durationMismatches: DurationMismatch[];
 } {
   const useCalendar = options.useCalendar === true;
 
@@ -216,21 +269,30 @@ export function computeCpmSchedule(
     }
     return d;
   }
+
+  /** Effective duration used by both passes (mirrors projectEndDate). */
+  function effectiveDuration(task: TaskScheduleData): number {
+    return Math.max(task.duration, task.isMilestone ? 0 : 1);
+  }
+
   const taskMap = new Map(tasks.map((t) => [t.id, t]));
   const inDegree = new Map<string, number>();
   const successors = new Map<string, string[]>();
   const predMap = new Map<string, TaskDependencyEdge[]>();
+  const succDeps = new Map<string, TaskDependencyEdge[]>();
 
   for (const task of tasks) {
     inDegree.set(task.id, 0);
     successors.set(task.id, []);
     predMap.set(task.id, []);
+    succDeps.set(task.id, []);
   }
 
   for (const dep of dependencies) {
     if (!taskMap.has(dep.predecessorId) || !taskMap.has(dep.successorId)) continue;
     successors.get(dep.predecessorId)!.push(dep.successorId);
     predMap.get(dep.successorId)!.push(dep);
+    succDeps.get(dep.predecessorId)!.push(dep);
     inDegree.set(dep.successorId, (inDegree.get(dep.successorId) || 0) + 1);
   }
 
@@ -327,7 +389,7 @@ export function computeCpmSchedule(
       candidate = snapToWorkingDay(candidate, successorIgnoresCalendar);
 
       // Take the LATEST candidate (most constrained start date).
-      // This is the standard CPM forward-pass: a task starts when ALL
+      // This is the standard CPM forward pass: a task starts when ALL
       // its predecessors have been satisfied — i.e., the maximum of
       // all candidate start dates.
       if (!newStart || candidate.getTime() > newStart.getTime()) {
@@ -352,6 +414,127 @@ export function computeCpmSchedule(
     }
   }
 
+  // ── Backward pass: late dates, total float, critical path ────────────────
+  // Project finish = latest early finish across all schedulable tasks.
+  let projectFinish: Date | null = null;
+  for (const task of sorted) {
+    const d = newDates.get(task.id);
+    if (d && (!projectFinish || d.end.getTime() > projectFinish.getTime())) {
+      projectFinish = d.end;
+    }
+  }
+  if (!projectFinish) projectFinish = new Date(0);
+
+  const metrics = new Map<string, CpmTaskMetrics>();
+
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const task = sorted[i];
+    const dates = newDates.get(task.id);
+    if (!dates) continue;
+
+    const ignoreCalendar = !!task.ignoreResourceCalendar;
+    const dur = effectiveDuration(task);
+
+    // Latest-allowed dates implied by each successor edge:
+    //   FS: EF_succ ≥ EF_pred + lag  →  LF_pred ≤ LS_succ − lag
+    //   FF: LF_succ ≥ LF_pred + lag  →  LF_pred ≤ LF_succ − lag
+    //   SS: ES_succ ≥ ES_pred + lag  →  LS_pred ≤ LS_succ − lag
+    //   SF: EF_succ ≥ ES_pred + lag  →  LS_pred ≤ LF_succ − lag
+    let lfConstraint: Date | null = null; // upper bound on late finish
+    let lsConstraint: Date | null = null; // upper bound on late start
+
+    for (const dep of succDeps.get(task.id) || []) {
+      const succM = metrics.get(dep.successorId);
+      if (!succM) continue; // successor unschedulable (cycle) — skip
+      const lag = dep.offset || 0;
+      let cand: Date;
+      if (dep.type === "SS") {
+        cand = addDaysFn(succM.lateStart, -lag, ignoreCalendar);
+      } else if (dep.type === "SF") {
+        cand = addDaysFn(succM.lateFinish, -lag, ignoreCalendar);
+      } else if (dep.type === "FF") {
+        cand = addDaysFn(succM.lateFinish, -lag, ignoreCalendar);
+      } else {
+        // FS (default)
+        cand = addDaysFn(succM.lateStart, -lag, ignoreCalendar);
+      }
+      if (dep.type === "SS" || dep.type === "SF") {
+        if (!lsConstraint || cand.getTime() < lsConstraint.getTime()) lsConstraint = cand;
+      } else {
+        if (!lfConstraint || cand.getTime() < lfConstraint.getTime()) lfConstraint = cand;
+      }
+    }
+
+    // Terminal tasks (no successors) may finish at the project finish.
+    const lfBase = lfConstraint ?? projectFinish;
+
+    // LS must satisfy BOTH bound families:
+    //   LS ≤ lsConstraint (SS/SF edges) and LF = LS + dur ≤ lfBase (FS/FF edges)
+    let lateStart = addDaysFn(lfBase, -dur, ignoreCalendar);
+    if (lsConstraint && lsConstraint.getTime() < lateStart.getTime()) {
+      lateStart = lsConstraint;
+    }
+    const lateFinish = addDaysFn(lateStart, dur, ignoreCalendar);
+
+    // Float at DAY granularity: the app stores user-authored end dates as
+    // end-of-day (23:59:59) while derived ends are start + N working days
+    // (midnight-aligned). Comparing raw milliseconds turns that convention
+    // mismatch into ~1 day of PHANTOM float — a critical task would look
+    // like it has slack. Truncate both dates to their UTC day first.
+    const DAY_TRUNC_MS = 24 * 60 * 60 * 1000;
+    const esDay = Math.floor(dates.start.getTime() / DAY_TRUNC_MS);
+    const lsDay = Math.floor(lateStart.getTime() / DAY_TRUNC_MS);
+    const floatDays = lsDay - esDay;
+    const isCritical = floatDays <= 0;
+    let totalFloatDays: number;
+    if (useCalendar && !ignoreCalendar) {
+      totalFloatDays =
+        floatDays <= 0
+          ? 0
+          : Math.max(0, countWorkingDays(dates.start, lateStart) - 1);
+    } else {
+      totalFloatDays = Math.max(0, floatDays);
+    }
+
+    metrics.set(task.id, {
+      id: task.id,
+      earlyStart: dates.start,
+      earlyFinish: dates.end,
+      lateStart,
+      lateFinish,
+      totalFloatDays,
+      isCritical,
+    });
+  }
+
+  // Critical path: zero-float tasks in topological order.
+  const criticalPathIds: string[] = [];
+  for (const task of sorted) {
+    if (metrics.get(task.id)?.isCritical) criticalPathIds.push(task.id);
+  }
+
+  // Duration-vs-dates drift report (tasks the user authors directly —
+  // dependency-driven tasks get their dates recomputed anyway).
+  const durationMismatches: DurationMismatch[] = [];
+  for (const task of sorted) {
+    if ((predMap.get(task.id) || []).length > 0) continue;
+    if (task.isMilestone) continue;
+    const dates = newDates.get(task.id);
+    if (!dates) continue;
+    const implied =
+      useCalendar && !task.ignoreResourceCalendar
+        ? Math.max(0, countWorkingDays(dates.start, dates.end) - 1)
+        : Math.max(0, Math.round((dates.end.getTime() - dates.start.getTime()) / DAY_MS));
+    if (implied !== Math.max(task.duration, 1)) {
+      durationMismatches.push({
+        id: task.id,
+        name: task.name,
+        duration: task.duration,
+        impliedDurationDays: implied,
+      });
+    }
+  }
+
   // Find which tasks actually changed dates
   const changedTasks: Array<{ id: string; startDate: Date; endDate: Date }> = [];
   for (const task of sorted) {
@@ -372,7 +555,26 @@ export function computeCpmSchedule(
     }
   }
 
-  return { newDates, changedTasks, cycleDetected, cyclicTaskIds };
+  return {
+    newDates,
+    changedTasks,
+    cycleDetected,
+    cyclicTaskIds,
+    metrics,
+    criticalPathIds,
+    durationMismatches,
+  };
+}
+
+/** Options for the DB-aware recalculation. */
+export interface RecalculateScheduleOptions extends CpmScheduleOptions {
+  /**
+   * Run all reads and writes on this transaction client. When provided the
+   * internal $transaction wrapper is skipped (Prisma cannot nest interactive
+   * transactions). REQUIRED when the caller pinned RLS org context on this
+   * tx — passing the pooled client here would fail-closed to 0 rows.
+   */
+  tx?: DbTxClient;
 }
 
 /**
@@ -382,18 +584,35 @@ export function computeCpmSchedule(
  * `useCalendar` defaults to `true` — production schedule cascades honor
  * Nepal Saturdays and public holidays. Pass `false` to fall back to raw
  * 24h-calendar arithmetic (used by legacy callers and some tests).
+ *
+ * RLS: this helper reads/writes GanttTask, which is FORCE-scoped. On the
+ * pooled client it only works while the (best-effort, session-level) org
+ * GUC happens to be set — prefer `recalculateProjectScheduleForUser` or an
+ * explicit `{ tx }` from a context-pinned transaction.
  */
 export async function recalculateProjectSchedule(
   projectId: string,
   versionId?: string | null,
-  options: CpmScheduleOptions = { useCalendar: true }
+  options: RecalculateScheduleOptions = { useCalendar: true }
 ): Promise<{
   updatedCount: number;
   cycleDetected: boolean;
   cyclicTaskNames: string[];
+  criticalPath: Array<{ id: string; name: string; code: string | null }>;
+  durationMismatches: Array<DurationMismatch & { code?: string | null }>;
 }> {
+  const useCalendar = options.useCalendar !== false;
+  const client = options.tx ?? db;
+
+  if (useCalendar) {
+    // Pick up admin holiday edits (no-op within the cache TTL; fail-soft).
+    // When running inside a caller transaction, read holidays on THAT
+    // connection (a pooled read would deadlock single-connection pools).
+    await refreshHolidayCache(undefined, options.tx);
+  }
+
   const [tasks, dependencies] = await Promise.all([
-    db.ganttTask.findMany({
+    client.ganttTask.findMany({
       where: {
         projectId,
         ...(versionId !== undefined ? { versionId } : {}),
@@ -401,6 +620,7 @@ export async function recalculateProjectSchedule(
       select: {
         id: true,
         name: true,
+        code: true,
         startDate: true,
         endDate: true,
         duration: true,
@@ -409,7 +629,7 @@ export async function recalculateProjectSchedule(
       },
       orderBy: { sortOrder: "asc" },
     }),
-    db.taskDependency.findMany({
+    client.taskDependency.findMany({
       where: {
         successor: {
           projectId,
@@ -426,10 +646,22 @@ export async function recalculateProjectSchedule(
   ]);
 
   if (tasks.length === 0) {
-    return { updatedCount: 0, cycleDetected: false, cyclicTaskNames: [] };
+    return {
+      updatedCount: 0,
+      cycleDetected: false,
+      cyclicTaskNames: [],
+      criticalPath: [],
+      durationMismatches: [],
+    };
   }
 
-  const { changedTasks, cycleDetected, cyclicTaskIds } = computeCpmSchedule(
+  const {
+    changedTasks,
+    cycleDetected,
+    cyclicTaskIds,
+    criticalPathIds,
+    durationMismatches,
+  } = computeCpmSchedule(
     tasks,
     dependencies.map((d) => ({
       predecessorId: d.predecessorId,
@@ -437,34 +669,91 @@ export async function recalculateProjectSchedule(
       type: d.type as any,
       offset: d.offset,
     })),
-    options
+    { useCalendar }
   );
 
   if (changedTasks.length > 0) {
-    // Wrap the batch update in a transaction so partial failures don't
-    // leave the schedule in an inconsistent state. Previously each
-    // update was independent — if the 3rd of 10 updates failed, the
-    // first 2 would be committed but the remaining 8 would be skipped,
-    // leaving tasks with dates that don't match their dependencies.
-    await db.$transaction(
-      changedTasks.map((t) =>
-        db.ganttTask.update({
+    if (options.tx) {
+      // Already inside the caller's transaction — write directly.
+      for (const t of changedTasks) {
+        await options.tx.ganttTask.update({
           where: { id: t.id },
           data: {
             startDate: t.startDate,
             endDate: t.endDate,
           },
-        })
-      )
-    );
+        });
+      }
+    } else {
+      // Wrap the batch update in a transaction so partial failures don't
+      // leave the schedule in an inconsistent state. Previously each
+      // update was independent — if the 3rd of 10 updates failed, the
+      // first 2 would be committed but the remaining 8 would be skipped,
+      // leaving tasks with dates that don't match their dependencies.
+      await db.$transaction(
+        changedTasks.map((t) =>
+          db.ganttTask.update({
+            where: { id: t.id },
+            data: {
+              startDate: t.startDate,
+              endDate: t.endDate,
+            },
+          })
+        )
+      );
+    }
   }
 
-  const taskMap = new Map(tasks.map((t) => [t.id, t.name]));
-  const cyclicTaskNames = cyclicTaskIds.map((id) => taskMap.get(id) || id);
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+  const cyclicTaskNames = cyclicTaskIds.map((id) => taskMap.get(id)?.name || id);
+  const criticalPath = criticalPathIds
+    .map((id) => taskMap.get(id))
+    .filter((t): t is NonNullable<typeof t> => !!t)
+    .map((t) => ({ id: t.id, name: t.name, code: t.code ?? null }));
+  const codeById = new Map(tasks.map((t) => [t.id, t.code ?? null]));
+  const mismatches = durationMismatches.map((m) => ({
+    ...m,
+    code: codeById.get(m.id) ?? null,
+  }));
 
   return {
     updatedCount: changedTasks.length,
     cycleDetected,
     cyclicTaskNames,
+    criticalPath,
+    durationMismatches: mismatches,
   };
+}
+
+/**
+ * Tenant-context-aware wrapper around `recalculateProjectSchedule`.
+ *
+ * Opens an interactive transaction, pins the caller's org (RLS GUC) as the
+ * FIRST statement, and runs the whole recalculation inside it. This is the
+ * safe drop-in for pooled call sites: GanttTask is FORCE-scoped, so a pooled
+ * recalculation whose session-level context was lost to pool rotation
+ * silently sees 0 tasks and no-ops.
+ *
+ * Cannot be nested inside another transaction — inside a `withTenantTx`
+ * block, call `recalculateProjectSchedule(projectId, versionId, { tx })`
+ * instead.
+ */
+export async function recalculateProjectScheduleForUser(
+  user: TenantUser,
+  projectId: string,
+  versionId?: string | null
+): Promise<{
+  updatedCount: number;
+  cycleDetected: boolean;
+  cyclicTaskNames: string[];
+  criticalPath: Array<{ id: string; name: string; code: string | null }>;
+  durationMismatches: Array<DurationMismatch & { code?: string | null }>;
+}> {
+  return db.$transaction(async (tx) => {
+    await withOrgContext(tx, user.organizationId, !!user.isSuperAdmin);
+    return recalculateProjectSchedule(projectId, versionId, {
+      useCalendar: true,
+      tx,
+    });
+  });
 }

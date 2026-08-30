@@ -298,3 +298,76 @@ describe("Earned Value Management (EVM) Calculation Engine", () => {
     });
   });
 });
+
+// ─── Calendar-aware PV (working-day accrual) ────────────────────────────────
+describe("calculateEVM — useCalendar", () => {
+  it("accrues PV over working days only (Mon-Thu noon = 4/5 of a 5-working-day task)", () => {
+    // Task spans Mon 2026-09-07 → Sat 2026-09-12. Working days: Mon-Fri (5).
+    // As-of Thu Sep 10 noon: 4 working days elapsed → PV = 80%.
+    const task = {
+      id: "t1", name: "T1", code: null,
+      startDate: new Date("2026-09-07T00:00:00Z"),
+      endDate: new Date("2026-09-12T00:00:00Z"),
+      progress: 0, plannedCost: 100, actualCost: 0,
+    };
+    const calendar = calculateEVM([task], new Date("2026-09-10T12:00:00Z"), { useCalendar: true });
+    expect(calendar.pv).toBeCloseTo(80, 5);
+    // Legacy (calendar-day) interpolation at the same instant: 3.5/5 = 70%.
+    const legacy = calculateEVM([task], new Date("2026-09-10T12:00:00Z"));
+    expect(legacy.pv).toBeCloseTo(70, 5);
+  });
+
+  it("PV is FROZEN across the Nepal weekend (no phantom slip on Saturdays)", () => {
+    const task = {
+      id: "t1", name: "T1", code: null,
+      startDate: new Date("2026-09-07T00:00:00Z"),
+      endDate: new Date("2026-09-14T00:00:00Z"),
+      progress: 0, plannedCost: 100, actualCost: 0,
+    };
+    // Working days Sep 7..14: Mon 7, Tue 8, Wed 9, Thu 10, Fri 11, Mon 14 = 6.
+    const fri = calculateEVM([task], new Date("2026-09-11T12:00:00Z"), { useCalendar: true });
+    const sat = calculateEVM([task], new Date("2026-09-12T12:00:00Z"), { useCalendar: true });
+    // Calendar mode: Saturday elapses ZERO working days → PV unchanged.
+    expect(sat.pv).toBeCloseTo(fri.pv, 8);
+
+    // Legacy mode keeps burning planned value over the weekend.
+    const legacyFri = calculateEVM([task], new Date("2026-09-11T12:00:00Z"));
+    const legacySat = calculateEVM([task], new Date("2026-09-12T12:00:00Z"));
+    expect(legacySat.pv).toBeGreaterThan(legacyFri.pv);
+  });
+
+  it("PV is FROZEN across the 10-day Dashain closure", () => {
+    // Task Sep 25 (Fri) → Oct 21 (Wed) 2026. Working days: 14 total,
+    // 13 before Dashain (Oct 11-20 closed), 1 after (Oct 21).
+    const task = {
+      id: "t1", name: "T1", code: null,
+      startDate: new Date("2026-09-25T00:00:00Z"),
+      endDate: new Date("2026-10-21T00:00:00Z"),
+      progress: 0, plannedCost: 140, actualCost: 0,
+    };
+    const beforeDashain = calculateEVM([task], new Date("2026-10-09T12:00:00Z"), { useCalendar: true });
+    const midDashain = calculateEVM([task], new Date("2026-10-15T12:00:00Z"), { useCalendar: true });
+    // Calendar mode: the festival elapses zero working days → PV unchanged.
+    expect(midDashain.pv).toBeCloseTo(beforeDashain.pv, 8);
+    expect(beforeDashain.pv).toBeCloseTo(140 * (13 / 14), 5);
+
+    // Legacy mode burns PV straight through the festival (phantom slip).
+    const legacyBefore = calculateEVM([task], new Date("2026-10-09T12:00:00Z"));
+    const legacyMid = calculateEVM([task], new Date("2026-10-15T12:00:00Z"));
+    expect(legacyMid.pv).toBeGreaterThan(legacyBefore.pv);
+  });
+
+  it("defaults to legacy linear accrual (backward compat)", () => {
+    const task = {
+      id: "t1", name: "T1", code: null,
+      startDate: new Date("2026-09-07T00:00:00Z"),
+      endDate: new Date("2026-09-12T00:00:00Z"),
+      progress: 0, plannedCost: 100, actualCost: 0,
+    };
+    const asOf = new Date("2026-09-10T12:00:00Z");
+    expect(calculateEVM([task], asOf).pv).toBeCloseTo(
+      calculateEVM([task], asOf, { useCalendar: false }).pv,
+      8
+    );
+  });
+});

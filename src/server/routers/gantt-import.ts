@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { recalculateWbsCodes } from "@/lib/wbs";
+import { withTenantTx } from "@/lib/rls";
 import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
 import { parseMSPXML, type ParsedMSPTask } from "@/server/utils/msp-import";
 
@@ -117,27 +118,34 @@ export const ganttImportRouter = router({
         ).map((t) => [t.code!, t.id])
       );
 
-      for (let i = 0; i < result.tasks.length; i++) {
-        const t = result.tasks[i];
+      // RLS: GanttTask is FORCE-scoped — the whole import (task upserts +
+      // dependency rebuild + replace-mode deletes + WBS + CPM recalc) runs
+      // as ONE context-pinned transaction: either the import lands complete
+      // or nothing lands. (Resource assignments below target unscoped
+      // tables and stay outside the transaction.)
+      let dependenciesCreated = 0;
+      const { deleted } = await withTenantTx(ctx.user, async (tx) => {
+        for (let i = 0; i < result.tasks.length; i++) {
+          const t = result.tasks[i];
 
-        while (
-          parentStack.length > 0 &&
-          parentStack[parentStack.length - 1].level >= t.outlineLevel
-        ) {
-          parentStack.pop();
-        }
-        const parentUid =
-          parentStack.length > 0
-            ? parentStack[parentStack.length - 1].uid
-            : null;
-        const parentId = parentUid ? uidToNewId.get(parentUid) ?? null : null;
+          while (
+            parentStack.length > 0 &&
+            parentStack[parentStack.length - 1].level >= t.outlineLevel
+          ) {
+            parentStack.pop();
+          }
+          const parentUid =
+            parentStack.length > 0
+              ? parentStack[parentStack.length - 1].uid
+              : null;
+          const parentId = parentUid ? uidToNewId.get(parentUid) ?? null : null;
 
-        let existingId: string | null = null;
-        if (t.wbs && existingByCode.has(t.wbs)) {
-          existingId = existingByCode.get(t.wbs)!;
-        }
+          let existingId: string | null = null;
+          if (t.wbs && existingByCode.has(t.wbs)) {
+            existingId = existingByCode.get(t.wbs)!;
+          }
 
-        const taskData = {
+          const taskData = {
           projectId: version.projectId,
           versionId: input.versionId,
           parentId,
@@ -166,7 +174,7 @@ export const ganttImportRouter = router({
         };
 
         if (existingId && input.updateExisting) {
-          await db.ganttTask.update({
+          await tx.ganttTask.update({
             where: { id: existingId },
             data: taskData,
           });
@@ -176,7 +184,7 @@ export const ganttImportRouter = router({
           uidToNewId.set(t.uid, existingId);
           skipped++;
         } else {
-          const newTask = await db.ganttTask.create({ data: taskData });
+          const newTask = await tx.ganttTask.create({ data: taskData });
           uidToNewId.set(t.uid, newTask.id);
           created++;
         }
@@ -191,7 +199,7 @@ export const ganttImportRouter = router({
       if (input.updateExisting) {
         const allTaskIds = Array.from(uidToNewId.values());
         if (allTaskIds.length > 0) {
-          await db.taskDependency.deleteMany({
+          await tx.taskDependency.deleteMany({
             where: {
               OR: [
                 { predecessorId: { in: allTaskIds } },
@@ -223,8 +231,9 @@ export const ganttImportRouter = router({
         }
       }
 
+      dependenciesCreated = depRecords.length;
       if (depRecords.length > 0) {
-        await db.taskDependency.createMany({
+        await tx.taskDependency.createMany({
           data: depRecords,
           skipDuplicates: true,
         });
@@ -233,7 +242,7 @@ export const ganttImportRouter = router({
       let deleted = 0;
       if (input.mode === "replace") {
         const importedIds = new Set(uidToNewId.values());
-        const allVersionTasks = await db.ganttTask.findMany({
+        const allVersionTasks = await tx.ganttTask.findMany({
           where: { versionId: input.versionId },
           select: { id: true },
         });
@@ -241,13 +250,18 @@ export const ganttImportRouter = router({
           .filter((t) => !importedIds.has(t.id))
           .map((t) => t.id);
         if (toDelete.length > 0) {
-          await db.ganttTask.deleteMany({ where: { id: { in: toDelete } } });
+          await tx.ganttTask.deleteMany({ where: { id: { in: toDelete } } });
           deleted = toDelete.length;
         }
       }
 
-      await recalculateWbsCodes(version.projectId, input.versionId);
-      await recalculateProjectSchedule(version.projectId, input.versionId);
+      await recalculateWbsCodes(version.projectId, input.versionId, tx);
+      await recalculateProjectSchedule(version.projectId, input.versionId, {
+        useCalendar: true,
+        tx,
+      });
+      return { deleted };
+      });
 
       let assignmentsCreated = 0;
       let assignmentsSkipped = 0;
@@ -373,7 +387,7 @@ export const ganttImportRouter = router({
         updated,
         skipped,
         deleted,
-        dependenciesCreated: depRecords.length,
+        dependenciesCreated,
         assignmentsCreated,
         assignmentsSkipped,
         warnings: result.warnings,

@@ -10,8 +10,8 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { recalculateWbsCodes } from "@/lib/wbs";
-import { withOrgContext } from "@/lib/rls";
-import { recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
+import { withOrgContext, withTenantTx } from "@/lib/rls";
+import { recalculateProjectSchedule, recalculateProjectScheduleForUser } from "@/server/utils/gantt-cpm-engine";
 import { BUILT_IN_TEMPLATES, type WorkPackageTemplateDef } from "@/server/utils/work-package-templates";
 
 // ─── Draft check helper ───────────────────────────────────────
@@ -171,7 +171,11 @@ export const ganttTasksRouter = router({
       });
 
       if (tasks.length > 0 && tasks.some((t) => !t.code)) {
-        await recalculateWbsCodes(input.projectId, targetVersionId);
+        // RLS: GanttTask is FORCE-scoped — lazy WBS recode runs on a
+        // context-pinned transaction, not the pooled client.
+        await withTenantTx(ctx.user, async (tx) => {
+          await recalculateWbsCodes(input.projectId, targetVersionId, tx);
+        });
         tasks = await database.ganttTask.findMany({
           where: whereClause,
           orderBy: { sortOrder: "asc" },
@@ -269,24 +273,30 @@ export const ganttTasksRouter = router({
         }
       }
 
-      const task = await db.ganttTask.create({
-        data: {
-          projectId: input.projectId,
-          versionId: targetVersionId,
-          parentId: input.parentId ?? null,
-          code: input.code,
-          name: input.name,
-          startDate: new Date(input.startDate),
-          endDate: new Date(input.endDate),
-          duration: input.duration,
-          progress: input.progress,
-          selectedCostLibraryId: input.selectedCostLibraryId,
-          plannedValue: input.plannedValue,
-          laborCount: input.laborCount,
-          isMilestone: input.isMilestone,
-          dependencies: input.dependencies,
-          sortOrder,
-        },
+      const task = await withTenantTx(ctx.user, async (tx) => {
+        const created = await tx.ganttTask.create({
+          data: {
+            projectId: input.projectId,
+            versionId: targetVersionId,
+            parentId: input.parentId ?? null,
+            code: input.code,
+            name: input.name,
+            startDate: new Date(input.startDate),
+            endDate: new Date(input.endDate),
+            duration: input.duration,
+            progress: input.progress,
+            selectedCostLibraryId: input.selectedCostLibraryId,
+            plannedValue: input.plannedValue,
+            laborCount: input.laborCount,
+            isMilestone: input.isMilestone,
+            dependencies: input.dependencies,
+            sortOrder,
+          },
+        });
+        // RLS: GanttTask is FORCE-scoped — recalc must run on the
+        // context-pinned tx, not the pooled client.
+        await recalculateWbsCodes(input.projectId, targetVersionId, tx);
+        return created;
       });
 
       await audit({
@@ -298,7 +308,6 @@ export const ganttTasksRouter = router({
         metadata: { name: task.name },
       });
 
-      await recalculateWbsCodes(input.projectId, targetVersionId);
       const withCode = await db.ganttTask.findUnique({ where: { id: task.id } });
       return { task: withCode ?? task };
     }),
@@ -325,116 +334,78 @@ export const ganttTasksRouter = router({
         });
       }
 
-      const updated = await db.ganttTask.update({
-        where: { id: taskId },
-        data: {
-          ...(data.name !== undefined && { name: data.name }),
-          ...(data.code !== undefined && { code: data.code }),
-          ...(data.parentId !== undefined && { parentId: data.parentId }),
-          ...(data.startDate !== undefined && {
-            startDate: new Date(data.startDate),
-          }),
-          ...(data.endDate !== undefined && { endDate: new Date(data.endDate) }),
-          ...(data.actualStartDate !== undefined && {
-            actualStartDate: data.actualStartDate
-              ? new Date(data.actualStartDate)
-              : null,
-          }),
-          ...(data.actualEndDate !== undefined && {
-            actualEndDate: data.actualEndDate ? new Date(data.actualEndDate) : null,
-          }),
-          ...(data.duration !== undefined && { duration: data.duration }),
-          ...(data.progress !== undefined && {
-            progress: data.progress,
-            isProgressEdited: true,
-          }),
-          ...(data.plannedValue !== undefined && {
-            plannedValue: data.plannedValue,
-          }),
-          ...(data.laborCount !== undefined && { laborCount: data.laborCount }),
-          ...(data.isMilestone !== undefined && { isMilestone: data.isMilestone }),
-          ...(data.dependencies !== undefined && {
-            dependencies: data.dependencies,
-          }),
-          ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
-          ...(data.taskType !== undefined && { taskType: data.taskType }),
-          ...(data.notes !== undefined && { notes: data.notes }),
-          ...(data.workHours !== undefined && { workHours: data.workHours }),
-          ...(data.estimated !== undefined && { estimated: data.estimated }),
-          ...(data.ignoreResourceCalendar !== undefined && {
-            ignoreResourceCalendar: data.ignoreResourceCalendar,
-          }),
-        },
-      });
-
-      if (data.dependencies !== undefined) {
-        try {
-          const deps: { taskId: string; type: string; offset: number }[] = JSON.parse(
-            data.dependencies || "[]"
-          );
-          if (deps.length > 0) {
-            const predIds = deps.map((d) => d.taskId);
-            const predecessors = await db.ganttTask.findMany({
-              where: { id: { in: predIds } },
-              select: { id: true, startDate: true, endDate: true },
-            });
-
-            let newStart: Date | null = null;
-            for (const dep of deps) {
-              const pred = predecessors.find((p) => p.id === dep.taskId);
-              if (!pred) continue;
-              const offsetMs = dep.offset * 24 * 60 * 60 * 1000;
-              let candidate: Date;
-              if (dep.type === "FS") {
-                candidate = new Date(pred.endDate.getTime() + offsetMs);
-              } else if (dep.type === "SS") {
-                candidate = new Date(pred.startDate.getTime() + offsetMs);
-              } else if (dep.type === "FF") {
-                const newEnd = new Date(pred.endDate.getTime() + offsetMs);
-                candidate = new Date(
-                  newEnd.getTime() - updated.duration * 24 * 60 * 60 * 1000
-                );
-              } else if (dep.type === "SF") {
-                const newEnd = new Date(pred.startDate.getTime() + offsetMs);
-                candidate = new Date(
-                  newEnd.getTime() - updated.duration * 24 * 60 * 60 * 1000
-                );
-              } else {
-                continue;
-              }
-              if (!newStart || candidate > newStart) newStart = candidate;
-            }
-
-            if (newStart) {
-              const newEnd = new Date(
-                newStart.getTime() + updated.duration * 24 * 60 * 60 * 1000
-              );
-              await db.ganttTask.update({
-                where: { id: taskId },
-                data: { startDate: newStart, endDate: newEnd },
-              });
-            }
-          }
-        } catch (e) {
-          console.error("[gantt.update] Invalid dependencies JSON for task", taskId, e);
-        }
-      }
-
+      // RLS: GanttTask is FORCE-scoped — the write AND the recalculations
+      // run inside one context-pinned transaction (atomic: the persisted
+      // dates always match the dependency graph or none of it changes).
       const structureChanged =
         data.parentId !== undefined || data.sortOrder !== undefined;
-      if (structureChanged) {
-        await recalculateWbsCodes(task.projectId, task.versionId);
-      }
-
-      // Automatically cascade downstream dates if dates or duration changed
       const dateChanged =
         data.startDate !== undefined ||
         data.endDate !== undefined ||
         data.duration !== undefined ||
         data.dependencies !== undefined;
-      if (dateChanged) {
-        await recalculateProjectSchedule(task.projectId, task.versionId);
-      }
+
+      const updated = await withTenantTx(ctx.user, async (tx) => {
+        const u = await tx.ganttTask.update({
+          where: { id: taskId },
+          data: {
+            ...(data.name !== undefined && { name: data.name }),
+            ...(data.code !== undefined && { code: data.code }),
+            ...(data.parentId !== undefined && { parentId: data.parentId }),
+            ...(data.startDate !== undefined && {
+              startDate: new Date(data.startDate),
+            }),
+            ...(data.endDate !== undefined && { endDate: new Date(data.endDate) }),
+            ...(data.actualStartDate !== undefined && {
+              actualStartDate: data.actualStartDate
+                ? new Date(data.actualStartDate)
+                : null,
+            }),
+            ...(data.actualEndDate !== undefined && {
+              actualEndDate: data.actualEndDate ? new Date(data.actualEndDate) : null,
+            }),
+            ...(data.duration !== undefined && { duration: data.duration }),
+            ...(data.progress !== undefined && {
+              progress: data.progress,
+              isProgressEdited: true,
+            }),
+            ...(data.plannedValue !== undefined && {
+              plannedValue: data.plannedValue,
+            }),
+            ...(data.laborCount !== undefined && { laborCount: data.laborCount }),
+            ...(data.isMilestone !== undefined && { isMilestone: data.isMilestone }),
+            ...(data.dependencies !== undefined && {
+              dependencies: data.dependencies,
+            }),
+            ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
+            ...(data.taskType !== undefined && { taskType: data.taskType }),
+            ...(data.notes !== undefined && { notes: data.notes }),
+            ...(data.workHours !== undefined && { workHours: data.workHours }),
+            ...(data.estimated !== undefined && { estimated: data.estimated }),
+            ...(data.ignoreResourceCalendar !== undefined && {
+              ignoreResourceCalendar: data.ignoreResourceCalendar,
+            }),
+          },
+        });
+
+        if (structureChanged) {
+          await recalculateWbsCodes(task.projectId, task.versionId, tx);
+        }
+
+        // Automatically cascade downstream dates if dates, duration, or
+        // dependencies changed. (The legacy inline "mini-CPM" that used to
+        // live here duplicated ~50 lines of 24h-calendar arithmetic from
+        // the engine — without calendar awareness — and its result was
+        // immediately overwritten by this full recalculation. Deleted;
+        // the engine is the single scheduling authority.)
+        if (dateChanged) {
+          await recalculateProjectSchedule(task.projectId, task.versionId, {
+            useCalendar: true,
+            tx,
+          });
+        }
+        return u;
+      });
 
       const refreshed = structureChanged || dateChanged
         ? await db.ganttTask.findUnique({ where: { id: taskId } })
@@ -472,9 +443,17 @@ export const ganttTasksRouter = router({
         });
       }
 
-      await db.ganttTask.delete({ where: { id: input.taskId } });
-      await recalculateWbsCodes(task.projectId, task.versionId);
-      await recalculateProjectSchedule(task.projectId, task.versionId);
+      // RLS: delete + both recalculations atomically, with tenant context
+      // pinned (GanttTask is FORCE-scoped — pooled writes/recalcs can
+      // silently no-op when the session-level GUC is lost to pool rotation).
+      await withTenantTx(ctx.user, async (tx) => {
+        await tx.ganttTask.delete({ where: { id: input.taskId } });
+        await recalculateWbsCodes(task.projectId, task.versionId, tx);
+        await recalculateProjectSchedule(task.projectId, task.versionId, {
+          useCalendar: true,
+          tx,
+        });
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -505,14 +484,26 @@ export const ganttTasksRouter = router({
         });
       }
 
-      const { updatedCount, cycleDetected, cyclicTaskNames } =
-        await recalculateProjectSchedule(input.projectId, input.versionId);
+      const { updatedCount, cycleDetected, cyclicTaskNames, criticalPath, durationMismatches } =
+        await recalculateProjectScheduleForUser(ctx.user, input.projectId, input.versionId);
 
       return {
         updatedCount,
+        criticalPath,
+        durationMismatches,
         ...(cycleDetected
           ? {
               warning: `Circular dependency detected involving: ${cyclicTaskNames.join(", ")}. These tasks could not be scheduled.`,
+            }
+          : {}),
+        ...(durationMismatches.length > 0
+          ? {
+              durationWarning:
+                `${durationMismatches.length} task(s) have a stored duration that ` +
+                `disagrees with their date span (e.g. "${durationMismatches[0].name}": ` +
+                `duration ${durationMismatches[0].duration}d vs dates implying ` +
+                `${durationMismatches[0].impliedDurationDays}d). They keep their authored ` +
+                `dates until a dependency is added.`,
             }
           : {}),
       };
@@ -611,9 +602,12 @@ export const ganttTasksRouter = router({
           _max: { sortOrder: true },
         });
         const newSort = (maxChild._max.sortOrder ?? -1) + 1;
-        await db.ganttTask.update({
-          where: { id: input.taskId },
-          data: { parentId: newParent.id, sortOrder: newSort },
+        // RLS: GanttTask is FORCE-scoped — writes need context-pinned tx.
+        await withTenantTx(ctx.user, async (tx) => {
+          await tx.ganttTask.update({
+            where: { id: input.taskId },
+            data: { parentId: newParent.id, sortOrder: newSort },
+          });
         });
       } else if (input.direction === "outdent") {
         if (!task.parentId)
@@ -656,7 +650,11 @@ export const ganttTasksRouter = router({
         });
       }
 
-      await recalculateWbsCodes(input.projectId, task.versionId);
+      // RLS: WBS recode on the context-pinned tx (GanttTask is FORCE-scoped;
+      // the pooled recode silently saw 0 tasks when the session GUC was lost).
+      await withTenantTx(ctx.user, async (tx) => {
+        await recalculateWbsCodes(input.projectId, task.versionId, tx);
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -746,9 +744,11 @@ export const ganttTasksRouter = router({
           _max: { sortOrder: true },
         });
         const newSort = (maxChild._max.sortOrder ?? -1) + 1;
-        await db.ganttTask.update({
-          where: { id: input.taskId },
-          data: { parentId: target.id, sortOrder: newSort },
+        await withTenantTx(ctx.user, async (tx) => {
+          await tx.ganttTask.update({
+            where: { id: input.taskId },
+            data: { parentId: target.id, sortOrder: newSort },
+          });
         });
       } else {
         let siblings = await db.ganttTask.findMany({
@@ -769,17 +769,22 @@ export const ganttTasksRouter = router({
         const insertIdx = input.position === "before" ? targetIdx : targetIdx + 1;
         siblings.splice(insertIdx, 0, { id: input.taskId, sortOrder: 0 });
 
-        await db.$transaction(
-          siblings.map((s, i) =>
-            db.ganttTask.update({
-              where: { id: s.id },
+        // Converted from array-form $transaction (RLS): GanttTask is
+        // FORCE-scoped — array form cannot set the org GUC, so this runs
+        // as an interactive transaction with tenant context.
+        await withTenantTx(ctx.user, async (tx) => {
+          for (let i = 0; i < siblings.length; i++) {
+            await tx.ganttTask.update({
+              where: { id: siblings[i].id },
               data: { sortOrder: (i + 1) * 10, parentId: target.parentId },
-            })
-          )
-        );
+            });
+          }
+        });
       }
 
-      await recalculateWbsCodes(input.projectId, task.versionId);
+      await withTenantTx(ctx.user, async (tx) => {
+        await recalculateWbsCodes(input.projectId, task.versionId, tx);
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -870,7 +875,15 @@ export const ganttTasksRouter = router({
       }
 
       let updated = 0;
-      const updates: Promise<any>[] = [];
+      const pendingUpdates: Array<{
+        id: string;
+        data: {
+          progress: number;
+          actualStartDate: Date | null;
+          actualEndDate: Date | null;
+          isProgressEdited: boolean;
+        };
+      }> = [];
 
       for (const task of tasks) {
         const actualData = taskActuals.get(task.id);
@@ -902,22 +915,26 @@ export const ganttTasksRouter = router({
 
         if (hasChanged) {
           updated++;
-          updates.push(
-            db.ganttTask.update({
-              where: { id: task.id },
-              data: {
-                progress: newProgress,
-                actualStartDate: newActualStart,
-                actualEndDate: newActualEnd,
-                isProgressEdited: true,
-              },
-            })
-          );
+          pendingUpdates.push({
+            id: task.id,
+            data: {
+              progress: newProgress,
+              actualStartDate: newActualStart,
+              actualEndDate: newActualEnd,
+              isProgressEdited: true,
+            },
+          });
         }
       }
 
-      if (updates.length > 0) {
-        await Promise.all(updates);
+      // RLS: GanttTask is FORCE-scoped — the batch runs in one
+      // context-pinned transaction (also atomic: no half-synced progress).
+      if (pendingUpdates.length > 0) {
+        await withTenantTx(ctx.user, async (tx) => {
+          for (const p of pendingUpdates) {
+            await tx.ganttTask.update({ where: { id: p.id }, data: p.data });
+          }
+        });
       }
 
       await audit({
@@ -1193,67 +1210,77 @@ export const ganttTasksRouter = router({
         targetVersionId = activeVer?.id;
       }
 
-      const parentTask = await db.ganttTask.create({
-        data: {
-          projectId: input.projectId,
-          versionId: targetVersionId,
-          parentId: input.targetParentId || null,
-          name: input.customName || templateDef.name,
-          startDate: rootStartDate,
-          endDate: rootEndDate,
-          duration: totalSpanDays,
-          progress: 0,
-          sortOrder: nextSort++,
-          taskType: "fixed_duration",
-        },
-      });
-
-      const tempIdToDbId = new Map<string, string>();
-
-      for (const st of templateDef.subtasks) {
-        const offsetInfo = subtaskDates.get(st.tempId) || { startOffset: 0, endOffset: st.duration, duration: st.duration };
-        const stStart = addDays(rootStartDate, offsetInfo.startOffset);
-        const stEnd = addDays(rootStartDate, Math.max(0, offsetInfo.endOffset - 1));
-
-        const createdSub = await db.ganttTask.create({
+      // RLS: GanttTask is FORCE-scoped — the whole multi-step insert
+      // (parent + subtasks + dependencies + WBS + CPM recalc) runs as ONE
+      // context-pinned transaction: either the template lands complete
+      // or nothing lands.
+      const parentTask = await withTenantTx(ctx.user, async (tx) => {
+        const parent = await tx.ganttTask.create({
           data: {
             projectId: input.projectId,
             versionId: targetVersionId,
-            parentId: parentTask.id,
-            name: st.name,
-            startDate: stStart,
-            endDate: stEnd,
-            duration: st.duration,
+            parentId: input.targetParentId || null,
+            name: input.customName || templateDef.name,
+            startDate: rootStartDate,
+            endDate: rootEndDate,
+            duration: totalSpanDays,
             progress: 0,
-            laborCount: st.laborCount || 0,
-            taskType: st.taskType || "fixed_duration",
-            isMilestone: st.isMilestone || false,
             sortOrder: nextSort++,
+            taskType: "fixed_duration",
           },
         });
-        tempIdToDbId.set(st.tempId, createdSub.id);
-      }
 
-      // Create dependency connections
-      for (const st of templateDef.subtasks) {
-        const succId = tempIdToDbId.get(st.tempId);
-        if (!succId) continue;
-        for (const pred of st.predecessorTempIds || []) {
-          const predId = tempIdToDbId.get(pred.tempId);
-          if (!predId) continue;
-          await db.taskDependency.create({
+        const tempIdToDbId = new Map<string, string>();
+
+        for (const st of templateDef.subtasks) {
+          const offsetInfo = subtaskDates.get(st.tempId) || { startOffset: 0, endOffset: st.duration, duration: st.duration };
+          const stStart = addDays(rootStartDate, offsetInfo.startOffset);
+          const stEnd = addDays(rootStartDate, Math.max(0, offsetInfo.endOffset - 1));
+
+          const createdSub = await tx.ganttTask.create({
             data: {
-              predecessorId: predId,
-              successorId: succId,
-              type: pred.type || "FS",
-              offset: pred.offset || 0,
+              projectId: input.projectId,
+              versionId: targetVersionId,
+              parentId: parent.id,
+              name: st.name,
+              startDate: stStart,
+              endDate: stEnd,
+              duration: st.duration,
+              progress: 0,
+              laborCount: st.laborCount || 0,
+              taskType: st.taskType || "fixed_duration",
+              isMilestone: st.isMilestone || false,
+              sortOrder: nextSort++,
             },
-          }).catch(() => {});
+          });
+          tempIdToDbId.set(st.tempId, createdSub.id);
         }
-      }
 
-      await recalculateWbsCodes(input.projectId, targetVersionId);
-      await recalculateProjectSchedule(input.projectId, targetVersionId);
+        // Create dependency connections
+        for (const st of templateDef.subtasks) {
+          const succId = tempIdToDbId.get(st.tempId);
+          if (!succId) continue;
+          for (const pred of st.predecessorTempIds || []) {
+            const predId = tempIdToDbId.get(pred.tempId);
+            if (!predId) continue;
+            await tx.taskDependency.create({
+              data: {
+                predecessorId: predId,
+                successorId: succId,
+                type: pred.type || "FS",
+                offset: pred.offset || 0,
+              },
+            }).catch(() => {});
+          }
+        }
+
+        await recalculateWbsCodes(input.projectId, targetVersionId, tx);
+        await recalculateProjectSchedule(input.projectId, targetVersionId, {
+          useCalendar: true,
+          tx,
+        });
+        return parent;
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -1346,15 +1373,19 @@ export const ganttTasksRouter = router({
       const rootNewStart = addDays(new Date(rootTask.startDate), dayOffset);
       const rootNewEnd = addDays(new Date(rootTask.endDate), dayOffset);
 
-      const clonedRoot = await db.ganttTask.create({
-        data: {
-          projectId: input.projectId,
-          versionId: targetVersionId,
-          parentId: input.targetParentId !== undefined ? input.targetParentId : rootTask.parentId,
-          name: input.newName || `${rootTask.name} (Copy)`,
-          startDate: rootNewStart,
-          endDate: rootNewEnd,
-          duration: rootTask.duration,
+      // RLS: GanttTask is FORCE-scoped — the whole clone (root + subtasks
+      // + dependencies + WBS + CPM recalc) runs as ONE context-pinned
+      // transaction: either the branch lands complete or nothing lands.
+      const clonedRoot = await withTenantTx(ctx.user, async (tx) => {
+        const root = await tx.ganttTask.create({
+          data: {
+            projectId: input.projectId,
+            versionId: targetVersionId,
+            parentId: input.targetParentId !== undefined ? input.targetParentId : rootTask.parentId,
+            name: input.newName || `${rootTask.name} (Copy)`,
+            startDate: rootNewStart,
+            endDate: rootNewEnd,
+            duration: rootTask.duration,
           progress: 0,
           plannedValue: rootTask.plannedValue,
           laborCount: rootTask.laborCount,
@@ -1371,7 +1402,7 @@ export const ganttTasksRouter = router({
           ignoreResourceCalendar: rootTask.ignoreResourceCalendar,
           priority: rootTask.priority,
           earnedValueMethod: rootTask.earnedValueMethod,
-          sortOrder: nextSort++,
+          sortOrder: nextSort,
           boqLinks: {
             create: rootTask.boqLinks.map((link) => ({
               boqItemId: link.boqItemId,
@@ -1380,16 +1411,17 @@ export const ganttTasksRouter = router({
           },
         },
       });
-      oldToNewId.set(rootTask.id, clonedRoot.id);
+      oldToNewId.set(rootTask.id, root.id);
+      nextSort++;
 
       // Create subtasks in hierarchy order
       const subtasks = tasksInSubtree.filter((t) => t.id !== rootTask.id);
       for (const st of subtasks) {
-        const parentId = oldToNewId.get(st.parentId || "") || clonedRoot.id;
+        const parentId = oldToNewId.get(st.parentId || "") || root.id;
         const stStart = addDays(new Date(st.startDate), dayOffset);
         const stEnd = addDays(new Date(st.endDate), dayOffset);
 
-        const clonedSub = await db.ganttTask.create({
+        const clonedSub = await tx.ganttTask.create({
           data: {
             projectId: input.projectId,
             versionId: targetVersionId,
@@ -1433,7 +1465,7 @@ export const ganttTasksRouter = router({
         for (const pred of t.predecessors || []) {
           const newPredId = oldToNewId.get(pred.predecessorId);
           if (!newPredId) continue;
-          await db.taskDependency.create({
+          await tx.taskDependency.create({
             data: {
               predecessorId: newPredId,
               successorId: newSuccId,
@@ -1444,8 +1476,13 @@ export const ganttTasksRouter = router({
         }
       }
 
-      await recalculateWbsCodes(input.projectId, targetVersionId);
-      await recalculateProjectSchedule(input.projectId, targetVersionId);
+        await recalculateWbsCodes(input.projectId, targetVersionId, tx);
+        await recalculateProjectSchedule(input.projectId, targetVersionId, {
+          useCalendar: true,
+          tx,
+        });
+        return root;
+      });
 
       await audit({
         userId: ctx.user.id,

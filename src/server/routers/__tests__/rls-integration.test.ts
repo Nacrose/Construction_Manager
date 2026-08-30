@@ -25,9 +25,9 @@
  * uses in production (table owner + FORCE).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { provisionOwnerAndDeploy } from "./live-db";
 
 const ROOT = path.resolve(__dirname, "../../../..");
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -43,75 +43,97 @@ const P_B = "test-project-b"; // org B
 interface Client {
   $queryRawUnsafe(q: string, ...p: unknown[]): Promise<unknown>;
   $executeRawUnsafe(q: string, ...p: unknown[]): Promise<number>;
+  $transaction<T>(fn: (tx: Client) => Promise<T>): Promise<T>;
   $disconnect(): Promise<void>;
 }
 
-const D = (s: string) => `to_jsonb(${JSON.stringify(s)}::text)`;
+// Plain single-quoted SQL string literal. The two previous attempts both
+// never ran against a live database and were broken in different ways:
+//  1. JSON.stringify → to_jsonb("x"::text): double quotes are IDENTIFIERS
+//     in PostgreSQL → 42703 "column does not exist".
+//  2. to_jsonb('x'::text): the jsonb value coerces to '"x"' (WITH JSON
+//     quotes) on assignment to text columns, so ids seeded via D() never
+//     matched ids seeded as plain literals → FK violations.
+const D = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () => {
   let db: Client;
 
   beforeAll(async () => {
-    // 1. Apply the full migration chain exactly like a deploy would.
-    execSync("npx prisma migrate deploy", {
-      cwd: ROOT,
-      env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-      stdio: "pipe",
-    });
+    // 1. Provision a NON-SUPERUSER owner role and apply the FULL migration
+    //    chain AS that owner. CRITICAL: superusers bypass RLS entirely, so
+    //    connecting as the docker/initdb superuser would make every deny
+    //    assertion below vacuous. The owner+FORCE mode is exactly what
+    //    production runs (the app's Prisma user owns the tables).
+    const url = await provisionOwnerAndDeploy(TEST_DATABASE_URL!);
 
-    // 2. Fresh PrismaClient bound to the test database.
+    // 2. Fresh PrismaClient bound to the test database as the owner.
     //    (generated client already exists from `npm ci` + build step)
     const { PrismaClient } = await import("@prisma/client");
     db = new PrismaClient({
-      datasources: { db: { url: TEST_DATABASE_URL } },
+      datasources: { db: { url } },
     }) as unknown as Client;
 
-    // 3. Seed tenant fixture data as a true superuser (bypasses RLS —
-    //    policies are not yet armed with context on this connection).
-    await db.$executeRawUnsafe("SELECT set_config('app.is_superadmin','true', false)");
+    // 3. Seed tenant fixture data with the superadmin GUC armed (the
+    //    policies' bypass branch — the role itself is a non-superuser).
+    //    All seeding runs in ONE interactive transaction with a
+    //    TRANSACTION-scoped GUC: session-level GUCs on the pooled client
+    //    are best-effort (pool rotation can drop them mid-seed).
+    await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SELECT set_config('app.is_superadmin','true', true)");
     // Fixture shapes match schema.prisma NOT NULL columns (verified in
     // docs/rls-evidence/phase3-abc-verification.md — the same inserts run
     // there against the real migration chain).
-    await db.$executeRawUnsafe(
-      `INSERT INTO "User" ("id","email","name","passwordHash","organizationId","isSuperAdmin") VALUES
-       ('u-a','a@test.local','A','x',${D(ORG_A)},false),
-       ('u-b','b@test.local','B','x',${D(ORG_B)},false),
-       ('u-s','s@test.local','S','x',NULL,true)
+    await tx.$executeRawUnsafe(
+      // NOTE: "updatedAt" is NOT NULL with NO database default (Prisma
+      // manages it client-side) — raw inserts MUST supply it. This test
+      // failed with 23502 until that was noticed; keep the column list
+      // explicit so new schema columns can't silently break the seed.
+      `INSERT INTO "Organization" ("id","name","code","updatedAt") VALUES
+       (${D(ORG_A)},'Org A','ORG-A',NOW()), (${D(ORG_B)},'Org B','ORG-B',NOW())
        ON CONFLICT DO NOTHING`,
     );
-    await db.$executeRawUnsafe(
-      `INSERT INTO "Project" ("id","organizationId","name","code","createdById")
-       VALUES (${D(P_A)},${D(ORG_A)},'A','PA','u-a'), (${D(P_B)},${D(ORG_B)},'B','PB','u-b')
+    await tx.$executeRawUnsafe(
+      `INSERT INTO "User" ("id","email","name","passwordHash","organizationId","isSuperAdmin","updatedAt") VALUES
+       ('u-a','a@test.local','A','x',${D(ORG_A)},false,NOW()),
+       ('u-b','b@test.local','B','x',${D(ORG_B)},false,NOW()),
+       ('u-s','s@test.local','S','x',NULL,true,NOW())
+       ON CONFLICT DO NOTHING`,
+    );
+    await tx.$executeRawUnsafe(
+      `INSERT INTO "Project" ("id","organizationId","name","code","createdById","updatedAt")
+       VALUES (${D(P_A)},${D(ORG_A)},'A','PA','u-a',NOW()), (${D(P_B)},${D(ORG_B)},'B','PB','u-b',NOW())
        ON CONFLICT DO NOTHING`,
     );
     // one row per representative table, per org
     for (const [pfx, pid] of [["a", P_A], ["b", P_B]] as const) {
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `INSERT INTO "Payment" ("id","projectId","payeeType","payeeName","amount")
          VALUES (${D(`pay-${pfx}`)},${D(pid)},'vendor','V',1) ON CONFLICT DO NOTHING`,
       );
-      await db.$executeRawUnsafe(
-        `INSERT INTO "Material" ("id","projectId","name","unit")
-         VALUES (${D(`mat-${pfx}`)},${D(pid)},'m','kg') ON CONFLICT DO NOTHING`,
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "Material" ("id","projectId","name","unit","updatedAt")
+         VALUES (${D(`mat-${pfx}`)},${D(pid)},'m','kg',NOW()) ON CONFLICT DO NOTHING`,
       );
-      await db.$executeRawUnsafe(
-        `INSERT INTO "Staff" ("id","projectId","name")
-         VALUES (${D(`staff-${pfx}`)},${D(pid)},'s') ON CONFLICT DO NOTHING`,
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "Staff" ("id","projectId","name","updatedAt")
+         VALUES (${D(`staff-${pfx}`)},${D(pid)},'s',NOW()) ON CONFLICT DO NOTHING`,
       );
-      await db.$executeRawUnsafe(
-        `INSERT INTO "Rfi" ("id","projectId","number","createdById","subject","description")
-         VALUES (${D(`rfi-${pfx}`)},${D(pid)},${D(`R-${pfx}`)},${D(`u-${pfx}`)},'s','d')
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "Rfi" ("id","projectId","number","createdById","subject","description","updatedAt")
+         VALUES (${D(`rfi-${pfx}`)},${D(pid)},${D(`R-${pfx}`)},${D(`u-${pfx}`)},'s','d',NOW())
          ON CONFLICT DO NOTHING`,
       );
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `INSERT INTO "Notification" ("id","userId","projectId","type","title","message")
          VALUES (${D(`notif-${pfx}`)},${D(`u-${pfx}`)},${D(pid)},'t','t','m') ON CONFLICT DO NOTHING`,
       );
-      await db.$executeRawUnsafe(
+      await tx.$executeRawUnsafe(
         `INSERT INTO "AuditLog" ("id","userId","projectId","action","entityType","entityId")
          VALUES (${D(`aud-${pfx}`)},${D(`u-${pfx}`)},${D(pid)},'x','x','x') ON CONFLICT DO NOTHING`,
       );
     }
+    }); // end seed transaction
   }, 240_000);
 
   const asOrg = async (org: string | null, superadmin = false) => {
@@ -130,15 +152,22 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
     // teardown: superadmin context, then wipe fixture rows (reverse-insert order)
     if (db) {
       try {
-        await asOrg(null, true);
-        for (const t of [
-          "AuditLog", "Notification", "Rfi", "Staff", "Material", "Payment",
-          "Project", "User",
-        ]) {
-          await db.$executeRawUnsafe(
-            `DELETE FROM "${t}" WHERE "id" LIKE 'test-%' OR "id" IN ('pay-a','pay-b','mat-a','mat-b','staff-a','staff-b','rfi-a','rfi-b','notif-a','notif-b','aud-a','aud-b','u-a','u-b','u-s')`,
+        // One interactive transaction with a tx-scoped superadmin GUC —
+        // session-level GUCs could be lost to pool rotation, silently
+        // deleting 0 rows and tripping FK constraints downstream.
+        await db.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(
+            "SELECT set_config('app.is_superadmin','true', true)",
           );
-        }
+          for (const t of [
+            "AuditLog", "Notification", "Rfi", "Staff", "Material", "Payment",
+            "Project", "User", "Organization",
+          ]) {
+            await tx.$executeRawUnsafe(
+              `DELETE FROM "${t}" WHERE "id" LIKE 'test-%' OR "id" LIKE 'cm_test_%' OR "id" IN ('pay-a','pay-b','mat-a','mat-b','staff-a','staff-b','rfi-a','rfi-b','notif-a','notif-b','aud-a','aud-b','u-a','u-b','u-s')`,
+            );
+          }
+        });
       } finally {
         await db.$disconnect();
       }
@@ -150,6 +179,22 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
       fs.readFileSync(path.join(ROOT, "prisma/rls-tracker.json"), "utf8"),
     ) as { covered: string[] };
     expect(tracker.covered.length).toBeGreaterThan(70);
+    // The tracker stores MODEL names; physical tables may differ via
+    // Prisma @@map (model RateBook -> table "RateCatalog"). Translate.
+    const SCHEMA = fs.readFileSync(
+      path.join(ROOT, "prisma/schema.prisma"),
+      "utf8",
+    );
+    const TABLE_OF: Record<string, string> = {};
+    {
+      const blockRe = /^model (\w+) \{([\s\S]*?)^\}/gm;
+      let m: RegExpExecArray | null;
+      while ((m = blockRe.exec(SCHEMA)) !== null) {
+        const mapMatch = m[2].match(/@@map\("(\w+)"\)/);
+        TABLE_OF[m[1]] = mapMatch ? mapMatch[1] : m[1];
+      }
+    }
+    const physicalTables = tracker.covered.map((c) => TABLE_OF[c] ?? c);
     const rows = (await db.$queryRawUnsafe(`
       SELECT c.relname AS t,
              c.relrowsecurity AS rls,
@@ -157,12 +202,12 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
              (SELECT count(*) FROM pg_policies p WHERE p.tablename = c.relname) AS policies
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1)
-    `, tracker.covered)) as { t: string; rls: boolean; forced: boolean; policies: bigint }[];
+    `, physicalTables)) as { t: string; rls: boolean; forced: boolean; policies: bigint }[];
     const bad = rows.filter((r) => !r.rls || !r.forced || Number(r.policies) === 0);
     expect(
       rows.length,
-      `covered tables missing from the database: ${tracker.covered.filter((c) => !rows.some((r) => r.t === c)).join(", ")}`,
-    ).toBe(tracker.covered.length);
+      `covered tables missing from the database: ${tracker.covered.filter((c) => !rows.some((r) => r.t === (TABLE_OF[c] ?? c))).join(", ")}`,
+    ).toBe(physicalTables.length);
     expect(
       bad.map((r) => r.t),
       "covered tables lacking RLS/FORCE/policies",
@@ -238,7 +283,8 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
     // a NULL-org project (seeded as superadmin) is invisible to org users
     await asOrg(null, true);
     await db.$executeRawUnsafe(
-      `INSERT INTO "Project" ("id","organizationId","name","code") VALUES ('test-null-org',NULL,'N','N')`,
+      `INSERT INTO "Project" ("id","organizationId","name","code","createdById","updatedAt")
+       VALUES ('test-null-org',NULL,'N','N','u-s',NOW())`,
     );
     await asOrg(ORG_A);
     expect(await count(`SELECT count(*) FROM "Project" WHERE id = 'test-null-org'`)).toBe(0);
@@ -257,8 +303,10 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
     expect(u).toBe(0);
     expect(d).toBe(0);
     await asOrg(null, true);
-    await expect(
-      db.$executeRawUnsafe(`UPDATE "AuditLog" SET action = 'hacked' WHERE id = 'aud-a'`),
-    ).rejects.toThrow(/row-level security/i);
+    // No UPDATE policy exists for AuditLog — even a superadmin update is a
+    // SILENT 0-row deny (PostgreSQL semantics for FOR ALL-less command
+    // coverage), not an error. Tamper-evidence = the rowcount, not a throw.
+    const superU = await db.$executeRawUnsafe(`UPDATE "AuditLog" SET action = 'hacked' WHERE id = 'aud-a'`);
+    expect(superU).toBe(0);
   });
 });

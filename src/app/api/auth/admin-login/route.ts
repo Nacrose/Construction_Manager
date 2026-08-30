@@ -4,21 +4,27 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createAdminSession } from "@/lib/auth";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
+import {
+  checkLoginRate,
+  recordLoginAttempt,
+  clientIpFromHeaders,
+} from "@/lib/login-rate-limit";
 
 const LoginSchema = z.object({
   email: z.string().email().toLowerCase(),
   password: z.string().min(1),
 });
 
-// In-memory rate limit by IP (mirrors /api/auth/login).
+// L1: in-memory burst guard per instance (mirrors /api/auth/login).
+// L2: durable LoginAttempt-table limiter — shared across instances and
+// cold starts (see lib/login-rate-limit.ts).
 const attempts = new Map<string, { count: number; firstAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_ATTEMPTS = 10;
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = clientIpFromHeaders(req.headers);
     const now = Date.now();
     const bucket = attempts.get(ip);
     if (bucket && now - bucket.firstAt < WINDOW_MS) {
@@ -32,6 +38,12 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const data = LoginSchema.parse(body);
+
+    // L2: durable limiter (admin plane gets the same brute-force wall).
+    const verdict = await checkLoginRate(data.email, ip);
+    if (!verdict.allowed) {
+      return badRequest(verdict.reason ?? "Too many attempts. Please wait before retrying.");
+    }
 
     let user = await db.user.findUnique({
       where: { email: data.email },
@@ -73,6 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) {
+      await recordLoginAttempt(data.email, ip, false);
       return badRequest("Invalid email or password.");
     }
 
@@ -95,6 +108,7 @@ export async function POST(req: NextRequest) {
 
     // Short-lived, kind-tagged admin session.
     const token = await createAdminSession(user.id);
+    await recordLoginAttempt(data.email, ip, true);
 
     // Set cookie for proxy/middleware navigation
     try {

@@ -7,7 +7,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
-import { withOrgContext } from "@/lib/rls";
+import { withOrgContext, withTenantTx } from "@/lib/rls";
 import { notifyProjectMembers } from "@/server/utils/notify";
 
 /**
@@ -129,9 +129,13 @@ export const ganttVersionsRouter = router({
           data: { projectId: input.projectId, name: "Default Running", isActive: true },
         });
         versions = [defaultVer];
-        await db.ganttTask.updateMany({
-          where: { projectId: input.projectId, versionId: null },
-          data: { versionId: defaultVer.id },
+        // RLS: GanttTask is FORCE-scoped — backfill runs on a
+        // context-pinned transaction instead of the pooled client.
+        await withTenantTx(ctx.user, async (tx) => {
+          await tx.ganttTask.updateMany({
+            where: { projectId: input.projectId, versionId: null },
+            data: { versionId: defaultVer.id },
+          });
         });
       }
       return { versions };

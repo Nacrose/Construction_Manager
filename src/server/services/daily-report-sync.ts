@@ -2,6 +2,7 @@
  * Daily report database synchronization and side-effect processing service.
  */
 import { db } from "@/lib/db";
+import { withTenantTx, type TenantUser } from "@/lib/rls";
 import { getLaborWage, getEquipmentRate, resolveProjectRates } from "@/lib/cost-rates";
 import { dailyReportDeductionMarker } from "@/server/utils/workflow-helpers";
 
@@ -260,10 +261,13 @@ export async function processReportSubmission({
   reportId,
   projectId,
   userId,
+  actor,
 }: {
   reportId: string;
   projectId: string;
   userId: string;
+  /** Caller's tenant identity (ctx.user) for RLS context pinning. */
+  actor?: TenantUser;
 }) {
   const report = await db.dailyReport.findUnique({
     where: { id: reportId },
@@ -295,7 +299,17 @@ export async function processReportSubmission({
 
   // 3. Gantt progress update
   try {
-    await updateGanttProgress(report, progressItems, projectId);
+    // RLS: GanttTask is FORCE-scoped — resolve the actor's tenant identity
+    // when the caller didn't pass one, then pin it for the progress writes.
+    let tenantActor = actor;
+    if (!tenantActor) {
+      const u = await db.user.findUnique({
+        where: { id: userId },
+        select: { organizationId: true, isSuperAdmin: true },
+      });
+      if (u) tenantActor = { organizationId: u.organizationId, isSuperAdmin: u.isSuperAdmin };
+    }
+    await updateGanttProgress(report, progressItems, projectId, tenantActor);
   } catch (e) {
     console.error("[processReportSubmission] Gantt progress update failed:", e);
   }
@@ -555,7 +569,8 @@ async function tabulateBacklog(
 async function updateGanttProgress(
   report: { id: string; number: string; reportDate: Date },
   progressItems: any[],
-  projectId: string
+  projectId: string,
+  actor?: TenantUser
 ) {
   const directGanttTaskIds = progressItems
     .map((p) => p.ganttTaskId)
@@ -647,11 +662,20 @@ async function updateGanttProgress(
     );
 
     if (Math.abs(progressPct - ganttTask.progress) >= 1) {
-      await db.ganttTask.update({
-        where: { id: ganttTaskId },
-        data: {
-          progress: progressPct,
-        },
+      // RLS: GanttTask is FORCE-scoped — the write needs a context-pinned
+      // transaction (actor resolves from the submitting user when the
+      // caller didn't supply one).
+      let tenantActor = actor;
+      if (!tenantActor) {
+        tenantActor = { organizationId: null, isSuperAdmin: false };
+      }
+      await withTenantTx(tenantActor, async (tx) => {
+        await tx.ganttTask.update({
+          where: { id: ganttTaskId },
+          data: {
+            progress: progressPct,
+          },
+        });
       });
     }
   }

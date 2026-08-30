@@ -9,7 +9,10 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertVersionIsEditable } from "./gantt-tasks";
-import { detectCycle, recalculateProjectSchedule } from "@/server/utils/gantt-cpm-engine";
+import {
+  detectCycle,
+  recalculateProjectScheduleForUser,
+} from "@/server/utils/gantt-cpm-engine";
 
 const LinkBoqSchema = z.object({
   taskId: z.string(),
@@ -236,7 +239,12 @@ export const ganttDependenciesRouter = router({
       });
 
       // ── Automated Forward-Pass CPM Cascade ──
-      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
+      // RLS: tenant-context-pinned recalc (GanttTask is FORCE-scoped).
+      const { updatedCount } = await recalculateProjectScheduleForUser(
+        ctx.user,
+        task.projectId,
+        task.versionId
+      );
 
       await audit({
         userId: ctx.user.id,
@@ -280,7 +288,12 @@ export const ganttDependenciesRouter = router({
       }
 
       // ── Automated Forward-Pass CPM Cascade ──
-      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
+      // RLS: tenant-context-pinned recalc (GanttTask is FORCE-scoped).
+      const { updatedCount } = await recalculateProjectScheduleForUser(
+        ctx.user,
+        task.projectId,
+        task.versionId
+      );
 
       return { ok: true, updatedCount };
     }),
@@ -371,7 +384,12 @@ export const ganttDependenciesRouter = router({
       }
 
       // ── Automated Forward-Pass CPM Cascade to edited task & all downstream successors ──
-      const { updatedCount } = await recalculateProjectSchedule(task.projectId, task.versionId);
+      // RLS: tenant-context-pinned recalc (GanttTask is FORCE-scoped).
+      const { updatedCount } = await recalculateProjectScheduleForUser(
+        ctx.user,
+        task.projectId,
+        task.versionId
+      );
 
       await audit({
         userId: ctx.user.id,

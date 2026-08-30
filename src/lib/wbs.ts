@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db, type DbTxClient } from "@/lib/db";
 
 /**
  * Recalculate WBS (Work Breakdown Structure) codes for all tasks in a project.
@@ -11,16 +11,22 @@ import { db } from "@/lib/db";
  * All updates are wrapped in a single transaction so that if any update
  * fails, the entire WBS recalculation is rolled back — no partial
  * state with some tasks having new codes and others having old ones.
+ *
+ * RLS: GanttTask is FORCE-scoped. On the pooled client this only works
+ * while the best-effort session-level org GUC is set — prefer passing a
+ * `tx` from a context-pinned transaction (`withTenantTx` / `withOrgContext`).
  */
 export async function recalculateWbsCodes(
   projectId: string,
-  versionId?: string | null
+  versionId?: string | null,
+  tx?: DbTxClient
 ): Promise<void> {
+  const client = tx ?? db;
   const whereClause = versionId
     ? { projectId, versionId }
     : { projectId };
 
-  const tasks = await db.ganttTask.findMany({
+  const tasks = await client.ganttTask.findMany({
     where: whereClause,
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: { id: true, parentId: true, sortOrder: true, versionId: true },
@@ -65,12 +71,18 @@ export async function recalculateWbsCodes(
     walk(null, "");
   }
 
-  // Apply all code updates in a single transaction
+  // Apply all code updates in a single transaction (or inside the caller's).
   if (updates.length > 0) {
-    await db.$transaction(
-      updates.map((u) =>
-        db.ganttTask.update({ where: { id: u.id }, data: { code: u.code } })
-      )
-    );
+    if (tx) {
+      for (const u of updates) {
+        await tx.ganttTask.update({ where: { id: u.id }, data: { code: u.code } });
+      }
+    } else {
+      await db.$transaction(
+        updates.map((u) =>
+          db.ganttTask.update({ where: { id: u.id }, data: { code: u.code } })
+        )
+      );
+    }
   }
 }

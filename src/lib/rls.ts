@@ -1,4 +1,15 @@
-import type { DbTxClient } from "@/lib/db";
+import { db, type DbTxClient } from "@/lib/db";
+import { logger } from "@/lib/logger";
+
+/**
+ * The tenant-identity subset of the tRPC user object that the RLS helpers
+ * need. Structural so both `ctx.user` from tRPC and lighter test/seed
+ * contexts can be passed.
+ */
+export type TenantUser = {
+  organizationId?: string | null;
+  isSuperAdmin?: boolean;
+};
 
 /**
  * PostgreSQL Row-Level Security (RLS) for multi-tenant isolation.
@@ -114,7 +125,7 @@ export async function setOrgContext(
     );
   } catch (err) {
     // Don't throw — RLS is defense-in-depth, not the primary filter.
-    console.error("Failed to set RLS org context:", err);
+    logger().error("rls.setOrgContext.failed", { error: err });
   }
 }
 
@@ -151,6 +162,41 @@ export async function withOrgContext(
     );
   } catch (err) {
     // Don't throw — RLS is defense-in-depth, not the primary filter.
-    console.error("Failed to set RLS org context (tx):", err);
+    // Structured log: orgId present + superadmin flag (never the org id
+    // when absent — empty string means "no tenant context", which is the
+    // fail-closed condition worth alerting on).
+    logger().error("rls.withOrgContext.failed", {
+      error: err,
+      hasOrgId: Boolean(organizationId),
+      isSuperAdmin: isSuperAdmin === true,
+    });
   }
+}
+
+/**
+ * Run `fn` inside an interactive transaction with the caller's tenant
+ * context pinned (transaction-scoped GUC). This is the canonical wrapper
+ * for pooled WRITE sites on RLS-covered tables — the pooled client's
+ * session-level context is best-effort only (pool rotation loses it),
+ * which makes unwrapped writes fail loudly (P2025) or, worse, silently
+ * (0-row findMany inside helpers).
+ *
+ * Use this when a mutation is NOT already inside a transaction:
+ *
+ *   const result = await withTenantTx(ctx.user, async (tx) => {
+ *     await tx.ganttTask.update({ ... });
+ *     return recalculateWbsCodes(projectId, versionId, tx);
+ *   });
+ *
+ * Do NOT nest: inside an existing interactive transaction call
+ * `withOrgContext(tx, ...)` directly and pass `tx` down instead.
+ */
+export async function withTenantTx<T>(
+  user: TenantUser,
+  fn: (tx: DbTxClient) => Promise<T>,
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await withOrgContext(tx, user.organizationId, !!user.isSuperAdmin);
+    return fn(tx);
+  });
 }

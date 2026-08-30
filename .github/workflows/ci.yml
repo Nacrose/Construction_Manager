@@ -27,8 +27,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (errors only)
-        run: npx eslint . --max-warnings 10000
+      - name: Lint (ratcheted: warnings may only DECREASE)
+        # Ratchet: 950 warnings as of 2026-08-30. Lower this number when you
+        # fix warnings — never raise it. (The previous cap of 10000 let every
+        # warning pass silently, making the gate decorative.)
+        run: npx eslint . --max-warnings 950
 
       - name: Typecheck
         run: npx tsc --noEmit
@@ -85,7 +88,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: RLS integration tests (migrations + tenant isolation)
+      - name: RLS integration + full-stack smoke tests (migrations + tenant isolation + router flow)
         env:
           TEST_DATABASE_URL: postgresql://rls:rls@localhost:5432/rls_test
-        run: npx vitest run src/server/routers/__tests__/rls-integration.test.ts
+        run: |
+          npx vitest run src/server/routers/__tests__/rls-integration.test.ts
+          npx vitest run src/server/routers/__tests__/smoke-flow.test.ts

@@ -546,6 +546,7 @@ const dailyReportCoreRouter = router({
           reportId,
           projectId: report.projectId,
           userId: ctx.user.id,
+          actor: ctx.user, // RLS: tenant identity for GanttTask progress writes
         });
       }
 

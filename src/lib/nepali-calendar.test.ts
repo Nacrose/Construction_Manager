@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
   adToBs,
   bsToAd,
@@ -165,5 +165,45 @@ describe("Nepali Calendar Engine (Bikram Sambat BS ⇄ AD)", () => {
       expect(() => bsToAd(2081, 1, 35)).toThrow(/Invalid BS Day/);
       expect(() => bsToAd(2081, 1, 0)).toThrow(/Invalid BS Day/);
     });
+  });
+});
+
+// ─── DB-backed holiday overrides ─────────────────────────────────────────────
+import {
+  isWorkingDay,
+  isHoliday,
+  getHolidayName,
+  __setHolidayCacheForTests,
+} from "@/server/utils/nepal-calendar";
+
+describe("DB holiday cache (admin-editable overrides)", () => {
+  afterEach(() => __setHolidayCacheForTests(null));
+
+  it("falls back to the compiled constant when the DB has no rows for a year", () => {
+    __setHolidayCacheForTests([]); // DB present but empty → every year unseen
+    // 2026-04-13 (Nepali New Year) is a constant holiday.
+    expect(isHoliday(new Date("2026-04-13T00:00:00Z"))).toBe(true);
+    expect(isWorkingDay(new Date("2026-04-13T00:00:00Z"))).toBe(false);
+  });
+
+  it("DB rows are AUTHORITATIVE for a year they cover (constant ignored)", () => {
+    // DB says 2026 has exactly one holiday: April 14 (corrected date).
+    __setHolidayCacheForTests([{ date: "2026-04-14", name: "Nepali New Year (corrected)" }]);
+    // Wrong constant date no longer applies:
+    expect(isHoliday(new Date("2026-04-13T00:00:00Z"))).toBe(false);
+    expect(isWorkingDay(new Date("2026-04-13T00:00:00Z"))).toBe(true);
+    // Corrected date applies:
+    expect(isHoliday(new Date("2026-04-14T00:00:00Z"))).toBe(true);
+    expect(getHolidayName(new Date("2026-04-14T00:00:00Z"))).toBe("Nepali New Year (corrected)");
+    // Constant Saturdays still hold (weekend logic is not overridable):
+    expect(isWorkingDay(new Date("2026-04-11T00:00:00Z"))).toBe(false);
+  });
+
+  it("years without DB coverage keep using the constant (partial backfill)", () => {
+    // Admin only maintained 2027 so far.
+    __setHolidayCacheForTests([{ date: "2027-10-08", name: "Vijaya Dashami 2027" }]);
+    expect(isHoliday(new Date("2027-10-08T00:00:00Z"))).toBe(true);      // DB row
+    expect(isHoliday(new Date("2026-10-19T00:00:00Z"))).toBe(true);       // constant 2026 Dashain
+    expect(isHoliday(new Date("2028-01-01T00:00:00Z"))).toBe(false);      // neither — 2028 open
   });
 });

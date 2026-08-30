@@ -535,3 +535,148 @@ describe("Gantt CPM Engine & Cycle Detection", () => {
     });
   });
 });
+
+// ─── Backward pass: late dates, float, critical path ────────────────────────
+describe("computeCpmSchedule — backward pass (CPM metrics)", () => {
+  it("marks the longest chain critical and gives the short branch float (24h mode)", () => {
+    // A ──3d──> B ──3d──> C  (critical chain, 6 days)
+    // A ──3d──> D (2d)        (short branch: D has 1 day float)
+    const base = new Date("2026-01-05T00:00:00Z"); // Monday
+    const tasks = [
+      { id: "A", name: "A", startDate: base, endDate: new Date(base.getTime() + 3 * 86400000), duration: 3 },
+      { id: "B", name: "B", startDate: base, endDate: base, duration: 3 },
+      { id: "C", name: "C", startDate: base, endDate: base, duration: 3 },
+      { id: "D", name: "D", startDate: base, endDate: base, duration: 2 },
+    ];
+    const deps = [
+      { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 0 },
+      { predecessorId: "B", successorId: "C", type: "FS" as const, offset: 0 },
+      { predecessorId: "A", successorId: "D", type: "FS" as const, offset: 0 },
+    ];
+
+    const { metrics, criticalPathIds } = computeCpmSchedule(tasks, deps);
+
+    // Forward pass: B starts A+3d, C starts A+6d ends A+9d.
+    const b = metrics.get("B")!;
+    const c = metrics.get("C")!;
+    const d = metrics.get("D")!;
+    expect(b.earlyStart.getTime()).toBe(base.getTime() + 3 * 86400000);
+    expect(c.earlyFinish.getTime()).toBe(base.getTime() + 9 * 86400000);
+
+    // Project finish = A+9d; every task on the chain has zero float.
+    expect(criticalPathIds).toEqual(["A", "B", "C"]);
+    expect(c.lateStart.getTime()).toBe(c.earlyStart.getTime());
+    expect(c.totalFloatDays).toBe(0);
+    expect(c.isCritical).toBe(true);
+
+    // D finishes A+5d but could finish A+9d → 1 working... (24h mode: calendar
+    // days) D: ES = A+3d, dur 2 → EF = A+5d; LF = A+9d → LS = A+7d → float 4d.
+    expect(d.earlyFinish.getTime()).toBe(base.getTime() + 5 * 86400000);
+    expect(d.totalFloatDays).toBe(4);
+    expect(d.isCritical).toBe(false);
+
+    // Late dates are internally consistent: LF = LS + duration.
+    expect(d.lateFinish.getTime()).toBe(d.lateStart.getTime() + 2 * 86400000);
+  });
+
+  it("respects FS lag in the backward pass (lag consumes float)", () => {
+    const base = new Date("2026-01-05T00:00:00Z");
+    // A(3d) -lag2-> B(2d); C(3d) no deps ending at A+9d drives project finish.
+    const tasks = [
+      { id: "A", name: "A", startDate: base, endDate: new Date(base.getTime() + 3 * 86400000), duration: 3 },
+      { id: "B", name: "B", startDate: base, endDate: base, duration: 2 },
+      {
+        id: "C", name: "C",
+        startDate: new Date(base.getTime() + 9 * 86400000),
+        endDate: new Date(base.getTime() + 12 * 86400000),
+        duration: 3,
+      },
+    ];
+    const deps = [
+      { predecessorId: "A", successorId: "B", type: "FS" as const, offset: 2 },
+    ];
+    const { metrics } = computeCpmSchedule(tasks, deps);
+
+    // B: ES = EF_A + 2 = A+5d, EF = A+7d. Project finish = A+12d (C).
+    // LF_B = LS_C? No — B has no successors → LF_B = project finish = A+12d.
+    // Float_B = LS_B(A+10d) - ES_B(A+5d) = 5 days.
+    const b = metrics.get("B")!;
+    expect(b.earlyStart.getTime()).toBe(base.getTime() + 5 * 86400000);
+    expect(b.totalFloatDays).toBe(5);
+    expect(b.isCritical).toBe(false);
+  });
+
+  it("computes float in WORKING days in calendar mode (Dashain closure ≠ float)", () => {
+    // Window: Sept 28 (Mon) → Oct 21+ 2026. Dashain Oct 11-20 all holiday.
+    // Chain A(2d) -> B(2d): ES_A = Sep 28, EF_A = Sep 30; ES_B = Sep 30,
+    // EF_B = Oct 2. Terminal C (no deps) authored Oct 5..Oct 23 — long span
+    // crosses Dashain, so project finish = Oct 23 (Fri, working).
+    // LF_B = Oct 23 → LS_B = 2 working days back = Oct 21 (Wed).
+    // Float_B = working days Sep 30 → Oct 21 minus 1 = 13 working days
+    // (Dashain days inside the window count as ZERO float).
+    const tasks = [
+      {
+        id: "A", name: "A",
+        startDate: new Date("2026-09-28T00:00:00Z"),
+        endDate: new Date("2026-09-30T00:00:00Z"),
+        duration: 2,
+      },
+      {
+        id: "B", name: "B",
+        startDate: new Date("2026-09-25T00:00:00Z"),
+        endDate: new Date("2026-09-26T00:00:00Z"),
+        duration: 2,
+      },
+      {
+        id: "C", name: "C",
+        startDate: new Date("2026-10-05T00:00:00Z"),
+        endDate: new Date("2026-10-23T00:00:00Z"),
+        duration: 15,
+      },
+    ];
+    const deps = [{ predecessorId: "A", successorId: "B", type: "FS" as const, offset: 0 }];
+    const { metrics } = computeCpmSchedule(tasks, deps, { useCalendar: true });
+
+    const b = metrics.get("B")!;
+    expect(b.earlyStart.toISOString()).toBe(new Date("2026-09-30T00:00:00Z").toISOString());
+    expect(b.earlyFinish.toISOString()).toBe(new Date("2026-10-02T00:00:00Z").toISOString());
+    // Slip days available: Oct 1, 2, Oct 4 (Sun — working in Nepal),
+    // Oct 5-9, then Dashain Oct 11-20 (ZERO float), then Oct 21 = 9 days.
+    // The 10-day Dashain closure contributes nothing — that is the point.
+    expect(b.totalFloatDays).toBe(9);
+    expect(b.isCritical).toBe(false);
+  });
+
+  it("flags duration-vs-dates drift only on user-authored (no-dep) tasks", () => {
+    const base = new Date("2026-01-05T00:00:00Z");
+    const tasks = [
+      // No deps, duration says 3 but dates span 5 days → mismatch.
+      { id: "X", name: "X", startDate: base, endDate: new Date(base.getTime() + 5 * 86400000), duration: 3 },
+      // Dep-driven task whose stored dates are stale → not reported (recomputed anyway).
+      { id: "Y", name: "Y", startDate: base, endDate: base, duration: 3 },
+    ];
+    const deps = [{ predecessorId: "X", successorId: "Y", type: "FS" as const, offset: 0 }];
+    const { durationMismatches } = computeCpmSchedule(tasks, deps);
+    expect(durationMismatches).toHaveLength(1);
+    expect(durationMismatches[0]).toMatchObject({ id: "X", duration: 3, impliedDurationDays: 5 });
+  });
+
+  it("excludes cyclic tasks from metrics (they cannot be scheduled)", () => {
+    const base = new Date("2026-01-05T00:00:00Z");
+    const tasks = [
+      { id: "A", name: "A", startDate: base, endDate: new Date(base.getTime() + 86400000), duration: 1 },
+      { id: "P", name: "P", startDate: base, endDate: base, duration: 1 },
+      { id: "Q", name: "Q", startDate: base, endDate: base, duration: 1 },
+    ];
+    const deps = [
+      { predecessorId: "P", successorId: "Q", type: "FS" as const, offset: 0 },
+      { predecessorId: "Q", successorId: "P", type: "FS" as const, offset: 0 },
+    ];
+    const { metrics, cycleDetected, criticalPathIds } = computeCpmSchedule(tasks, deps);
+    expect(cycleDetected).toBe(true);
+    expect(metrics.has("A")).toBe(true);
+    expect(metrics.has("P")).toBe(false);
+    expect(metrics.has("Q")).toBe(false);
+    expect(criticalPathIds).toEqual(["A"]);
+  });
+});

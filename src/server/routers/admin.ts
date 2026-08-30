@@ -496,4 +496,72 @@ export const adminRouter = router({
       });
       return { rule };
     }),
+
+  // ── Nepal holiday calendar (admin-editable) ────────────────────
+  // The Holiday table is the AUTHORITATIVE per-year holiday source for the
+  // working-day calendar (CPM scheduling, EVM PV accrual). Years with no
+  // rows fall back to the compiled constant in nepal-calendar.ts.
+
+  /** List all holidays (optionally one year). Dates are YYYY-MM-DD strings. */
+  holidayList: superAdminProcedure
+    .input(z.object({ year: z.number().int().optional() }))
+    .query(async ({ input }) => {
+      const holidays = await db.holiday.findMany({
+        where: input.year
+          ? { date: { startsWith: String(input.year) } }
+          : undefined,
+        orderBy: { date: "asc" },
+      });
+      return { holidays };
+    }),
+
+  /** Create or update a holiday for a date (upsert on the date). */
+  holidayUpsert: superAdminProcedure
+    .input(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+        name: z.string().min(1).max(200),
+        type: z.enum(["public", "festival", "optional"]).default("public"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const holiday = await db.holiday.upsert({
+        where: { date: input.date },
+        create: { date: input.date, name: input.name, type: input.type },
+        update: { name: input.name, type: input.type },
+      });
+      // Invalidate the calendar cache so scheduling picks this up
+      // immediately (the 5-minute TTL is bypassed with ttl=0).
+      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      await refreshHolidayCache(0);
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.holiday.upsert",
+        entityType: "holiday",
+        entityId: holiday.id,
+        metadata: { date: holiday.date, name: holiday.name, type: holiday.type },
+      });
+      return { holiday };
+    }),
+
+  /** Delete a holiday by date (e.g. removing an incorrect constant date). */
+  holidayDelete: superAdminProcedure
+    .input(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const deleted = await db.holiday.deleteMany({ where: { date: input.date } });
+      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      await refreshHolidayCache(0);
+      await audit({
+        userId: ctx.user.id,
+        action: "admin.holiday.delete",
+        entityType: "holiday",
+        entityId: input.date,
+        metadata: { date: input.date, removed: deleted.count },
+      });
+      return { removed: deleted.count };
+    }),
 });

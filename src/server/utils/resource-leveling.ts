@@ -157,20 +157,26 @@ function findOverlaps(
 /**
  * Simple resource leveling heuristic.
  *
- * For each conflict, try to delay the task that starts later (task2)
- * to start after task1 ends. Only delay if:
- * - The task is not a milestone
- * - The delay doesn't violate dependencies (simplified check)
+ * For each conflict, propose delaying one of the two overlapping tasks so
+ * they no longer overlap (the delayed task starts exactly when the other
+ * ends — end-exclusive, no overshoot).
  *
- * Returns a list of proposed schedule changes:
- * { taskId, newStartDate, newEndDate, delayDays }
+ * Which task gets delayed:
+ * - When `floatByTaskId` is provided (from the CPM backward pass), the task
+ *   with MORE total float is delayed — the one with less slack stays put,
+ *   so the project finish is disturbed as little as possible.
+ * - Without float data, task2 (the later-starting task) is delayed.
  *
- * NOTE: This is a basic heuristic. A full implementation would use
- * critical-path-based leveling with float calculation. This is
- * sufficient for small-to-medium projects.
+ * These are PROPOSALS: the caller (UI / applyLeveling endpoint) reviews
+ * and applies them. Proposals are NOT dependency-checked here — applying
+ * a proposal that violates a dependency is corrected by the CPM forward
+ * pass that `applyLeveling` runs afterwards (the dependency graph always
+ * wins). A full implementation would level critical-path-aware with
+ * resource calendars; this is sufficient for small-to-medium projects.
  */
 export function proposeLeveling(
-  conflicts: ConflictInfo[]
+  conflicts: ConflictInfo[],
+  floatByTaskId?: Map<string, number>
 ): Array<{
   taskId: string;
   taskName: string;
@@ -183,35 +189,66 @@ export function proposeLeveling(
 }> {
   const proposals: Map<string, { taskId: string; taskName: string; taskCode: string | null; currentStart: Date; currentEnd: Date; newStart: Date; newEnd: Date; delayDays: number }> = new Map();
 
-  for (const conflict of conflicts) {
-    // Try to delay task2 to start after task1 ends
-    const _task2End = conflict.task2End;
-    const task1End = conflict.task1End;
+  const DAY_MS = 24 * 60 * 60 * 1000;
 
-    // Calculate how many days to delay task2
-    const delayMs = task1End.getTime() - conflict.task2Start.getTime();
-    const delayDays = Math.ceil(delayMs / (1000 * 60 * 60 * 24)) + 1;
+  /** Shift a task so it starts exactly when `blockerEnd` passes (no overshoot). */
+  function shiftAfter(
+    taskId: string,
+    taskName: string,
+    taskCode: string | null,
+    currentStart: Date,
+    currentEnd: Date,
+    blockerEnd: Date
+  ) {
+    // Delay so that newStart === blockerEnd (end-exclusive: a task ending
+    // Friday does not conflict with one starting Friday).
+    const delayMs = blockerEnd.getTime() - currentStart.getTime();
+    const delayDays = Math.ceil(delayMs / DAY_MS);
+    if (delayDays <= 0) return; // already clear
 
-    if (delayDays <= 0) continue; // No delay needed
-
-    const currentStart = new Date(conflict.task2Start);
-    const currentEnd = new Date(conflict.task2End);
-    const newStart = new Date(currentStart.getTime() + delayDays * 24 * 60 * 60 * 1000);
-    const newEnd = new Date(currentEnd.getTime() + delayDays * 24 * 60 * 60 * 1000);
-
-    // Only keep the maximum proposed delay per task
-    const existing = proposals.get(conflict.task2Id);
+    const existing = proposals.get(taskId);
     if (!existing || delayDays > existing.delayDays) {
-      proposals.set(conflict.task2Id, {
-        taskId: conflict.task2Id,
-        taskName: conflict.task2Name,
-        taskCode: conflict.task2Code,
+      proposals.set(taskId, {
+        taskId,
+        taskName,
+        taskCode,
         currentStart,
         currentEnd,
-        newStart,
-        newEnd,
+        newStart: new Date(currentStart.getTime() + delayDays * DAY_MS),
+        newEnd: new Date(currentEnd.getTime() + delayDays * DAY_MS),
         delayDays,
       });
+    }
+  }
+
+  for (const conflict of conflicts) {
+    // Decide which side to delay: prefer delaying the task with MORE float
+    // (it can slip without moving the project finish). Default: task2.
+    const float1 = floatByTaskId?.get(conflict.task1Id);
+    const float2 = floatByTaskId?.get(conflict.task2Id);
+    const delayTask1 =
+      float1 !== undefined &&
+      float2 !== undefined &&
+      float1 > float2;
+
+    if (delayTask1) {
+      shiftAfter(
+        conflict.task1Id,
+        conflict.task1Name,
+        conflict.task1Code,
+        conflict.task1Start,
+        conflict.task1End,
+        conflict.task2End
+      );
+    } else {
+      shiftAfter(
+        conflict.task2Id,
+        conflict.task2Name,
+        conflict.task2Code,
+        conflict.task2Start,
+        conflict.task2End,
+        conflict.task1End
+      );
     }
   }
 

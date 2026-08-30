@@ -19,7 +19,9 @@ export type DomainEventType =
   | "safety.incident_created"
   | "expense.created"
   | "payment.created"
-  | "material.po_created";
+  | "material.po_created"
+  /** Generic lifecycle transition (state machine) — model + from/to in metadata. */
+  | "lifecycle.transitioned";
 
 export type DomainEventPayload = {
   type: DomainEventType;

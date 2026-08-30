@@ -4,24 +4,26 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
+import {
+  checkLoginRate,
+  recordLoginAttempt,
+  clientIpFromHeaders,
+} from "@/lib/login-rate-limit";
 
 const LoginSchema = z.object({
   email: z.string().min(3).toLowerCase().trim(),
   password: z.string().min(1),
 });
 
-// Rate-limit by IP AND by email in memory.
-//
-// LIMITATION: this is an in-memory rate limiter — it resets on every
-// cold start (Vercel serverless) and doesn't share state across
-// instances. A distributed attacker rotating IPs can bypass it. For
-// production-grade protection, use a Redis-backed rate limiter (TODO).
-// We track BOTH IP and email so an attacker rotating IPs but hammering
-// a single email gets rate-limited on the email dimension.
+// ── Rate limiting ───────────────────────────────────────────────────────────
+// Layer 1 (in-memory, per-instance): cheap burst protection — survives a
+//   DB outage and absorbs hammering before any query runs.
+// Layer 2 (LoginAttempt table, shared): the source of truth — works across
+//   cold starts and every serverless instance. See lib/login-rate-limit.ts.
 const attempts = new Map<string, { count: number; firstAt: number }>();
 const WINDOW_MS = 60_000;
-const MAX_ATTEMPTS_IP = 10;   // max 10 attempts per IP per minute
-const MAX_ATTEMPTS_EMAIL = 5; // max 5 attempts per email per minute (stricter)
+const MAX_ATTEMPTS_IP = 10;   // max 10 attempts per IP per minute (L1)
+const MAX_ATTEMPTS_EMAIL = 5; // max 5 attempts per email per minute (L1)
 
 function checkRateLimit(key: string, maxAttempts: number): boolean {
   const now = Date.now();
@@ -39,8 +41,7 @@ function checkRateLimit(key: string, maxAttempts: number): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = clientIpFromHeaders(req.headers);
 
     // Pre-parse the body to extract email for per-email rate limiting.
     const body = await req.json();
@@ -48,9 +49,15 @@ export async function POST(req: NextRequest) {
     const emailKey = `email:${email}`;
     const ipKey = `ip:${ip}`;
 
-    // Check BOTH IP and email rate limits. Either hitting the limit blocks.
+    // L1: per-instance burst guard (free, no DB round-trip).
     if (!checkRateLimit(ipKey, MAX_ATTEMPTS_IP) || !checkRateLimit(emailKey, MAX_ATTEMPTS_EMAIL)) {
       return badRequest("Too many attempts. Please wait a minute.");
+    }
+
+    // L2: durable, cross-instance limiter (LoginAttempt table).
+    const verdict = await checkLoginRate(email, ip);
+    if (!verdict.allowed) {
+      return badRequest(verdict.reason ?? "Too many attempts. Please wait before retrying.");
     }
 
     const data = LoginSchema.parse(body);
@@ -58,7 +65,13 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({
       where: { email: data.email },
     });
-    if (!user || !(await bcrypt.compare(data.password, user.passwordHash))) {
+    const passwordOk =
+      user && (await bcrypt.compare(data.password, user.passwordHash));
+
+    // Record the attempt outcome for the durable limiter (never throws).
+    await recordLoginAttempt(data.email, ip, !!passwordOk);
+
+    if (!user || !passwordOk) {
       return badRequest("Invalid email or password.");
     }
 

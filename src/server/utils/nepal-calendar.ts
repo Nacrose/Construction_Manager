@@ -87,8 +87,119 @@ export const NEPAL_HOLIDAYS: Holiday[] = [
   { date: "2026-11-12", name: "Tihar Day 5 (Bhai Tika)", type: "festival" },
 ];
 
-// Build a Set of holiday date strings for fast lookup
-const HOLIDAY_SET = new Set(NEPAL_HOLIDAYS.map(h => h.date));
+// (The compiled constant stays exported above; holiday lookups now go
+// through the year-aware cache below, which prefers DB-managed rows.)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DB-backed holiday overrides (admin-editable)
+// ─────────────────────────────────────────────────────────────────────────────
+// The compiled constant above is a FALLBACK: it is approximate (lunar-calendar
+// festivals drift a few days per year) and ends at 2026 — any 2027+ schedule
+// would silently plan through Dashain. Administrators can maintain the
+// `Holiday` table (seeded from this constant by migration 20260830070000);
+// when the DB has ANY rows for a given year, those rows are AUTHORITATIVE
+// for that year (so wrong constant dates can be corrected, not just added to).
+
+export type HolidayRow = { date: string; name: string };
+
+type YearHolidays = { dates: Set<string>; names: Map<string, string> };
+
+/** Constant-derived holidays grouped by year (computed once at module load). */
+const CONSTANT_BY_YEAR = new Map<number, YearHolidays>();
+for (const h of NEPAL_HOLIDAYS) {
+  const year = Number(h.date.slice(0, 4));
+  let entry = CONSTANT_BY_YEAR.get(year);
+  if (!entry) {
+    entry = { dates: new Set(), names: new Map() };
+    CONSTANT_BY_YEAR.set(year, entry);
+  }
+  entry.dates.add(h.date);
+  entry.names.set(h.date, h.name);
+}
+
+/** DB rows grouped by year — authoritative for any year it covers. */
+const DB_BY_YEAR = new Map<number, YearHolidays>();
+const EMPTY_YEAR: YearHolidays = { dates: new Set(), names: new Map() };
+let dbCacheLoadedAt = 0;
+let dbCachePromise: Promise<void> | null = null;
+const DB_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Refresh the DB holiday cache. Cheap no-op when the TTL hasn't elapsed.
+ * Called by every DB-aware scheduling path (CPM recalculation, EVM) so a
+ * fresh process picks up admin edits within one TTL window.
+ *
+ * Fail-soft: on any error (table missing pre-migration, DB hiccup) the
+ * compiled constant remains the source of truth.
+ */
+export async function refreshHolidayCache(
+  ttlMs = DB_CACHE_TTL_MS,
+  client?: { holiday: { findMany(args: unknown): Promise<HolidayRow[]> } }
+): Promise<void> {
+  if (Date.now() - dbCacheLoadedAt < ttlMs) return;
+  if (dbCachePromise) return dbCachePromise;
+  dbCachePromise = (async () => {
+    try {
+      // Prefer an explicitly-passed client: callers inside an interactive
+      // transaction MUST read on that transaction's connection (a pooled
+      // read can deadlock on a size-1 pool, and sees a different snapshot).
+      // Otherwise lazy dynamic import: keeps this module importable
+      // without a DATABASE_URL (pure unit tests) and avoids load-time cycles.
+      const reader =
+        client ??
+        (await import("@/lib/db")).db as unknown as { holiday: { findMany(args: unknown): Promise<HolidayRow[]> } };
+      const rows: HolidayRow[] = await reader.holiday.findMany({
+        select: { date: true, name: true },
+      });
+      const byYear = new Map<number, YearHolidays>();
+      for (const r of rows) {
+        const year = Number(r.date.slice(0, 4));
+        if (!Number.isFinite(year) || year < 2000) continue;
+        let entry = byYear.get(year);
+        if (!entry) {
+          entry = { dates: new Set(), names: new Map() };
+          byYear.set(year, entry);
+        }
+        entry.dates.add(r.date);
+        entry.names.set(r.date, r.name);
+      }
+      DB_BY_YEAR.clear();
+      for (const [y, entry] of byYear) DB_BY_YEAR.set(y, entry);
+    } catch {
+      // Fail-soft: keep whatever cache (likely empty) we already have.
+    } finally {
+      dbCacheLoadedAt = Date.now();
+      dbCachePromise = null;
+    }
+  })();
+  return dbCachePromise;
+}
+
+/** Effective holidays for a year: DB rows when present, else the constant. */
+function yearHolidays(year: number): YearHolidays {
+  // `has` (not the map lookup) is the authority test: a year the admin
+  // deliberately emptied in the DB stays empty — no constant resurrection.
+  if (DB_BY_YEAR.has(year)) return DB_BY_YEAR.get(year) ?? EMPTY_YEAR;
+  return CONSTANT_BY_YEAR.get(year) ?? EMPTY_YEAR;
+}
+
+/** Test seam: inject/override the DB-backed cache without a database. */
+export function __setHolidayCacheForTests(rows: HolidayRow[] | null): void {
+  DB_BY_YEAR.clear();
+  if (rows) {
+    for (const r of rows) {
+      const year = Number(r.date.slice(0, 4));
+      let entry = DB_BY_YEAR.get(year);
+      if (!entry) {
+        entry = { dates: new Set(), names: new Map() };
+        DB_BY_YEAR.set(year, entry);
+      }
+      entry.dates.add(r.date);
+      entry.names.set(r.date, r.name);
+    }
+  }
+  dbCacheLoadedAt = rows ? Date.now() : 0;
+}
 
 /**
  * Check if a date is a working day in Nepal.
@@ -101,7 +212,7 @@ export function isWorkingDay(date: Date): boolean {
   if (dayOfWeek === 6) return false; // Saturday is weekend in Nepal
 
   const dateStr = date.toISOString().slice(0, 10);
-  if (HOLIDAY_SET.has(dateStr)) return false;
+  if (yearHolidays(Number(dateStr.slice(0, 4))).dates.has(dateStr)) return false;
 
   return true;
 }
@@ -148,7 +259,7 @@ export function getHolidaysInRange(start: Date, end: Date): Holiday[] {
  */
 export function isHoliday(date: Date): boolean {
   const dateStr = date.toISOString().slice(0, 10);
-  return HOLIDAY_SET.has(dateStr);
+  return yearHolidays(Number(dateStr.slice(0, 4))).dates.has(dateStr);
 }
 
 /**
@@ -156,5 +267,5 @@ export function isHoliday(date: Date): boolean {
  */
 export function getHolidayName(date: Date): string | null {
   const dateStr = date.toISOString().slice(0, 10);
-  return NEPAL_HOLIDAYS.find(h => h.date === dateStr)?.name ?? null;
+  return yearHolidays(Number(dateStr.slice(0, 4))).names.get(dateStr) ?? null;
 }
