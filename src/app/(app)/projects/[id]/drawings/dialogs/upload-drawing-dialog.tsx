@@ -12,7 +12,9 @@ import {
 import { Loader2, Upload, FileImage } from "lucide-react";
 import { toast } from "sonner";
 
-export function UploadDrawingDialog({ projectId, ganttTasks, onDone }: { projectId: string; ganttTasks: any[]; onDone: () => void }) {
+export function UploadDrawingDialog({ projectId, ganttTasks = [], onDone }: { projectId?: string; ganttTasks?: any[]; onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const [selectedProjectId, setSelectedProjectId] = useState(projectId || "");
   const [number, setNumber] = useState("");
   const [title, setTitle] = useState("");
   const [discipline, setDiscipline] = useState("");
@@ -21,8 +23,17 @@ export function UploadDrawingDialog({ projectId, ganttTasks, onDone }: { project
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { data: projectsData } = trpc.project.list.useQuery(undefined, {
+    enabled: !projectId,
+  });
+  const projects = projectsData?.projects || [];
+
   const createMut = trpc.document.createDrawing.useMutation({
-    onSuccess: () => { toast.success("Drawing uploaded"); onDone(); },
+    onSuccess: () => {
+      toast.success("Drawing uploaded successfully");
+      utils.document.listDrawings.invalidate();
+      onDone();
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -33,7 +44,10 @@ export function UploadDrawingDialog({ projectId, ganttTasks, onDone }: { project
     setFile(f);
   };
 
+  const targetProjectId = projectId || selectedProjectId;
+
   const handleSubmit = async () => {
+    if (!targetProjectId) { toast.error("Please select a target project"); return; }
     if (!number || !title) { toast.error("Number and title required"); return; }
     let fileData: string | undefined, fileName: string | undefined, fileType: string | undefined;
     if (file) {
@@ -44,13 +58,43 @@ export function UploadDrawingDialog({ projectId, ganttTasks, onDone }: { project
       });
       fileName = file.name; fileType = file.type;
     }
-    createMut.mutate({ projectId, number, title, discipline: discipline || undefined, revision, ganttTaskId: ganttTaskId === "none" ? undefined : ganttTaskId, fileData, fileName, fileType });
+    createMut.mutate({
+      projectId: targetProjectId,
+      number,
+      title,
+      discipline: discipline || undefined,
+      revision,
+      ganttTaskId: ganttTaskId === "none" ? undefined : ganttTaskId,
+      fileData,
+      fileName,
+      fileType,
+    });
   };
 
   return (
     <DialogContent className="sm:max-w-md">
-      <DialogHeader><DialogTitle>Upload Drawing</DialogTitle><DialogDescription>Upload a new drawing with revision tracking and task reference.</DialogDescription></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>Upload Master Drawing (नक्सा दर्ता)</DialogTitle>
+        <DialogDescription>Upload site drawing blueprint with revision tracking.</DialogDescription>
+      </DialogHeader>
       <div className="space-y-3 py-2">
+        {!projectId && (
+          <div className="space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <Label className="text-xs font-semibold text-blue-300">Target Project (आयोजना) *</Label>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                <SelectValue placeholder="Select target project..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                {projects.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5"><Label className="text-xs">Drawing Number</Label><Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="DWG-C-001" className="h-9 text-sm font-mono" /></div>
           <div className="space-y-1.5"><Label className="text-xs">Revision</Label><Input value={revision} onChange={(e) => setRevision(e.target.value)} placeholder="A" className="h-9 text-sm font-mono" /></div>

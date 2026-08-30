@@ -662,6 +662,8 @@ export const materialTransactionProcedures = {
         miti: z.string().optional(),
         supplierName: z.string().min(1),
         supplierPan: z.string().optional().nullable(),
+        billedToEntity: z.enum(["primary_org", "dedicated_jv", "lead_partner"]).default("primary_org").optional(),
+        recipientPan: z.string().optional().nullable(),
         // VAT & Tax specifications
         isVatBill: z.boolean().default(false),
         billStatus: z.enum(["received", "pending", "non_vat"]).default("pending"),
@@ -765,6 +767,8 @@ export const materialTransactionProcedures = {
             remarks: input.remarks || `Direct delivery from ${input.supplierName}`,
             supplierInvoiceNo: input.invoiceNumber || input.challanNo || null,
             supplierPan: input.supplierPan || null,
+            billedToEntity: input.billedToEntity || "primary_org",
+            recipientPan: input.recipientPan?.trim() || null,
             vatPercent: input.isVatBill ? input.vatPercent : 0,
             vatAmount,
             tdsPercent: input.isTdsDeductible ? input.tdsPercent : 0,

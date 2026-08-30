@@ -37,14 +37,15 @@ interface DrawingPin {
 }
 
 export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
-  drawingId: string; projectId: string; onClose: () => void; onChanged: () => void;
+  drawingId: string; projectId?: string; onClose: () => void; onChanged?: () => void;
 }) {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.document.getDrawing.useQuery({ drawingId });
   const drawing = data?.drawing;
+  const activeProjectId = projectId || drawing?.projectId || "";
 
   const deleteMut = trpc.document.deleteDrawing.useMutation({
-    onSuccess: () => { toast.success("Drawing deleted"); onClose(); onChanged(); },
+    onSuccess: () => { toast.success("Drawing deleted"); onClose(); onChanged?.(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -341,7 +342,7 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
           {/* Right Side-by-Side Comparator Pane */}
           {splitComparator && (
             <div className="w-80 shrink-0 h-full">
-              <DrawingComparatorPane projectId={projectId} />
+              <DrawingComparatorPane projectId={activeProjectId} />
             </div>
           )}
 
@@ -364,9 +365,9 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
           drawingId={drawing.id}
           drawingNumber={drawing.number}
           currentRevision={drawing.revision}
-          projectId={projectId}
+          projectId={activeProjectId}
           onClose={() => setShowRevDialog(false)}
-          onDone={() => { setShowRevDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
+          onDone={() => { setShowRevDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged?.(); }}
         />
       )}
 
@@ -374,9 +375,9 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
         <ApproveDrawingDialog
           drawingId={drawing.id}
           drawingNumber={drawing.number}
-          projectId={projectId}
+          projectId={activeProjectId}
           onClose={() => setShowApproveDialog(false)}
-          onDone={() => { setShowApproveDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
+          onDone={() => { setShowApproveDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged?.(); }}
         />
       )}
 
@@ -384,20 +385,20 @@ export function DrawingViewer({ drawingId, projectId, onClose, onChanged }: {
         <CreateRfiFromDrawingDialog
           drawingId={drawing.id}
           drawingNumber={drawing.number}
-          projectId={projectId}
+          projectId={activeProjectId}
           pinX={lastPin?.x}
           pinY={lastPin?.y}
           onClose={() => setShowRfiDialog(false)}
-          onDone={() => { setShowRfiDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
+          onDone={() => { setShowRfiDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged?.(); }}
         />
       )}
 
       {showEditDialog && drawing && (
         <EditDrawingDialog
           drawing={{ id: drawing.id, title: drawing.title, discipline: drawing.discipline, status: drawing.status, scaleValue: drawing.scaleValue, scaleUnit: drawing.scaleUnit }}
-          projectId={projectId}
+          projectId={activeProjectId}
           onClose={() => setShowEditDialog(false)}
-          onDone={() => { setShowEditDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged(); }}
+          onDone={() => { setShowEditDialog(false); utils.document.getDrawing.invalidate({ drawingId }); onChanged?.(); }}
         />
       )}
 

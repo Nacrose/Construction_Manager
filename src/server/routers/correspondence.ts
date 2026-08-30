@@ -64,10 +64,10 @@ const UpdateReplySchema = z.object({
 });
 
 export const correspondenceRouter = router({
-  /** List all correspondence for a project with optional filters. */
+  /** List all correspondence for a project (or org-wide) with optional filters. */
   list: protectedProcedure
     .input(z.object({
-      projectId: z.string(),
+      projectId: z.string().optional(),
       direction: z.string().optional(), // incoming | outgoing
       category: z.string().optional(),
       replyStatus: z.string().optional(),
@@ -76,9 +76,19 @@ export const correspondenceRouter = router({
       overdue: z.boolean().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      const where: any = {};
 
-      const where: any = { projectId: input.projectId };
+      if (input.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+        where.projectId = input.projectId;
+      } else {
+        const orgId = ctx.user.organizationId;
+        if (!orgId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "User is not assigned to an organization" });
+        }
+        where.project = { organizationId: orgId };
+      }
+
       if (input.direction) where.direction = input.direction;
       if (input.category) where.category = input.category;
       if (input.replyStatus) where.replyStatus = input.replyStatus;
@@ -99,6 +109,9 @@ export const correspondenceRouter = router({
 
       const letters = await db.correspondence.findMany({
         where,
+        include: {
+          project: { select: { id: true, name: true, code: true } },
+        },
         orderBy: { date: "desc" },
       });
 

@@ -28,6 +28,8 @@ const DirectVatBillSchema = z.object({
   vatPercent: z.number().min(0).max(100).default(13),
   tdsPercent: z.number().min(0).max(100).default(0),
   category: z.string().optional().nullable(),
+  billedToEntity: z.enum(["primary_org", "dedicated_jv", "lead_partner"]).default("primary_org"),
+  recipientPan: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   scannedBillUrl: safeUrlSchema.optional().nullable(),
   scannedBillName: z.string().optional().nullable(),
@@ -41,6 +43,7 @@ export const vatRegisterRouter = router({
         projectId: z.string(),
         fromDate: z.string().optional(),
         toDate: z.string().optional(),
+        entityFilter: z.enum(["all", "primary_org", "dedicated_jv", "lead_partner"]).default("all").optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -51,6 +54,7 @@ export const vatRegisterRouter = router({
       if (input.toDate) dateFilter.lte = new Date(input.toDate);
 
       const hasDateFilter = input.fromDate || input.toDate;
+      const entityFilter = input.entityFilter && input.entityFilter !== "all" ? input.entityFilter : undefined;
 
       // 1. Material Inwards (GRNs)
       const materialTxns = await db.materialTransaction.findMany({
@@ -58,6 +62,7 @@ export const vatRegisterRouter = router({
           projectId: input.projectId,
           type: "receive",
           ...(hasDateFilter ? { date: dateFilter } : {}),
+          ...(entityFilter ? { billedToEntity: entityFilter } : {}),
         },
         include: {
           material: { select: { name: true, code: true, unit: true } },
@@ -97,6 +102,7 @@ export const vatRegisterRouter = router({
           projectId: input.projectId,
           billType: { in: ["purchase", "expense", "capital_goods", "import"] },
           ...(hasDateFilter ? { billDate: dateFilter } : {}),
+          ...(entityFilter ? { billedToEntity: entityFilter } : {}),
         },
         orderBy: { billDate: "desc" },
       });
@@ -551,6 +557,8 @@ export const vatRegisterRouter = router({
           tdsAmount,
           netPayable,
           category: input.category || null,
+          billedToEntity: input.billedToEntity || "primary_org",
+          recipientPan: input.recipientPan?.trim() || null,
           description: input.description || null,
           scannedBillUrl: input.scannedBillUrl || null,
           scannedBillName: input.scannedBillName || null,

@@ -247,6 +247,42 @@ export function CommandPalette() {
         action: () => router.push("/projects"),
         keywords: ["projects", "list"],
       },
+      {
+        id: "nav-drawings",
+        category: "Navigation",
+        title: "Jump to Drawings Vault (Master Blueprints)",
+        subtitle: "/drawings",
+        icon: Layers,
+        action: () => router.push("/drawings"),
+        keywords: ["drawings", "blueprints", "cad", "revisions", "plans"],
+      },
+      {
+        id: "nav-correspondence",
+        category: "Navigation",
+        title: "Jump to Correspondence Register (Letters)",
+        subtitle: "/correspondence",
+        icon: FileText,
+        action: () => router.push("/correspondence"),
+        keywords: ["letters", "correspondence", "notices", "eot", "chalan", "darta"],
+      },
+      {
+        id: "nav-inventory",
+        category: "Navigation",
+        title: "Jump to Multi-Project Inventory Matrix",
+        subtitle: "/inventory",
+        icon: Truck,
+        action: () => router.push("/inventory"),
+        keywords: ["inventory", "stock", "materials", "warehouse"],
+      },
+      {
+        id: "nav-finance",
+        category: "Navigation",
+        title: "Jump to Finance & Accounts Hub",
+        subtitle: "/finance",
+        icon: ReceiptText,
+        action: () => router.push("/finance"),
+        keywords: ["finance", "accounting", "daybook", "cashbook", "guarantees"],
+      },
     ];
 
     if (projectId) {

@@ -85,7 +85,10 @@
   },
   "planned": {
     "phase1_org_money": [],
-    "phase2_org_rest": [],
+    "phase2_org_rest": [
+      "EquipmentTransfer",
+      "InterSiteTransfer"
+    ],
     "phase3m_project_money": [],
     "phase3a_project_procurement_materials": [],
     "phase3b_project_hr_equipment": [],

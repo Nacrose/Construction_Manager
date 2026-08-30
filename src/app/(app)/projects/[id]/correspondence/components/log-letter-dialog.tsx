@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { CATEGORIES, PARTIES } from "./constants";
 
-export function LogLetterDialog({ projectId, onDone }: { projectId: string; onDone: () => void }) {
+export function LogLetterDialog({ projectId, onDone }: { projectId?: string; onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const [selectedProjectId, setSelectedProjectId] = useState(projectId || "");
   const [direction, setDirection] = useState<"incoming" | "outgoing">("incoming");
   const [theirRef, setTheirRef] = useState("");
   const [fromParty, setFromParty] = useState("Client");
@@ -31,8 +33,17 @@ export function LogLetterDialog({ projectId, onDone }: { projectId: string; onDo
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { data: projectsData } = trpc.project.list.useQuery(undefined, {
+    enabled: !projectId,
+  });
+  const projects = projectsData?.projects || [];
+
   const createMut = trpc.correspondence.create.useMutation({
-    onSuccess: () => { toast.success("Letter logged"); onDone(); },
+    onSuccess: () => {
+      toast.success("Letter logged successfully");
+      utils.correspondence.list.invalidate();
+      onDone();
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -43,7 +54,10 @@ export function LogLetterDialog({ projectId, onDone }: { projectId: string; onDo
     setFile(f);
   };
 
+  const targetProjectId = projectId || selectedProjectId;
+
   const handleSubmit = async () => {
+    if (!targetProjectId) { toast.error("Please select a project"); return; }
     if (!subject) { toast.error("Subject required"); return; }
     let fileData: string | undefined, fileName: string | undefined, fileType: string | undefined;
     if (file) {
@@ -56,7 +70,7 @@ export function LogLetterDialog({ projectId, onDone }: { projectId: string; onDo
       fileType = file.type;
     }
     createMut.mutate({
-      projectId, direction, theirRef: theirRef || undefined, subject,
+      projectId: targetProjectId, direction, theirRef: theirRef || undefined, subject,
       category: category as any, letterType,
       fromParty, fromName: fromName || undefined, toParty, toName: toName || undefined,
       actionAssignedTo: letterType === "actionable" ? (actionAssignedTo || undefined) : undefined,
@@ -69,10 +83,27 @@ export function LogLetterDialog({ projectId, onDone }: { projectId: string; onDo
   return (
     <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Log Letter</DialogTitle>
-        <DialogDescription>Log a formal letter with full traceability.</DialogDescription>
+        <DialogTitle>Log Letter (दर्ता / चलानी)</DialogTitle>
+        <DialogDescription>Log a formal incoming/outgoing site letter with full audit tracking.</DialogDescription>
       </DialogHeader>
       <div className="space-y-3 py-2">
+        {!projectId && (
+          <div className="space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <Label className="text-xs font-semibold text-blue-300">Target Project (आयोजना) *</Label>
+            <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+              <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                <SelectValue placeholder="Select target project..." />
+              </SelectTrigger>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                {projects.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Direction</Label>

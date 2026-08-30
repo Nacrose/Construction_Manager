@@ -27,6 +27,7 @@ import {
 
 export type MaterialTabId =
   | "inventory"
+  | "transfers"
   | "requisitions"
   | "pos"
   | "stores"
@@ -51,6 +52,8 @@ export function MaterialsTabHeader({
   onOpenCreateReq,
   onOpenCreatePO,
   onOpenAddMaterial,
+  onOpenQuickBuy,
+  onOpenTransfer,
 }: {
   activeTab: MaterialTabId;
   setActiveTab: (tab: MaterialTabId) => void;
@@ -66,9 +69,12 @@ export function MaterialsTabHeader({
   onOpenCreateReq: () => void;
   onOpenCreatePO: () => void;
   onOpenAddMaterial: () => void;
+  onOpenQuickBuy?: () => void;
+  onOpenTransfer?: () => void;
 }) {
   const tabs = [
     { id: "inventory" as const, label: "Inventory", Icon: Package, badge: totalStockItems },
+    { id: "transfers" as const, label: "Inter-Site Transfers", Icon: ArrowUpDown },
     {
       id: "requisitions" as const,
       label: "Requisitions",
@@ -156,6 +162,35 @@ export function MaterialsTabHeader({
               <DropdownMenuLabel className="text-[11px] text-muted-foreground font-semibold px-2 py-1">
                 Stock & Procurement Actions
               </DropdownMenuLabel>
+              {onOpenQuickBuy && (
+                <DropdownMenuItem
+                  onClick={onOpenQuickBuy}
+                  className="cursor-pointer gap-2 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold rounded-lg"
+                >
+                  <Plus className="h-4 w-4 text-emerald-400" />
+                  <div>
+                    <div className="font-bold text-white">⚡ Quick Buy Material (खरिद)</div>
+                    <div className="text-[10px] text-gray-400">
+                      Direct purchase &amp; auto-post to Day Book
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              )}
+              {onOpenTransfer && (
+                <DropdownMenuItem
+                  onClick={onOpenTransfer}
+                  className="cursor-pointer gap-2 text-xs py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold rounded-lg"
+                >
+                  <ArrowUpDown className="h-4 w-4 text-blue-400" />
+                  <div>
+                    <div className="font-bold text-white">🔄 Inter-Site Transfer (स्थानान्तरण)</div>
+                    <div className="text-[10px] text-gray-400">
+                      Move surplus stock to/from another site
+                    </div>
+                  </div>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={onOpenReceiveTxn}
                 className="cursor-pointer gap-2 text-xs py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium rounded-lg"

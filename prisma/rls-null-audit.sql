@@ -8,6 +8,8 @@ SELECT 'CompanyBankAccount' AS tbl, count(*) AS null_org_rows FROM "CompanyBankA
 UNION ALL
 SELECT 'DelegationRule' AS tbl, count(*) AS null_org_rows FROM "DelegationRule" WHERE "organizationId" IS NULL
 UNION ALL
+SELECT 'EquipmentTransfer' AS tbl, count(*) AS null_org_rows FROM "EquipmentTransfer" WHERE "organizationId" IS NULL
+UNION ALL
 SELECT 'FiscalYearLock' AS tbl, count(*) AS null_org_rows FROM "FiscalYearLock" WHERE "organizationId" IS NULL
 UNION ALL
 SELECT 'GanttTaskTemplate' AS tbl, count(*) AS null_org_rows FROM "GanttTaskTemplate" WHERE "organizationId" IS NULL
@@ -15,6 +17,8 @@ UNION ALL
 SELECT 'GlobalPresetAnalysis' AS tbl, count(*) AS null_org_rows FROM "GlobalPresetAnalysis" WHERE "organizationId" IS NULL
 UNION ALL
 SELECT 'HeadOfficeExpense' AS tbl, count(*) AS null_org_rows FROM "HeadOfficeExpense" WHERE "organizationId" IS NULL
+UNION ALL
+SELECT 'InterSiteTransfer' AS tbl, count(*) AS null_org_rows FROM "InterSiteTransfer" WHERE "organizationId" IS NULL
 UNION ALL
 SELECT 'JournalEntry' AS tbl, count(*) AS null_org_rows FROM "JournalEntry" WHERE "organizationId" IS NULL
 UNION ALL

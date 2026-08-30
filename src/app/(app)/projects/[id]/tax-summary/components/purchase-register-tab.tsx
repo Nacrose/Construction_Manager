@@ -34,9 +34,13 @@ export function PurchaseRegisterTab({
   canWrite?: boolean;
 }) {
   const [filterMissingOnly, setFilterMissingOnly] = useState(false);
+  const [entityFilter, setEntityFilter] = useState<"all" | "primary_org" | "dedicated_jv" | "lead_partner">("all");
   const [selectedScan, setSelectedScan] = useState<{ url: string; name: string } | null>(null);
 
-  const { data, isLoading } = trpc.vatRegister.getPurchaseRegister.useQuery({ projectId });
+  const { data, isLoading } = trpc.vatRegister.getPurchaseRegister.useQuery({
+    projectId,
+    entityFilter,
+  });
 
   const getSourceIcon = (source: string) => {
     switch (source) {
@@ -194,7 +198,29 @@ export function PurchaseRegisterTab({
               खरिद खाता (VAT Purchase Register - Schedule 8)
             </h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-muted p-0.5 rounded-lg border text-xs">
+              {[
+                { id: "all" as const, label: "All Bills" },
+                { id: "primary_org" as const, label: "Primary Org" },
+                { id: "dedicated_jv" as const, label: "Dedicated JV" },
+                { id: "lead_partner" as const, label: "Lead Partner" },
+              ].map((ent) => (
+                <button
+                  key={ent.id}
+                  type="button"
+                  onClick={() => setEntityFilter(ent.id)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                    entityFilter === ent.id
+                      ? "bg-background text-foreground font-bold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {ent.label}
+                </button>
+              ))}
+            </div>
+
             <Button
               size="sm"
               variant={filterMissingOnly ? "default" : "outline"}

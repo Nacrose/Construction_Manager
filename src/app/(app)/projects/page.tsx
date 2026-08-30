@@ -202,6 +202,7 @@ function CreateProjectDialog({
   const [client, setClient] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [operationalPreset, setOperationalPreset] = useState<"record_keeper" | "lean" | "enterprise">("record_keeper");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -211,11 +212,12 @@ function CreateProjectDialog({
       client: client || undefined,
       location: location || undefined,
       description: description || undefined,
+      operationalPreset,
     });
   }
 
   return (
-    <DialogContent className="sm:max-w-[620px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+    <DialogContent className="sm:max-w-[650px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
           <FolderKanban className="h-5 w-5 text-emerald-400" /> Create New Contractor Project Site
@@ -225,6 +227,34 @@ function CreateProjectDialog({
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4 pt-2">
+        {/* Preset Selector */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-gray-200">Contractor Scale & Operational Mode *</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "record_keeper" as const, icon: "📒", title: "Record-Keeper", sub: "Actuals only: Day Book, materials & labor." },
+              { key: "lean" as const, icon: "⚡", title: "Lean Builder", sub: "Actuals + Daily Lookahead & Punch Lists." },
+              { key: "enterprise" as const, icon: "🏛️", title: "Full Enterprise", sub: "CPM Gantt, 3-Way Match & JV Consortia." },
+            ].map((p) => (
+              <div
+                key={p.key}
+                onClick={() => setOperationalPreset(p.key)}
+                className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                  operationalPreset === p.key
+                    ? "border-emerald-500 bg-emerald-950/30 text-white ring-1 ring-emerald-500/40"
+                    : "border-white/10 bg-[#161d26] text-gray-400 hover:border-white/20 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                  <span>{p.icon}</span>
+                  <span>{p.title}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1 leading-tight">{p.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="p-name" className="text-xs font-semibold">Project Name *</Label>

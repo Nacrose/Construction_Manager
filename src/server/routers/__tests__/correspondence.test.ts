@@ -119,6 +119,22 @@ describe("correspondence.list", () => {
     await expectTRPCError(caller.list({ projectId: "p-1" }), "FORBIDDEN");
     expect(anyDb.correspondence.findMany).not.toHaveBeenCalled();
   });
+
+  it("lists org-wide correspondence across projects when projectId is omitted", async () => {
+    anyDb.correspondence.findMany.mockResolvedValue([]);
+    const caller = createCaller(correspondenceRouter, USER);
+
+    await caller.list({});
+    expect(anyDb.correspondence.findMany).toHaveBeenCalledWith({
+      where: {
+        project: { organizationId: USER.organizationId },
+      },
+      include: {
+        project: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { date: "desc" },
+    });
+  });
 });
 
 // ─── get / getThread ────────────────────────────────────────────────────────

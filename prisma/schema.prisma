@@ -73,6 +73,8 @@ model Organization {
   headOfficeExpenses   HeadOfficeExpense[]
   bankGuarantees       BankGuarantee[]
   delegationRules      DelegationRule[]
+  interSiteTransfers   InterSiteTransfer[]
+  equipmentTransfers   EquipmentTransfer[]
 
   @@index([status])
 }
@@ -326,8 +328,12 @@ model User {
   leaveApprovedBy      LeaveRequest[]          @relation("LeaveApprovedBy")
   leaveCreatedBy       LeaveRequest[]          @relation("LeaveCreatedBy")
   expensesApprovedBy   SiteExpense[]           @relation("ExpenseApprovedBy")
-  expensesCreatedBy    SiteExpense[]           @relation("ExpenseCreatedBy")
-  subBillsCreatedBy    SubcontractorBill[]     @relation("SubBillCreatedBy")
+  expensesCreatedBy            SiteExpense[]           @relation("ExpenseCreatedBy")
+  subBillsCreatedBy            SubcontractorBill[]     @relation("SubBillCreatedBy")
+  dispatchedTransfers          InterSiteTransfer[]     @relation("DispatchedByUser")
+  receivedTransfers            InterSiteTransfer[]     @relation("ReceivedByUser")
+  dispatchedEquipmentTransfers EquipmentTransfer[]     @relation("DispatchedEquipmentByUser")
+  receivedEquipmentTransfers   EquipmentTransfer[]     @relation("ReceivedEquipmentByUser")
 
   @@index([email])
   @@index([organizationId])
@@ -467,8 +473,13 @@ model Project {
   plantBatchTickets    PlantBatchTicket[]
   plantDailyLogs       PlantDailyLog[]
   ganttTemplates       GanttTaskTemplate[]
-  bankGuarantees       BankGuarantee[]
-  jvAgreement          JvPartnerAgreement?
+  bankGuarantees               BankGuarantee[]
+  jvAgreement                  JvPartnerAgreement?
+  operationalPreset            String                  @default("record_keeper") // "record_keeper" | "lean" | "enterprise"
+  outboundTransfers            InterSiteTransfer[]     @relation("OriginProjectTransfers")
+  inboundTransfers             InterSiteTransfer[]     @relation("DestinationProjectTransfers")
+  outboundEquipmentTransfers   EquipmentTransfer[]     @relation("OriginEquipmentTransfers")
+  inboundEquipmentTransfers    EquipmentTransfer[]     @relation("DestinationEquipmentTransfers")
 
   @@unique([organizationId, code])
   @@index([status])
@@ -1360,6 +1371,7 @@ model Material {
   purchaseOrderItems PurchaseOrderItem[]
   boqIngredients     BoqIngredient[]
   requisitionItems   PurchaseRequisitionItem[]
+  interSiteTransfers InterSiteTransfer[]
 
   @@index([projectId])
   @@index([catalogMaterialId])
@@ -1394,6 +1406,8 @@ model MaterialTransaction {
   netPayable Decimal @db.Decimal(15, 2) @default(0) // totalWithVat - tdsAmount
   supplierInvoiceNo String? // supplier's invoice/bill number
   supplierPan       String? // supplier's PAN/Tax ID at time of transaction
+  billedToEntity    String   @default("primary_org") // primary_org | dedicated_jv | lead_partner
+  recipientPan      String?
 
   // Store Location & Transfer tracking
   storeLocationId       String?
@@ -1519,6 +1533,7 @@ model Equipment {
   resourceAssignments ResourceAssignment[]
   rentals             EquipmentRental[]
   plants              Plant[]
+  transfers           EquipmentTransfer[]
 
   @@index([projectId])
 }
@@ -2175,6 +2190,8 @@ model VatBill {
   tdsAmount Decimal @db.Decimal(15, 2) @default(0)
   netPayable Decimal @db.Decimal(15, 2) @default(0)
   category            String?  // material | subcontractor | equipment | office_overhead | site_expense | client_ipc | other
+  billedToEntity      String   @default("primary_org") // primary_org | dedicated_jv | lead_partner
+  recipientPan        String?
   description         String?
   scannedBillUrl      String?
   scannedBillName     String?
@@ -3287,8 +3304,10 @@ model StoreLocation {
 
   project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   stocks          MaterialStoreStock[]
-  transactions    MaterialTransaction[] @relation("SourceStoreTransactions")
-  targetTransfers MaterialTransaction[] @relation("TargetStoreTransactions")
+  transactions                    MaterialTransaction[] @relation("SourceStoreTransactions")
+  targetTransfers                 MaterialTransaction[] @relation("TargetStoreTransactions")
+  originInterSiteTransfers        InterSiteTransfer[]   @relation("OriginStoreInterSiteTransfers")
+  destinationInterSiteTransfers   InterSiteTransfer[]   @relation("DestinationStoreInterSiteTransfers")
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -3328,6 +3347,8 @@ model VendorBill {
   netPayable Decimal @db.Decimal(15, 2) @default(0)
   paidAmount Decimal @db.Decimal(15, 2) @default(0)
   status          String    @default("unpaid") // unpaid | partially_paid | paid | disputed
+  billedToEntity  String    @default("primary_org") // primary_org | dedicated_jv | lead_partner
+  recipientPan    String?
   fileUrl         String? // Bill attachment URL/Data
   remarks         String?
   createdAt       DateTime  @default(now())
@@ -3979,3 +4000,91 @@ model LoginAttempt {
   @@index([email, createdAt])
   @@index([ip, createdAt])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Inter-Site Resource & Machinery Transfer Models
+// ─────────────────────────────────────────────────────────────
+
+model InterSiteTransfer {
+  id                          String   @id @default(cuid())
+  transferNo                  String   // e.g. "ITC-2081-001"
+  organizationId              String
+  originProjectId             String
+  destinationProjectId        String
+  materialId                  String
+  quantity                    Decimal  @db.Decimal(15, 4)
+  unit                        String
+  transferRate                Decimal  @db.Decimal(15, 4) @default(0)
+  totalAmount                 Decimal  @db.Decimal(15, 2) @default(0)
+  originStoreLocationId       String?
+  destinationStoreLocationId  String?
+  isInstantTransfer           Boolean  @default(true) // true = 1-click direct move; false = 2-step in-transit
+  status                      String   @default("received") // "dispatched" | "in_transit" | "received" | "cancelled"
+  dispatchDate                DateTime @default(now())
+  dispatchMiti                String?
+  dispatchedById              String?
+  vehicleNo                   String?
+  driverName                  String?
+  chalanNo                    String?
+  receivedDate                DateTime?
+  receivedMiti                String?
+  receivedById                String?
+  receivedQty                 Decimal? @db.Decimal(15, 4)
+  damageLossQty               Decimal? @db.Decimal(15, 4) @default(0)
+  remarks                     String?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  organization                Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  originProject               Project        @relation("OriginProjectTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
+  destinationProject          Project        @relation("DestinationProjectTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+  material                    Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  originStoreLocation         StoreLocation? @relation("OriginStoreInterSiteTransfers", fields: [originStoreLocationId], references: [id], onDelete: SetNull)
+  destinationStoreLocation    StoreLocation? @relation("DestinationStoreInterSiteTransfers", fields: [destinationStoreLocationId], references: [id], onDelete: SetNull)
+  dispatchedBy                User?          @relation("DispatchedByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
+  receivedBy                  User?          @relation("ReceivedByUser", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([originProjectId])
+  @@index([destinationProjectId])
+  @@index([materialId])
+  @@index([status])
+}
+
+model EquipmentTransfer {
+  id                   String   @id @default(cuid())
+  transferNo           String   // e.g. "ETC-2081-001"
+  organizationId       String
+  equipmentId          String
+  originProjectId      String
+  destinationProjectId String
+  transferDate         DateTime @default(now())
+  transferMiti         String?
+  chalanNo             String?
+  vehicleNo            String?  // Transporter truck / trailer number
+  driverName           String?
+  transporterName      String?
+  meterAtDispatch      Decimal? @db.Decimal(15, 2)
+  meterAtReceive       Decimal? @db.Decimal(15, 2)
+  freightCost          Decimal? @db.Decimal(15, 2) @default(0)
+  status               String   @default("completed") // "in_transit" | "completed" | "cancelled"
+  dispatchedById       String?
+  receivedById         String?
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipment            Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  originProject        Project      @relation("OriginEquipmentTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
+  destinationProject   Project      @relation("DestinationEquipmentTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+  dispatchedBy         User?        @relation("DispatchedEquipmentByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
+  receivedBy           User?        @relation("ReceivedEquipmentByUser", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([equipmentId])
+  @@index([originProjectId])
+  @@index([destinationProjectId])
+  @@index([status])
+}
+

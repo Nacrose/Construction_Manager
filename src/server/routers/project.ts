@@ -11,6 +11,7 @@ import { audit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 import { passwordSchema } from "@/lib/password-policy";
 import { withOrgContext } from "@/lib/rls";
+import { buildPresetModules, ModulePreset } from "@/lib/project-modules";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -25,6 +26,8 @@ const CreateProjectSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   description: z.string().max(2000).optional(),
+  operationalPreset: z.enum(["record_keeper", "lean", "enterprise"]).default("record_keeper").optional(),
+  enabledModules: z.record(z.string(), z.boolean()).optional(),
 });
 
 const UpdateProjectSchema = z.object({
@@ -299,6 +302,8 @@ export const projectRouter = router({
             description: input.description,
             createdById: ctx.user.id,
             organizationId: ctx.user.organizationId, // Auto-assign to user's org
+            operationalPreset: input.operationalPreset || "record_keeper",
+            enabledModules: input.enabledModules ?? buildPresetModules((input.operationalPreset as ModulePreset) || "record_keeper"),
             members: {
               create: { userId: ctx.user.id, role: "project_manager" },
             },
@@ -809,14 +814,14 @@ export const projectRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
       const project = await db.project.findUniqueOrThrow({
         where: { id: input.projectId },
-        select: { enabledModules: true },
+        select: { enabledModules: true, operationalPreset: true },
       });
       const raw = project.enabledModules;
       const modules: Record<string, boolean> =
         raw && typeof raw === "object" && !Array.isArray(raw)
           ? (raw as Record<string, boolean>)
           : {};
-      return { modules };
+      return { modules, operationalPreset: (project.operationalPreset as ModulePreset) || "record_keeper" };
     }),
 
   /** Update the enabled-modules map for a project. Project manager only. */
@@ -825,13 +830,17 @@ export const projectRouter = router({
       z.object({
         projectId: z.string(),
         modules: z.record(z.string(), z.boolean()),
+        operationalPreset: z.enum(["record_keeper", "lean", "enterprise"]).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       await assertProjectManager(ctx.user, input.projectId);
       await db.project.update({
         where: { id: input.projectId },
-        data: { enabledModules: input.modules },
+        data: {
+          enabledModules: input.modules,
+          ...(input.operationalPreset ? { operationalPreset: input.operationalPreset } : {}),
+        },
       });
       await audit({
         userId: ctx.user.id,
@@ -839,7 +848,7 @@ export const projectRouter = router({
         action: "project.modules.update",
         entityType: "project",
         entityId: input.projectId,
-        metadata: { modules: input.modules },
+        metadata: { modules: input.modules, operationalPreset: input.operationalPreset },
       });
       return { ok: true };
     }),

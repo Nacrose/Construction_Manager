@@ -24,6 +24,9 @@ import { MaterialsGateTab, type GateEntry } from "./components/materials-gate-ta
 import { MaterialsTransactionsTab } from "./components/materials-transactions-tab";
 import { MaterialsDialogs } from "./components/materials-dialogs";
 import { LogDirectMaterialDialog } from "@/components/materials/log-direct-material-dialog";
+import { InterSiteTransfersTab } from "./components/inter-site-transfers-tab";
+import { InterSiteTransferDialog } from "@/components/inventory/inter-site-transfer-dialog";
+import { QuickBuyDialog } from "@/components/inventory/quick-buy-dialog";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -48,6 +51,8 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   const [createPOOpen, setCreatePOOpen] = useState(false);
   const [txnOpen, setTxnOpen] = useState(false);
   const [directDeliveryOpen, setDirectDeliveryOpen] = useState(false);
+  const [quickBuyOpen, setQuickBuyOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [selectedPoForPrint, setSelectedPoForPrint] = useState<any | null>(null);
   const [poPrintOpen, setPoPrintOpen] = useState(false);
 
@@ -190,6 +195,8 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
             onOpenCreateReq={() => setCreateReqOpen(true)}
             onOpenCreatePO={() => setCreatePOOpen(true)}
             onOpenAddMaterial={() => setAddMaterialOpen(true)}
+            onOpenQuickBuy={() => setQuickBuyOpen(true)}
+            onOpenTransfer={() => setTransferOpen(true)}
           />
 
           <LogDirectMaterialDialog
@@ -197,6 +204,18 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
             onOpenChange={setDirectDeliveryOpen}
             defaultProjectId={id}
             onSuccess={() => utils.material.invalidate()}
+          />
+
+          <InterSiteTransferDialog
+            open={transferOpen}
+            onOpenChange={setTransferOpen}
+            currentProjectId={id}
+          />
+
+          <QuickBuyDialog
+            open={quickBuyOpen}
+            onOpenChange={setQuickBuyOpen}
+            projectId={id}
           />
 
           {/* 1. INVENTORY DIRECTORY */}
@@ -218,6 +237,11 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
               canWrite={canWrite}
               openQuickTxn={openQuickTxn}
             />
+          )}
+
+          {/* 1.5 INTER-SITE TRANSFERS */}
+          {activeTab === "transfers" && (
+            <InterSiteTransfersTab projectId={id} canWrite={canWrite} />
           )}
 
           {/* 2. REQUISITIONS */}

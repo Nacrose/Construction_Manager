@@ -194,6 +194,20 @@ describe("document.listDrawings", () => {
     await expectTRPCError(caller.listDrawings({ projectId: "p-1" }), "FORBIDDEN");
     expect(anyDb.drawing.findMany).not.toHaveBeenCalled();
   });
+
+  it("lists org-wide drawings across projects when projectId is omitted", async () => {
+    anyDb.drawing.findMany.mockResolvedValue([]);
+    const caller = createCaller(documentRouter, USER);
+
+    await caller.listDrawings({});
+    expect(anyDb.drawing.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          project: { organizationId: USER.organizationId },
+        },
+      })
+    );
+  });
 });
 
 describe("document.createDrawing", () => {

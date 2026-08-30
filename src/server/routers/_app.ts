@@ -54,6 +54,7 @@ import { accountingRouter } from "./accounting";
 import { bankGuaranteeRouter } from "./bank-guarantee";
 import { financialReportingRouter } from "./financial-reporting";
 import { jvPartnerRouter } from "./jv-partner";
+import { interSiteTransferRouter } from "./inter-site-transfer";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -107,6 +108,7 @@ export const appRouter = router({
   bankGuarantee: bankGuaranteeRouter,
   financialReporting: financialReportingRouter,
   jvPartner: jvPartnerRouter,
+  interSiteTransfer: interSiteTransferRouter,
 });
 
 export type AppRouter = typeof appRouter;

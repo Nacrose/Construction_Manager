@@ -2,13 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
-import { MODULE_DEFINITIONS, ModuleKey, groupModules, isModuleEnabled, buildPresetModules, ModulePreset } from "@/lib/project-modules";
+import {
+  MODULE_DEFINITIONS,
+  ModuleKey,
+  groupModules,
+  isModuleEnabled,
+  buildPresetModules,
+  ModulePreset,
+  PRESET_METADATA,
+} from "@/lib/project-modules";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Layers, Copy, RotateCcw, Save, Lock } from "lucide-react";
+import { Layers, Copy, Save, Lock, Sparkles, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProjectModulesTabProps {
@@ -21,49 +29,57 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
   const { data, isLoading } = trpc.project.getModules.useQuery({ projectId });
   const { data: projectsData } = trpc.project.list.useQuery();
 
+  const [activePreset, setActivePreset] = useState<ModulePreset>("record_keeper");
+  const [localModules, setLocalModules] = useState<Record<string, boolean>>({});
+  const [dirty, setDirty] = useState(false);
+
   const updateModules = trpc.project.updateModules.useMutation({
     onSuccess: () => {
-      toast.success("Module settings saved.");
+      toast.success("Project module configuration saved.");
       utils.project.getModules.invalidate({ projectId });
+      setDirty(false);
     },
     onError: (e) => toast.error(e.message),
   });
 
   const copyModules = trpc.project.copyModulesFrom.useMutation({
     onSuccess: () => {
-      toast.success("Module settings copied.");
+      toast.success("Module configuration copied.");
       utils.project.getModules.invalidate({ projectId });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const [localModules, setLocalModules] = useState<Record<string, boolean>>({});
-  const [dirty, setDirty] = useState(false);
-
   useEffect(() => {
     if (data?.modules) {
       setLocalModules(data.modules);
+      if (data.operationalPreset) {
+        setActivePreset(data.operationalPreset);
+      }
       setDirty(false);
     }
   }, [data]);
 
   function toggle(key: ModuleKey, enabled: boolean) {
     const next = { ...localModules, [key]: enabled };
-    // if enabling, remove the false key entirely (cleaner JSON)
     if (enabled) delete next[key];
     setLocalModules(next);
     setDirty(true);
   }
 
   function applyPreset(preset: ModulePreset) {
+    setActivePreset(preset);
     const next = buildPresetModules(preset);
     setLocalModules(next);
     setDirty(true);
   }
 
   function handleSave() {
-    updateModules.mutate({ projectId, modules: localModules });
-    setDirty(false);
+    updateModules.mutate({
+      projectId,
+      modules: localModules,
+      operationalPreset: (activePreset === "simple" ? "record_keeper" : activePreset === "standard" ? "lean" : activePreset === "full" ? "enterprise" : activePreset) as any,
+    });
   }
 
   const grouped = groupModules();
@@ -73,49 +89,97 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
     return (
       <div className="space-y-3 animate-pulse">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-10 rounded bg-muted" />
+          <div key={i} className="h-12 rounded-xl bg-white/5" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Layers className="h-4 w-4" />
-          <span className="font-medium text-foreground">Module Visibility</span>
-          <span className="text-xs">— hidden modules are removed from navigation</span>
+    <div className="space-y-6 pb-6">
+      {/* Top Banner: 3 Operational Presets */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-bold text-white">Contractor Scale & Operational Presets</h3>
+          </div>
+          {canManage && dirty && (
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={updateModules.isPending}
+              className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md"
+            >
+              <Save className="h-3.5 w-3.5" />
+              Save Configuration
+            </Button>
+          )}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* Preset selector */}
-          {canManage && (
-            <Select onValueChange={(v) => applyPreset(v as ModulePreset)}>
-              <SelectTrigger className="h-8 w-[140px] text-xs" id="module-preset-select">
-                <SelectValue placeholder="Apply preset…" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="simple">Simple</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="full">Full</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(["record_keeper", "lean", "enterprise"] as const).map((presetKey) => {
+            const meta = PRESET_METADATA[presetKey];
+            const isCurrent = activePreset === presetKey || (presetKey === "record_keeper" && activePreset === "simple") || (presetKey === "lean" && activePreset === "standard") || (presetKey === "enterprise" && activePreset === "full");
 
-          {/* Copy from project */}
+            return (
+              <div
+                key={presetKey}
+                onClick={() => canManage && applyPreset(presetKey)}
+                className={cn(
+                  "p-3.5 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between",
+                  isCurrent
+                    ? "border-emerald-500/60 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/40"
+                    : "border-white/10 bg-[#0c1015] hover:border-white/20 hover:bg-white/[0.02]"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{meta.icon}</span>
+                      <span className="text-xs font-bold text-white">{meta.title}</span>
+                    </div>
+                    {isCurrent && (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    {meta.subtitle}
+                  </p>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-400">
+                  <span>{presetKey === "record_keeper" ? "11 Core + Equipment" : presetKey === "lean" ? "11 Core + Lookahead" : "All 24 Enterprise Tools"}</span>
+                  <span className={cn("font-medium", isCurrent ? "text-emerald-400 font-bold" : "text-gray-400")}>
+                    {isCurrent ? "Active Preset" : "Click to Apply"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Manual Granular Switchboard */}
+      <div className="space-y-4 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Layers className="h-4 w-4 text-emerald-400" />
+            <span className="font-semibold text-white">Granular Feature Switchboard</span>
+            <span>— Fine-tune any individual module on or off</span>
+          </div>
+
           {canManage && otherProjects.length > 0 && (
             <Select
               onValueChange={(sourceId) =>
                 copyModules.mutate({ targetProjectId: projectId, sourceProjectId: sourceId })
               }
             >
-              <SelectTrigger className="h-8 w-[170px] text-xs" id="copy-modules-select">
-                <Copy className="h-3 w-3 mr-1.5" />
+              <SelectTrigger className="h-8 w-[190px] text-xs bg-[#161d26] border-white/10 text-white">
+                <Copy className="h-3 w-3 mr-1.5 text-gray-400" />
                 <SelectValue placeholder="Copy from project…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
                 {otherProjects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
@@ -124,80 +188,70 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
               </SelectContent>
             </Select>
           )}
-
-          {/* Save button */}
-          {canManage && dirty && (
-            <Button
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              onClick={handleSave}
-              disabled={updateModules.isPending}
-              id="save-module-settings-btn"
-            >
-              <Save className="h-3.5 w-3.5" />
-              Save changes
-            </Button>
-          )}
         </div>
-      </div>
 
-      {/* Module groups */}
-      <div className="space-y-5">
-        {Array.from(grouped.entries()).map(([group, mods]) => (
-          <div key={group}>
-            <p className="mb-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
-              {group}
-            </p>
-            <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
-              {mods.map((mod) => {
-                const enabled = isModuleEnabled(localModules, mod.key);
-                return (
-                  <div
-                    key={mod.key}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 transition-colors",
-                      mod.core ? "bg-muted/30" : "bg-card hover:bg-muted/20"
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {mod.label}
-                        </span>
-                        {mod.core && (
-                          <Badge variant="outline" className="h-4 px-1.5 text-[10px] gap-1 text-muted-foreground border-muted-foreground/30">
-                            <Lock className="h-2.5 w-2.5" />
-                            Core
-                          </Badge>
-                        )}
-                        {!mod.core && !enabled && (
-                          <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                            Hidden
-                          </Badge>
-                        )}
+        {/* Grouped Modules */}
+        <div className="space-y-4">
+          {Array.from(grouped.entries()).map(([group, mods]) => (
+            <div key={group} className="space-y-1.5">
+              <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 font-bold px-1">
+                {group}
+              </p>
+              <div className="rounded-xl border border-white/10 divide-y divide-white/10 bg-[#0c1015] overflow-hidden">
+                {mods.map((mod) => {
+                  const enabled = isModuleEnabled(localModules, mod.key);
+                  return (
+                    <div
+                      key={mod.key}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 transition-colors",
+                        mod.core ? "bg-white/[0.02]" : "hover:bg-white/[0.02]"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-white">
+                            {mod.label}
+                          </span>
+                          {mod.core ? (
+                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-1 text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                              <Lock className="h-2.5 w-2.5" />
+                              Core Pillar (Locked ON)
+                            </Badge>
+                          ) : enabled ? (
+                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] text-gray-300 border-white/10">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-red-500/10 text-red-400 border border-red-500/20">
+                              Hidden
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                          {mod.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {mod.description}
-                      </p>
+
+                      <Switch
+                        id={`module-toggle-${mod.key}`}
+                        checked={enabled}
+                        disabled={mod.core || !canManage}
+                        onCheckedChange={(val) => toggle(mod.key, val)}
+                        className="shrink-0"
+                      />
                     </div>
-                    <Switch
-                      id={`module-toggle-${mod.key}`}
-                      checked={enabled}
-                      disabled={mod.core || !canManage}
-                      onCheckedChange={(val) => toggle(mod.key, val)}
-                      className="shrink-0"
-                    />
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {!canManage && (
         <p className="text-xs text-muted-foreground text-center pt-2">
-          Only project managers can change module settings.
+          Only project managers or org administrators can customize project module configurations.
         </p>
       )}
     </div>

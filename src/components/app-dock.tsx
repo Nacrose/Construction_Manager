@@ -8,7 +8,7 @@ import {
   HardHat, LayoutDashboard, FolderKanban, ClipboardList, Truck, ReceiptText,
   Users, ChevronLeft, History, Compass, FileSignature, ListChecks, LogOut,
   Sun, Moon, Monitor, Terminal, Sparkles, Anchor, Scan, Gauge, MessageSquare,
-  RefreshCw, ShieldCheck, ShieldAlert, Building2, Database, Calendar,
+  RefreshCw, ShieldCheck, ShieldAlert, Building2, Database, Calendar, Mail,
   AlignLeft, AlignRight, Settings, EyeOff, BookOpen, Boxes, CloudRain, Zap, Wind, Droplets,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -39,6 +39,8 @@ const TOP_NAV: NavItem[] = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Inventory", href: "/inventory", icon: Boxes },
   { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
+  { label: "Drawings Vault", href: "/drawings", icon: Compass },
+  { label: "Correspondence", href: "/correspondence", icon: Mail },
   { label: "Team & Workspace", href: "/team", icon: Users },
   { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
   { label: "Presets", href: "/presets", icon: ClipboardList },

@@ -157,30 +157,46 @@ export const documentRouter = router({
       return { ok: true };
     }),
 
-  /** List drawings for a project (bounded, cursor-paged). */
+  /** List drawings for a project or organization (bounded, cursor-paged). */
   listDrawings: protectedProcedure
     .input(z.object({
-      projectId: z.string(),
+      projectId: z.string().optional().nullable(),
       discipline: z.string().optional().nullable(),
       q: z.string().optional().nullable(),
       setId: z.string().optional().nullable(),
       ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-      const queryStr = input.q?.toLowerCase();
+      const where: any = {};
 
+      if (input.projectId) {
+        await assertProjectMember(ctx.user, input.projectId);
+        where.projectId = input.projectId;
+      } else {
+        const orgId = ctx.user.organizationId;
+        if (!orgId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "User is not assigned to an organization" });
+        }
+        where.project = { organizationId: orgId };
+      }
+
+      const queryStr = input.q?.toLowerCase();
       const page = pageArgs(input);
+
+      if (input.discipline && input.discipline !== "all") {
+        where.discipline = input.discipline;
+      }
+      if (input.setId === "none") {
+        where.drawingSetId = null;
+      } else if (input.setId && input.setId !== "none" && input.setId !== "all") {
+        where.drawingSetId = input.setId;
+      }
+      if (queryStr) {
+        where.OR = [{ number: { contains: queryStr } }, { title: { contains: queryStr } }];
+      }
+
       const drawingsRaw = await db.drawing.findMany({
-        where: {
-          projectId: input.projectId,
-          ...(input.discipline && input.discipline !== "all" && { discipline: input.discipline }),
-          ...(input.setId === "none" && { drawingSetId: null }),
-          ...(input.setId && input.setId !== "none" && input.setId !== "all" && { drawingSetId: input.setId }),
-          ...(queryStr && {
-            OR: [{ number: { contains: queryStr } }, { title: { contains: queryStr } }],
-          }),
-        },
+        where,
         orderBy: page.orderBy,
         take: page.take,
         ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
@@ -189,6 +205,7 @@ export const documentRouter = router({
           revision: true, issuedDate: true, fileName: true, fileType: true,
           ganttTaskId: true, approvalStatus: true, approvedAt: true, approvalNotes: true,
           createdById: true, createdAt: true, updatedAt: true, drawingSetId: true,
+          project: { select: { id: true, name: true, code: true } },
           ganttTask: { select: { id: true, code: true, name: true } },
           drawingSet: { select: { id: true, name: true } },
           _count: { select: { revisions: true, rfis: true } },

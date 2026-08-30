@@ -20,7 +20,7 @@ import { trpc } from "@/lib/trpc-client";
 import { CATEGORIES, CATEGORY_COLORS } from "./constants";
 
 export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: {
-  letterId: string; projectId: string; onClose: () => void; onUpdated: () => void;
+  letterId: string; projectId?: string; onClose: () => void; onUpdated?: () => void;
 }) {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.correspondence.get.useQuery({ id: letterId });
@@ -35,7 +35,8 @@ export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: 
     onSuccess: () => {
       toast.success("Reply status updated");
       utils.correspondence.get.invalidate({ id: letterId });
-      onUpdated();
+      utils.correspondence.list.invalidate();
+      onUpdated?.();
     },
     onError: (e) => toast.error(e.message),
   });
