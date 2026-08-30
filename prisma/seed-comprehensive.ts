@@ -2,9 +2,10 @@
 // Comprehensive seed: Global Rate Catalog + DoR Rate Analysis Preset Library
 // Run: npx tsx prisma/seed-comprehensive.ts
 import { PrismaClient } from "@prisma/client";
+import { createSeedDb, enableSeedRlsBypass } from "./seed-rls";
 import { DOR_PRESETS as DOR_RAW_PRESETS } from "../src/lib/dor-norms-data";
 
-const db = new PrismaClient();
+const db = createSeedDb(); // single connection — see ./seed-rls (RLS phases 1–2)
 
 // ─── PART 1: Rate Catalog (Ingredients List with Kathmandu District Rates) ───────
 
@@ -1443,6 +1444,7 @@ function buildMaterialCatalogEntries(items: CatalogItemInput[]) {
 // ─── Main ───────────────────────────────────────────────────────────────────────
 
 async function main() {
+  await enableSeedRlsBypass(db); // RLS phases 1–2: seeds write cross-org reference data
   console.log("═══ Comprehensive Seed: Rate Catalog + DoR Presets ═══\n");
 
   // ── Part A: Global Rate Catalog ──

@@ -20,6 +20,7 @@ import { TRPCError } from "@trpc/server";
 import type { Prisma } from "@prisma/client";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
@@ -1643,6 +1644,7 @@ export const financialReportingRouter = router({
       //   Dr Retention Payable (no longer held)
       //      Cr Subcontractor Payables (now due to sub)
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: JournalEntry is FORCE-scoped
         for (const ipc of ipcsWithRetention) {
           await createJournalEntry(tx, {
             source: "retention_release",

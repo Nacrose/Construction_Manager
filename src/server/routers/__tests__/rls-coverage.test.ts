@@ -128,14 +128,20 @@ describe("RLS drift guard (schema ↔ tracker ↔ migrations)", () => {
 });
 
 describe("RLS Phase 0: money-router interactive transactions set org context", () => {
-  // Any interactive $transaction in a money router MUST open with
-  // withOrgContext(tx, ...) — transaction-scoped set_config is the only
-  // reliable RLS context under Prisma connection pooling (see rls.ts).
-  // Array-form $transaction([...]) sites are exempt here but must be
-  // converted when their tables get RLS (docs/plans/rls-rollout.md §4).
+  // Any interactive $transaction in a router whose tables are RLS-covered
+  // (FORCEd) MUST open with withOrgContext(tx, ...) — transaction-scoped
+  // set_config is the only reliable RLS context under Prisma connection
+  // pooling (see rls.ts). Array-form $transaction([...]) sites are exempt
+  // here but must be converted when their tables get RLS
+  // (docs/plans/rls-rollout.md §4).
+  //
+  // Phase 1/2 additions: catalog-v2 (CatalogMaterial/RateBook) and
+  // financial-reporting (JournalEntry/ReportSnapshot) now own FORCEd
+  // tables and are therefore enforced here too.
   const MONEY_ROUTERS = [
     "accounting", "finance", "vendor-bill", "payroll", "fiscal-year",
     "ipc", "project-ops", "subcontractor-bill",
+    "catalog-v2", "financial-reporting",
   ];
 
   for (const name of MONEY_ROUTERS) {

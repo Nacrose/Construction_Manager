@@ -1,6 +1,6 @@
 # RLS Rollout Plan — Row-Level Security Beyond `Project`
 
-**Status:** Phase 0 IMPLEMENTED (2026-08-30) — Phases 1+ awaiting go-ahead
+**Status:** Phases 0, 1 & 2 IMPLEMENTED (2026-08-30) — Phase 3 awaiting staging verification
 **Scope:** Extend PostgreSQL Row-Level Security from the single `Project` table to the full tenant-scoped surface (17 org-scoped + 62 project-scoped models — corrected by `scripts/rls-inventory.ts`; the draft's "50/71" counts were raw line matches, not model classifications).
 **Author:** repo governance agent · **Date:** 2026-08-30
 
@@ -96,11 +96,11 @@ Notes:
 4. **Inventory script ✅:** `scripts/rls-inventory.ts` — classifies all models, (re)generates `prisma/rls-tracker.json`, writes the NULL-audit SQL.
 5. **Drift guard (G-5) ✅:** `src/server/routers/__tests__/rls-coverage.test.ts` (6 tests) — every scoped model must be covered/planned/excluded in the tracker; covered tables must have RLS SQL in migrations; no stale/stray tables. Plus baseline migration `20260830000000_rls_baseline_project` codifying the existing Project policies under migration control (no behavior change — no FORCE yet).
 
-### Phase 1 — Org-column money/lock tables (5 tables)
-`JournalEntry`, `HeadOfficeExpense`, `CompanyBankAccount`, `FiscalYearLock`, `BankGuarantee` — direct `organizationId` policies (template §3.1). Ship as a numbered Prisma migration; 48 h watch window after deploy.
+### Phase 1 — Org-column money/lock tables (5 tables) ✅ DONE (2026-08-30)
+`JournalEntry`, `HeadOfficeExpense`, `CompanyBankAccount`, `FiscalYearLock`, `BankGuarantee` — migration `20260830010000_rls_phase1_org_money`. JournalEntry additionally reaches entries via lines→project→org (matching financial-reporting's accessCondition); BankGuarantee via project→org (matching its OR list). FORCE included per §3.1. 48 h watch window after deploy.
 
-### Phase 2 — Remaining org-scoped tables (10 tables)
-`CatalogMaterial`, `DelegationRule`, `GanttTaskTemplate`, `GlobalPresetAnalysis`, `RateBook`, `RateProfile`, `ReportSnapshot`, `ReportTemplate`, `StoredFile`, `UncatalogedMaterial`. Same 48 h watch window.
+### Phase 2 — Remaining org-scoped tables (10 tables) ✅ DONE (2026-08-30)
+`CatalogMaterial`, `DelegationRule`, `GanttTaskTemplate`, `GlobalPresetAnalysis`, `RateBook`, `RateProfile`, `ReportSnapshot`, `ReportTemplate`, `StoredFile`, `UncatalogedMaterial` — migration `20260830020000_rls_phase2_org_rest`. NULL-org rows on global-reference tables stay SELECT-visible to all orgs (intentional shared data; writes remain superadmin-gated, matching the app guards); project-reachable tables (RateBook/RateProfile/ReportSnapshot/GanttTaskTemplate) use project-EXISTS predicates so NULL-org project rows keep working. Same 48 h watch window.
 
 ### Phase 3m — Project-scoped MONEY tables (13 tables) — EXISTS-via-Project policy
 `Payment`, `VendorBill`, `VendorPayment`, `PayrollRun`, `JournalEntryLine`, `Ipc`, `SubcontractorBill`, `SiteExpense`, `ProjectCost`, `VatBill`, `MaterialTransaction`, `PurchaseOrder`, `PurchaseRequisition`.

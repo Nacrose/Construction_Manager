@@ -1,10 +1,12 @@
 // Seed sample BOQ items, daily reports, and Gantt tasks for the BRT-001 project.
 // Run with: bun prisma/seed-modules.ts
 import { PrismaClient } from "@prisma/client";
+import { createSeedDb, enableSeedRlsBypass } from "./seed-rls";
 
-const db = new PrismaClient();
+const db = createSeedDb(); // single connection — see ./seed-rls (RLS phases 1–2)
 
 async function main() {
+  await enableSeedRlsBypass(db); // RLS phases 1–2: seeds write cross-org reference data
   const project = await db.project.findFirst({
     where: { code: "BRT-001" },
     include: { members: true },

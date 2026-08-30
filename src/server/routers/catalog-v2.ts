@@ -18,6 +18,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { withOrgContext } from "@/lib/rls";
 import { isOrgAdmin } from "@/lib/authz";
 
 const normalize = (s: string) =>
@@ -1890,6 +1891,7 @@ export const catalogV2Router = router({
       const affectedTables: string[] = [];
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: JournalEntry is FORCE-scoped
         // 1. Remap BoqIngredient
         const boqRes = await tx.boqIngredient.updateMany({
           where: { catalogMaterialId: loser.id },
@@ -2134,6 +2136,7 @@ export const catalogV2Router = router({
       let aliasCount = 0;
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: CatalogMaterial is FORCE-scoped
         for (const item of input.items) {
           if (item.action === "link_existing" && item.targetId) {
             linkedCount++;

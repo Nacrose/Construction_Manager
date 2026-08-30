@@ -1,9 +1,11 @@
 // Seed global rate analysis presets — common Nepal construction items.
 // Run with: bun prisma/seed-presets.ts
 import { PrismaClient } from "@prisma/client";
-const db = new PrismaClient();
+import { createSeedDb, enableSeedRlsBypass } from "./seed-rls";
+const db = createSeedDb(); // single connection — see ./seed-rls (RLS phases 1–2)
 
 async function main() {
+  await enableSeedRlsBypass(db); // RLS phases 1–2: seeds write cross-org reference data
   const presets = [
     {
       name: "RCC M25 (1:1:2)",

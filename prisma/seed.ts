@@ -1,8 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import { createSeedDb, enableSeedRlsBypass } from "./seed-rls";
 import bcrypt from "bcryptjs";
 import { DOR_PRESETS } from "../src/lib/dor-norms-data";
 
-const db = new PrismaClient();
+const db = createSeedDb(); // single connection — see ./seed-rls (RLS phases 1–2)
 
 async function seedSuperAdmin() {
   const superAdminEmail = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
@@ -39,6 +40,7 @@ async function seedSuperAdmin() {
 }
 
 async function main() {
+  await enableSeedRlsBypass(db); // RLS phases 1–2: seeds write cross-org reference data
   // 1. Provision Superadmin from Vercel / Environment variables
   await seedSuperAdmin();
 
