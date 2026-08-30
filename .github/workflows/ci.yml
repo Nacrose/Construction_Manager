@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (ratcheted: warnings may only DECREASE)
+      - name: "Lint ratchet (warnings may only decrease)"
         # Ratchet: 950 warnings as of 2026-08-30. Lower this number when you
         # fix warnings — never raise it. (The previous cap of 10000 let every
         # warning pass silently, making the gate decorative.)
