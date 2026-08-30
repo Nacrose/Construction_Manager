@@ -69,7 +69,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   const effectiveProjectId = inflowProjectId || projectId || allProjects[0]?.id || "";
   const { data: accountsData } = trpc.accounting.ledgerAccounts.useQuery(
     { projectId: effectiveProjectId },
-    { enabled: Boolean(effectiveProjectId) }
+    { enabled: Boolean(effectiveProjectId) && recordInflowOpen }
   );
   const bankAndCashAccounts = useMemo(() => {
     return (accountsData?.accounts || []).filter((a: any) => a.type === "bank" || a.type === "cash");

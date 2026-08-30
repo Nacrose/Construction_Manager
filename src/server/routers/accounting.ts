@@ -75,26 +75,191 @@ export const accountingRouter = router({
         ? { projectId: input.projectId }
         : { project: { organizationId: user.organizationId } };
 
-      // 1. Payments / Disbursements
-      const payments = await db.payment.findMany({
-        where: {
-          ...projectFilter,
-          ...(input.fromDate || input.toDate
-            ? {
-                paymentDate: {
-                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                },
-              }
-            : {}),
-          ...(input.accountingSoftware && input.accountingSoftware !== "all"
-            ? { accountingSoftware: input.accountingSoftware as any }
-            : {}),
-        },
-        include: { project: { select: { code: true, name: true } } },
-        orderBy: { paymentDate: "desc" },
-      });
+      // Execute all transaction source queries in parallel for maximum speed
+      const [payments, vendorBills, subBills, ipcs, hoExpenses, siteExpenses] = await Promise.all([
+        // 1. Payments / Disbursements
+        db.payment.findMany({
+          where: {
+            ...projectFilter,
+            ...(input.fromDate || input.toDate
+              ? {
+                  paymentDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+            ...(input.accountingSoftware && input.accountingSoftware !== "all"
+              ? { accountingSoftware: input.accountingSoftware as any }
+              : {}),
+          },
+          select: {
+            id: true,
+            amount: true,
+            netPaid: true,
+            tdsDeducted: true,
+            paymentDate: true,
+            paymentMiti: true,
+            category: true,
+            payeeName: true,
+            invoiceNumber: true,
+            notes: true,
+            partyPan: true,
+            paymentMode: true,
+            accountingSoftware: true,
+            scannedBillUrl: true,
+            accountingVoucherNo: true,
+            voucherType: true,
+            project: { select: { code: true, name: true } },
+          },
+          take: 500,
+          orderBy: { paymentDate: "desc" },
+        }),
 
+        // 2. Vendor Bills (Purchases / Material Accruals)
+        db.vendorBill.findMany({
+          where: {
+            ...projectFilter,
+            ...(input.fromDate || input.toDate
+              ? {
+                  billDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            billNumber: true,
+            billDate: true,
+            grossAmount: true,
+            vatAmount: true,
+            netPayable: true,
+            fileUrl: true,
+            partner: { select: { name: true, pan: true } },
+            project: { select: { code: true, name: true } },
+          },
+          take: 500,
+          orderBy: { billDate: "desc" },
+        }),
+
+        // 3. Subcontractor Bills (Work Done Accruals)
+        db.subcontractorBill.findMany({
+          where: {
+            ...projectFilter,
+            ...(input.fromDate || input.toDate
+              ? {
+                  billDate: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            number: true,
+            billDate: true,
+            period: true,
+            netPayable: true,
+            scannedBillUrl: true,
+            subcontractor: { select: { name: true, pan: true } },
+            project: { select: { code: true, name: true } },
+          },
+          take: 500,
+          orderBy: { billDate: "desc" },
+        }),
+
+        // 4. Client IPC Billings (Revenue) & Subcontractor IPCs (Payables)
+        db.ipc.findMany({
+          where: {
+            ...projectFilter,
+            ...(input.fromDate || input.toDate
+              ? {
+                  createdAt: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            number: true,
+            subcontractorId: true,
+            createdAt: true,
+            issueDate: true,
+            grossAmount: true,
+            netPayable: true,
+            subcontractor: { select: { name: true, pan: true } },
+            project: { select: { code: true, name: true } },
+          },
+          take: 500,
+          orderBy: { createdAt: "desc" },
+        }),
+
+        // 5. Head Office Overhead Expenses (when viewing organization-wide or without project filter)
+        !input.projectId
+          ? db.headOfficeExpense.findMany({
+              where: {
+                organizationId: user.organizationId,
+                ...(input.fromDate || input.toDate
+                  ? {
+                      date: {
+                        ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                        ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                      },
+                    }
+                  : {}),
+              },
+              select: {
+                id: true,
+                voucherNo: true,
+                date: true,
+                miti: true,
+                category: true,
+                particulars: true,
+                amount: true,
+                paymentMode: true,
+                bankAccount: { select: { bankName: true } },
+              },
+              take: 500,
+              orderBy: { date: "desc" },
+            })
+          : Promise.resolve([]),
+
+        // 6. Site Petty Cash Expenses (approved or recorded)
+        db.siteExpense.findMany({
+          where: {
+            ...projectFilter,
+            ...(input.fromDate || input.toDate
+              ? {
+                  date: {
+                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
+                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
+                  },
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            number: true,
+            date: true,
+            category: true,
+            description: true,
+            vendorName: true,
+            totalAmount: true,
+            paymentMode: true,
+            receiptData: true,
+            project: { select: { code: true, name: true } },
+          },
+          take: 500,
+          orderBy: { date: "desc" },
+        }),
+      ]);
+
+      // 1. Process Payments
       payments.forEach((p) => {
         let mitiStr = p.paymentMiti;
         if (!mitiStr) {
@@ -126,23 +291,7 @@ export const accountingRouter = router({
         });
       });
 
-      // 2. Vendor Bills (Purchases / Material Accruals)
-      const vendorBills = await db.vendorBill.findMany({
-        where: {
-          ...projectFilter,
-          ...(input.fromDate || input.toDate
-            ? {
-                billDate: {
-                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                },
-              }
-            : {}),
-        },
-        include: { partner: true, project: { select: { code: true, name: true } } },
-        orderBy: { billDate: "desc" },
-      });
-
+      // 2. Process Vendor Bills
       vendorBills.forEach((b) => {
         let mitiStr = "";
         try {
@@ -170,23 +319,7 @@ export const accountingRouter = router({
         });
       });
 
-      // 3. Subcontractor Bills (Work Done Accruals)
-      const subBills = await db.subcontractorBill.findMany({
-        where: {
-          ...projectFilter,
-          ...(input.fromDate || input.toDate
-            ? {
-                billDate: {
-                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                },
-              }
-            : {}),
-        },
-        include: { subcontractor: true, project: { select: { code: true, name: true } } },
-        orderBy: { billDate: "desc" },
-      });
-
+      // 3. Process Subcontractor Bills
       subBills.forEach((b) => {
         let mitiStr = "";
         try {
@@ -214,23 +347,7 @@ export const accountingRouter = router({
         });
       });
 
-      // 4. Client IPC Billings (Revenue) & Subcontractor IPCs (Payables)
-      const ipcs = await db.ipc.findMany({
-        where: {
-          ...projectFilter,
-          ...(input.fromDate || input.toDate
-            ? {
-                createdAt: {
-                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                },
-              }
-            : {}),
-        },
-        include: { subcontractor: { select: { name: true, pan: true } }, project: { select: { code: true, name: true } } },
-        orderBy: { createdAt: "desc" },
-      });
-
+      // 4. Process IPCs
       ipcs.forEach((i) => {
         let mitiStr = "";
         const entryDate = i.issueDate || i.createdAt;
@@ -262,69 +379,35 @@ export const accountingRouter = router({
         });
       });
 
-      // 5. Head Office Overhead Expenses (when viewing organization-wide or without project filter)
-      if (!input.projectId) {
-        const hoExpenses = await db.headOfficeExpense.findMany({
-          where: {
-            organizationId: user.organizationId,
-            ...(input.fromDate || input.toDate
-              ? {
-                  date: {
-                    ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                    ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                  },
-                }
-              : {}),
-          },
-          include: { bankAccount: true },
-          orderBy: { date: "desc" },
+      // 5. Process Head Office Overhead Expenses
+      hoExpenses.forEach((ho) => {
+        let mitiStr = ho.miti;
+        if (!mitiStr) {
+          try {
+            mitiStr = adToBs(new Date(ho.date)).formatted;
+          } catch {}
+        }
+
+        entries.push({
+          id: ho.id,
+          source: "head_office_expense",
+          voucherNo: ho.voucherNo || `HO-${ho.id.slice(-5).toUpperCase()}`,
+          voucherType: "HQ EXPENSE",
+          projectCode: "HQ",
+          projectName: "Head Office",
+          date: ho.date.toISOString(),
+          miti: mitiStr || "—",
+          accountHead: ho.category,
+          particulars: `${ho.particulars} (HQ Overhead)`,
+          debit: Number(ho.amount || 0),
+          credit: 0,
+          netAmount: Number(ho.amount || 0),
+          paymentMode: ho.bankAccount ? `${ho.bankAccount.bankName} (${ho.paymentMode})` : ho.paymentMode,
+          accountingSoftware: "tally",
         });
-
-        hoExpenses.forEach((ho) => {
-          let mitiStr = ho.miti;
-          if (!mitiStr) {
-            try {
-              mitiStr = adToBs(new Date(ho.date)).formatted;
-            } catch {}
-          }
-
-          entries.push({
-            id: ho.id,
-            source: "head_office_expense",
-            voucherNo: ho.voucherNo || `HO-${ho.id.slice(-5).toUpperCase()}`,
-            voucherType: "HQ EXPENSE",
-            projectCode: "HQ",
-            projectName: "Head Office",
-            date: ho.date.toISOString(),
-            miti: mitiStr || "—",
-            accountHead: ho.category,
-            particulars: `${ho.particulars} (HQ Overhead)`,
-            debit: Number(ho.amount || 0),
-            credit: 0,
-            netAmount: Number(ho.amount || 0),
-            paymentMode: ho.bankAccount ? `${ho.bankAccount.bankName} (${ho.paymentMode})` : ho.paymentMode,
-            accountingSoftware: "tally",
-          });
-        });
-      }
-
-      // 6. Site Petty Cash Expenses (approved or recorded)
-      const siteExpenses = await db.siteExpense.findMany({
-        where: {
-          ...projectFilter,
-          ...(input.fromDate || input.toDate
-            ? {
-                date: {
-                  ...(input.fromDate ? { gte: new Date(input.fromDate) } : {}),
-                  ...(input.toDate ? { lte: new Date(input.toDate) } : {}),
-                },
-              }
-            : {}),
-        },
-        include: { project: { select: { code: true, name: true } } },
-        orderBy: { date: "desc" },
       });
 
+      // 6. Process Site Petty Cash Expenses
       siteExpenses.forEach((se) => {
         let mitiStr = "";
         try {
