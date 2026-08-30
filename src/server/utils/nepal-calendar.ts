@@ -11,6 +11,13 @@
  * - countWorkingDays(start, end) — counts working days between dates
  * - addWorkingDays(start, days) — adds working days to a date
  * - NEPAL_HOLIDAYS — predefined Nepal public holidays
+ *
+ * ⚠️ CLIENT-SAFE MODULE — imported by client components (Gantt timeline
+ * holiday labels). It must NEVER import `@/lib/db` (or anything else that
+ * reaches it): db.ts imports `node:module`, which cannot exist in a browser
+ * chunk and panics Turbopack at build time. The DB-backed cache is REFRESHED
+ * by `./holiday-db` (server-only) via `__replaceDbHolidayCache` below.
+ * `src/lib/client-graph-boundary.test.ts` enforces this boundary.
  */
 
 export type Holiday = {
@@ -99,6 +106,8 @@ export const NEPAL_HOLIDAYS: Holiday[] = [
 // `Holiday` table (seeded from this constant by migration 20260830070000);
 // when the DB has ANY rows for a given year, those rows are AUTHORITATIVE
 // for that year (so wrong constant dates can be corrected, not just added to).
+// The DB read + TTL cache live in `./holiday-db` (server-only); this module
+// only holds the swap-in primitive and the year-aware lookup.
 
 export type HolidayRow = { date: string; name: string };
 
@@ -118,61 +127,31 @@ for (const h of NEPAL_HOLIDAYS) {
 }
 
 /** DB rows grouped by year — authoritative for any year it covers. */
-const DB_BY_YEAR = new Map<number, YearHolidays>();
+let DB_BY_YEAR = new Map<number, YearHolidays>();
 const EMPTY_YEAR: YearHolidays = { dates: new Set(), names: new Map() };
-let dbCacheLoadedAt = 0;
-let dbCachePromise: Promise<void> | null = null;
-const DB_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Refresh the DB holiday cache. Cheap no-op when the TTL hasn't elapsed.
- * Called by every DB-aware scheduling path (CPM recalculation, EVM) so a
- * fresh process picks up admin edits within one TTL window.
- *
- * Fail-soft: on any error (table missing pre-migration, DB hiccup) the
- * compiled constant remains the source of truth.
+ * Swap the DB-derived holiday cache wholesale. Called ONLY by
+ * `./holiday-db` (server): after a successful `Holiday.findMany`, or by the
+ * test seam. `null` clears the cache back to constant-only lookups.
+ * Kept here (not in holiday-db) because the cache it replaces lives here.
  */
-export async function refreshHolidayCache(
-  ttlMs = DB_CACHE_TTL_MS,
-  client?: { holiday: { findMany(args: unknown): Promise<HolidayRow[]> } }
-): Promise<void> {
-  if (Date.now() - dbCacheLoadedAt < ttlMs) return;
-  if (dbCachePromise) return dbCachePromise;
-  dbCachePromise = (async () => {
-    try {
-      // Prefer an explicitly-passed client: callers inside an interactive
-      // transaction MUST read on that transaction's connection (a pooled
-      // read can deadlock on a size-1 pool, and sees a different snapshot).
-      // Otherwise lazy dynamic import: keeps this module importable
-      // without a DATABASE_URL (pure unit tests) and avoids load-time cycles.
-      const reader =
-        client ??
-        (await import("@/lib/db")).db as unknown as { holiday: { findMany(args: unknown): Promise<HolidayRow[]> } };
-      const rows: HolidayRow[] = await reader.holiday.findMany({
-        select: { date: true, name: true },
-      });
-      const byYear = new Map<number, YearHolidays>();
-      for (const r of rows) {
-        const year = Number(r.date.slice(0, 4));
-        if (!Number.isFinite(year) || year < 2000) continue;
-        let entry = byYear.get(year);
-        if (!entry) {
-          entry = { dates: new Set(), names: new Map() };
-          byYear.set(year, entry);
-        }
-        entry.dates.add(r.date);
-        entry.names.set(r.date, r.name);
+export function __replaceDbHolidayCache(rows: HolidayRow[] | null): void {
+  const byYear = new Map<number, YearHolidays>();
+  if (rows) {
+    for (const r of rows) {
+      const year = Number(r.date.slice(0, 4));
+      if (!Number.isFinite(year) || year < 2000) continue;
+      let entry = byYear.get(year);
+      if (!entry) {
+        entry = { dates: new Set(), names: new Map() };
+        byYear.set(year, entry);
       }
-      DB_BY_YEAR.clear();
-      for (const [y, entry] of byYear) DB_BY_YEAR.set(y, entry);
-    } catch {
-      // Fail-soft: keep whatever cache (likely empty) we already have.
-    } finally {
-      dbCacheLoadedAt = Date.now();
-      dbCachePromise = null;
+      entry.dates.add(r.date);
+      entry.names.set(r.date, r.name);
     }
-  })();
-  return dbCachePromise;
+  }
+  DB_BY_YEAR = byYear;
 }
 
 /** Effective holidays for a year: DB rows when present, else the constant. */
@@ -181,24 +160,6 @@ function yearHolidays(year: number): YearHolidays {
   // deliberately emptied in the DB stays empty — no constant resurrection.
   if (DB_BY_YEAR.has(year)) return DB_BY_YEAR.get(year) ?? EMPTY_YEAR;
   return CONSTANT_BY_YEAR.get(year) ?? EMPTY_YEAR;
-}
-
-/** Test seam: inject/override the DB-backed cache without a database. */
-export function __setHolidayCacheForTests(rows: HolidayRow[] | null): void {
-  DB_BY_YEAR.clear();
-  if (rows) {
-    for (const r of rows) {
-      const year = Number(r.date.slice(0, 4));
-      let entry = DB_BY_YEAR.get(year);
-      if (!entry) {
-        entry = { dates: new Set(), names: new Map() };
-        DB_BY_YEAR.set(year, entry);
-      }
-      entry.dates.add(r.date);
-      entry.names.set(r.date, r.name);
-    }
-  }
-  dbCacheLoadedAt = rows ? Date.now() : 0;
 }
 
 /**

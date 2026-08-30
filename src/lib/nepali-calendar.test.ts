@@ -173,8 +173,8 @@ import {
   isWorkingDay,
   isHoliday,
   getHolidayName,
-  __setHolidayCacheForTests,
 } from "@/server/utils/nepal-calendar";
+import { __setHolidayCacheForTests } from "@/server/utils/holiday-db";
 
 describe("DB holiday cache (admin-editable overrides)", () => {
   afterEach(() => __setHolidayCacheForTests(null));

@@ -266,8 +266,9 @@ describe.skipIf(!TEST_DATABASE_URL)("Full-stack smoke flow (live database)", () 
   });
 
   it("Holiday table rows override the working-day calendar (DB authority)", async () => {
-    const { isWorkingDay, refreshHolidayCache, __setHolidayCacheForTests } =
-      await import("@/server/utils/nepal-calendar");
+    const { isWorkingDay } = await import("@/server/utils/nepal-calendar");
+    const { refreshHolidayCache, __setHolidayCacheForTests } =
+      await import("@/server/utils/holiday-db");
     // 2026-11-16 (Mon) — a normal working day in the compiled constant.
     expect(isWorkingDay(new Date("2026-11-16T00:00:00Z"))).toBe(true);
 

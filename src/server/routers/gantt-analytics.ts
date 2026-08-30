@@ -639,7 +639,7 @@ export const ganttAnalyticsRouter = router({
       const { calculateEVM } = await import("@/server/utils/evm");
       // Calendar-aware PV: planned value accrues over WORKING days only,
       // so Saturdays/Dashain no longer register as phantom schedule slip.
-      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      const { refreshHolidayCache } = await import("@/server/utils/holiday-db");
       await refreshHolidayCache();
       const result = calculateEVM(evmTasks, undefined, { useCalendar: true });
 

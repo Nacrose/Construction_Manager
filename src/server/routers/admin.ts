@@ -532,7 +532,7 @@ export const adminRouter = router({
       });
       // Invalidate the calendar cache so scheduling picks this up
       // immediately (the 5-minute TTL is bypassed with ttl=0).
-      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      const { refreshHolidayCache } = await import("@/server/utils/holiday-db");
       await refreshHolidayCache(0);
       await audit({
         userId: ctx.user.id,
@@ -553,7 +553,7 @@ export const adminRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const deleted = await db.holiday.deleteMany({ where: { date: input.date } });
-      const { refreshHolidayCache } = await import("@/server/utils/nepal-calendar");
+      const { refreshHolidayCache } = await import("@/server/utils/holiday-db");
       await refreshHolidayCache(0);
       await audit({
         userId: ctx.user.id,

@@ -34,12 +34,8 @@
  */
 import { db, type DbTxClient } from "@/lib/db";
 import { withOrgContext, type TenantUser } from "@/lib/rls";
-import {
-  isWorkingDay,
-  addWorkingDays,
-  countWorkingDays,
-  refreshHolidayCache,
-} from "./nepal-calendar";
+import { isWorkingDay, addWorkingDays, countWorkingDays } from "./nepal-calendar";
+import { refreshHolidayCache } from "./holiday-db";
 
 export interface TaskDependencyEdge {
   predecessorId: string;

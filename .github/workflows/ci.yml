@@ -45,6 +45,12 @@ jobs:
           # runtime when AUTH_SECRET is missing, but the build itself stays
           # environment-independent.
           NEXT_TELEMETRY_DISABLED: "1"
+          # next build's "Running TypeScript" step spawns its own worker;
+          # without an explicit heap ceiling it can die silently on big
+          # graphs ("Failed to type check." with no error printed). Same
+          # convention the local verification workflow already uses for
+          # tsc on this codebase.
+          NODE_OPTIONS: "--max-old-space-size=6144"
           # Sentry source-map upload — inert unless the three secrets are
           # configured on the repo (no DSN → SDK no-ops at runtime too).
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
