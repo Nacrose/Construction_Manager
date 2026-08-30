@@ -23,13 +23,15 @@ interface Markup {
   stampType: string | null;
 }
 
-const STAMPS: Record<string, { text: string; bg: string; fg: string }> = {
-  approved: { text: "APPROVED", bg: "#22c55e", fg: "#ffffff" },
-  rejected: { text: "REJECTED", bg: "#ef4444", fg: "#ffffff" },
-  revision: { text: "REVISION", bg: "#f97316", fg: "#ffffff" },
-  draft: { text: "DRAFT", bg: "#eab308", fg: "#000000" },
-  final: { text: "FINAL", bg: "#3b82f6", fg: "#ffffff" },
-  caution: { text: "CAUTION", bg: "#ef4444", fg: "#ffffff" },
+export const STAMPS: Record<string, { text: string; bg: string; fg: string; subtitle: string }> = {
+  ifc: { text: "ISSUED FOR CONSTRUCTION", bg: "#10b981", fg: "#ffffff", subtitle: "APPROVED FOR SITE WORK" },
+  approved: { text: "APPROVED AS NOTED", bg: "#22c55e", fg: "#ffffff", subtitle: "CONSULTANT / CLIENT" },
+  superseded: { text: "SUPERSEDED / VOID", bg: "#ef4444", fg: "#ffffff", subtitle: "DO NOT USE ON SITE" },
+  as_built: { text: "AS-BUILT RECORD", bg: "#3b82f6", fg: "#ffffff", subtitle: "FINAL SITE EXECUTION" },
+  review: { text: "FOR REVIEW ONLY", bg: "#f59e0b", fg: "#000000", subtitle: "NOT FOR CONSTRUCTION" },
+  revision: { text: "REVISED SHEET", bg: "#f97316", fg: "#ffffff", subtitle: "REFER REVISION LOG" },
+  draft: { text: "DRAFT BLUEPRINT", bg: "#64748b", fg: "#ffffff", subtitle: "INTERNAL PRELIMINARY" },
+  caution: { text: "HOLD / SITE CAUTION", bg: "#dc2626", fg: "#ffffff", subtitle: "PENDING RFI CLARIFICATION" },
 };
 
 function parsePoints(pts: string | null): { x: number; y: number }[] {
@@ -50,7 +52,7 @@ export function MarkupOverlay({
   onSelectionChange,
   onHistoryChange,
   scaleValue,
-  scaleUnit,
+  scaleUnit = "m",
 }: {
   drawingId: string;
   revisionId: string | undefined;
@@ -202,11 +204,15 @@ export function MarkupOverlay({
       </g>;
     }
     if (m.type === "area") {
-      const area = Math.round(w * h * 1000000);
+      // If scaleValue is present, compute real-world area (e.g. at 1:100, area is scaled)
+      const rawSq = w * h;
+      const formattedArea = scaleValue
+        ? `${((rawSq * (Number(scaleValue) ** 2)) / 100).toFixed(2)} ${scaleUnit}²`
+        : `${Math.round(w * h * 1000000)} px²`;
       return <g key={m.id} onClick={(e) => handleMarkupClick(e, m.id)} className="cursor-pointer">
-        <rect x={x1} y={y1} width={w} height={h} fill={`${m.color}10`} stroke={m.color} strokeWidth={isSel ? 4 : sw(m)} strokeDasharray="6 3" opacity={op(m)} />
-        <rect x={x1 + w / 2 - 25} y={y1 + h / 2 - 8} width={50} height={16} fill={m.color} rx={3} opacity={0.9} />
-        <text x={x1 + w / 2} y={y1 + h / 2 + 3} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold">{area}</text>
+        <rect x={x1} y={y1} width={w} height={h} fill={`${m.color}15`} stroke={m.color} strokeWidth={isSel ? 4 : sw(m)} strokeDasharray="6 3" opacity={op(m)} />
+        <rect x={x1 + w / 2 - 40} y={y1 + h / 2 - 10} width={80} height={20} fill={m.color} rx={4} opacity={0.95} />
+        <text x={x1 + w / 2} y={y1 + h / 2 + 4} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold" fontFamily="monospace">{formattedArea}</text>
       </g>;
     }
     if (m.type === "arrow") {
@@ -227,13 +233,16 @@ export function MarkupOverlay({
     }
     if (m.type === "measurement") {
       const x2 = x1 + w, y2 = y1 + h;
-      const dist = Math.round(Math.sqrt(w * w + h * h) * 1000);
+      const rawLen = Math.sqrt(w * w + h * h);
+      const formattedDist = scaleValue
+        ? `${((rawLen * Number(scaleValue)) / 10).toFixed(2)} ${scaleUnit}`
+        : `${Math.round(rawLen * 1000)} px`;
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
       return <g key={m.id} onClick={(e) => handleMarkupClick(e, m.id)} className="cursor-pointer">
         <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={m.color} strokeWidth={isSel ? 3 : sw(m)} strokeDasharray="6 3" opacity={op(m)} />
         <circle cx={x1} cy={y1} r={4} fill={m.color} /><circle cx={x2} cy={y2} r={4} fill={m.color} />
-        <rect x={mx - 22} y={my - 10} width={44} height={16} fill={m.color} rx={3} opacity={0.9} />
-        <text x={mx} y={my + 2} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold">{dist}</text>
+        <rect x={mx - 35} y={my - 10} width={70} height={20} fill={m.color} rx={4} opacity={0.95} />
+        <text x={mx} y={my + 4} textAnchor="middle" fill="white" fontSize={10} fontWeight="bold" fontFamily="monospace">{formattedDist}</text>
       </g>;
     }
     if (m.type === "text") {
@@ -250,10 +259,17 @@ export function MarkupOverlay({
       </g>;
     }
     if (m.type === "stamp" && m.stampType) {
-      const s = STAMPS[m.stampType] ?? STAMPS.approved;
+      const s = STAMPS[m.stampType] ?? STAMPS.ifc ?? STAMPS.approved;
+      const stampW = Math.max(w || 160, 160);
+      const stampH = Math.max(h || 44, 44);
       return <g key={m.id} onClick={(e) => handleMarkupClick(e, m.id)} className="cursor-pointer">
-        <rect x={x1} y={y1} width={w || 120} height={h || 30} fill={s.bg} stroke={isSel ? "white" : s.bg} strokeWidth={isSel ? 3 : 1} rx={4} opacity={op(m) * 0.85} />
-        <text x={x1 + (w || 120) / 2} y={y1 + (h || 30) / 2 + 4} textAnchor="middle" fill={s.fg} fontSize={13} fontWeight="bold" letterSpacing={2}>{s.text}</text>
+        {/* Double-border construction stamp box */}
+        <rect x={x1} y={y1} width={stampW} height={stampH} fill={s.bg} stroke={isSel ? "white" : s.bg} strokeWidth={isSel ? 4 : 2} rx={6} opacity={op(m) * 0.9} />
+        <rect x={x1 + 3} y={y1 + 3} width={stampW - 6} height={stampH - 6} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={1} strokeDasharray="4 2" rx={4} />
+        <text x={x1 + stampW / 2} y={y1 + 20} textAnchor="middle" fill={s.fg} fontSize={10} fontWeight="900" letterSpacing={1.5} fontFamily="monospace">{s.text}</text>
+        {s.subtitle && (
+          <text x={x1 + stampW / 2} y={y1 + 34} textAnchor="middle" fill={s.fg} fontSize={8} fontWeight="bold" opacity={0.85} letterSpacing={0.5} fontFamily="sans-serif">{s.subtitle}</text>
+        )}
       </g>;
     }
     if (m.type === "freehand") {

@@ -21,7 +21,6 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { ModuleTabs } from "@/components/module-tabs";
 import { DISCIPLINE_COLORS, APPROVAL_CONFIG } from "./components/constants";
 import { DrawingViewer } from "./components/drawing-viewer";
