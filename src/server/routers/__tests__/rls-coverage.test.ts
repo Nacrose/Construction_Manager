@@ -138,10 +138,18 @@ describe("RLS Phase 0: money-router interactive transactions set org context", (
   // Phase 1/2 additions: catalog-v2 (CatalogMaterial/RateBook) and
   // financial-reporting (JournalEntry/ReportSnapshot) now own FORCEd
   // tables and are therefore enforced here too.
+  //
+  // Phase 3m additions: material-transaction (MaterialTransaction/
+  // Payment/VatBill/Ipc/PurchaseOrder), requisition (PurchaseOrder/
+  // PurchaseRequisition), purchase-order (PurchaseOrder/
+  // MaterialTransaction), site-expense (SiteExpense), daily-report
+  // (MaterialTransaction).
   const MONEY_ROUTERS = [
     "accounting", "finance", "vendor-bill", "payroll", "fiscal-year",
     "ipc", "project-ops", "subcontractor-bill",
     "catalog-v2", "financial-reporting",
+    "material-transaction", "requisition", "purchase-order",
+    "site-expense", "daily-report",
   ];
 
   for (const name of MONEY_ROUTERS) {

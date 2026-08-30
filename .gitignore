@@ -84,3 +84,4 @@ download/constructflow-cloud.zip
 # private file storage (served ONLY via authenticated /api/files/[key])
 /uploads/
 /public/uploads/
+.rls-lab-pgdata/

@@ -1,0 +1,213 @@
+{
+  "phase": "3m",
+  "verdict": "PASS",
+  "passed": 34,
+  "total": 34,
+  "pg_version": "PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.2.1 20210130 (R",
+  "checks": [
+    {
+      "id": "Q1.1",
+      "group": "Q1 naive mutual-reference design must fail loudly",
+      "ok": true,
+      "detail": "SELECT JournalEntry as naive design raises recursion error"
+    },
+    {
+      "id": "Q1.2",
+      "group": "Q1 naive mutual-reference design must fail loudly",
+      "ok": true,
+      "detail": "SELECT JournalEntryLine as naive design raises recursion error"
+    },
+    {
+      "id": "Q1.3",
+      "group": "Q1 naive mutual-reference design must fail loudly",
+      "ok": true,
+      "detail": "same recursion error as table owner (owner + FORCE)"
+    },
+    {
+      "id": "Q2a.1",
+      "group": "Q2a backfill",
+      "ok": true,
+      "detail": "E3->orgA=orgA, E5->orgB=orgB, E4 orphan stays NULL=None"
+    },
+    {
+      "id": "Q2a.2",
+      "group": "Q2a backfill",
+      "ok": true,
+      "detail": "backfill UPDATE touched all 3 NULL-org entries (rowcount=3; E4 resolves to NULL and is written as NULL)"
+    },
+    {
+      "id": "Q2b.1",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "entries visible to org A = ['E1', 'E3'] (E1 own, E3 backfilled; not E2/E5=orgB, not E4=orphan)"
+    },
+    {
+      "id": "Q2b.2",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "lines visible to org A = ['L1', 'L2', 'L4'] (incl. L1 org-level NULL-project line via parent entry)"
+    },
+    {
+      "id": "Q2b.3",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "owner-mode identical: entries=['E1', 'E3'], lines=['L1', 'L2', 'L4']"
+    },
+    {
+      "id": "Q2b.4",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "org B sees own only: entries=['E2', 'E5'], lines=['L3', 'L6']"
+    },
+    {
+      "id": "Q2b.5",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "no context -> fail closed: entries=0, lines=0"
+    },
+    {
+      "id": "Q2b.6",
+      "group": "Q2b visibility matrix (app_user, org A)",
+      "ok": true,
+      "detail": "superadmin sees all: entries=5/5, lines=6/6"
+    },
+    {
+      "id": "Q2c.1",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "nested insert: org entry + org-level line + own-project line OK"
+    },
+    {
+      "id": "Q2c.2",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org entry INSERT denied: new row violates row-level security policy for table \"JournalEntry\""
+    },
+    {
+      "id": "Q2c.3",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "NULL-org entry INSERT denied (callers must pass org): new row violates row-level security policy for table \"JournalEntry\""
+    },
+    {
+      "id": "Q2c.4",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "line on foreign org's entry denied: new row violates row-level security policy for table \"JournalEntryLine\""
+    },
+    {
+      "id": "Q2c.5",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "own-org entry may carry foreign-project line (mirrors app: line follows entry org)"
+    },
+    {
+      "id": "Q2c.6",
+      "group": "Q2c write matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org UPDATE rowcount=0, DELETE rowcount=0 (silent deny)"
+    },
+    {
+      "id": "Q3.app_user.select-all",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "same-org SELECT correct on all 12 tables (2-style counts)"
+    },
+    {
+      "id": "Q3.app_user.insert-deny",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org INSERT denied on 12/12 tables (42501)"
+    },
+    {
+      "id": "Q3.app_user.null-org-project-insert",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "row targeting legacy NULL-org project P3 denied (fail closed)"
+    },
+    {
+      "id": "Q3.app_user.null-org-project-rows",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "P3-anchored rows invisible (got 0)"
+    },
+    {
+      "id": "Q3.app_user.update-delete",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "cross-org UPDATE rowcount=0, DELETE rowcount=0"
+    },
+    {
+      "id": "Q3.app_user.no-context",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "no-context fail closed on 12/12 tables"
+    },
+    {
+      "id": "Q3.app_user.superadmin",
+      "group": "Q3 \u00a73.2 matrix (app_user)",
+      "ok": true,
+      "detail": "superadmin bypass: Payment=5/5, MT=10005/10005"
+    },
+    {
+      "id": "Q3.owner_role.select-all",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "same-org SELECT correct on all 12 tables (2-style counts)"
+    },
+    {
+      "id": "Q3.owner_role.insert-deny",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "cross-org INSERT denied on 12/12 tables (42501)"
+    },
+    {
+      "id": "Q3.owner_role.null-org-project-insert",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "row targeting legacy NULL-org project P3 denied (fail closed)"
+    },
+    {
+      "id": "Q3.owner_role.null-org-project-rows",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "P3-anchored rows invisible (got 0)"
+    },
+    {
+      "id": "Q3.owner_role.update-delete",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "cross-org UPDATE rowcount=0, DELETE rowcount=0"
+    },
+    {
+      "id": "Q3.owner_role.no-context",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "no-context fail closed on 12/12 tables"
+    },
+    {
+      "id": "Q3.owner_role.superadmin",
+      "group": "Q3 \u00a73.2 matrix (owner_role)",
+      "ok": true,
+      "detail": "superadmin bypass: Payment=5/5, MT=10005/10005"
+    },
+    {
+      "id": "Q4.1",
+      "group": "Q4 EXPLAIN ANALYZE performance gate",
+      "ok": true,
+      "detail": "policy subplan reaches Project one-time (hash/InitPlan) or via index (indexed=False); no per-row Seq Scan on Project"
+    },
+    {
+      "id": "Q4.2",
+      "group": "Q4 EXPLAIN ANALYZE performance gate",
+      "ok": true,
+      "detail": "count(*) over 10,005 rows (5,002 visible) in 2.7 ms"
+    },
+    {
+      "id": "Q4.3",
+      "group": "Q4 EXPLAIN ANALYZE performance gate",
+      "ok": true,
+      "detail": "filtered query also safe (indexed=False), 1.8 ms"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
 const PurchaseOrderItemSchema = z.object({
@@ -199,6 +200,7 @@ export const purchaseOrderRouter = router({
       const netAmount = totalAmount + vatAmount;
 
       const order = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         const po = await tx.purchaseOrder.create({
           data: {
             projectId: input.projectId,
@@ -271,6 +273,7 @@ export const purchaseOrderRouter = router({
       }
 
       const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         if (input.status === "received") {
           for (const item of po.items) {
             const remainingToReceive = Math.max(0, item.quantity - item.receivedQty);

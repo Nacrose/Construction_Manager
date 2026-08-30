@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { siteOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { assertDelegation } from "@/lib/delegation";
+import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
 export const siteExpenseRouter = router({
@@ -228,6 +229,7 @@ export const siteExpenseRouter = router({
       // re-approval is impossible ("only pending expenses can be
       // approved"), so the GL entry could never be recovered.
       const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         const exp = await tx.siteExpense.update({
           where: { id: input.id },
           data: {

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
+import { withOrgContext } from "@/lib/rls";
 
 export const TxnSchema = z.object({
   projectId: z.string(),
@@ -204,6 +205,7 @@ export const materialTransactionProcedures = {
       const finalCatalogId = input.catalogMaterialId || input.materialCatalogId || null;
 
       const result = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         const baseAmount = input.quantity * input.rate;
         const isReceive = input.type === "receive";
         const vatPercent = isReceive ? input.vatPercent ?? 0 : 0;
@@ -470,6 +472,7 @@ export const materialTransactionProcedures = {
 
         for (const ipc of affectedIpcs) {
           await db.$transaction(async (tx) => {
+            await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
             // Re-import the recalculation logic inline to avoid a
             // circular import with ipc.ts. This mirrors the
             // recalculateIpc() function in ipc.ts.
@@ -703,6 +706,7 @@ export const materialTransactionProcedures = {
       await assertDelegation(ctx.user, "log_direct_material_purchase", input.totalAmount);
 
       return await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         // Construct detailed formatted title if subCategory/spec/company provided
         const fullDetails = [input.company, input.materialName, input.subCategory, input.spec]
           .filter(Boolean)

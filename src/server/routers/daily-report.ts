@@ -11,6 +11,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createNotification, notifyProject } from "@/server/utils/notify";
 import { escapeHtml } from "@/server/utils/email";
 import { deleteFile } from "@/lib/storage";
+import { withOrgContext } from "@/lib/rls";
 import { dailyReportAttachmentsRouter } from "./daily-report-attachments";
 import {
   syncNormalizedTables,
@@ -504,6 +505,7 @@ const dailyReportCoreRouter = router({
 
           if (consumptions.length > 0) {
             await db.$transaction(async (tx) => {
+              await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
               for (const cons of consumptions) {
                 const material = await tx.material.findUnique({
                   where: { id: cons.materialId },

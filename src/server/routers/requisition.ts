@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 
 const RequisitionItemQuoteSchema = z.object({
   partnerId: z.string().min(1),
@@ -121,6 +122,7 @@ async function executeGeneratePOs(
   const affectedRequisitionIds = new Set<string>();
 
   await db.$transaction(async (tx) => {
+    await withOrgContext(tx, user.organizationId, !!user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
     for (const [partnerId, group] of Object.entries(itemsByVendor)) {
       // Fetch partner details
       const partner = await tx.partner.findUnique({
@@ -510,6 +512,7 @@ export const requisitionRouter = router({
     const number = `PR-${(count + 1).toString().padStart(4, "0")}`;
 
     const requisition = await db.$transaction(async (tx) => {
+      await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
       const pr = await tx.purchaseRequisition.create({
         data: {
           projectId: input.projectId,

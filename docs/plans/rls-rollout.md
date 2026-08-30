@@ -1,6 +1,6 @@
 # RLS Rollout Plan — Row-Level Security Beyond `Project`
 
-**Status:** Phases 0, 1 & 2 IMPLEMENTED (2026-08-30) — Phase 3 awaiting staging verification
+**Status:** Phases 0–2 and 3m IMPLEMENTED (2026-08-30) — Phase 3a/3b/3c awaiting green week on 3m
 **Scope:** Extend PostgreSQL Row-Level Security from the single `Project` table to the full tenant-scoped surface (17 org-scoped + 62 project-scoped models — corrected by `scripts/rls-inventory.ts`; the draft's "50/71" counts were raw line matches, not model classifications).
 **Author:** repo governance agent · **Date:** 2026-08-30
 
@@ -102,9 +102,14 @@ Notes:
 ### Phase 2 — Remaining org-scoped tables (10 tables) ✅ DONE (2026-08-30)
 `CatalogMaterial`, `DelegationRule`, `GanttTaskTemplate`, `GlobalPresetAnalysis`, `RateBook`, `RateProfile`, `ReportSnapshot`, `ReportTemplate`, `StoredFile`, `UncatalogedMaterial` — migration `20260830020000_rls_phase2_org_rest`. NULL-org rows on global-reference tables stay SELECT-visible to all orgs (intentional shared data; writes remain superadmin-gated, matching the app guards); project-reachable tables (RateBook/RateProfile/ReportSnapshot/GanttTaskTemplate) use project-EXISTS predicates so NULL-org project rows keep working. Same 48 h watch window.
 
-### Phase 3m — Project-scoped MONEY tables (13 tables) — EXISTS-via-Project policy
-`Payment`, `VendorBill`, `VendorPayment`, `PayrollRun`, `JournalEntryLine`, `Ipc`, `SubcontractorBill`, `SiteExpense`, `ProjectCost`, `VatBill`, `MaterialTransaction`, `PurchaseOrder`, `PurchaseRequisition`.
-Highest business criticality of the project-scoped set; gated on the Phase-3 policy semantics being verified on staging (subquery-vs-Project-policy behavior, `EXPLAIN ANALYZE` on `MaterialTransaction`).
+### Phase 3m — Project-scoped MONEY tables (13 tables) ✅ DONE (2026-08-30)
+`Payment`, `VendorBill`, `VendorPayment`, `PayrollRun`, `JournalEntryLine`, `Ipc`, `SubcontractorBill`, `SiteExpense`, `ProjectCost`, `VatBill`, `MaterialTransaction`, `PurchaseOrder`, `PurchaseRequisition` — migration `20260830030000_rls_phase3m_project_money`.
+The Phase-3 gating questions were answered in a dedicated embedded-PG16 lab (34/34 checks, `docs/rls-evidence/phase3m-verification.md`):
+- **Recursion (blocking):** the phase-1 `JournalEntry` policy reached entries through `JournalEntryLine`, and the natural `JournalEntryLine` policy reaches back through `JournalEntry` (org-level lines) — PostgreSQL rejects mutual policy references with `infinite recursion detected in policy` on *every* read, as owner and non-owner alike. **Fix shipped in the same migration:** backfill `organizationId` onto legacy NULL-org entries (ambiguity-guarded, fails loudly on cross-org lines), simplify `JournalEntry` to the plain §3.1 org-match policy, and give `JournalEntryLine` a 3-branch policy (superadmin / project-EXISTS / parent-entry-org — exactly `financial-reporting.ts`'s accessCondition). All 15 `createJournalEntry` call sites already pass `organizationId`; the INSERT check is tightened accordingly (forgetting org now fails loudly instead of writing an invisible entry).
+- **Policy-subquery semantics:** plain §3.2 verified on all 12 NOT-NULL-projectId tables in BOTH connection modes (table owner with FORCE — the Prisma case — and a non-owner role where Project's own RLS applies inside the EXISTS). Rows anchored to legacy NULL-org projects fail closed (the predicate's org filter beats Project's legacy `IS NULL` visibility).
+- **Performance:** `EXPLAIN ANALYZE` at 10k `MaterialTransaction` rows — the predicate is evaluated as a one-time hashed subplan on Project (2.7 ms `count(*)`); no per-row Seq Scan.
+- Migration sequencing is load-bearing (each rule was learned from a lab failure): superadmin GUC first (a FORCEd table with zero policies is default-deny for everyone), policy swap before backfill (SELECT-only policies silently deny UPDATE — 0 rows, no error), backfill while the target subquery tables are still RLS-free.
+Routers owning FORCEd phase-3m tables with interactive transactions were retrofitted with `withOrgContext` (material-transaction, requisition, purchase-order, site-expense, daily-report — 9 sites) and added to the MONEY_ROUTERS drift guard. Same 48 h watch window after deploy.
 
 ### Phase 3a/3b/3c — Remaining project-scoped tables (49 tables)
 - 3a procurement/materials (5): `Material`, `StoreLocation`, `Supplier`, `EquipmentVendor`, `MarketRateRevisionLog`
