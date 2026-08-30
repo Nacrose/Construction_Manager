@@ -27,6 +27,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { formatNpr } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +82,9 @@ export type ConstructionTableProps<T> = {
   selectable?: boolean;
   rowKey?: (row: T) => string;
   onRowClick?: (row: T) => void;
+  renderRowPreview?: (row: T, onClose: () => void) => React.ReactNode;
+  rowPreviewTitle?: (row: T) => string;
+  onRowPreview?: (row: T) => void;
   bulkActions?: BulkAction<T>[];
   exportExcel?: {
     filename: string;
@@ -107,6 +116,9 @@ export function ConstructionTable<T extends Record<string, any>>({
   selectable = false,
   rowKey = (r) => r.id || JSON.stringify(r),
   onRowClick,
+  renderRowPreview,
+  rowPreviewTitle,
+  onRowPreview,
   bulkActions,
   exportExcel,
   emptyState,
@@ -119,6 +131,7 @@ export function ConstructionTable<T extends Record<string, any>>({
   const [isCompact, setIsCompact] = useState(initialDensity === "compact");
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [previewRow, setPreviewRow] = useState<T | null>(null);
   const [, startTransition] = useTransition();
 
   // 1. Filtered Data
@@ -408,10 +421,17 @@ export function ConstructionTable<T extends Record<string, any>>({
                 return (
                   <tr
                     key={id}
-                    onClick={() => onRowClick && onRowClick(row)}
+                    onClick={() => {
+                      if (renderRowPreview) {
+                        setPreviewRow(row);
+                        onRowPreview?.(row);
+                      } else if (onRowClick) {
+                        onRowClick(row);
+                      }
+                    }}
                     className={cn(
                       "transition-colors group",
-                      onRowClick && "cursor-pointer hover:bg-white/[0.03]",
+                      (onRowClick || renderRowPreview) && "cursor-pointer hover:bg-white/[0.03]",
                       isSelected ? "bg-emerald-500/10" : "hover:bg-white/[0.015]"
                     )}
                   >
@@ -563,6 +583,20 @@ export function ConstructionTable<T extends Record<string, any>>({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Row Preview Slide-Out Drawer (Sheet) */}
+      {renderRowPreview && (
+        <Sheet open={!!previewRow} onOpenChange={(open) => !open && setPreviewRow(null)}>
+          <SheetContent className="w-full sm:max-w-xl bg-[#0c1015]/95 border-l border-white/10 text-white backdrop-blur-2xl p-6 overflow-y-auto z-50">
+            <SheetHeader className="mb-4 pb-3 border-b border-white/10">
+              <SheetTitle className="text-base font-bold font-mono text-white">
+                {previewRow && rowPreviewTitle ? rowPreviewTitle(previewRow) : "Record Overview"}
+              </SheetTitle>
+            </SheetHeader>
+            {previewRow && renderRowPreview(previewRow, () => setPreviewRow(null))}
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );

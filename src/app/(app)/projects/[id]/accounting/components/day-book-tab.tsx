@@ -11,6 +11,12 @@ import {
   Eye,
   Plus,
   Loader2,
+  List,
+  Calendar,
+  ArrowDownLeft,
+  ArrowUpRight,
+  FileText,
+  Receipt,
 } from "lucide-react";
 import {
   Select,
@@ -34,6 +40,7 @@ import { NepaliDatePicker } from "@/components/ui/nepali-date-picker";
 
 export function DayBookTab({ projectId }: { projectId?: string }) {
   const utils = trpc.useUtils();
+  const [viewMode, setViewMode] = useState<"table" | "timeline">("table");
   const [voucherType, setVoucherType] = useState<string>("all");
   const [recordInflowOpen, setRecordInflowOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
@@ -259,65 +266,269 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         </div>
       </div>
 
-      {/* Construction Table */}
-      <ConstructionTable
-        title="Project Day Book & Cashbook (दैनिक रोजकट्टी)"
-        data={entriesWithRunning}
-        columns={columns}
-        searchPlaceholder="Search party, PAN, particulars, voucher..."
-        exportExcel={{
-          filename: `DayBook_${projectId || "Master"}_${format(new Date(), "yyyy-MM-dd")}`,
-          sheetName: "DayBook",
-        }}
-        emptyState={{
-          icon: BookOpen,
-          title: "No Journal Entries Recorded",
-          description: "Day Book entries appear automatically when you record payments, client receipts, or bills.",
-        }}
-        headerActions={
-          <div className="flex items-center gap-2">
-            {/* Voucher Type Filter */}
-            <div className="w-36">
-              <Select value={voucherType} onValueChange={setVoucherType}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#121820] border-white/10 text-white rounded-lg">
-                  <SelectValue placeholder="All Transactions" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
-                  <SelectItem value="all">All Vouchers</SelectItem>
-                  <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
-                  <SelectItem value="billing">Client Inflows (आम्दानी)</SelectItem>
-                  <SelectItem value="purchase">Vendor Bills</SelectItem>
-                  <SelectItem value="work_done">Subcontractor Bills</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* View Mode & Table / Timeline Rendering */}
+      {viewMode === "table" ? (
+        <ConstructionTable
+          title="Project Day Book & Cashbook (दैनिक रोजकट्टी)"
+          data={entriesWithRunning}
+          columns={columns}
+          searchPlaceholder="Search party, PAN, particulars, voucher..."
+          exportExcel={{
+            filename: `DayBook_${projectId || "Master"}_${format(new Date(), "yyyy-MM-dd")}`,
+            sheetName: "DayBook",
+          }}
+          rowPreviewTitle={(row) => `Voucher #${row.voucherNo || "—"} (${row.party || "Direct Entry"})`}
+          renderRowPreview={(row) => (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Date (Miti):</span>
+                  <span className="font-semibold text-white">{row.miti || "—"} ({row.date})</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Voucher No:</span>
+                  <span className="font-semibold text-emerald-400">#{row.voucherNo || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Voucher Type:</span>
+                  <Badge variant="outline" className="capitalize text-[10px] bg-white/5 border-white/10 text-gray-300">
+                    {row.voucherType || "Journal"}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Payment Mode:</span>
+                  <span className="font-semibold text-white capitalize">{row.paymentMode || "Bank"}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Party Name / Entity:</span>
+                  <span className="font-semibold text-white text-sm">{row.party || "—"}</span>
+                </div>
+                {row.pan && (
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">PAN / VAT No:</span>
+                    <span className="text-gray-300">{row.pan}</span>
+                  </div>
+                )}
+                <div>
+                  <span className="text-gray-400 block text-[10px]">Particulars / Narration:</span>
+                  <p className="text-gray-300 text-xs font-sans mt-0.5">{row.particulars || "—"}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-[10px] text-gray-400 block">Inflow (Dr)</span>
+                  <span className="font-bold text-emerald-400">
+                    {row.debit > 0 ? `NPR ${formatNpr(row.debit)}` : "—"}
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <span className="text-[10px] text-gray-400 block">Outflow (Cr)</span>
+                  <span className="font-bold text-red-400">
+                    {row.credit > 0 ? `NPR ${formatNpr(row.credit)}` : "—"}
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+                  <span className="text-[10px] text-gray-400 block">Running Bal</span>
+                  <span className={cn("font-bold", row.runningBalance >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    NPR {formatNpr(row.runningBalance)}
+                  </span>
+                </div>
+              </div>
+
+              {row.attachmentUrl && (
+                <a
+                  href={sanitizeUrl(row.attachmentUrl) ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs transition-colors"
+                >
+                  <Eye className="h-4 w-4" /> View Supporting Bill / Scanned Voucher
+                </a>
+              )}
             </div>
+          )}
+          emptyState={{
+            icon: BookOpen,
+            title: "No Journal Entries Recorded",
+            description: "Day Book entries appear automatically when you record payments, client receipts, or bills.",
+          }}
+          headerActions={
+            <div className="flex items-center gap-2">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-[#121820] border border-white/10 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className="px-2 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-400 font-bold transition-all"
+                  title="Table View"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("timeline")}
+                  className="px-2 py-1 rounded text-xs font-mono text-gray-400 hover:text-white transition-all"
+                  title="Khatabook Timeline View"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                </button>
+              </div>
 
-            <Button
-              size="sm"
-              onClick={() => setAddClaimOpen(true)}
-              className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
-            >
-              <Plus className="h-3 w-3" /> + Bill / Claim
-            </Button>
+              {/* Voucher Type Filter */}
+              <div className="w-36">
+                <Select value={voucherType} onValueChange={setVoucherType}>
+                  <SelectTrigger className="h-8 text-xs font-mono bg-[#121820] border-white/10 text-white rounded-lg">
+                    <SelectValue placeholder="All Transactions" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
+                    <SelectItem value="all">All Vouchers</SelectItem>
+                    <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
+                    <SelectItem value="billing">Client Inflows (आम्दानी)</SelectItem>
+                    <SelectItem value="purchase">Vendor Bills</SelectItem>
+                    <SelectItem value="work_done">Subcontractor Bills</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Button
-              size="sm"
-              onClick={() => setRecordInflowOpen(true)}
-              className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
-            >
-              <Plus className="h-3 w-3" /> + Money In
-            </Button>
+              <Button
+                size="sm"
+                onClick={() => setAddClaimOpen(true)}
+                className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
+              >
+                <Plus className="h-3 w-3" /> + Bill / Claim
+              </Button>
 
-            <Button
-              size="sm"
-              onClick={() => setRecordPaymentOpen(true)}
-              className="h-8 px-3 text-xs font-semibold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
-            >
-              <Plus className="h-3 w-3" /> + Record Payment
-            </Button>
+              <Button
+                size="sm"
+                onClick={() => setRecordInflowOpen(true)}
+                className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
+              >
+                <Plus className="h-3 w-3" /> + Money In
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => setRecordPaymentOpen(true)}
+                className="h-8 px-3 text-xs font-semibold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
+              >
+                <Plus className="h-3 w-3" /> + Record Payment
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        /* Timeline Feed View (Khatabook-style chronological cards) */
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-mono text-gray-400 uppercase font-bold tracking-wider">
+              Chronological Ledger Feed (खाताबही टाइमलाइन)
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-[#121820] border border-white/10 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className="px-2 py-1 rounded text-xs font-mono text-gray-400 hover:text-white"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("timeline")}
+                  className="px-2 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-400 font-bold"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setRecordInflowOpen(true)}
+                className="h-7 text-xs font-semibold bg-[#141a23] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1"
+              >
+                <Plus className="h-3 w-3" /> Money In
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setRecordPaymentOpen(true)}
+                className="h-7 text-xs font-semibold bg-[#00ff66] text-black rounded-lg"
+              >
+                <Plus className="h-3 w-3" /> Payment
+              </Button>
+            </div>
           </div>
-        }
-      />
+
+          {entriesWithRunning.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl border border-white/10 bg-[#0c1015] text-gray-400 text-xs font-mono">
+              <BookOpen className="mx-auto h-8 w-8 mb-2 opacity-50" />
+              No entries found.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {entriesWithRunning.map((entry) => {
+                const isInflow = entry.debit > 0;
+                return (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      "p-3.5 rounded-xl border bg-[#0c1015] transition-all hover:bg-white/[0.02] flex items-center justify-between gap-4 font-mono text-xs",
+                      isInflow
+                        ? "border-l-4 border-l-emerald-500 border-white/10"
+                        : "border-l-4 border-l-rose-500 border-white/10"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                          isInflow ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                        )}
+                      >
+                        {isInflow ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm truncate">{entry.party || "Direct Entry"}</span>
+                          {entry.voucherNo && (
+                            <span className="text-[10px] text-gray-500">#{entry.voucherNo}</span>
+                          )}
+                          <Badge variant="outline" className="text-[9px] uppercase bg-white/5 border-white/10 text-gray-400">
+                            {entry.voucherType}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-gray-400 truncate font-sans">{entry.particulars || "—"}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0 flex items-center gap-4">
+                      <div>
+                        <div
+                          className={cn(
+                            "font-bold text-sm",
+                            isInflow ? "text-emerald-400" : "text-rose-400"
+                          )}
+                        >
+                          {isInflow ? `+ NPR ${formatNpr(entry.debit)}` : `- NPR ${formatNpr(entry.credit)}`}
+                        </div>
+                        <div className="text-[10px] text-gray-500">
+                          Bal: NPR {formatNpr(entry.runningBalance)}
+                        </div>
+                      </div>
+                      <div className="text-right text-[10px] text-gray-400 border-l border-white/10 pl-3">
+                        <div className="text-white font-bold">{entry.miti || "—"}</div>
+                        <div className="text-gray-500">{entry.date}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal: Record Inflow (Money In) */}
       <Dialog open={recordInflowOpen} onOpenChange={setRecordInflowOpen}>

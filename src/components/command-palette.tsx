@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Dialog,
@@ -10,16 +10,17 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   Terminal, Search, Sparkles, FolderKanban, Truck, ReceiptText,
-  FileQuestion, Users, Database, Layers, Flame, Calculator,
-  Zap, CloudRain, Eye, ArrowRight, CornerDownLeft, Maximize2,
+  FileQuestion, Database, Layers, CloudRain, Eye, CornerDownLeft,
+  Maximize2, Zap, FileText, ClipboardList, Loader2,
 } from "lucide-react";
 import { useFXStore } from "@/lib/fx-store";
 import { cyberAudio } from "@/lib/cyber-audio";
+import { fetchWithAuth } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
   id: string;
-  category: "Navigation" | "FX & Terminal" | "Calculators" | "Actions";
+  category: "Search Results" | "Navigation" | "FX & Terminal" | "Actions";
   title: string;
   subtitle?: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -27,13 +28,20 @@ interface CommandItem {
   keywords?: string[];
 }
 
+interface SearchResults {
+  projects: Array<{ id: string; name: string; code: string; status: string; href: string }>;
+  rfis: Array<{ id: string; number: string; subject: string; status: string; project: { code: string }; href: string }>;
+  reports: Array<{ id: string; number: string; status: string; reportDate: string; project: { code: string }; href: string }>;
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-
   const fx = useFXStore();
 
   const projectId = useMemo(() => {
@@ -50,18 +58,93 @@ export function CommandPalette() {
         if (fx.soundEnabled) cyberAudio.playCommandChime(fx.soundVolume);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fx.soundEnabled, fx.soundVolume]);
 
-  const commands: CommandItem[] = useMemo(() => {
+  // Debounced live search against /api/search
+  const runSearch = useCallback(async (q: string) => {
+    if (q.length < 2) {
+      setSearchResults(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await fetchWithAuth(`/api/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const json = await res.json();
+        setSearchResults(json.data ?? json);
+      }
+    } catch {
+      // Silently ignore — search is best-effort
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => runSearch(query), 250);
+    return () => clearTimeout(timer);
+  }, [query, runSearch]);
+
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setSearchResults(null);
+      setSelectedIndex(0);
+    }
+  }, [open]);
+
+  // Build live search result commands
+  const searchResultCommands: CommandItem[] = useMemo(() => {
+    if (!searchResults) return [];
+    const items: CommandItem[] = [];
+
+    searchResults.projects?.forEach((p) =>
+      items.push({
+        id: `sr-project-${p.id}`,
+        category: "Search Results",
+        title: p.name,
+        subtitle: `Project · ${p.code} · ${p.status}`,
+        icon: FolderKanban,
+        action: () => router.push(p.href),
+      })
+    );
+
+    searchResults.rfis?.forEach((r) =>
+      items.push({
+        id: `sr-rfi-${r.id}`,
+        category: "Search Results",
+        title: `${r.number} — ${r.subject}`,
+        subtitle: `RFI · ${r.project.code} · ${r.status}`,
+        icon: FileQuestion,
+        action: () => router.push(r.href),
+      })
+    );
+
+    searchResults.reports?.forEach((r) =>
+      items.push({
+        id: `sr-report-${r.id}`,
+        category: "Search Results",
+        title: `Daily Report ${r.number}`,
+        subtitle: `Report · ${r.project.code} · ${r.reportDate?.slice(0, 10) ?? ""}`,
+        icon: ClipboardList,
+        action: () => router.push(r.href),
+      })
+    );
+
+    return items;
+  }, [searchResults, router]);
+
+  // Static command list
+  const staticCommands: CommandItem[] = useMemo(() => {
     const list: CommandItem[] = [
-      // FX & Terminal Controls
+      // FX & Terminal
       {
         id: "app-fullscreen-toggle",
         category: "FX & Terminal",
-        title: "Toggle True Fullscreen (Hide Browser Header)",
+        title: "Toggle True Fullscreen",
         subtitle: "Enter or exit complete immersive fullscreen desktop mode",
         icon: Maximize2,
         action: () => {
@@ -71,7 +154,7 @@ export function CommandPalette() {
             document.exitFullscreen().catch(() => {});
           }
         },
-        keywords: ["fullscreen", "full", "screen", "hide", "browser", "firefox", "tabs"],
+        keywords: ["fullscreen", "full", "screen", "hide", "browser"],
       },
       {
         id: "fx-droplets-toggle",
@@ -116,7 +199,7 @@ export function CommandPalette() {
         subtitle: `Mechanical key clicks, thunder, and rain audio (${Math.round(fx.soundVolume * 100)}% vol)`,
         icon: Sparkles,
         action: () => fx.setSoundEnabled(!fx.soundEnabled),
-        keywords: ["sound", "audio", "mute", "click", "keystroke", "volume"],
+        keywords: ["sound", "audio", "mute", "click", "volume"],
       },
       {
         id: "fx-preset-heavy-storm",
@@ -145,10 +228,7 @@ export function CommandPalette() {
         action: () => fx.applyPreset("clean_office"),
         keywords: ["preset", "clean", "office", "solid", "off"],
       },
-    ];
-
-    // Navigation
-    list.push(
+      // Navigation
       {
         id: "nav-dashboard",
         category: "Navigation",
@@ -166,8 +246,8 @@ export function CommandPalette() {
         icon: FolderKanban,
         action: () => router.push("/projects"),
         keywords: ["projects", "list"],
-      }
-    );
+      },
+    ];
 
     if (projectId) {
       list.push(
@@ -215,6 +295,15 @@ export function CommandPalette() {
           icon: FileQuestion,
           action: () => router.push(`/projects/${projectId}/rfis`),
           keywords: ["rfi", "rfis", "questions"],
+        },
+        {
+          id: "nav-proj-accounting",
+          category: "Navigation",
+          title: "Jump to Day Book & Accounting",
+          subtitle: `/projects/${projectId}/accounting`,
+          icon: FileText,
+          action: () => router.push(`/projects/${projectId}/accounting`),
+          keywords: ["accounting", "day book", "ledger", "gl", "journal"],
         }
       );
     }
@@ -222,18 +311,21 @@ export function CommandPalette() {
     return list;
   }, [fx, projectId, router]);
 
-  const filteredCommands = useMemo(() => {
-    if (!query.trim()) return commands;
-    const q = query.toLowerCase();
-    return commands.filter((cmd) => {
-      return (
+  // All items: live search results first, then static filtered
+  const allItems: CommandItem[] = useMemo(() => {
+    const hasQuery = query.trim().length >= 2;
+    if (hasQuery) {
+      const q = query.toLowerCase();
+      const filteredStatic = staticCommands.filter((cmd) =>
         cmd.title.toLowerCase().includes(q) ||
         cmd.subtitle?.toLowerCase().includes(q) ||
         cmd.category.toLowerCase().includes(q) ||
         cmd.keywords?.some((k) => k.toLowerCase().includes(q))
       );
-    });
-  }, [commands, query]);
+      return [...searchResultCommands, ...filteredStatic];
+    }
+    return staticCommands;
+  }, [query, searchResultCommands, staticCommands]);
 
   const handleSelect = (cmd: CommandItem) => {
     cmd.action();
@@ -245,29 +337,46 @@ export function CommandPalette() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredCommands.length));
+      setSelectedIndex((prev) => (prev + 1) % Math.max(1, allItems.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % Math.max(1, filteredCommands.length));
+      setSelectedIndex((prev) => (prev - 1 + allItems.length) % Math.max(1, allItems.length));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (filteredCommands[selectedIndex]) {
-        handleSelect(filteredCommands[selectedIndex]);
+      if (allItems[selectedIndex]) {
+        handleSelect(allItems[selectedIndex]);
       }
     }
   };
+
+  // Group items by category for display
+  const grouped = useMemo(() => {
+    const map = new Map<string, CommandItem[]>();
+    for (const item of allItems) {
+      const group = map.get(item.category) ?? [];
+      group.push(item);
+      map.set(item.category, group);
+    }
+    return map;
+  }, [allItems]);
+
+  // Flat index for keyboard nav
+  let flatIndex = 0;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-xl p-0 border border-primary/40 bg-card/90 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,255,102,0.25)] rounded-lg overflow-hidden gap-0">
         <DialogTitle className="sr-only">Matrix HUD Command Palette</DialogTitle>
-        
+
         {/* Terminal Header */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/80">
           <Terminal className="h-4 w-4 text-primary animate-pulse" />
           <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
             MATRIX COMMAND TERMINAL [Cmd+K]
           </span>
+          {isSearching && (
+            <Loader2 className="h-3 w-3 text-primary animate-spin ml-1" />
+          )}
           <div className="ml-auto flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
             <span className="px-1 py-0.5 rounded border border-border bg-muted">ESC</span> to exit
           </div>
@@ -275,7 +384,7 @@ export function CommandPalette() {
 
         {/* Search Input */}
         <div className="flex items-center px-3 py-2 border-b border-border/60 bg-background/60">
-          <Search className="h-4 w-4 text-muted-foreground mr-2" />
+          <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
           <Input
             autoFocus
             value={query}
@@ -284,50 +393,59 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command, FX toggle, or navigation jump..."
+            placeholder="Search projects, RFIs, reports — or type a command..."
             className="h-8 border-none bg-transparent font-mono text-xs text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 px-0 placeholder:text-muted-foreground"
           />
         </div>
 
         {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-1.5 space-y-1">
-          {filteredCommands.length === 0 ? (
+        <div className="max-h-[420px] overflow-y-auto p-1.5">
+          {allItems.length === 0 && !isSearching ? (
             <div className="py-8 text-center text-xs font-mono text-muted-foreground">
-              No matching command found for &quot;{query}&quot;
+              {query.length >= 2
+                ? `No results found for "${query}"`
+                : "No matching command found"}
             </div>
           ) : (
-            filteredCommands.map((cmd, idx) => {
-              const Icon = cmd.icon;
-              const isSelected = idx === selectedIndex;
-              return (
-                <div
-                  key={cmd.id}
-                  onClick={() => handleSelect(cmd)}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-all text-xs font-mono",
-                    isSelected
-                      ? "bg-primary/20 text-primary border border-primary/50 shadow-[0_0_12px_rgba(0,255,102,0.2)]"
-                      : "text-foreground hover:bg-muted/60"
-                  )}
-                >
-                  <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold truncate">{cmd.title}</p>
-                    {cmd.subtitle && (
-                      <p className="text-[10px] text-muted-foreground truncate">{cmd.subtitle}</p>
-                    )}
-                  </div>
-                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-border text-muted-foreground shrink-0">
-                    {cmd.category}
-                  </span>
-                  {isSelected && <CornerDownLeft className="h-3 w-3 text-primary shrink-0" />}
+            Array.from(grouped.entries()).map(([category, items]) => (
+              <div key={category} className="mb-1">
+                {/* Category label */}
+                <div className="px-2 py-1 text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground/60">
+                  {category}
                 </div>
-              );
-            })
+                {items.map((cmd) => {
+                  const idx = flatIndex++;
+                  const isSelected = idx === selectedIndex;
+                  const Icon = cmd.icon;
+                  return (
+                    <div
+                      key={cmd.id}
+                      onClick={() => handleSelect(cmd)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-all text-xs font-mono",
+                        isSelected
+                          ? "bg-primary/20 text-primary border border-primary/50 shadow-[0_0_12px_rgba(0,255,102,0.2)]"
+                          : "text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold truncate">{cmd.title}</p>
+                        {cmd.subtitle && (
+                          <p className="text-[10px] text-muted-foreground truncate">{cmd.subtitle}</p>
+                        )}
+                      </div>
+                      {isSelected && <CornerDownLeft className="h-3 w-3 text-primary shrink-0" />}
+                    </div>
+                  );
+                })}
+              </div>
+            ))
           )}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
+

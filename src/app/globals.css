@@ -408,3 +408,16 @@ input[type="number"] {
     page-break-inside: avoid;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Mobile Touch Target Optimization
+   ────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  button:not(.inline-icon-btn),
+  [role="button"]:not(.inline-icon-btn),
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 38px;
+  }
+}
+

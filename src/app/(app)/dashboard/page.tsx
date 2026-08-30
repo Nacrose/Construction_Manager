@@ -7,6 +7,7 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   FolderKanban, FileQuestion, Clock, CheckCircle2, ArrowRight, Banknote, TrendingUp, Activity, Sparkles,
@@ -482,16 +483,7 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs text-muted-foreground">{rfi.number}</span>
-                          <Badge
-                            variant="secondary"
-                            className="text-xs"
-                            style={{
-                              backgroundColor: STATUS_COLORS[rfi.status] ? `${STATUS_COLORS[rfi.status]}20` : undefined,
-                              color: STATUS_COLORS[rfi.status],
-                            }}
-                          >
-                            {rfi.status}
-                          </Badge>
+                          <StatusBadge status={rfi.status} size="xs" />
                         </div>
                         <p className="mt-1 truncate text-sm font-medium">{rfi.subject}</p>
                         <p className="truncate text-xs text-muted-foreground">{rfi.project.code} · {rfi.project.name}</p>

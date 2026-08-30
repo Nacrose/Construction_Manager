@@ -16,6 +16,17 @@
   - **ALWAYS check and confirm if existing models, components, dialogs, routers, and tabs can be reused or extended before adding new ones.**
   - **NEVER create duplicate buttons, duplicate models, or new sub-tabs when an existing workflow (e.g. Day Book, Record Payment dialog, Project dropdown) can handle it naturally.**
   - Keep the system unified, streamlined, and minimalist. Zero redundant entities or UI sprawl.
+- **MANDATORY APP-WIDE SWEEP DIRECTIVE (NO HALF-WIRED FEATURES)**:
+  - **A feature, fix, or security change is NOT done until it is verified as consistently applied across every relevant call site in the entire codebase.**
+  - After implementing anything — a security primitive, a UI component, a utility, a domain rule — you MUST grep/search the codebase for all existing call sites that should use it and confirm they do. Do not assume previous code is already compliant.
+  - **Security primitives** (e.g. `withOrgContext`, `financialProcedure`, `assertNotLocked`, `assertDelegation`): Every `$transaction`, every financial mutation, every org-scoped write must be checked.
+  - **UI engines** (e.g. `<ConstructionTable />`, `<StatusBadge />`, `formatNpr()`): After every engine update, grep for ad-hoc duplicates and replace them.
+  - **The definition of "done"**: A task is complete only when (a) the change is implemented, (b) a codebase-wide search confirms no existing site is left behind, and (c) the build passes. "I added it to the new code" is not done.
+  - This rule exists because the most common failure mode in this codebase is building something correctly and then not wiring it in everywhere. Do not repeat that mistake.
+- **CENTRAL ENGINE IS A PERMANENT, NON-NEGOTIABLE ARCHITECTURAL LAW**:
+  - The central engines (`ConstructionTable`, `StatusBadge`, `formatNpr`, `withOrgContext`, `financialProcedure`, `assertGlBalanced`, etc.) are permanent fixtures of this codebase. They do not get bypassed, replaced inline, or worked around — ever.
+  - If the engine does not support a new use case, the engine is extended. The one-off implementation is never the answer.
+  - Any code review, AI-assisted change, or refactor that introduces an ad-hoc duplicate of a central engine component must be rejected and re-done through the engine.
 - Always check the build locally (e.g., using `npm run build` or equivalent) before pushing to git.
 - Only push to git after user has checked build locally on browser.
 

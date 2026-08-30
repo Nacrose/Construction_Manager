@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc-client";
 import { useFXStore } from "@/lib/fx-store";
-import { Radio, Volume2, VolumeX, Terminal, Sparkles, Maximize2, Minimize2, Calendar as CalendarIcon } from "lucide-react";
+import {
+  Radio, Volume2, VolumeX, Terminal, Sparkles, Maximize2, Minimize2,
+  Calendar as CalendarIcon, FileQuestion, ShieldAlert,
+} from "lucide-react";
 import { AtmosphericControllerDialog } from "@/components/fx/atmospheric-controller-dialog";
 import { cn } from "@/lib/utils";
 import { getCurrentBsDate, type NepaliDate } from "@/lib/nepali-calendar";
@@ -14,6 +17,7 @@ import { useUserPreferences } from "@/components/user-preferences-provider";
 
 export function SiteTelemetryTicker() {
   const pathname = usePathname();
+  const router = useRouter();
   const [timeStr, setTimeStr] = useState("");
   const [fxDialogOpen, setFxDialogOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -28,6 +32,19 @@ export function SiteTelemetryTicker() {
     { id: projectId! },
     { enabled: !!projectId, staleTime: 300_000 }
   );
+
+  const { data: rfiData } = trpc.dashboard.rfiMetrics.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId, staleTime: 60_000 }
+  );
+
+  const { data: bgData } = trpc.bankGuarantee.list.useQuery(
+    { projectId: projectId! },
+    { enabled: !!projectId, staleTime: 60_000 }
+  );
+
+  const overdueRfiCount = rfiData?.overdue?.length ?? 0;
+  const expiringBgCount = bgData?.kpis?.expiringWithin30DaysCount ?? 0;
 
   useEffect(() => {
     const updateTime = () => {
@@ -86,6 +103,32 @@ export function SiteTelemetryTicker() {
             )}
           </span>
         </div>
+
+        {/* Center / Attention Ticker Alerts */}
+        {projectId && (overdueRfiCount > 0 || expiringBgCount > 0) && (
+          <div className="hidden md:flex items-center gap-2 shrink-0">
+            {overdueRfiCount > 0 && (
+              <button
+                onClick={() => router.push(`/projects/${projectId}/rfis`)}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-[10px] font-bold transition-all shadow-[0_0_8px_rgba(245,158,11,0.2)] animate-pulse cursor-pointer"
+                title="Click to view Overdue RFIs"
+              >
+                <FileQuestion className="h-3 w-3 text-amber-400" />
+                <span>{overdueRfiCount} OVERDUE RFI{overdueRfiCount > 1 ? "S" : ""}</span>
+              </button>
+            )}
+            {expiringBgCount > 0 && (
+              <button
+                onClick={() => router.push(`/projects/${projectId}/guarantees`)}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[10px] font-bold transition-all shadow-[0_0_8px_rgba(244,63,94,0.2)] cursor-pointer"
+                title="Click to view Expiring Guarantees"
+              >
+                <ShieldAlert className="h-3 w-3 text-rose-400" />
+                <span>{expiringBgCount} GUARANTEE{expiringBgCount > 1 ? "S" : ""} EXPIRING</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Right: Live Telemetry & Shortcuts */}
         <div className="flex items-center gap-2.5 shrink-0">

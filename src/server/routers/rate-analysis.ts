@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
+import { withOrgContext } from "@/lib/rls";
 import { db } from "@/lib/db";
 import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
@@ -448,6 +449,7 @@ export const rateAnalysisRouter = router({
       });
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.boqIngredient.deleteMany({
           where: { rateAnalysisId: input.targetAnalysisId },
         });

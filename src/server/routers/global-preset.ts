@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
+import { withOrgContext } from "@/lib/rls";
 import { db } from "@/lib/db";
 import { isOrgAdmin, assertCanWrite } from "@/lib/authz";
 import { recalcAnalysis } from "@/server/utils/boq-calc";
@@ -331,6 +332,7 @@ export const globalPresetRouter = router({
       });
 
       await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
         await tx.boqIngredient.deleteMany({ where: { rateAnalysisId: input.rateAnalysisId } });
 
         for (const ing of preset.ingredients) {

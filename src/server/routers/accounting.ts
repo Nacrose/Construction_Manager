@@ -10,7 +10,7 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs } from "@/lib/nepali-calendar";
 import { createJournalEntry, clientReceiptEntry, type InflowType } from "@/lib/journal-entry";
-import { aggregateTrialBalance } from "@/server/utils/gl-trial-balance";
+import { aggregateTrialBalance, assertGlBalanced } from "@/server/utils/gl-trial-balance";
 
 export const accountingRouter = router({
   /**
@@ -852,7 +852,9 @@ export const accountingRouter = router({
         orderBy: { accountCode: "asc" },
       });
 
-      return aggregateTrialBalance(lines);
+      const result = aggregateTrialBalance(lines);
+      assertGlBalanced(result, { organizationId: ctx.user.organizationId });
+      return result;
     }),
 
   /**

@@ -116,3 +116,45 @@ export function aggregateTrialBalance(lines: GlLine[]): TrialBalanceResult {
     isBalanced: difference < 0.01,
   };
 }
+
+/**
+ * Assert that a trial balance result is balanced.
+ *
+ * Call this immediately after `aggregateTrialBalance()` in any procedure
+ * that surfaces the GL to users. A non-zero difference means journal entries
+ * were written outside the double-entry engine — this logs a structured error
+ * so observability tooling (Sentry, Datadog, etc.) can alert on it.
+ *
+ * This does NOT throw: the caller still returns the (possibly imbalanced)
+ * result to the user so they can see the discrepancy. The alert is the signal
+ * to the engineering team to investigate — not a runtime blocker.
+ *
+ * @param result   Output of aggregateTrialBalance()
+ * @param context  Arbitrary metadata to include in the log (orgId, projectId, etc.)
+ */
+export function assertGlBalanced(
+  result: TrialBalanceResult,
+  context: Record<string, unknown> = {},
+): void {
+  if (result.isBalanced) return;
+
+  // Dynamic import keeps gl-trial-balance.ts free of a hard logger dep
+  // in test environments. In production the logger is always available.
+  import("@/lib/logger")
+    .then(({ logger }) => {
+      logger().error("gl.imbalance.detected", {
+        difference: result.difference,
+        totalDebits: result.totalDebits,
+        totalCredits: result.totalCredits,
+        rowCount: result.rows.length,
+        ...context,
+      });
+    })
+    .catch(() => {
+      // Last-resort: native console so the event is never silently swallowed.
+      console.error("[GL IMBALANCE]", {
+        difference: result.difference,
+        ...context,
+      });
+    });
+}
