@@ -192,6 +192,100 @@ input[type="number"] {
   --red-signal: #ef4444;
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Black & White / Obsidian Monochrome Theme Variant (Deep System)
+   ────────────────────────────────────────────────────────────── */
+[data-theme="black_and_white"],
+[data-theme="obsidian"],
+.theme-obsidian {
+  --background: #000000;
+  --foreground: #ffffff;
+
+  --card: rgba(12, 12, 12, 0.88);
+  --card-foreground: #ffffff;
+
+  --popover: rgba(14, 14, 14, 0.96);
+  --popover-foreground: #ffffff;
+
+  /* Primary: Crisp High-Contrast White with Black Text */
+  --primary: #ffffff;
+  --primary-foreground: #000000;
+  --primary-glow: rgba(255, 255, 255, 0.25);
+
+  /* Secondary: Deep Carbon Zinc */
+  --secondary: #18181b;
+  --secondary-foreground: #f4f4f5;
+
+  /* Muted: Refined Glass Zinc & Cool Slate */
+  --muted: rgba(24, 24, 27, var(--panel-alpha));
+  --muted-foreground: #a1a1aa;
+
+  /* Accent: Subtle Silver Zinc */
+  --accent: #27272a;
+  --accent-foreground: #ffffff;
+
+  /* Semantic Signals */
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(255, 255, 255, 0.35);
+  --input: rgba(255, 255, 255, 0.10);
+  --ring: rgba(255, 255, 255, 0.60);
+
+  /* Charts */
+  --chart-1: #ffffff;
+  --chart-2: #a1a1aa;
+  --chart-3: #71717a;
+  --chart-4: #52525b;
+  --chart-5: #3f3f46;
+
+  /* Sidebar */
+  --sidebar: #050505;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #ffffff;
+
+  /* Brand Accents */
+  --amber-signal: #fbbf24;
+  --cyan-signal: #38bdf8;
+  --red-signal: #f87171;
+}
+
+[data-theme="black_and_white"] body,
+[data-theme="obsidian"] body,
+.theme-obsidian body {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+[data-theme="black_and_white"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.25) #000000;
+}
+[data-theme="black_and_white"] ::-webkit-scrollbar-track {
+  background: #000000;
+}
+[data-theme="black_and_white"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+[data-theme="black_and_white"] ::-webkit-scrollbar-thumb:hover {
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="black_and_white"] .hud-panel {
+  background-color: rgba(12, 12, 12, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 16px -3px rgba(255, 255, 255, 0.05), inset 0 0 12px rgba(255, 255, 255, 0.02);
+}
+[data-theme="black_and_white"] .hud-panel:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 20px -2px rgba(255, 255, 255, 0.12), inset 0 0 16px rgba(255, 255, 255, 0.04);
+}
+
 /* Clean Technical Blueprint (Light Mode Variant) */
 .light {
   --background: #f4f7f5;

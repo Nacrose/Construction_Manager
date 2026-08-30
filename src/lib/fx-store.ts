@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ThemePalette = "cyber_mint" | "tactical_amber" | "ice_cyan" | "daylight_blueprint";
+export type ThemePalette = "cyber_mint" | "black_and_white" | "tactical_amber" | "ice_cyan" | "daylight_blueprint";
 
 export const THEME_PALETTES: Record<ThemePalette, {
   name: string;
@@ -24,6 +24,17 @@ export const THEME_PALETTES: Record<ThemePalette, {
     ring: "#34d399",
     dotColor: "#34d399",
     previewBg: "bg-emerald-500",
+  },
+  black_and_white: {
+    name: "Black & White (Obsidian)",
+    primary: "#ffffff",
+    primaryGlow: "rgba(255, 255, 255, 0.25)",
+    border: "rgba(255, 255, 255, 0.14)",
+    borderAccent: "rgba(255, 255, 255, 0.40)",
+    accentForeground: "#ffffff",
+    ring: "#ffffff",
+    dotColor: "#ffffff",
+    previewBg: "bg-white",
   },
   tactical_amber: {
     name: "Tactical Amber",
@@ -64,6 +75,15 @@ export function applyThemePalette(palette: ThemePalette) {
   if (typeof document === "undefined") return;
   const p = THEME_PALETTES[palette] || THEME_PALETTES.cyber_mint;
   const root = document.documentElement;
+
+  root.setAttribute("data-theme", palette);
+
+  if (palette === "black_and_white") {
+    root.classList.add("theme-obsidian");
+  } else {
+    root.classList.remove("theme-obsidian");
+  }
+
   root.style.setProperty("--primary", p.primary);
   root.style.setProperty("--primary-glow", p.primaryGlow);
   root.style.setProperty("--border", p.border);

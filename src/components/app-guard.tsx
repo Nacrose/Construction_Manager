@@ -101,8 +101,8 @@ export function AppGuard({ children }: { children: ReactNode }) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="space-y-4 text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent shadow-[0_0_12px_#00ff66]" />
-          <p className="text-xs font-mono text-primary">INITIALIZING MATRIX OS…</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent shadow-[0_0_12px_var(--primary-glow)]" />
+          <p className="text-xs font-mono text-primary tracking-wider">INITIALIZING CONTRACTOR OS…</p>
         </div>
       </div>
     );

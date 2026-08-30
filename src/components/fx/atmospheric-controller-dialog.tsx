@@ -56,7 +56,7 @@ export function AtmosphericControllerDialog({
             <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
               🎨 Engineering Theme Palettes
             </Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               {(Object.keys(THEME_PALETTES) as ThemePalette[]).map((palKey) => {
                 const pal = THEME_PALETTES[palKey];
                 const isActive = (fx.themePalette || "cyber_mint") === palKey;

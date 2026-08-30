@@ -41,6 +41,7 @@ interface LightningBolt {
 export function AtmosphericCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
+    themePalette,
     matrixRainEnabled,
     stormWindEnabled,
     waterDropletsEnabled,
@@ -253,7 +254,10 @@ export function AtmosphericCanvas() {
       lastDraw = currentTime - (elapsed % fpsInterval);
 
       // Base canvas clearing
-      ctx.fillStyle = matrixRainEnabled ? "rgba(5, 8, 6, 0.14)" : "rgba(5, 8, 6, 0.45)";
+      const isMono = themePalette === "black_and_white";
+      ctx.fillStyle = isMono
+        ? matrixRainEnabled ? "rgba(0, 0, 0, 0.18)" : "rgba(0, 0, 0, 0.50)"
+        : matrixRainEnabled ? "rgba(5, 8, 6, 0.14)" : "rgba(5, 8, 6, 0.45)";
       ctx.fillRect(0, 0, width, height);
 
       // 1. Lightning Horizon Flash
@@ -263,9 +267,13 @@ export function AtmosphericCanvas() {
         }
 
         if (flashAlpha > 0.01) {
-          ctx.fillStyle = `rgba(0, 255, 102, ${flashAlpha * 0.45})`;
+          ctx.fillStyle = isMono
+            ? `rgba(255, 255, 255, ${flashAlpha * 0.35})`
+            : `rgba(0, 255, 102, ${flashAlpha * 0.45})`;
           ctx.fillRect(0, 0, width, height);
-          ctx.fillStyle = `rgba(180, 255, 220, ${flashAlpha * 0.25})`;
+          ctx.fillStyle = isMono
+            ? `rgba(220, 220, 230, ${flashAlpha * 0.20})`
+            : `rgba(180, 255, 220, ${flashAlpha * 0.25})`;
           ctx.fillRect(0, 0, width, height);
           flashAlpha *= 0.72;
         }
@@ -274,7 +282,7 @@ export function AtmosphericCanvas() {
           ctx.save();
           ctx.strokeStyle = `rgba(255, 255, 255, ${currentBolt.alpha})`;
           ctx.lineWidth = 2.5;
-          ctx.shadowColor = "#00ff66";
+          ctx.shadowColor = isMono ? "#ffffff" : "#00ff66";
           ctx.shadowBlur = 16;
 
           ctx.beginPath();
@@ -300,18 +308,34 @@ export function AtmosphericCanvas() {
           const y = matrixDrops[i] * fontSize;
 
           const rand = Math.random();
-          if (rand > 0.982) {
-            ctx.fillStyle = "#ffffff";
-            ctx.shadowColor = "#00ff66";
-            ctx.shadowBlur = 8;
-          } else if (rand > 0.91) {
-            ctx.fillStyle = "#86efac";
-            ctx.shadowColor = "#00ff66";
-            ctx.shadowBlur = 4;
+          if (isMono) {
+            if (rand > 0.982) {
+              ctx.fillStyle = "#ffffff";
+              ctx.shadowColor = "#ffffff";
+              ctx.shadowBlur = 8;
+            } else if (rand > 0.91) {
+              ctx.fillStyle = "#e4e4e7";
+              ctx.shadowColor = "#a1a1aa";
+              ctx.shadowBlur = 4;
+            } else {
+              ctx.fillStyle = "#52525b";
+              ctx.shadowColor = "transparent";
+              ctx.shadowBlur = 0;
+            }
           } else {
-            ctx.fillStyle = "#00ff66";
-            ctx.shadowColor = "transparent";
-            ctx.shadowBlur = 0;
+            if (rand > 0.982) {
+              ctx.fillStyle = "#ffffff";
+              ctx.shadowColor = "#00ff66";
+              ctx.shadowBlur = 8;
+            } else if (rand > 0.91) {
+              ctx.fillStyle = "#86efac";
+              ctx.shadowColor = "#00ff66";
+              ctx.shadowBlur = 4;
+            } else {
+              ctx.fillStyle = "#00ff66";
+              ctx.shadowColor = "transparent";
+              ctx.shadowBlur = 0;
+            }
           }
 
           ctx.fillText(text, x, y);

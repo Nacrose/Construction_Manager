@@ -90,7 +90,7 @@ export function SiteTelemetryTicker() {
         <div className="flex items-center gap-3 truncate min-w-0">
           <div className="flex items-center gap-1.5 text-primary font-bold shrink-0">
             <Radio className="h-3.5 w-3.5 animate-pulse text-primary" />
-            <span>MATRIX OS 2.0</span>
+            <span>{fx.themePalette === "black_and_white" ? "OBSIDIAN OS" : "MATRIX OS"}</span>
           </div>
           <span className="text-border">|</span>
           <span className="truncate text-foreground">
@@ -131,7 +131,25 @@ export function SiteTelemetryTicker() {
         )}
 
         {/* Right: Live Telemetry & Shortcuts */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Quick Theme Switcher Button */}
+          <button
+            onClick={() => {
+              const isMono = fx.themePalette === "black_and_white";
+              fx.setThemePalette(isMono ? "cyber_mint" : "black_and_white");
+            }}
+            className={cn(
+              "flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[10px] transition-all font-mono font-bold cursor-pointer",
+              fx.themePalette === "black_and_white"
+                ? "bg-white/15 text-white border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.2)]"
+                : "bg-emerald-500/15 text-emerald-400 border-emerald-500/40 shadow-[0_0_10px_rgba(52,211,153,0.2)]"
+            )}
+            title="Toggle between Matrix Cyberpunk & Black & White Obsidian themes"
+          >
+            <span className={cn("h-2 w-2 rounded-full", fx.themePalette === "black_and_white" ? "bg-white shadow-[0_0_6px_#ffffff]" : "bg-emerald-400 shadow-[0_0_6px_#34d399]")} />
+            <span>{fx.themePalette === "black_and_white" ? "BLACK & WHITE" : "MATRIX GREEN"}</span>
+          </button>
+
           {/* True Fullscreen Toggle Button */}
           <button
             onClick={toggleFullscreen}
@@ -141,7 +159,7 @@ export function SiteTelemetryTicker() {
                 ? "bg-primary/20 text-primary border-primary/60 shadow-[0_0_8px_rgba(0,255,102,0.2)]"
                 : "border-border bg-muted/60 hover:border-primary/50 hover:text-foreground"
             )}
-            title={isFullscreen ? "Exit Full Screen" : "Enter True Full Screen (Hide Firefox Browser UI)"}
+            title={isFullscreen ? "Exit Full Screen" : "Enter True Full Screen"}
           >
             {isFullscreen ? <Minimize2 className="h-3 w-3 text-primary" /> : <Maximize2 className="h-3 w-3 text-primary" />}
             <span>{isFullscreen ? "WINDOW" : "FULLSCREEN"}</span>
