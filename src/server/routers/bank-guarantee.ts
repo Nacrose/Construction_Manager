@@ -3,7 +3,7 @@
  * Manages Performance Bonds, APG, CAR Insurance, and Retention Guarantees with automated expiry alerts.
  */
 import { z } from "zod";
-import { safeUrlSchema } from "@/lib/safe-url";
+import { safeUrlSchema, optionalSafeUrlSchema } from "@/lib/safe-url";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertOrgAdmin } from "@/lib/authz";
@@ -212,9 +212,9 @@ export const bankGuaranteeRouter = router({
         marginAmount: z.number().default(0),
         commissionRate: z.number().default(0),
         commissionPaid: z.number().default(0),
-        documentUrl: safeUrlSchema.optional(),
-        documentName: z.string().optional(),
-        notes: z.string().optional(),
+        documentUrl: optionalSafeUrlSchema,
+        documentName: z.string().nullish().transform((v) => v || undefined),
+        notes: z.string().nullish().transform((v) => v || undefined),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -229,8 +229,6 @@ export const bankGuaranteeRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
       }
 
-      await assertNotLocked(ctx.user.organizationId, input.issuedDate ? new Date(input.issuedDate) : new Date());
-
       const issuedD = new Date(input.issuedDate);
       const expiryD = new Date(input.expiryDate);
 
@@ -241,6 +239,8 @@ export const bankGuaranteeRouter = router({
       if (expiryD.getTime() < issuedD.getTime()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Guarantee expiry date cannot be earlier than issued date." });
       }
+
+      await assertNotLocked(orgId, issuedD);
 
       let issuedMiti = input.issuedMiti;
       if (!issuedMiti) {
@@ -297,7 +297,7 @@ export const bankGuaranteeRouter = router({
         metadata: {
           number: guarantee.guaranteeNumber,
           type: guarantee.type,
-          amount: guarantee.amount,
+          amount: Number(guarantee.amount),
         },
       });
 
@@ -441,9 +441,9 @@ export const bankGuaranteeRouter = router({
         marginAmount: z.number().nonnegative().optional(),
         commissionRate: z.number().min(0).max(100).optional(),
         commissionPaid: z.number().nonnegative().optional(),
-        documentUrl: safeUrlSchema.optional(),
-        documentName: z.string().optional(),
-        notes: z.string().optional(),
+        documentUrl: optionalSafeUrlSchema,
+        documentName: z.string().nullish().transform((v) => v || undefined),
+        notes: z.string().nullish().transform((v) => v || undefined),
       })
     )
     .mutation(async ({ ctx, input }) => {

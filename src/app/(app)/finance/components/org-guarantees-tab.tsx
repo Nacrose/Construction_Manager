@@ -147,29 +147,32 @@ export function OrgGuaranteesTab() {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!guaranteeNumber || !issuingBank || !beneficiary || !amount || !expiryDate) {
-      toast.error("Please fill all required fields");
+    const parsedAmount = parseFloat(amount);
+    if (!guaranteeNumber.trim() || !issuingBank.trim() || !beneficiary.trim() || !expiryDate || isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Please fill all required fields with a valid amount");
       return;
     }
 
+    const finalIssuedDate = issueDate || format(new Date(), "yyyy-MM-dd");
+
     createMutation.mutate({
       type,
-      guaranteeNumber,
-      issuingBank,
-      branch: branch || undefined,
-      beneficiary,
-      amount: parseFloat(amount),
+      guaranteeNumber: guaranteeNumber.trim(),
+      issuingBank: issuingBank.trim(),
+      branch: branch.trim() || undefined,
+      beneficiary: beneficiary.trim(),
+      amount: parsedAmount,
       marginAmount: parseFloat(marginAmount) || 0,
       commissionPaid: parseFloat(commissionPaid) || 0,
-      purpose: purpose || undefined,
-      issuedDate: issueDate,
-      issuedMiti: issueMiti || undefined,
+      purpose: purpose.trim() || undefined,
+      issuedDate: finalIssuedDate,
+      issuedMiti: issueMiti?.trim() || undefined,
       expiryDate,
-      expiryMiti: expiryMiti || undefined,
+      expiryMiti: expiryMiti?.trim() || undefined,
       claimPeriodDays: parseInt(claimPeriodDays) || 30,
       projectId: selectedProjectId !== "none" ? selectedProjectId : undefined,
-      documentUrl: documentUrl || undefined,
-      notes: notes || undefined,
+      documentUrl: documentUrl?.trim() || undefined,
+      notes: notes?.trim() || undefined,
     });
   };
 

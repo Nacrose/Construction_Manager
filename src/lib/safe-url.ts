@@ -78,3 +78,15 @@ export const safeUrlSchema = z
     message:
       "Invalid URL: must be an http(s) link, a site-relative path, or an inline PDF/image scan",
   });
+
+/**
+ * Optional Zod schema for URL inputs — accepts null/undefined/empty string.
+ */
+export const optionalSafeUrlSchema = z
+  .string()
+  .nullish()
+  .transform((v) => (v && v.trim() ? v.trim() : undefined))
+  .refine((v) => !v || isSafeUrl(v), {
+    message:
+      "Invalid URL: must be an http(s) link, a site-relative path, or an inline PDF/image scan",
+  });
