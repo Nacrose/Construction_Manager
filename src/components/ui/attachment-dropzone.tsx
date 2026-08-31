@@ -138,7 +138,7 @@ export function AttachmentDropzone({
           onDrop={handleDrop}
           onClick={() => !disabled && fileInputRef.current?.click()}
           className={cn(
-            "relative flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-white/10 bg-[#0c1015] hover:border-emerald-500/40 hover:bg-white/[0.02] cursor-pointer transition-all text-center",
+            "relative flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-dashed border-white/10 bg-[#0c1015] hover:border-emerald-500/40 hover:bg-white/[0.02] cursor-pointer transition-all text-center",
             isDragging && "border-emerald-500 bg-emerald-500/5",
             disabled && "opacity-50 cursor-not-allowed"
           )}
@@ -153,17 +153,17 @@ export function AttachmentDropzone({
           />
 
           {isUploading ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400 font-mono">
+            <div className="flex items-center gap-2 text-xs text-gray-400 font-mono py-2">
               <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
               Uploading & Processing Attachment...
             </div>
           ) : (
             <>
-              <UploadCloud className="h-8 w-8 text-gray-400 mb-2 group-hover:text-emerald-400 transition-colors" />
+              <UploadCloud className="h-6 w-6 text-gray-400 mb-1 group-hover:text-emerald-400 transition-colors" />
               <p className="text-xs font-semibold text-white">
                 Drag &amp; drop file here, or <span className="text-emerald-400 underline">browse</span>
               </p>
-              <p className="text-[10px] text-gray-400 font-mono mt-1">
+              <p className="text-[10px] text-gray-400 font-mono mt-0.5">
                 Supports PDF, JPG, PNG up to {maxSizeMb}MB
               </p>
             </>

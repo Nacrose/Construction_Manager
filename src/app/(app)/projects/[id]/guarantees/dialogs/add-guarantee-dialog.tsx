@@ -126,231 +126,217 @@ export function AddGuaranteeDialog({
   };
 
   return (
-    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-lg">
-          <ShieldCheck className="h-5 w-5 text-primary" />
+    <DialogContent className="max-w-4xl lg:max-w-5xl bg-[#0c1015] border-white/10 text-white backdrop-blur-md p-6">
+      <DialogHeader className="pb-2 border-b border-white/10">
+        <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
+          <ShieldCheck className="h-5 w-5 text-emerald-400" />
           Register Bank Guarantee / Insurance Policy (जमानत तथा बीमा)
         </DialogTitle>
       </DialogHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Type & BG Number */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Guarantee / Policy Type *</Label>
-            <Select value={type} onValueChange={(v: any) => setType(v)}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="performance_bond">Performance Security (कार्यसम्पादन जमानत)</SelectItem>
-                <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
-                <SelectItem value="car_insurance">Contractor&apos;s All Risk (CAR Insurance)</SelectItem>
-                <SelectItem value="retention_bond">Retention Guarantee (धरौटी जमानत)</SelectItem>
-                <SelectItem value="bid_bond">Bid Bond / EMD (बोलपत्र जमानत)</SelectItem>
-                <SelectItem value="other">Other Guarantee / Bond</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Left Column: Core Guarantee Information */}
+          <div className="space-y-3">
+            {/* Type & BG Number */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Guarantee / Policy Type *</Label>
+                <Select value={type} onValueChange={(v: any) => setType(v)}>
+                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                    <SelectItem value="performance_bond">Performance Security (कार्यसम्पादन)</SelectItem>
+                    <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
+                    <SelectItem value="car_insurance">Contractor&apos;s All Risk (CAR)</SelectItem>
+                    <SelectItem value="retention_bond">Retention Guarantee (धरौटी जमानत)</SelectItem>
+                    <SelectItem value="bid_bond">Bid Bond / EMD (बोलपत्र जमानत)</SelectItem>
+                    <SelectItem value="other">Other Guarantee / Bond</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">BG / Policy Number *</Label>
-            <Input
-              required
-              placeholder="e.g. BG/NABIL/2081/042"
-              className="h-9 text-xs font-mono"
-              value={guaranteeNumber}
-              onChange={(e) => setGuaranteeNumber(e.target.value)}
-            />
-          </div>
-        </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">BG / Policy Number *</Label>
+                <Input
+                  required
+                  placeholder="e.g. BG/NABIL/2081/042"
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  value={guaranteeNumber}
+                  onChange={(e) => setGuaranteeNumber(e.target.value)}
+                />
+              </div>
+            </div>
 
-        {/* Issuing Bank & Beneficiary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
-            <Input
-              required
-              placeholder="e.g. Nabil Bank / Shikhar Insurance"
-              className="h-9 text-xs"
-              value={issuingBank}
-              onChange={(e) => setIssuingBank(e.target.value)}
-            />
-          </div>
+            {/* Issuing Bank & Branch */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Nabil Bank / Shikhar Insurance"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  value={issuingBank}
+                  onChange={(e) => setIssuingBank(e.target.value)}
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Branch (Optional)</Label>
-            <Input
-              placeholder="e.g. Hetauda / New Road"
-              className="h-9 text-xs"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-            />
-          </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Branch (Optional)</Label>
+                <Input
+                  placeholder="e.g. Hetauda / New Road"
+                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Beneficiary (Client) *</Label>
-            <Input
-              required
-              placeholder="e.g. Division Road Office, Hetauda"
-              className="h-9 text-xs"
-              value={beneficiary}
-              onChange={(e) => setBeneficiary(e.target.value)}
-            />
-          </div>
-        </div>
+            {/* Beneficiary */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Beneficiary (Client / Employer) *</Label>
+              <Input
+                required
+                placeholder="e.g. Division Road Office, Hetauda"
+                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                value={beneficiary}
+                onChange={(e) => setBeneficiary(e.target.value)}
+              />
+            </div>
 
-        {/* Amount & Margins */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/40 p-3 rounded-lg border">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Guarantee Value (NPR) *</Label>
-            <Input
-              required
-              type="number"
-              min="0"
-              step="any"
-              placeholder="e.g. 2500000"
-              className="h-9 text-xs font-mono font-bold"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
+            {/* Amount & Margins */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Guarantee Value (NPR) *</Label>
+                <Input
+                  required
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Cash Margin Held (NPR)</Label>
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              placeholder="e.g. 250000 (10%)"
-              className="h-9 text-xs font-mono"
-              value={marginAmount}
-              onChange={(e) => setMarginAmount(e.target.value)}
-            />
-          </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Margin Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  value={marginAmount}
+                  onChange={(e) => setMarginAmount(e.target.value)}
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Commission Paid (NPR)</Label>
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              placeholder="e.g. 15000"
-              className="h-9 text-xs font-mono"
-              value={commissionPaid}
-              onChange={(e) => setCommissionPaid(e.target.value)}
-            />
-          </div>
-        </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Commission Paid</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00"
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  value={commissionPaid}
+                  onChange={(e) => setCommissionPaid(e.target.value)}
+                />
+              </div>
+            </div>
 
-        {/* Dates (BS Miti + AD) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5 bg-card p-3 rounded-lg border">
-            <Label className="text-xs font-semibold">Issued Date</Label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <div>
-                <span className="text-[10px] text-muted-foreground">AD Date</span>
+            {/* Dates (BS Miti + AD) */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Issued Date (AD)</Label>
+                  {issuedMiti && <span className="text-[10px] text-emerald-400 font-mono">{issuedMiti}</span>}
+                </div>
                 <Input
                   type="date"
-                  className="h-8 text-xs font-mono"
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
                   value={issuedDate}
                   onChange={(e) => handleIssuedDateChange(e.target.value)}
                 />
               </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">BS Miti</span>
-                <Input
-                  placeholder="2081-02-15"
-                  className="h-8 text-xs font-mono"
-                  value={issuedMiti}
-                  onChange={(e) => setIssuedMiti(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
 
-          <div className="space-y-1.5 bg-card p-3 rounded-lg border">
-            <Label className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-              Expiry Date *
-            </Label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <div>
-                <span className="text-[10px] text-muted-foreground">AD Date</span>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Expiry Date (AD) *</Label>
+                  {expiryMiti && <span className="text-[10px] text-amber-400 font-mono">{expiryMiti}</span>}
+                </div>
                 <Input
                   type="date"
                   required
-                  className="h-8 text-xs font-mono"
+                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white text-amber-400"
                   value={expiryDate}
                   onChange={(e) => handleExpiryDateChange(e.target.value)}
                 />
               </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">BS Miti</span>
-                <Input
-                  placeholder="2082-02-14"
-                  className="h-8 text-xs font-mono"
-                  value={expiryMiti}
-                  onChange={(e) => setExpiryMiti(e.target.value)}
+            </div>
+          </div>
+
+          {/* Right Column: Purpose, Claim Period, Attachment Dropzone, Remarks */}
+          <div className="space-y-3 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Claim Period (Days)</Label>
+                  <Input
+                    type="number"
+                    placeholder="30"
+                    className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                    value={claimPeriodDays}
+                    onChange={(e) => setClaimPeriodDays(e.target.value)}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs font-semibold">Purpose / Contract Ref</Label>
+                  <Input
+                    placeholder="e.g. 5% Performance Security"
+                    className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Attachment Upload / Dropzone */}
+              <AttachmentDropzone
+                value={documentUrl}
+                onChange={(url, file) => {
+                  setDocumentUrl(url || "");
+                  if (file) setDocumentName(file.name);
+                }}
+                label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
+                accept=".pdf,image/*,application/pdf"
+                maxSizeMb={10}
+              />
+
+              {/* Notes */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Remarks / Notes</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Any special terms, collateral pledged, or extension conditions..."
+                  className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Claim Period & Purpose */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Claim Period (Days)</Label>
-            <Input
-              type="number"
-              placeholder="30"
-              className="h-9 text-xs font-mono"
-              value={claimPeriodDays}
-              onChange={(e) => setClaimPeriodDays(e.target.value)}
-            />
-          </div>
-
-          <div className="sm:col-span-2 space-y-1.5">
-            <Label className="text-xs">Purpose / Contract Reference</Label>
-            <Input
-              placeholder="e.g. 5% Performance Security for Contract Package DOR-01"
-              className="h-9 text-xs"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Attachment Upload / Dropzone */}
-        <AttachmentDropzone
-          value={documentUrl}
-          onChange={(url, file) => {
-            setDocumentUrl(url || "");
-            if (file) setDocumentName(file.name);
-          }}
-          label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
-          accept=".pdf,image/*,application/pdf"
-          maxSizeMb={10}
-        />
-
-        {/* Notes */}
-        <div className="space-y-1.5">
-          <Label className="text-xs">Remarks / Notes</Label>
-          <Textarea
-            rows={2}
-            placeholder="Any special terms, collateral pledged, or extension conditions..."
-            className="text-xs"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={onDone}>
+        <DialogFooter className="gap-2 pt-3 border-t border-white/10">
+          <Button type="button" variant="ghost" onClick={onDone} className="text-xs text-muted-foreground hover:text-white">
             Cancel
           </Button>
-          <Button type="submit" disabled={createMutation.isPending}>
+          <Button type="submit" disabled={createMutation.isPending} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5">
             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Register Guarantee
           </Button>

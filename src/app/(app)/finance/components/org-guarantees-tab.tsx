@@ -434,8 +434,8 @@ export function OrgGuaranteesTab() {
 
       {/* Register BG / Bid Bond Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[560px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl lg:max-w-5xl bg-[#0c1015] border-white/10 text-white backdrop-blur-md p-6">
+          <DialogHeader className="pb-2 border-b border-white/10">
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
               <ShieldCheck className="h-5 w-5 text-emerald-400" /> Register Bank Guarantee / Bid Bond
             </DialogTitle>
@@ -445,179 +445,195 @@ export function OrgGuaranteesTab() {
           </DialogHeader>
 
           <form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Guarantee Type *</Label>
-                <Select value={type} onValueChange={(v: any) => setType(v)}>
-                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
-                    <SelectItem value="bid_bond">Bid Bond (बोलपत्र जमानत)</SelectItem>
-                    <SelectItem value="performance_bond">Performance Bond (कार्यसम्पादन)</SelectItem>
-                    <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
-                    <SelectItem value="retention_bond">Retention Bond (धरौटी जमानत)</SelectItem>
-                    <SelectItem value="car_insurance">CAR Insurance (जोखिम बीमा)</SelectItem>
-                    <SelectItem value="other">Other Guarantee</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column: Core Guarantee Information */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Guarantee Type *</Label>
+                    <Select value={type} onValueChange={(v: any) => setType(v)}>
+                      <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                        <SelectItem value="bid_bond">Bid Bond (बोलपत्र जमानत)</SelectItem>
+                        <SelectItem value="performance_bond">Performance Bond (कार्यसम्पादन)</SelectItem>
+                        <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
+                        <SelectItem value="retention_bond">Retention Bond (धरौटी जमानत)</SelectItem>
+                        <SelectItem value="car_insurance">CAR Insurance (जोखिम बीमा)</SelectItem>
+                        <SelectItem value="other">Other Guarantee</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Guarantee / Policy No *</Label>
+                    <Input
+                      required
+                      placeholder="e.g. BG-NBL-2081-9921"
+                      value={guaranteeNumber}
+                      onChange={(e) => setGuaranteeNumber(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
+                    <Input
+                      required
+                      placeholder="e.g. Nabil Bank Ltd."
+                      value={issuingBank}
+                      onChange={(e) => setIssuingBank(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Branch Name</Label>
+                    <Input
+                      placeholder="e.g. Putalisadak Branch"
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Beneficiary (Employer / Client) *</Label>
+                  <Input
+                    required
+                    placeholder="e.g. Department of Roads, Bridge Division"
+                    value={beneficiary}
+                    onChange={(e) => setBeneficiary(e.target.value)}
+                    className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Amount (NPR) *</Label>
+                    <Input
+                      required
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Margin Amount</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={marginAmount}
+                      onChange={(e) => setMarginAmount(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Commission Paid</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={commissionPaid}
+                      onChange={(e) => setCommissionPaid(e.target.value)}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Issue Date (AD)</Label>
+                      {issueMiti && <span className="text-[10px] text-emerald-400 font-mono">{issueMiti}</span>}
+                    </div>
+                    <Input
+                      type="date"
+                      value={issueDate}
+                      onChange={(e) => {
+                        setIssueDate(e.target.value);
+                        try { setIssueMiti(adToBs(e.target.value).formatted); } catch {}
+                      }}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Expiry Date (AD) *</Label>
+                      {expiryMiti && <span className="text-[10px] text-amber-400 font-mono">{expiryMiti}</span>}
+                    </div>
+                    <Input
+                      required
+                      type="date"
+                      value={expiryDate}
+                      onChange={(e) => {
+                        setExpiryDate(e.target.value);
+                        try { setExpiryMiti(adToBs(e.target.value).formatted); } catch {}
+                      }}
+                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono text-amber-400"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Guarantee / Policy Number *</Label>
-                <Input
-                  required
-                  placeholder="e.g. BG-NBL-2081-9921"
-                  value={guaranteeNumber}
-                  onChange={(e) => setGuaranteeNumber(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                />
+              {/* Right Column: Project Linking, PDF Attachment Dropzone, Remarks */}
+              <div className="space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Link to Project (Optional)</Label>
+                    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                      <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                        <SelectValue placeholder="Select Project" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                        <SelectItem value="none">None (Pre-Award Tender Bid Bond)</SelectItem>
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.code} - {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Attachment Upload / Dropzone */}
+                  <AttachmentDropzone
+                    value={documentUrl}
+                    onChange={(url, file) => {
+                      setDocumentUrl(url || "");
+                      if (file) setDocumentName(file.name);
+                    }}
+                    label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
+                    accept=".pdf,image/*,application/pdf"
+                    maxSizeMb={10}
+                  />
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold">Remarks / Notes</Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Any special terms, collateral pledged, or extension conditions..."
+                      className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
-                <Input
-                  required
-                  placeholder="e.g. Nabil Bank Ltd."
-                  value={issuingBank}
-                  onChange={(e) => setIssuingBank(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Branch Name</Label>
-                <Input
-                  placeholder="e.g. Putalisadak Branch"
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Beneficiary (Client / Employer) *</Label>
-              <Input
-                required
-                placeholder="e.g. Department of Roads, Bridge Division"
-                value={beneficiary}
-                onChange={(e) => setBeneficiary(e.target.value)}
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Amount (NPR) *</Label>
-                <Input
-                  required
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Margin Amount</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={marginAmount}
-                  onChange={(e) => setMarginAmount(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Commission Paid</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={commissionPaid}
-                  onChange={(e) => setCommissionPaid(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Issue Date (AD)</Label>
-                <Input
-                  type="date"
-                  value={issueDate}
-                  onChange={(e) => {
-                    setIssueDate(e.target.value);
-                    try { setIssueMiti(adToBs(e.target.value).formatted); } catch {}
-                  }}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">Expiry Date (AD) *</Label>
-                <Input
-                  required
-                  type="date"
-                  value={expiryDate}
-                  onChange={(e) => {
-                    setExpiryDate(e.target.value);
-                    try { setExpiryMiti(adToBs(e.target.value).formatted); } catch {}
-                  }}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono text-amber-400"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Link to Project (Optional)</Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
-                  <SelectValue placeholder="Select Project" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
-                  <SelectItem value="none">None (Pre-Award Tender Bid Bond)</SelectItem>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.code} - {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Attachment Upload / Dropzone */}
-            <AttachmentDropzone
-              value={documentUrl}
-              onChange={(url, file) => {
-                setDocumentUrl(url || "");
-                if (file) setDocumentName(file.name);
-              }}
-              label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
-              accept=".pdf,image/*,application/pdf"
-              maxSizeMb={10}
-            />
-
-            <div className="space-y-1">
-              <Label className="text-xs">Remarks / Notes</Label>
-              <Textarea
-                rows={2}
-                placeholder="Any special terms, collateral pledged, or extension conditions..."
-                className="text-xs bg-[#161d26] border-white/10 text-white"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
               <Button
                 type="button"
                 variant="ghost"
@@ -629,7 +645,7 @@ export function OrgGuaranteesTab() {
               <Button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5"
               >
                 {createMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Save Guarantee
