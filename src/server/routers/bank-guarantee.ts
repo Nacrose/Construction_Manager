@@ -17,6 +17,8 @@ async function assertGuaranteeAccess(
   user: any,
   existing: { projectId: string | null; organizationId: string | null }
 ) {
+  if (user.isSuperAdmin) return;
+
   if (existing.projectId) {
     await assertProjectManager(user, existing.projectId);
   } else if (existing.organizationId) {
@@ -274,14 +276,10 @@ export const bankGuaranteeRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      let orgId = ctx.user.organizationId ?? null;
+
       if (input.projectId) {
         await assertProjectManager(ctx.user, input.projectId);
-      } else if (!ctx.user.organizationId && !ctx.user.isSuperAdmin) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
-      }
-
-      let orgId = ctx.user.organizationId;
-      if (input.projectId) {
         const project = await db.project.findUnique({
           where: { id: input.projectId },
           select: { organizationId: true },
@@ -289,7 +287,10 @@ export const bankGuaranteeRouter = router({
         if (project?.organizationId) {
           orgId = project.organizationId;
         }
+      } else if (!ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
       }
+
       if (!orgId && ctx.user.isSuperAdmin) {
         if (input.organizationId) {
           orgId = input.organizationId;
@@ -300,7 +301,7 @@ export const bankGuaranteeRouter = router({
       }
 
       if (!orgId) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "Valid organization required to register guarantee." });
       }
 
       const issuedD = new Date(input.issuedDate);
@@ -332,8 +333,9 @@ export const bankGuaranteeRouter = router({
 
       const claimExpiryDate = new Date(expiryD.getTime() + (input.claimPeriodDays || 30) * 24 * 60 * 60 * 1000);
 
-      const createRecord = (txClient: any) =>
-        txClient.bankGuarantee.create({
+      const guarantee = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
+        return tx.bankGuarantee.create({
           data: {
             organizationId: orgId,
             projectId: input.projectId || null,
@@ -359,29 +361,7 @@ export const bankGuaranteeRouter = router({
             notes: input.notes?.trim() || null,
           },
         });
-
-      let guarantee;
-      try {
-        guarantee = await db.$transaction(async (tx) => {
-          await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
-          return createRecord(tx);
-        });
-      } catch (err: any) {
-        console.error("[bankGuarantee.create] Create failed, ensuring table and retrying:", err);
-        await ensureBankGuaranteeTable();
-        try {
-          guarantee = await db.$transaction(async (tx) => {
-            await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
-            return createRecord(tx);
-          });
-        } catch (retryErr: any) {
-          console.error("[bankGuarantee.create] Retry also failed:", retryErr);
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: retryErr?.message || "A database error occurred while processing your request. Please try again.",
-          });
-        }
-      }
+      });
 
       await audit({
         userId: ctx.user.id,

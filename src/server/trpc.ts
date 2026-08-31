@@ -59,10 +59,18 @@ export const t = initTRPC.context<TRPCContext>().create({
       // does not match the record's organizationId.
       console.error("[trpc] RLS violation:", error);
       message = "Access denied — this record belongs to a different organisation. Refresh and try again, or contact your administrator.";
-    } else if (message.includes("Unique constraint failed") || message.includes("P2002")) {
-      message = "A record with these details already exists. Please check for duplicates and try again.";
-    } else if (message.includes("Foreign key constraint failed") || message.includes("P2003")) {
-      message = "Cannot complete this action because linked records still depend on it.";
+    } else if (
+      message.includes("Unique constraint failed") ||
+      message.includes("violates unique constraint") ||
+      message.includes("P2002")
+    ) {
+      message = "A record with these details (or number) already exists. Please verify the input and try again.";
+    } else if (
+      message.includes("Foreign key constraint") ||
+      message.includes("violates foreign key") ||
+      message.includes("P2003")
+    ) {
+      message = "Cannot complete this action because a linked organization or project record was not found or is no longer valid.";
     } else if (message.includes("Record to update not found") || message.includes("Record to delete does not exist") || message.includes("P2025")) {
       message = "The record was not found — it may have already been deleted. Refresh the page and try again.";
     } else if (message.includes("relation") && message.includes("does not exist")) {
