@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CalendarClock, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 
@@ -58,7 +59,7 @@ export function ExtendGuaranteeDialog({
       toast.success("Bank Guarantee extension recorded successfully!");
       onDone();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toastError("Guarantee extension could not be recorded. Please try again.", e.message),
   });
 
   const handleDateChange = (adVal: string) => {

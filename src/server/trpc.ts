@@ -50,26 +50,32 @@ export const t = initTRPC.context<TRPCContext>().create({
     let message = shape.message;
 
     // Sanitize raw Prisma and database errors into human-readable messages.
-    if (message.includes("Unique constraint failed") || message.includes("P2002")) {
-      message = "An item with this name and specification already exists in this catalog.";
+    // ── IMPORTANT: check more-specific patterns BEFORE the generic Prisma
+    //    wrapper ("Invalid `prisma.`") because Prisma wraps DB errors inside
+    //    its own invocation message — the specific text can still be found
+    //    via substring search on the full message string.
+    if (message.includes("violates row-level security") || message.includes("row-level security policy")) {
+      // Typically means withOrgContext was not called or the org context
+      // does not match the record's organizationId.
+      console.error("[trpc] RLS violation:", error);
+      message = "Access denied — this record belongs to a different organisation. Refresh and try again, or contact your administrator.";
+    } else if (message.includes("Unique constraint failed") || message.includes("P2002")) {
+      message = "A record with these details already exists. Please check for duplicates and try again.";
     } else if (message.includes("Foreign key constraint failed") || message.includes("P2003")) {
-      message = "This operation could not be completed because related data depends on it.";
+      message = "Cannot complete this action because linked records still depend on it.";
     } else if (message.includes("Record to update not found") || message.includes("Record to delete does not exist") || message.includes("P2025")) {
-      message = "The requested record was not found or has already been deleted.";
-    } else if (message.includes("violates row-level security") || message.includes("row-level security policy")) {
-      console.error("[trpc] RLS error:", error);
-      message = "Security policy violation: You do not have permission to access or modify records for this organization.";
+      message = "The record was not found — it may have already been deleted. Refresh the page and try again.";
     } else if (message.includes("relation") && message.includes("does not exist")) {
       console.error("[trpc] Missing table error:", error);
-      message = "Database schema update in progress. Please refresh or contact support.";
+      message = "A required database table is missing. Please contact support or refresh the page.";
     } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
-      console.error("[trpc] Database invocation error:", error);
-      message = "A database error occurred while processing your request. Please try again.";
+      console.error("[trpc] Prisma invocation error:", error);
+      message = "Something went wrong while saving your data. Please try again or contact support if the problem persists.";
     } else if (process.env.NODE_ENV === "production") {
       const isTrpcError = error && typeof error === "object" && "name" in error && error.name === "TRPCError";
       if (!isTrpcError) {
         console.error("[trpc] Unhandled error (scrubbed from client):", error);
-        message = "An internal error occurred. Please try again.";
+        message = "An unexpected error occurred. Please try again.";
       }
     }
 

@@ -150,23 +150,17 @@ export async function withOrgContext(
   organizationId: string | null | undefined,
   isSuperAdmin = false,
 ): Promise<void> {
-  try {
-    await tx.$executeRawUnsafe(
-      `SELECT set_config('app.organization_id', $1, true), set_config('app.is_superadmin', $2, true)`,
-      organizationId ?? "",
-      isSuperAdmin ? "true" : "false"
-    );
-  } catch (err) {
-    // Don't throw — RLS is defense-in-depth, not the primary filter.
-    // Structured log: orgId present + superadmin flag (never the org id
-    // when absent — empty string means "no tenant context", which is the
-    // fail-closed condition worth alerting on).
-    logger().error("rls.withOrgContext.failed", {
-      error: err,
-      hasOrgId: Boolean(organizationId),
-      isSuperAdmin: isSuperAdmin === true,
-    });
-  }
+  // NOTE: Unlike setOrgContext (session-level, best-effort), this function
+  // throws on failure. set_config() inside a transaction should never fail
+  // under normal conditions; if it does, the safer outcome is to roll back
+  // the transaction (fail-closed) rather than silently proceed without the
+  // org GUC set — which would cause every RLS-FORCE-covered INSERT to be
+  // blocked anyway, surfacing as a cryptic Prisma database error.
+  await tx.$executeRawUnsafe(
+    `SELECT set_config('app.organization_id', $1, true), set_config('app.is_superadmin', $2, true)`,
+    organizationId ?? "",
+    isSuperAdmin ? "true" : "false"
+  );
 }
 
 /**

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, ShieldCheck, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { format } from "date-fns";
 import { adToBs, bsToAd } from "@/lib/nepali-calendar";
 
@@ -75,7 +76,7 @@ export function AddGuaranteeDialog({
       toast.success("Bank Guarantee / Insurance Policy registered successfully!");
       onDone();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toastError("Bank guarantee could not be registered. Please try again.", e.message),
   });
 
   const handleIssuedDateChange = (adVal: string) => {

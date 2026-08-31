@@ -30,6 +30,7 @@ import {
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/construction-finance";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
@@ -110,7 +111,7 @@ export function OrgGuaranteesTab() {
       setCreateDialogOpen(false);
       resetForm();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toastError("Bank guarantee could not be registered. Please try again.", err.message),
   });
 
   const releaseMutation = trpc.bankGuarantee.release.useMutation({
@@ -118,7 +119,7 @@ export function OrgGuaranteesTab() {
       toast.success("Guarantee marked as released & margin unblocked");
       utils.bankGuarantee.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toastError("Guarantee could not be marked as released. Please try again.", err.message),
   });
 
   const deleteMutation = trpc.bankGuarantee.delete.useMutation({
@@ -126,7 +127,7 @@ export function OrgGuaranteesTab() {
       toast.success("Guarantee record deleted");
       utils.bankGuarantee.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toastError("Guarantee record could not be deleted. Please try again.", err.message),
   });
 
   const resetForm = () => {

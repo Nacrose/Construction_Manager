@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
 import { AddGuaranteeDialog } from "./dialogs/add-guarantee-dialog";
 import { ExtendGuaranteeDialog } from "./dialogs/extend-guarantee-dialog";
@@ -106,7 +107,7 @@ export default function BankGuaranteesPage({
       utils.bankGuarantee.portfolioAlerts.invalidate();
       toast.success("Guarantee marked as Released.");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toastError("Guarantee could not be marked as released. Please try again.", e.message),
   });
 
   const deleteMutation = trpc.bankGuarantee.delete.useMutation({
@@ -115,7 +116,7 @@ export default function BankGuaranteesPage({
       utils.bankGuarantee.portfolioAlerts.invalidate();
       toast.success("Guarantee deleted.");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toastError("Guarantee record could not be deleted. Please try again.", e.message),
   });
 
   const items = data?.items || [];
