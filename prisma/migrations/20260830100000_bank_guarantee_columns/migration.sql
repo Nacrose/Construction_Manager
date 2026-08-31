@@ -1,4 +1,4 @@
--- AlterTable: Add missing BankGuarantee columns if table was created before organizationId was added
+-- 1. Add missing columns if they do not exist
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "organizationId" TEXT;
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "projectId" TEXT;
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "currency" TEXT NOT NULL DEFAULT 'NPR';
@@ -15,6 +15,18 @@ ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "documentUrl" TEXT;
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "documentName" TEXT;
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "amendments" JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE "BankGuarantee" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+
+-- 2. Ensure optional columns permit NULL values (e.g. org-level bid bonds without a projectId)
+ALTER TABLE "BankGuarantee" ALTER COLUMN "projectId" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "organizationId" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "branch" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "issuedMiti" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "expiryMiti" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "claimExpiryDate" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "purpose" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "documentUrl" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "documentName" DROP NOT NULL;
+ALTER TABLE "BankGuarantee" ALTER COLUMN "notes" DROP NOT NULL;
 
 -- Foreign Keys
 DO $$ 
