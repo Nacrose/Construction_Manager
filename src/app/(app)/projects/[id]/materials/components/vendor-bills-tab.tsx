@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { format } from "date-fns";
+import { getLocalDateString } from "@/lib/nepali-calendar";
 import {
   FileText,
   Plus,
@@ -63,7 +64,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
   const [selectedPartnerId, setSelectedPartnerId] = useState("");
   const [selectedPOId, setSelectedPOId] = useState("");
   const [billNumber, setBillNumber] = useState("");
-  const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0]);
+  const [billDate, setBillDate] = useState(() => getLocalDateString());
   const [dueDate, setDueDate] = useState("");
   const [grossAmount, setGrossAmount] = useState<number | "">("");
   const [vatPercent, setVatPercent] = useState<number>(13);
@@ -74,7 +75,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
   const [paymentAmount, setPaymentAmount] = useState<number | "">("");
   const [paymentMethod, setPaymentMethod] = useState<"bank_transfer" | "cheque" | "cash">("bank_transfer");
   const [paymentRef, setPaymentRef] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentDate, setPaymentDate] = useState(() => getLocalDateString());
   const [paymentRemarks, setPaymentRemarks] = useState("");
 
   // 3-Way Match Data

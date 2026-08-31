@@ -13,6 +13,7 @@ import type { BoqItem } from "../types";
 import { InlineEdit } from "./inline-edit";
 import { UnitSelect } from "./unit-select";
 import { TagsDropdown } from "./tags-dropdown";
+import { parseNumericInput } from "@/lib/currency";
 import { ReadOnlyRateAnalysis } from "./read-only-rate-analysis";
 
 export function BoqRow({
@@ -205,7 +206,7 @@ export function BoqRow({
               value={String(item.quantity)}
               type="number"
               onSave={(v) =>
-                guardedUpdate({ itemId: item.id, quantity: parseFloat(v) || 0 })
+                guardedUpdate({ itemId: item.id, quantity: parseNumericInput(v) })
               }
               disabled={updateMutation.isPending || item.locked || isLocked}
               className="w-20 text-right"
@@ -241,7 +242,7 @@ export function BoqRow({
             <InlineEdit
               value={String(item.rate)}
               type="number"
-              onSave={(v) => guardedUpdate({ itemId: item.id, rate: parseFloat(v) || 0 })}
+              onSave={(v) => guardedUpdate({ itemId: item.id, rate: parseNumericInput(v) })}
               disabled={updateMutation.isPending || item.locked || isLocked}
               className="w-24 text-right"
             />

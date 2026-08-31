@@ -199,6 +199,16 @@ export const vendorBillRouter = router({
         }
       }
 
+      if (input.partnerId) {
+        const partner = await db.partner.findFirst({
+          where: { id: input.partnerId, projectId: input.projectId },
+          select: { id: true },
+        });
+        if (!partner) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Vendor/Partner not found in this project." });
+        }
+      }
+
       // `??` (not `||`): a VAT/TDS-exempt bill passes 0, which is a valid
       // rate — `0 || 13` silently billed VAT-exempt bills at 13%.
       const vatAmount = (input.grossAmount * (input.vatPercent ?? 13)) / 100;

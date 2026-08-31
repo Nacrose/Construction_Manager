@@ -27,14 +27,17 @@ type Props = {
   canWrite?: boolean;
 };
 
+import { getLocalDateString } from "@/lib/nepali-calendar";
+
 export function ReconciliationReport({ projectId, canWrite = true }: Props) {
   const utils = trpc.useUtils();
 
   // Default to current month
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [startDate, setStartDate] = useState(firstOfMonth.toISOString().split("T")[0]);
-  const [endDate, setEndDate] = useState(now.toISOString().split("T")[0]);
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    return getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1));
+  });
+  const [endDate, setEndDate] = useState(() => getLocalDateString());
 
   const { data, isLoading } = trpc.material.reconciliation.useQuery({
     projectId,

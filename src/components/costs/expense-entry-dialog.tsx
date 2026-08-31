@@ -38,13 +38,15 @@ const PAYMENT_MODES = [
   { value: "mobile_pay", label: "Mobile Pay" },
 ];
 
+import { getLocalDateString } from "@/lib/nepali-calendar";
+
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function ExpenseEntryDialog({ open, onOpenChange, projectId }: Props) {
   const utils = trpc.useUtils();
 
   // Form state
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<string>("overhead");
   const [subcategory, setSubcategory] = useState("");
@@ -78,7 +80,7 @@ export function ExpenseEntryDialog({ open, onOpenChange, projectId }: Props) {
   });
 
   const resetForm = () => {
-    setDate(new Date().toISOString().split("T")[0]);
+    setDate(getLocalDateString());
     setAmount("");
     setCategory("overhead");
     setSubcategory("");

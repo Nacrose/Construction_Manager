@@ -84,11 +84,11 @@ export const interSiteTransferRouter = router({
 
       await assertProjectMember(ctx.user, input.originProjectId);
       await assertCanWrite(ctx.user, input.originProjectId);
-      await assertNotLocked(input.originProjectId, new Date());
+      await assertNotLocked(orgId, new Date());
 
       if (input.isInstantTransfer) {
         await assertProjectMember(ctx.user, input.destinationProjectId);
-        await assertNotLocked(input.destinationProjectId, new Date());
+        await assertNotLocked(orgId, new Date());
       }
 
       // Generate sequence transfer number
@@ -319,7 +319,7 @@ export const interSiteTransferRouter = router({
 
       await assertProjectMember(ctx.user, transfer.destinationProjectId);
       await assertCanWrite(ctx.user, transfer.destinationProjectId);
-      await assertNotLocked(transfer.destinationProjectId, new Date());
+      await assertNotLocked(orgId, new Date());
 
       const now = new Date();
       const miti = adToBs(now).formatted;

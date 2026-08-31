@@ -169,7 +169,7 @@ function yearHolidays(year: number): YearHolidays {
  * - Sunday-Friday are working days (unless holiday)
  */
 export function isWorkingDay(date: Date): boolean {
-  const dayOfWeek = date.getDay(); // 0=Sunday, 6=Saturday
+  const dayOfWeek = date.getUTCDay(); // 0=Sunday, 6=Saturday in UTC frame matching toISOString
   if (dayOfWeek === 6) return false; // Saturday is weekend in Nepal
 
   const dateStr = date.toISOString().slice(0, 10);

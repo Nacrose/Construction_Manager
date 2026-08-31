@@ -173,6 +173,7 @@ export const projectRouter = router({
     // Org admins see all projects in their org
     if (isOrgAdmin(ctx.user)) {
       const allProjects = await db.project.findMany({
+        where: { organizationId: ctx.user.organizationId ?? undefined },
         include: {
           _count: { select: { rfis: true, members: true } },
           organization: { select: { id: true, name: true, code: true } },

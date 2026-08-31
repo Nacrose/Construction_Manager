@@ -24,12 +24,14 @@ const WF_TABS = [
   { label: "Meetings", href: "/meetings" },
 ];
 
+import { getLocalDateString } from "@/lib/nepali-calendar";
+
 export default function MeetingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const utils = trpc.useUtils();
   const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState(""); const [type, setType] = useState("site_coordination");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]); const [location, setLocation] = useState("");
+  const [date, setDate] = useState(() => getLocalDateString()); const [location, setLocation] = useState("");
   const [attendees, setAttendees] = useState(""); const [agenda, setAgenda] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data, isLoading } = trpc.projectOps.meeting.list.useQuery({ projectId: id });

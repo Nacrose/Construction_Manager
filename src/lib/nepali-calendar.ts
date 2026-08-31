@@ -365,3 +365,14 @@ export function formatNepaliDate(
       return bs.formatted;
   }
 }
+
+/**
+ * Format date to local calendar date string (YYYY-MM-DD) based on user's local timezone.
+ * Avoids UTC date shifts (e.g. night-shift 00:00–05:45 NPT shifting to yesterday).
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

@@ -112,50 +112,29 @@ async function staleWhileRevalidate(request, cacheName) {
   return cached || fetchPromise;
 }
 
-// Network-first for HTML navigations (so users get fresh UI when online),
-// but fall back to cached page or /offline when network fails.
+// Network-first for HTML navigations. Never cache authenticated user/admin HTML.
 async function handleNavigation(request) {
-  // Try network first
   try {
-    const response = await fetch(request);
-    if (response && response.ok) {
-      const cache = await caches.open(SHELL_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch (_) {
-    // Network failed — try cache, then /offline
-    const cached = await caches.match(request);
-    if (cached) return cached;
     const offlinePage = await caches.match("/offline");
     if (offlinePage) return offlinePage;
     return new Response(
       "<!doctype html><html><head><meta charset='utf-8'><title>Offline</title></head>" +
         "<body style='font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>" +
         "<div style='text-align:center'><h1>You are offline</h1>" +
-        "<p>Connect to the internet and try again, or use any page you've already visited.</p></div></body></html>",
+        "<p>Connect to the internet and try again.</p></div></body></html>",
       { status: 503, headers: { "Content-Type": "text/html" } }
     );
   }
 }
 
-// Network-first for tRPC GET queries (so online users get instant updates),
-// falling back to cache when offline.
+// Pass-through for tRPC queries (React Query manages in-memory caching securely).
+// Never persist authenticated JSON data to Service Worker storage.
 async function handleTrpcQuery(request) {
-  const cache = await caches.open(DATA_CACHE);
-  
   try {
-    const response = await fetch(request);
-    if (response && response.ok) {
-      cache.put(request, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch (_) {
-    // Network failed or offline — return cached version if available
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    
-    // Total failure — return offline stub
     return new Response(
       JSON.stringify({ error: { message: "offline", code: "OFFLINE" } }),
       { status: 503, headers: { "Content-Type": "application/json" } }

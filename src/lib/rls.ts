@@ -50,52 +50,48 @@ export type TenantUser = {
  */
 export const RLS_SQL = `
 -- ═══════════════════════════════════════════════════════════════
--- Row-Level Security on Project table
+-- Row-Level Security on Project table (Phase-4 FORCE)
 -- ═══════════════════════════════════════════════════════════════
 
--- Enable RLS on Project table
+-- Enable and FORCE RLS on Project table
 ALTER TABLE "Project" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Project" FORCE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist (idempotent)
 DROP POLICY IF EXISTS "project_org_isolation" ON "Project";
 DROP POLICY IF EXISTS "project_insert_org_check" ON "Project";
+DROP POLICY IF EXISTS "project_update_org_check" ON "Project";
+DROP POLICY IF EXISTS "project_delete_org_check" ON "Project";
 
--- Policy 1: Users can only see projects in their organization
--- (or projects with no organization — for backwards compatibility with
---  shared/global rows that predate multi-tenancy)
 CREATE POLICY "project_org_isolation" ON "Project"
   FOR SELECT
   USING (
-    current_setting('app.is_superadmin', true) = 'true'  -- platform superadmin sees all orgs
-    OR "organizationId" IS NULL  -- legacy/shared rows (pre-multi-tenancy)
+    current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   );
 
--- Policy 2: When inserting, the org must match (or be null for legacy)
 CREATE POLICY "project_insert_org_check" ON "Project"
   FOR INSERT
   WITH CHECK (
-    "organizationId" IS NULL
+    current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   );
 
--- Policy 3: Updates — users can update projects in their org
 CREATE POLICY "project_update_org_check" ON "Project"
   FOR UPDATE
   USING (
-    "organizationId" IS NULL
+    current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   )
   WITH CHECK (
-    "organizationId" IS NULL
+    current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   );
 
--- Policy 4: Deletes — only org members can delete
 CREATE POLICY "project_delete_org_check" ON "Project"
   FOR DELETE
   USING (
-    "organizationId" IS NULL
+    current_setting('app.is_superadmin', true) = 'true'
     OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
   );
 `;

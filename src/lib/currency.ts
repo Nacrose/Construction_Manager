@@ -194,3 +194,16 @@ function convertNumberToNepaliWords(n: number): string {
 
   return parts.join(" ");
 }
+
+/**
+ * Safely parse numbers from user inputs that may contain South Asian / Nepali
+ * or Western comma thousand separators (e.g. "1,50,000.50" or "1,500,000").
+ * Strips all commas and whitespace before parsing.
+ */
+export function parseNumericInput(val: string | number | null | undefined, defaultValue = 0): number {
+  if (typeof val === "number") return Number.isFinite(val) ? val : defaultValue;
+  if (!val) return defaultValue;
+  const cleaned = String(val).replace(/,/g, "").trim();
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}

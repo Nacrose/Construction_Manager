@@ -13,6 +13,7 @@ import { Upload, Loader2, FileText, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getLocalDateString } from "@/lib/nepali-calendar";
 
 type Props = {
   open: boolean;
@@ -80,7 +81,7 @@ export function UploadSignedCopyDialog({
     setFile(f);
     // Auto-set signedAt to today if it's a signed hardcopy and field is empty
     if (documentType === "signed_hardcopy" && !signedAt) {
-      setSignedAt(new Date().toISOString().split("T")[0]);
+      setSignedAt(getLocalDateString());
     }
   };
 

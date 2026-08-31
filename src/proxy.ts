@@ -23,7 +23,21 @@ import { COOKIE_NAME, getAuthSecret } from "@/lib/auth-config";
 
 // Paths that require authentication. We match by prefix so nested
 // routes are covered automatically.
-const PROTECTED_PREFIXES = ["/dashboard", "/projects", "/admin", "/finance", "/sync", "/team", "/presets", "/activity", "/rate-catalogs"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/projects",
+  "/admin",
+  "/finance",
+  "/sync",
+  "/team",
+  "/presets",
+  "/activity",
+  "/rate-catalogs",
+  "/correspondence",
+  "/drawings",
+  "/inventory",
+  "/settings",
+];
 
 async function getSessionPayload(req: NextRequest): Promise<{ kind?: string; sub?: string } | null> {
   const authHeader = req.headers.get("authorization");

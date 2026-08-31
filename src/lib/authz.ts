@@ -60,7 +60,7 @@ export async function assertOrgBankAccount(
 export async function getProjectRole(
   userId: string,
   projectId: string,
-  opts?: { impersonating?: boolean; organizationId?: string | null },
+  opts?: { impersonating?: boolean; organizationId?: string | null; orgRole?: string | null },
 ): Promise<ProjectRole | null> {
   // Super admins don't get automatic project access.
   // They must be explicitly added as project members.
@@ -73,14 +73,16 @@ export async function getProjectRole(
   }
 
   // Grant access if the caller's organization owns this project (or if platform admin is impersonating).
-  // This ensures organization owners, accountants, and admins can view and manage their organization's projects.
   if (opts?.organizationId) {
     const project = await db.project.findUnique({
       where: { id: projectId },
       select: { organizationId: true },
     });
     if (project && project.organizationId === opts.organizationId) {
-      return "project_manager";
+      if (opts.orgRole === "org_admin" || opts.orgRole === "org_owner" || opts.impersonating) {
+        return "project_manager";
+      }
+      return "engineer";
     }
   }
 
@@ -95,6 +97,7 @@ export async function assertProjectMember(
   const role = await getProjectRole(user.id, projectId, {
     impersonating: user.impersonating,
     organizationId: user.organizationId,
+    orgRole: user.orgRole,
   });
   if (!role) {
     throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this project." });

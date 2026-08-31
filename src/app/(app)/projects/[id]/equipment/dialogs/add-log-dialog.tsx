@@ -8,6 +8,7 @@ import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/compon
 import { Loader2, Check, ChevronsUpDown, Calculator, Fuel, Gauge, Sparkles, Boxes, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
+import { getLocalDateString } from "@/lib/nepali-calendar";
 import {
   Command,
   CommandInput,
@@ -48,7 +49,7 @@ export function AddLogDialog({
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [taskComboboxOpen, setTaskComboboxOpen] = useState(false);
 
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [logMode, setLogMode] = useState<"meter" | "odometer" | "direct">("meter");
   const [startHours, setStartHours] = useState("");
   const [endHours, setEndHours] = useState("");

@@ -37,6 +37,7 @@ beforeEach(() => {
   // leaked implementations across tests within a file (e.g. a fiscal-lock
   // mock from one test firing FORBIDDEN in unrelated later tests).
   vi.resetAllMocks();
+  anyDb.partner.findFirst.mockResolvedValue({ id: "partner-1", projectId: "p-1" });
 });
 
 // ─── Authorization ───────────────────────────────────────────────────────────
