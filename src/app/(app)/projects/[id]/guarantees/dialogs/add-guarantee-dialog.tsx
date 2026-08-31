@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { toastError } from "@/lib/toast-error";
 import { format } from "date-fns";
 import { adToBs, bsToAd } from "@/lib/nepali-calendar";
+import { AttachmentDropzone } from "@/components/ui/attachment-dropzone";
 
 export function AddGuaranteeDialog({
   projectId,
@@ -67,6 +68,7 @@ export function AddGuaranteeDialog({
   const [commissionPaid, setCommissionPaid] = useState("0");
   const [purpose, setPurpose] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
+  const [documentName, setDocumentName] = useState("");
   const [notes, setNotes] = useState("");
 
   const createMutation = trpc.bankGuarantee.create.useMutation({
@@ -118,6 +120,7 @@ export function AddGuaranteeDialog({
       commissionPaid: parseFloat(commissionPaid) || 0,
       purpose: purpose.trim() || undefined,
       documentUrl: documentUrl.trim() || undefined,
+      documentName: documentName.trim() || undefined,
       notes: notes.trim() || undefined,
     });
   };
@@ -319,16 +322,17 @@ export function AddGuaranteeDialog({
           </div>
         </div>
 
-        {/* Attachment URL / Scanned Copy */}
-        <div className="space-y-1.5">
-          <Label className="text-xs">Scanned PDF / Attachment URL</Label>
-          <Input
-            placeholder="https://... or attachment URL"
-            className="h-9 text-xs font-mono"
-            value={documentUrl}
-            onChange={(e) => setDocumentUrl(e.target.value)}
-          />
-        </div>
+        {/* Attachment Upload / Dropzone */}
+        <AttachmentDropzone
+          value={documentUrl}
+          onChange={(url, file) => {
+            setDocumentUrl(url || "");
+            if (file) setDocumentName(file.name);
+          }}
+          label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
+          accept=".pdf,image/*,application/pdf"
+          maxSizeMb={10}
+        />
 
         {/* Notes */}
         <div className="space-y-1.5">

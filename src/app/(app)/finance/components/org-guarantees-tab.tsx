@@ -26,6 +26,8 @@ import {
   Plus,
   Trash2,
   Loader2,
+  FileText,
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
@@ -35,6 +37,9 @@ import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/construction-finance";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Textarea } from "@/components/ui/textarea";
+import { AttachmentDropzone } from "@/components/ui/attachment-dropzone";
+import { sanitizeUrl } from "@/lib/safe-url";
 
 const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: string }> = {
   bid_bond: {
@@ -94,6 +99,7 @@ export function OrgGuaranteesTab() {
   const [claimPeriodDays, setClaimPeriodDays] = useState("30");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
   const [documentUrl, setDocumentUrl] = useState("");
+  const [documentName, setDocumentName] = useState("");
   const [notes, setNotes] = useState("");
 
   const { data: projectList } = trpc.project.list.useQuery();
@@ -143,6 +149,7 @@ export function OrgGuaranteesTab() {
     setExpiryMiti("");
     setSelectedProjectId("none");
     setDocumentUrl("");
+    setDocumentName("");
     setNotes("");
   };
 
@@ -173,6 +180,7 @@ export function OrgGuaranteesTab() {
       claimPeriodDays: parseInt(claimPeriodDays) || 30,
       projectId: selectedProjectId !== "none" ? selectedProjectId : undefined,
       documentUrl: documentUrl?.trim() || undefined,
+      documentName: documentName?.trim() || undefined,
       notes: notes?.trim() || undefined,
     });
   };
@@ -198,9 +206,23 @@ export function OrgGuaranteesTab() {
           const typeInfo = TYPE_LABELS[g.type] || TYPE_LABELS.other;
           return (
             <div className="font-sans">
-              <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0.5", typeInfo.color)}>
-                {typeInfo.labelNp}
-              </Badge>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0.5", typeInfo.color)}>
+                  {typeInfo.labelNp}
+                </Badge>
+                {g.documentUrl && (
+                  <a
+                    href={sanitizeUrl(g.documentUrl) ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                    title={g.documentName || "View Attached PDF / Scanned Document"}
+                  >
+                    <FileText className="h-3 w-3" />
+                    <span>PDF</span>
+                  </a>
+                )}
+              </div>
               <div className="font-mono font-bold text-white mt-1">{val}</div>
               {g.purpose && <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{g.purpose}</p>}
             </div>
@@ -570,6 +592,29 @@ export function OrgGuaranteesTab() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Attachment Upload / Dropzone */}
+            <AttachmentDropzone
+              value={documentUrl}
+              onChange={(url, file) => {
+                setDocumentUrl(url || "");
+                if (file) setDocumentName(file.name);
+              }}
+              label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
+              accept=".pdf,image/*,application/pdf"
+              maxSizeMb={10}
+            />
+
+            <div className="space-y-1">
+              <Label className="text-xs">Remarks / Notes</Label>
+              <Textarea
+                rows={2}
+                placeholder="Any special terms, collateral pledged, or extension conditions..."
+                className="text-xs bg-[#161d26] border-white/10 text-white"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
