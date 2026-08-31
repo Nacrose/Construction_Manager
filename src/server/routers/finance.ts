@@ -1166,12 +1166,13 @@ export const financeRouter = router({
       await assertNotLocked(ctx.user.organizationId);
       const user = await db.user.findUniqueOrThrow({
         where: { id: ctx.user.id },
-        select: { organizationId: true },
+        select: { organizationId: true, isSuperAdmin: true },
       });
 
       if (!user.organizationId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "User does not belong to an organization." });
       }
+      const orgId = user.organizationId;
 
       // UNIQUENESS CHECK: prevent duplicate account numbers within the
       // same org. Without this, two accounts with the same number can
@@ -1180,7 +1181,7 @@ export const financeRouter = router({
       const trimmedAccountNumber = input.accountNumber.trim();
       const existingAccount = await db.companyBankAccount.findFirst({
         where: {
-          organizationId: user.organizationId,
+          organizationId: orgId,
           accountNumber: trimmedAccountNumber,
         },
         select: { id: true },
@@ -1192,25 +1193,29 @@ export const financeRouter = router({
         });
       }
 
-      if (input.isDefault) {
-        await db.companyBankAccount.updateMany({
-          where: { organizationId: user.organizationId },
-          data: { isDefault: false },
-        });
-      }
+      const account = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, orgId, !!user.isSuperAdmin);
 
-      const account = await db.companyBankAccount.create({
-        data: {
-          organizationId: user.organizationId,
-          bankName: input.bankName.trim(),
-          accountNumber: input.accountNumber.trim(),
-          accountName: input.accountName.trim(),
-          accountType: input.accountType,
-          branch: input.branch?.trim() || null,
-          openingBalance: input.openingBalance,
-          currentBalance: input.openingBalance,
-          isDefault: input.isDefault,
-        },
+        if (input.isDefault) {
+          await tx.companyBankAccount.updateMany({
+            where: { organizationId: orgId },
+            data: { isDefault: false },
+          });
+        }
+
+        return tx.companyBankAccount.create({
+          data: {
+            organizationId: orgId,
+            bankName: input.bankName.trim(),
+            accountNumber: input.accountNumber.trim(),
+            accountName: input.accountName.trim(),
+            accountType: input.accountType,
+            branch: input.branch?.trim() || null,
+            openingBalance: input.openingBalance,
+            currentBalance: input.openingBalance,
+            isDefault: input.isDefault,
+          },
+        });
       });
 
       return { account };

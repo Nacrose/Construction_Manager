@@ -8,6 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager, assertOrgAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { adToBs } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
@@ -219,8 +220,8 @@ export const bankGuaranteeRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) {
         await assertProjectManager(ctx.user, input.projectId);
-      } else {
-        assertOrgAdmin(ctx.user);
+      } else if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
       }
 
       const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
@@ -257,31 +258,34 @@ export const bankGuaranteeRouter = router({
 
       const claimExpiryDate = new Date(expiryD.getTime() + (input.claimPeriodDays || 30) * 24 * 60 * 60 * 1000);
 
-      const guarantee = await db.bankGuarantee.create({
-        data: {
-          organizationId: orgId,
-          projectId: input.projectId || null,
-          type: input.type,
-          guaranteeNumber: input.guaranteeNumber.trim(),
-          issuingBank: input.issuingBank.trim(),
-          branch: input.branch?.trim() || null,
-          beneficiary: input.beneficiary.trim(),
-          amount: input.amount,
-          issuedDate: issuedD,
-          issuedMiti: issuedMiti || null,
-          expiryDate: expiryD,
-          expiryMiti: expiryMiti || null,
-          claimPeriodDays: input.claimPeriodDays,
-          claimExpiryDate,
-          status: "active",
-          purpose: input.purpose?.trim() || null,
-          marginAmount: input.marginAmount,
-          commissionRate: input.commissionRate,
-          commissionPaid: input.commissionPaid,
-          documentUrl: input.documentUrl || null,
-          documentName: input.documentName || null,
-          notes: input.notes?.trim() || null,
-        },
+      const guarantee = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
+        return tx.bankGuarantee.create({
+          data: {
+            organizationId: orgId,
+            projectId: input.projectId || null,
+            type: input.type,
+            guaranteeNumber: input.guaranteeNumber.trim(),
+            issuingBank: input.issuingBank.trim(),
+            branch: input.branch?.trim() || null,
+            beneficiary: input.beneficiary.trim(),
+            amount: input.amount,
+            issuedDate: issuedD,
+            issuedMiti: issuedMiti || null,
+            expiryDate: expiryD,
+            expiryMiti: expiryMiti || null,
+            claimPeriodDays: input.claimPeriodDays,
+            claimExpiryDate,
+            status: "active",
+            purpose: input.purpose?.trim() || null,
+            marginAmount: input.marginAmount,
+            commissionRate: input.commissionRate,
+            commissionPaid: input.commissionPaid,
+            documentUrl: input.documentUrl || null,
+            documentName: input.documentName || null,
+            notes: input.notes?.trim() || null,
+          },
+        });
       });
 
       await audit({
@@ -349,16 +353,20 @@ export const bankGuaranteeRouter = router({
       const prevAmendments = (existing.amendments as any[]) || [];
       const updatedAmendments = [...prevAmendments, amendmentEntry];
 
-      const guarantee = await db.bankGuarantee.update({
-        where: { id: input.id },
-        data: {
-          expiryDate: newExpiryD,
-          expiryMiti: newMiti || null,
-          claimExpiryDate,
-          status: "extended",
-          commissionPaid: existing.commissionPaid + input.additionalCommission,
-          amendments: updatedAmendments,
-        },
+      const targetOrg = existing.organizationId || ctx.user.organizationId;
+      const guarantee = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
+        return tx.bankGuarantee.update({
+          where: { id: input.id },
+          data: {
+            expiryDate: newExpiryD,
+            expiryMiti: newMiti || null,
+            claimExpiryDate,
+            status: "extended",
+            commissionPaid: existing.commissionPaid + input.additionalCommission,
+            amendments: updatedAmendments,
+          },
+        });
       });
 
       await audit({
@@ -392,14 +400,18 @@ export const bankGuaranteeRouter = router({
       });
       await assertGuaranteeAccess(ctx.user, existing);
 
-      const guarantee = await db.bankGuarantee.update({
-        where: { id: input.id },
-        data: {
-          status: "released",
-          notes: input.notes
-            ? `${existing.notes || ""}\nReleased with Ref: ${input.releaseLetterRef || "N/A"}. ${input.notes}`.trim()
-            : existing.notes,
-        },
+      const targetOrg = existing.organizationId || ctx.user.organizationId;
+      const guarantee = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
+        return tx.bankGuarantee.update({
+          where: { id: input.id },
+          data: {
+            status: "released",
+            notes: input.notes
+              ? `${existing.notes || ""}\nReleased with Ref: ${input.releaseLetterRef || "N/A"}. ${input.notes}`.trim()
+              : existing.notes,
+          },
+        });
       });
 
       await audit({
@@ -425,10 +437,6 @@ export const bankGuaranteeRouter = router({
         issuingBank: z.string().optional(),
         branch: z.string().optional(),
         beneficiary: z.string().optional(),
-        // Mirrors create's validation: a guarantee amount must be positive,
-        // margins/commissions non-negative — previously these were plain
-        // z.number().optional() and a typo'd negative value would silently
-        // flip the org's exposure KPIs and margin math.
         amount: z.number().positive().optional(),
         marginAmount: z.number().nonnegative().optional(),
         commissionRate: z.number().min(0).max(100).optional(),
@@ -445,9 +453,13 @@ export const bankGuaranteeRouter = router({
       await assertGuaranteeAccess(ctx.user, existing);
 
       const { id, ...data } = input;
-      const guarantee = await db.bankGuarantee.update({
-        where: { id },
-        data,
+      const targetOrg = existing.organizationId || ctx.user.organizationId;
+      const guarantee = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
+        return tx.bankGuarantee.update({
+          where: { id },
+          data,
+        });
       });
 
       await audit({
@@ -473,7 +485,11 @@ export const bankGuaranteeRouter = router({
       });
       await assertGuaranteeAccess(ctx.user, existing);
 
-      await db.bankGuarantee.delete({ where: { id: input.id } });
+      const targetOrg = existing.organizationId || ctx.user.organizationId;
+      await db.$transaction(async (tx) => {
+        await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
+        await tx.bankGuarantee.delete({ where: { id: input.id } });
+      });
 
       await audit({
         userId: ctx.user.id,

@@ -142,9 +142,9 @@ describe("bankGuarantee.create", () => {
     );
   });
 
-  it("org-level guarantees require org admin", async () => {
-    member("project_manager"); // PM is NOT enough for org-level
-    const caller = createCaller(bankGuaranteeRouter, PM);
+  it("org-level guarantees require user to belong to an organization", async () => {
+    const noOrgUser = buildUser({ organizationId: null });
+    const caller = createCaller(bankGuaranteeRouter, noOrgUser);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
   });
 

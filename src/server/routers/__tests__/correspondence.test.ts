@@ -276,6 +276,21 @@ describe("correspondence.create", () => {
     expect(anyDb.correspondence.create.mock.calls[0][0].data.repliesToId).toBe("L-0");
   });
 
+  it("rejects unauthorized file types on upload (e.g. text/html, svg, exe)", async () => {
+    member("engineer");
+    const caller = createCaller(correspondenceRouter, USER);
+    await expectTRPCError(
+      caller.create({
+        ...baseInput,
+        fileData: "PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+        fileName: "exploit.html",
+        fileType: "text/html",
+      }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.correspondence.create).not.toHaveBeenCalled();
+  });
+
   it("FORBIDDENs read-only roles", async () => {
     member("client");
     const caller = createCaller(correspondenceRouter, USER);
@@ -337,7 +352,18 @@ describe("correspondence.updateReply", () => {
     );
     expect(anyDb.correspondence.update).not.toHaveBeenCalled();
 
-    // Small reply file is stored.
+    // Reject invalid reply file MIME type
+    await expectTRPCError(
+      caller.updateReply({
+        id: "L-1",
+        replyFileData: "PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+        replyFileName: "exploit.svg",
+        replyFileType: "image/svg+xml",
+      }),
+      "BAD_REQUEST",
+    );
+
+    // Valid reply file is stored.
     await caller.updateReply({
       id: "L-1",
       replyFileData: "small",

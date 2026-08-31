@@ -18,6 +18,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { isAllowedAttachmentType } from "@/server/utils/workflow-helpers";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -151,8 +152,14 @@ export const correspondenceRouter = router({
         }
       }
 
-      // Validate file size
+      // Validate file size and MIME type
       if (input.fileData) {
+        if (input.fileType && !isAllowedAttachmentType(input.fileType)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid file type. Allowed types: PDF, Images (JPEG/PNG/WebP/GIF), Word, Excel, CSV, Text, ZIP.",
+          });
+        }
         const estBytes = Math.ceil((input.fileData.length * 3) / 4);
         if (estBytes > MAX_FILE_SIZE) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` });
@@ -221,9 +228,14 @@ export const correspondenceRouter = router({
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Letter not found." });
       await assertCanWrite(ctx.user, existing.projectId);
 
-      // Validate reply file size — same cap as the incoming letter file
-      // (previously only `create` checked; a reply could exceed the limit).
+      // Validate reply file size and MIME type
       if (input.replyFileData) {
+        if (input.replyFileType && !isAllowedAttachmentType(input.replyFileType)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Invalid file type. Allowed types: PDF, Images (JPEG/PNG/WebP/GIF), Word, Excel, CSV, Text, ZIP.",
+          });
+        }
         const estBytes = Math.ceil((input.replyFileData.length * 3) / 4);
         if (estBytes > MAX_FILE_SIZE) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` });
