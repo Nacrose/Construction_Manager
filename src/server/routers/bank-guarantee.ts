@@ -333,35 +333,47 @@ export const bankGuaranteeRouter = router({
 
       const claimExpiryDate = new Date(expiryD.getTime() + (input.claimPeriodDays || 30) * 24 * 60 * 60 * 1000);
 
-      const guarantee = await db.$transaction(async (tx) => {
-        await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
-        return tx.bankGuarantee.create({
-          data: {
-            organizationId: orgId,
-            projectId: input.projectId || null,
-            type: input.type,
-            guaranteeNumber: input.guaranteeNumber.trim(),
-            issuingBank: input.issuingBank.trim(),
-            branch: input.branch?.trim() || null,
-            beneficiary: input.beneficiary.trim(),
-            amount: input.amount,
-            issuedDate: issuedD,
-            issuedMiti: issuedMiti || null,
-            expiryDate: expiryD,
-            expiryMiti: expiryMiti || null,
-            claimPeriodDays: input.claimPeriodDays,
-            claimExpiryDate,
-            status: "active",
-            purpose: input.purpose?.trim() || null,
-            marginAmount: input.marginAmount,
-            commissionRate: input.commissionRate,
-            commissionPaid: input.commissionPaid,
-            documentUrl: input.documentUrl || null,
-            documentName: input.documentName || null,
-            notes: input.notes?.trim() || null,
-          },
+      let guarantee;
+      try {
+        guarantee = await db.$transaction(async (tx) => {
+          await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
+          return tx.bankGuarantee.create({
+            data: {
+              organizationId: orgId,
+              projectId: input.projectId || null,
+              type: input.type,
+              guaranteeNumber: input.guaranteeNumber.trim(),
+              issuingBank: input.issuingBank.trim(),
+              branch: input.branch?.trim() || null,
+              beneficiary: input.beneficiary.trim(),
+              amount: input.amount,
+              issuedDate: issuedD,
+              issuedMiti: issuedMiti || null,
+              expiryDate: expiryD,
+              expiryMiti: expiryMiti || null,
+              claimPeriodDays: input.claimPeriodDays,
+              claimExpiryDate,
+              status: "active",
+              purpose: input.purpose?.trim() || null,
+              marginAmount: input.marginAmount,
+              commissionRate: input.commissionRate,
+              commissionPaid: input.commissionPaid,
+              documentUrl: input.documentUrl || null,
+              documentName: input.documentName || null,
+              notes: input.notes?.trim() || null,
+            },
+          });
         });
-      });
+      } catch (err: any) {
+        console.error("[bankGuarantee.create] Transaction error details:", {
+          orgId,
+          projectId: input.projectId,
+          userId: ctx.user.id,
+          isSuperAdmin: ctx.user.isSuperAdmin,
+          error: err?.message || err,
+        });
+        throw err;
+      }
 
       await audit({
         userId: ctx.user.id,

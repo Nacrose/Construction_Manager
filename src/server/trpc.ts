@@ -78,7 +78,27 @@ export const t = initTRPC.context<TRPCContext>().create({
       message = "A required database table is missing. Please contact support or refresh the page.";
     } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
       console.error("[trpc] Prisma invocation error:", error);
-      message = "Something went wrong while saving your data. Please try again or contact support if the problem persists.";
+      const rawText = (error?.cause as any)?.message || error?.message || message;
+      const lines = String(rawText)
+        .split("\n")
+        .map((l: string) => l.trim())
+        .filter(Boolean);
+      const cleanLines = lines.filter(
+        (l: string) =>
+          !l.startsWith("Invalid `prisma.") &&
+          !l.startsWith("-->") &&
+          !l.includes("invocation:") &&
+          !l.startsWith("at ") &&
+          !l.includes("node_modules") &&
+          !/^\s*(\{|\}|\(|\))\s*$/.test(l) &&
+          !l.startsWith("+") &&
+          !l.startsWith("-") &&
+          !l.startsWith("data:")
+      );
+      const cleanReason = cleanLines[cleanLines.length - 1] || cleanLines[0];
+      message = cleanReason
+        ? `Database error: ${cleanReason}`
+        : "Something went wrong while saving your data. Please try again or contact support if the problem persists.";
     } else if (process.env.NODE_ENV === "production") {
       const isTrpcError = error && typeof error === "object" && "name" in error && error.name === "TRPCError";
       if (!isTrpcError) {
