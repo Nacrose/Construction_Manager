@@ -31,6 +31,47 @@ async function assertGuaranteeAccess(
   }
 }
 
+async function ensureBankGuaranteeTable(): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "BankGuarantee" (
+        "id" TEXT NOT NULL,
+        "organizationId" TEXT,
+        "projectId" TEXT,
+        "type" TEXT NOT NULL,
+        "guaranteeNumber" TEXT NOT NULL,
+        "issuingBank" TEXT NOT NULL,
+        "branch" TEXT,
+        "beneficiary" TEXT NOT NULL,
+        "amount" DECIMAL(15, 2) NOT NULL,
+        "currency" TEXT NOT NULL DEFAULT 'NPR',
+        "issuedDate" TIMESTAMPTZ NOT NULL,
+        "issuedMiti" TEXT,
+        "expiryDate" TIMESTAMPTZ NOT NULL,
+        "expiryMiti" TEXT,
+        "claimPeriodDays" INTEGER NOT NULL DEFAULT 30,
+        "claimExpiryDate" TIMESTAMPTZ,
+        "status" TEXT NOT NULL DEFAULT 'active',
+        "purpose" TEXT,
+        "marginAmount" DECIMAL(15, 2) NOT NULL DEFAULT 0,
+        "commissionRate" DECIMAL(15, 4) NOT NULL DEFAULT 0,
+        "commissionPaid" DECIMAL(15, 2) NOT NULL DEFAULT 0,
+        "documentUrl" TEXT,
+        "documentName" TEXT,
+        "amendments" JSONB NOT NULL DEFAULT '[]',
+        "notes" TEXT,
+        "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "BankGuarantee_pkey" PRIMARY KEY ("id")
+      );
+      CREATE INDEX IF NOT EXISTS "BankGuarantee_organizationId_status_expiryDate_idx" ON "BankGuarantee"("organizationId", "status", "expiryDate");
+      CREATE INDEX IF NOT EXISTS "BankGuarantee_projectId_status_expiryDate_idx" ON "BankGuarantee"("projectId", "status", "expiryDate");
+    `);
+  } catch (err) {
+    console.error("[BankGuarantee] ensureTable error:", err);
+  }
+}
+
 export const bankGuaranteeRouter = router({
   /** List all bank guarantees (Organization wide or Project scoped) */
   list: protectedProcedure
@@ -78,15 +119,30 @@ export const bankGuaranteeRouter = router({
         where.type = input.type;
       }
 
-      const rawItems = await db.bankGuarantee.findMany({
-        where,
-        include: {
-          project: {
-            select: { id: true, name: true, code: true },
+      let rawItems;
+      try {
+        rawItems = await db.bankGuarantee.findMany({
+          where,
+          include: {
+            project: {
+              select: { id: true, name: true, code: true },
+            },
           },
-        },
-        orderBy: { expiryDate: "asc" },
-      });
+          orderBy: { expiryDate: "asc" },
+        });
+      } catch (err) {
+        console.error("[bankGuarantee.list] List failed, ensuring table and retrying:", err);
+        await ensureBankGuaranteeTable();
+        rawItems = await db.bankGuarantee.findMany({
+          where,
+          include: {
+            project: {
+              select: { id: true, name: true, code: true },
+            },
+          },
+          orderBy: { expiryDate: "asc" },
+        });
+      }
 
       const now = new Date();
 
@@ -220,11 +276,29 @@ export const bankGuaranteeRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) {
         await assertProjectManager(ctx.user, input.projectId);
-      } else if (!ctx.user.organizationId) {
+      } else if (!ctx.user.organizationId && !ctx.user.isSuperAdmin) {
         throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
       }
 
-      const orgId = ctx.user.isSuperAdmin && input.organizationId ? input.organizationId : ctx.user.organizationId;
+      let orgId = ctx.user.organizationId;
+      if (input.projectId) {
+        const project = await db.project.findUnique({
+          where: { id: input.projectId },
+          select: { organizationId: true },
+        });
+        if (project?.organizationId) {
+          orgId = project.organizationId;
+        }
+      }
+      if (!orgId && ctx.user.isSuperAdmin) {
+        if (input.organizationId) {
+          orgId = input.organizationId;
+        } else {
+          const firstOrg = await db.organization.findFirst({ select: { id: true } });
+          orgId = firstOrg?.id ?? null;
+        }
+      }
+
       if (!orgId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "User has no organization assigned." });
       }
@@ -258,9 +332,8 @@ export const bankGuaranteeRouter = router({
 
       const claimExpiryDate = new Date(expiryD.getTime() + (input.claimPeriodDays || 30) * 24 * 60 * 60 * 1000);
 
-      const guarantee = await db.$transaction(async (tx) => {
-        await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
-        return tx.bankGuarantee.create({
+      const createRecord = (txClient: any) =>
+        txClient.bankGuarantee.create({
           data: {
             organizationId: orgId,
             projectId: input.projectId || null,
@@ -286,7 +359,29 @@ export const bankGuaranteeRouter = router({
             notes: input.notes?.trim() || null,
           },
         });
-      });
+
+      let guarantee;
+      try {
+        guarantee = await db.$transaction(async (tx) => {
+          await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
+          return createRecord(tx);
+        });
+      } catch (err: any) {
+        console.error("[bankGuarantee.create] Create failed, ensuring table and retrying:", err);
+        await ensureBankGuaranteeTable();
+        try {
+          guarantee = await db.$transaction(async (tx) => {
+            await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
+            return createRecord(tx);
+          });
+        } catch (retryErr: any) {
+          console.error("[bankGuarantee.create] Retry also failed:", retryErr);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: retryErr?.message || "A database error occurred while processing your request. Please try again.",
+          });
+        }
+      }
 
       await audit({
         userId: ctx.user.id,

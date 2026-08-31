@@ -56,7 +56,14 @@ export const t = initTRPC.context<TRPCContext>().create({
       message = "This operation could not be completed because related data depends on it.";
     } else if (message.includes("Record to update not found") || message.includes("Record to delete does not exist") || message.includes("P2025")) {
       message = "The requested record was not found or has already been deleted.";
+    } else if (message.includes("violates row-level security") || message.includes("row-level security policy")) {
+      console.error("[trpc] RLS error:", error);
+      message = "Security policy violation: You do not have permission to access or modify records for this organization.";
+    } else if (message.includes("relation") && message.includes("does not exist")) {
+      console.error("[trpc] Missing table error:", error);
+      message = "Database schema update in progress. Please refresh or contact support.";
     } else if (message.includes("Invalid `prisma.") || message.includes("invocation:")) {
+      console.error("[trpc] Database invocation error:", error);
       message = "A database error occurred while processing your request. Please try again.";
     } else if (process.env.NODE_ENV === "production") {
       const isTrpcError = error && typeof error === "object" && "name" in error && error.name === "TRPCError";
