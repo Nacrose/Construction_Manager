@@ -34,11 +34,6 @@ import { RecordPaymentDialog } from "./components/record-payment-dialog";
 import { AddClaimDialog } from "./components/add-claim-dialog";
 import * as XLSX from "@e965/xlsx";
 
-export const FIN_TABS = [
-  { label: "Day Book & Cashbook", href: "/accounting" },
-  { label: "Parties & Payables", href: "/payments" },
-  { label: "Reports & Compliance", href: "/tax-summary" },
-];
 
 function fmt(n: number) {
   return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -173,7 +168,7 @@ export default function PaymentsPage({
 
   return (
     <>
-      {!embedded && <ModuleTabs projectId={id} tabs={FIN_TABS} />}
+      {!embedded && <ModuleTabs projectId={id} cluster="finance-compact" />}
       <div className="space-y-3 pb-8">
         {/* Compact Top Summary Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-[#000000] text-xs font-mono">

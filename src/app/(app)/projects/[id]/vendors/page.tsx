@@ -27,15 +27,6 @@ import { EditVendorDialog } from "./components/edit-vendor-dialog";
 import { formatNpr } from "@/lib/currency";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-const RES_TABS = [
-  { label: "Materials & Procurement", href: "/materials" },
-  { label: "Resource & Rate Library", href: "/rate-library" },
-  { label: "Equipment & Fleet", href: "/equipment" },
-  { label: "Plant & Production", href: "/production" },
-  { label: "Subcontractors", href: "/subcontractors" },
-  { label: "HR / Staff", href: "/hr" },
-  { label: "Vendors Directory", href: "/vendors" },
-];
 
 function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -248,7 +239,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <ModuleTabs projectId={id} cluster="resources" />
       <AnimatedPage className="space-y-5 pb-8 font-sans">
         {activeDetailPartner ? (
           <VendorDetailFullPage

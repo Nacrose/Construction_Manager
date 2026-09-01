@@ -16,11 +16,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
 
-const QS_TABS = [
-  { label: "Quality", href: "/quality" },
-  { label: "Punch List", href: "/punch-list" },
-  { label: "Safety", href: "/safety" },
-];
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = { incident: AlertTriangle, near_miss: Eye, toolbox_talk: Megaphone, observation: ShieldCheck };
 const SEVERITY_COLORS: Record<string, string> = { minor: "bg-slate-100 text-slate-600 dark:bg-slate-800", moderate: "bg-amber-100 text-amber-700 dark:bg-amber-950", serious: "bg-red-100 text-red-700 dark:bg-red-950", fatal: "bg-red-600 text-white" };
@@ -41,7 +36,7 @@ export default function SafetyPage({ params }: { params: Promise<{ id: string }>
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={QS_TABS} />
+      <ModuleTabs projectId={id} cluster="quality-safety" />
       <div className="space-y-4 pb-8">
         {/* Metric Cards */}
         {stats && (

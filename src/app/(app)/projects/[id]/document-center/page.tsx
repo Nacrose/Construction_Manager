@@ -17,11 +17,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
 
-const DOCS_TABS = [
-  { label: "Drawings", href: "/drawings" },
-  { label: "Submittals", href: "/submittals" },
-  { label: "Doc Center", href: "/document-center" },
-];
 
 const TYPE_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   daily_report: { icon: FileText, color: "text-emerald-600", label: "Daily Report" },
@@ -102,7 +97,7 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={DOCS_TABS} />
+      <ModuleTabs projectId={id} cluster="documents" />
       <div className="space-y-4 pb-8">
         {/* Stats */}
         <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">

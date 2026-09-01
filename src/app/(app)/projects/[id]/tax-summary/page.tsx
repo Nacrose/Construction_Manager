@@ -22,11 +22,6 @@ import { VatReturnTab } from "./components/vat-return-tab";
 import { MissingScansTab } from "./components/missing-scans-tab";
 import { LogVatBillDialog } from "./dialogs/log-vat-bill-dialog";
 
-const FIN_TABS = [
-  { label: "Day Book & Cashbook", href: "/accounting" },
-  { label: "Parties & Payables", href: "/payments" },
-  { label: "Reports & Compliance", href: "/tax-summary" },
-];
 
 export default function TaxSummaryPage({
   params,
@@ -49,7 +44,7 @@ export default function TaxSummaryPage({
 
   return (
     <AnimatedPage className="space-y-2.5 font-sans">
-      {!embedded && <ModuleTabs projectId={id} tabs={FIN_TABS} />}
+      {!embedded && <ModuleTabs projectId={id} cluster="finance-compact" />}
 
       {/* Ultra-Clean Single-Line Sub-Tab Switcher & Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c7d8e8] pb-1">

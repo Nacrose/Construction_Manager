@@ -4,15 +4,11 @@ import { use } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { NAV_CLUSTERS } from "@/lib/nav-registry";
 
-const TABS = [
-  { label: "RFIs", href: "/rfi" },
-  { label: "Daily Program", href: "/program" },
-  { label: "My Tasks", href: "/program/my-tasks" },
-  { label: "Daily Reports", href: "/reports" },
-  { label: "Correspondence", href: "/correspondence", absolute: true },
-  { label: "Meetings", href: "/meetings", absolute: true },
-];
+// Tab data lives in the nav registry ("workflow-shell" cluster) —
+// single source of truth shared with ModuleTabs consumers.
+const TABS = NAV_CLUSTERS["workflow-shell"];
 
 export default function WorkflowLayout({
   children,
@@ -38,7 +34,7 @@ export default function WorkflowLayout({
     <div className="space-y-4">
       <div className="flex gap-1 border-b">
         {TABS.map((tab) => {
-          const href = (tab as any).absolute
+          const tabPath = tab.absolute
             ? `/projects/${id}${tab.href}`
             : basePath + tab.href;
           // Unify the active-tab detection: always use startsWith so that
@@ -47,17 +43,12 @@ export default function WorkflowLayout({
           // special-cased to use exact-match (`pathname === href`), which
           // meant visiting an RFI detail page left the RFIs tab
           // unhighlighted.
-          const tabPath = (tab as any).absolute
-            ? `/projects/${id}${tab.href}`
-            : basePath + tab.href;
           const active =
-            tabPath === `${basePath}/rfi`
-              ? pathname === tabPath || pathname.startsWith(`${tabPath}/`)
-              : pathname === tabPath || pathname.startsWith(`${tabPath}/`);
+            pathname === tabPath || pathname.startsWith(`${tabPath}/`);
           return (
             <Link
               key={tab.href}
-              href={href}
+              href={tabPath}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                 active

@@ -16,13 +16,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
 
-const WF_TABS = [
-  { label: "RFIs", href: "/workflow/rfi" },
-  { label: "Daily Program", href: "/workflow/program" },
-  { label: "Daily Reports", href: "/workflow/reports" },
-  { label: "Correspondence", href: "/correspondence" },
-  { label: "Meetings", href: "/meetings" },
-];
 
 import { getLocalDateString } from "@/lib/nepali-calendar";
 
@@ -40,7 +33,7 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={WF_TABS} />
+      <ModuleTabs projectId={id} cluster="workflow" />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">

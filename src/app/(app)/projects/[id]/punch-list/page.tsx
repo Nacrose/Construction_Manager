@@ -18,11 +18,6 @@ import { ModuleTabs } from "@/components/module-tabs";
 import { CreatePunchDialog } from "./dialogs/create-punch-dialog";
 import { PunchStatusActions } from "./components/punch-status-actions";
 
-const QS_TABS = [
-  { label: "Quality", href: "/quality" },
-  { label: "Punch List", href: "/punch-list" },
-  { label: "Safety", href: "/safety" },
-];
 
 const SEVERITY_CONFIG: Record<string, { color: string; bg: string }> = {
   critical: { color: "text-red-600", bg: "bg-red-100 dark:bg-red-950" },
@@ -50,7 +45,7 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={QS_TABS} />
+      <ModuleTabs projectId={id} cluster="quality-safety" />
       <div className="space-y-4 pb-8">
         {/* Stats */}
         {stats && (

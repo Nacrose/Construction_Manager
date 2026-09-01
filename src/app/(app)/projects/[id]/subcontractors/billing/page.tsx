@@ -58,15 +58,6 @@ import {
   Package,
 } from "lucide-react";
 
-const RES_TABS = [
-  { label: "Materials & Procurement", href: "/materials" },
-  { label: "Resource & Rate Library", href: "/rate-library" },
-  { label: "Equipment & Fleet", href: "/equipment" },
-  { label: "Plant & Production", href: "/production" },
-  { label: "Subcontractors", href: "/subcontractors" },
-  { label: "HR / Staff", href: "/hr" },
-  { label: "Vendors Directory", href: "/vendors" },
-];
 
 type BillItem = {
   boqCode: string;
@@ -161,7 +152,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <ModuleTabs projectId={id} cluster="resources" />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Primary Subcontractor Tabs & Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">

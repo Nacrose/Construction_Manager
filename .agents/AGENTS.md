@@ -17,6 +17,7 @@ The codebase is being consolidated onto a central engine kit. The kit is exactly
 | Engine form fields | `src/components/engine/form-fields.tsx` | ALL fields inside engine dialogs (text/number/currency/date/Nepali-date/select/textarea/switch) — extend the kit, never restyle ad hoc |
 | useRegister | `src/hooks/use-register.ts` | Register/list page query plumbing: typed query + pick, loading/fetching, refresh (adopted Phase B, extracted from the leaves pilot) |
 | useAction | `src/hooks/use-action.ts` | ALL non-dialog tRPC mutations (approve/reject/delete/status changes): success toast -> invalidate -> onSuccess, error toast -> onError. Returns the full mutation shape, so adoption is a mechanical swap of `proc.useMutation({...})` blocks (adopted Phase C, extracted from leaves + expenses) |
+| Nav Registry | `src/lib/nav-registry.ts` | ALL navigation data: sidebar arrays (GLOBAL_NAV, PROJECT_MODULE_NAV), project tab-bar clusters (NAV_CLUSTERS), and the href→module gating map (MODULE_KEY_BY_HREF). Adding/renaming a route = one entry here; 28 page-level `*_TABS` copies were deleted (adopted Phase D) |
 
 Phase B notes:
 - The speculative `src/components/ui/form-engine.tsx` (ConstructionForm, zero adopters) was DELETED; its field kit lives on in `src/components/engine/form-fields.tsx` behind FormDialogEngine.
@@ -25,6 +26,12 @@ Phase B notes:
 Phase C notes (adoption wave):
 - `useAction` supersedes hand-written `useMutation` blocks with inline `toast.success` + `utils.*.invalidate` for approve/reject/delete-style actions. Dialog submissions keep using FormDialogEngine (which owns the same protocol internally).
 - Engine form fields: numeric/currency fields hold `number | undefined` (empty = `undefined`), so zod can enforce "required" cleanly. Annotate form value types explicitly when a field is optional.
+
+Phase D notes (nav registry):
+- `<ModuleTabs projectId={id} cluster="resources" />` resolves its tabs from the registry. The `tabs` prop remains the sanctioned escape hatch for one-off bars — provide exactly one of the two; ModuleTabs throws if neither or both.
+- Module gating: cluster tabs declare `moduleKey` inline; orphan hrefs (e.g. `/hr/payroll`) live in MODULE_KEY_BY_HREF. `nav-registry.test.ts` pins the legacy gating key set — never grow it silently.
+- Known preserved drift (product decisions, not engineering): `finance` (6 tabs) vs `finance-compact` (3 tabs) both exist; `documents` cluster is the 4-tab superset (document-center & submittals gained "Photo Progress").
+- AppSidebar renders from GLOBAL_NAV / PROJECT_MODULE_NAV; it owns rendering only, never nav data.
 
 **Protocol rules every change must obey:**
 
