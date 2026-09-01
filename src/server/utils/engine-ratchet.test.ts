@@ -70,6 +70,13 @@ const BASELINES = {
   DECLARATIVE_FLOORS: {
     DOMAIN_ROUTERS: 3, // leave, site-expense, jv-partner
     FINANCIAL_GUARDS: 2, // site-expense.create, jv-partner.recordPayout
+    /** Routers delegating status flips to transitionEntityState instead of
+     *  hand-rolled update({ data: { status } }) writes. Pinned at the mass-
+     *  adoption pass: submittal(2), punch-list(1), leave(2), site-expense(2),
+     *  boq-version(1), payroll(1), daily-program(1), requisition(2),
+     *  subcontractor-bill(2). May only grow — new lifecycle moves must ride
+     *  the engine so graphs, CAS and attribution stay centralized. */
+    TRANSITIONS: 14,
   },
 };
 
@@ -78,6 +85,7 @@ const FISCAL_RE = /\bassertNotLocked\(/g;
 const FLOAT_MONEY_RE = /\bNumber\(|\bparseFloat\(/g;
 const DOMAIN_ROUTER_RE = /createDomainRouter\(\)/g;
 const FIN_GUARD_RE = /\bfinancialGuard\(\{/g;
+const TRANSITIONS_RE = /\btransitionEntityState\(/g;
 
 describe("Engine ratchet — server security pipeline (shrink-only)", () => {
   it("hand-rolled authz calls in routers never grow past the baseline", () => {
@@ -133,5 +141,14 @@ describe("Engine ratchet — declarative adoption floors (grow-only)", () => {
       count,
       `financialGuard adoption dropped (${count} < ${BASELINES.DECLARATIVE_FLOORS.FINANCIAL_GUARDS}).`
     ).toBeGreaterThanOrEqual(BASELINES.DECLARATIVE_FLOORS.FINANCIAL_GUARDS);
+  });
+
+  it("engine transition adoption never shrinks", () => {
+    const count = countPattern(ROUTER_FILES, TRANSITIONS_RE);
+    expect(
+      count,
+      `transitionEntityState adoption dropped (${count} < ${BASELINES.DECLARATIVE_FLOORS.TRANSITIONS}). ` +
+        "Status flips must ride the engine (graphs + CAS + attribution), not hand-rolled updates."
+    ).toBeGreaterThanOrEqual(BASELINES.DECLARATIVE_FLOORS.TRANSITIONS);
   });
 });
