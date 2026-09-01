@@ -20,8 +20,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(import.meta.dirname, "..");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, "..");
 const SCHEMA = path.join(ROOT, "prisma/schema.prisma");
 const DTS = path.join(ROOT, "node_modules/.prisma/client/index.d.ts");
 

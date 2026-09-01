@@ -2,6 +2,9 @@
   "name": "construction-manager",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.11.0"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && node scripts/patch-prisma-decimal-types.mjs && next build",
