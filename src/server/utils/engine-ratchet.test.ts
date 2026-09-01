@@ -74,9 +74,10 @@ const BASELINES = {
      *  hand-rolled update({ data: { status } }) writes. Pinned at the mass-
      *  adoption pass: submittal(2), punch-list(1), leave(2), site-expense(2),
      *  boq-version(1), payroll(1), daily-program(1), requisition(2),
-     *  subcontractor-bill(2). May only grow — new lifecycle moves must ride
+     *  subcontractor-bill(2); batch 2: gantt-versions(2), ipc(1), rfi(2),
+     *  daily-report(1). May only grow — new lifecycle moves must ride
      *  the engine so graphs, CAS and attribution stay centralized. */
-    TRANSITIONS: 14,
+    TRANSITIONS: 20,
   },
 };
 
