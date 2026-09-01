@@ -26,11 +26,9 @@ setup("UI login lands on the dashboard with live stats", async ({ page }) => {
   // Full-page navigation (window.location.href) to /dashboard follows.
   await page.waitForURL("**/dashboard", { timeout: 20_000 });
 
-  // Dashboard fetched /api/dashboard and rendered the KPI card grid.
-  // (Values animate up via AnimatedCounter — assert card labels, i.e.
-  // data-loaded, rather than racing the counter.)
-  await expect(page.getByText("Projects", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Open RFIs", { exact: true }).first()).toBeVisible();
+  // Dashboard fetched /api/dashboard and rendered the Executive Cockpit.
+  await expect(page.getByText("Executive Cockpit").first()).toBeVisible();
+  await expect(page.getByText("Active Projects").first()).toBeVisible();
 
   await page.context().storageState({ path: "test-results/.auth/e2e.json" });
 });
