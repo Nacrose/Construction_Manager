@@ -3,16 +3,8 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Select,
   SelectContent,
@@ -22,26 +14,18 @@ import {
 } from "@/components/ui/select";
 import {
   ShieldAlert,
-  ShieldCheck,
   Plus,
   Trash2,
-  Loader2,
-  FileText,
-  Eye,
   Pencil,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
-import { adToBs } from "@/lib/nepali-calendar";
-import { toast } from "sonner";
-import { toastError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/construction-finance";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { Textarea } from "@/components/ui/textarea";
-import { AttachmentDropzone } from "@/components/ui/attachment-dropzone";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { sanitizeUrl } from "@/lib/safe-url";
+import { toast } from "sonner";
+import { toastError } from "@/lib/toast-error";
 import { GuaranteeFormDialog } from "@/app/(app)/projects/[id]/guarantees/dialogs/guarantee-form-dialog";
 import { StatCardSkeleton } from "@/components/ui/matrix-skeleton";
 
@@ -94,9 +78,6 @@ export function OrgGuaranteesTab() {
     variant: "destructive" | "warning";
     confirmLabel: string;
   } | null>(null);
-
-  const { data: projectList } = trpc.project.list.useQuery();
-  const projects = projectList?.projects || [];
 
   const { data, isLoading } = trpc.bankGuarantee.list.useQuery({
     status: statusFilter !== "all" ? statusFilter : undefined,

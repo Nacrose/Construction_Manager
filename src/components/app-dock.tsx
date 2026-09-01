@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
-  HardHat, LayoutDashboard, FolderKanban, ClipboardList, Truck, ReceiptText,
+  HardHat, LayoutDashboard, FolderKanban, ClipboardList, ReceiptText,
   Users, ChevronLeft, History, Compass, FileSignature, ListChecks, LogOut,
   Settings, Database, Mail, RefreshCw, ShieldAlert, BookOpen, Boxes,
 } from "lucide-react";

@@ -6,10 +6,8 @@ import { fetchWithAuth } from "@/lib/client-auth";
 import { useQuery } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc-client";
 import { formatNpr } from "@/lib/currency";
-import { cn } from "@/lib/utils";
 import {
-  HardHat, FolderKanban, ShieldAlert, ArrowUpRight, ArrowDownLeft,
-  Building2, Wallet, RefreshCw, CheckCircle2, ChevronRight, Plus, Download,
+  HardHat, FolderKanban, Wallet, ChevronRight, Plus,
 } from "lucide-react";
 import { GuaranteesAlertCard } from "@/components/dashboard/guarantees-alert-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
