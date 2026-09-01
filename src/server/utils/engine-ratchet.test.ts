@@ -61,6 +61,11 @@ const BASELINES = {
   HAND_ROLLED_AUTHZ: 456,
   HAND_ROLLED_FISCAL: 37,
   SERVER_FLOAT_MONEY: 34,
+  /** Router float-money coercions — pinned after the Decimal hardening pass
+   *  (journal-entry balance check, site-expense totals, bank-guarantee
+   *  balance increments, accounting netAmount now ride Prisma.Decimal via
+   *  src/lib/money). Residue is import boundaries / display analytics. */
+  ROUTER_FLOAT_MONEY: 24,
   /** Declarative adoption floors — may only grow. */
   DECLARATIVE_FLOORS: {
     DOMAIN_ROUTERS: 3, // leave, site-expense, jv-partner
@@ -101,6 +106,15 @@ describe("Engine ratchet — server security pipeline (shrink-only)", () => {
       `Number(/parseFloat( coercions grew (${count} > ${BASELINES.SERVER_FLOAT_MONEY}). ` +
         "Server-side money math must ride Prisma Decimal or the currency engine, not float coercion."
     ).toBeLessThanOrEqual(BASELINES.SERVER_FLOAT_MONEY);
+  });
+
+  it("float-money coercions in routers never grow past the baseline", () => {
+    const count = countPattern(ROUTER_FILES, FLOAT_MONEY_RE);
+    expect(
+      count,
+      `Router Number(/parseFloat( coercions grew (${count} > ${BASELINES.ROUTER_FLOAT_MONEY}). ` +
+        "Ledger arithmetic must use src/lib/money (addMoney/subMoney/toMoney), not float coercion."
+    ).toBeLessThanOrEqual(BASELINES.ROUTER_FLOAT_MONEY);
   });
 });
 

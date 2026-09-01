@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { addMoney, toMoney } from "./money";
 import {
   vendorPaymentEntry,
   ipcBillingEntry,
@@ -11,8 +12,8 @@ import {
 // Each helper must produce a BALANCED entry (totalDebit === totalCredit).
 
 function checkBalance(input: JournalEntryInput): { debit: number; credit: number; balanced: boolean } {
-  const debit = input.lines.reduce((s, l) => s + (l.debit || 0), 0);
-  const credit = input.lines.reduce((s, l) => s + (l.credit || 0), 0);
+  const debit = addMoney(...input.lines.map((l) => l.debit)).toNumber();
+  const credit = addMoney(...input.lines.map((l) => l.credit)).toNumber();
   return { debit, credit, balanced: Math.abs(debit - credit) < 0.01 };
 }
 
@@ -295,17 +296,17 @@ describe("Journal Entry Helpers — Balance Validation", () => {
     ] as const)("credits the correct account for %s", (inflowType, expectedCreditCode) => {
       const je = clientReceiptEntry({ ...base, inflowType, paymentMode: "bank_transfer" });
       expect(je.lines).toHaveLength(2);
-      const credit = je.lines.find((l) => (l.credit ?? 0) > 0)!;
+      const credit = je.lines.find((l) => toMoney(l.credit).gt(0))!;
       expect(credit.accountCode).toBe(expectedCreditCode);
       expect(credit.credit).toBe(500000);
     });
 
     it("debits Bank (1010) for bank transfers and Cash (1001) for cash", () => {
       const bankJe = clientReceiptEntry({ ...base, inflowType: "Client IPC Running Bill", paymentMode: "bank_transfer" });
-      expect(bankJe.lines.find((l) => (l.debit ?? 0) > 0)!.accountCode).toBe("1010");
+      expect(bankJe.lines.find((l) => toMoney(l.debit).gt(0))!.accountCode).toBe("1010");
 
       const cashJe = clientReceiptEntry({ ...base, inflowType: "Client IPC Running Bill", paymentMode: "cash" });
-      expect(cashJe.lines.find((l) => (l.debit ?? 0) > 0)!.accountCode).toBe("1001");
+      expect(cashJe.lines.find((l) => toMoney(l.debit).gt(0))!.accountCode).toBe("1001");
     });
 
     it("always produces a balanced entry", () => {

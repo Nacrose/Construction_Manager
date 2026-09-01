@@ -23,12 +23,13 @@
  *   });
  */
 import type { DbTxClient } from "./db";
+import { addMoney, subMoney, toMoney, type MoneyValue } from "./money";
 
 export type JournalLineInput = {
   accountCode: string;
   accountName: string;
-  debit?: number;
-  credit?: number;
+  debit?: MoneyValue;
+  credit?: MoneyValue;
   description?: string;
   projectId?: string;
   partnerId?: string;
@@ -55,13 +56,16 @@ export async function createJournalEntry(
   tx: DbTxClient,
   input: JournalEntryInput,
 ): Promise<{ id: string; entryNumber: string }> {
-  // Validate balance
-  const totalDebit = input.lines.reduce((s, l) => s + (l.debit || 0), 0);
-  const totalCredit = input.lines.reduce((s, l) => s + (l.credit || 0), 0);
+  // Validate balance — EXACT Decimal sums (float accumulation across many
+  // lines can drift a legit entry past the 0.01 tolerance, or hide a real
+  // 1-paisa imbalance inside rounding noise).
+  const totalDebit = addMoney(...input.lines.map((l) => l.debit));
+  const totalCredit = addMoney(...input.lines.map((l) => l.credit));
 
-  if (Math.abs(totalDebit - totalCredit) > 0.01) {
+  const diff = subMoney(totalDebit, totalCredit);
+  if (diff.abs().gt("0.01")) {
     throw new Error(
-      `Unbalanced journal entry: debit=${totalDebit}, credit=${totalCredit}, diff=${totalDebit - totalCredit}. ` +
+      `Unbalanced journal entry: debit=${totalDebit}, credit=${totalCredit}, diff=${diff}. ` +
         `Source: ${input.source}, refId: ${input.sourceRefId ?? "none"}. ` +
         `Description: ${input.description}`,
     );
@@ -112,8 +116,8 @@ export async function createJournalEntry(
           sourceRefId: input.sourceRefId || null,
           sourceRefType: input.sourceRefType || null,
           description: input.description,
-          totalDebit,
-          totalCredit,
+          totalDebit: totalDebit.toNumber(),
+          totalCredit: totalCredit.toNumber(),
           isPosted: input.isPosted ?? true,
           postedById: input.postedById || null,
           postedAt: (input.isPosted ?? true) ? new Date() : null,
@@ -122,8 +126,8 @@ export async function createJournalEntry(
               lineNumber: idx + 1,
               accountCode: line.accountCode,
               accountName: line.accountName,
-              debit: line.debit || 0,
-              credit: line.credit || 0,
+              debit: toMoney(line.debit).toNumber(),
+              credit: toMoney(line.credit).toNumber(),
               description: line.description || null,
               projectId: line.projectId || null,
               partnerId: line.partnerId || null,
@@ -209,8 +213,8 @@ export async function reverseJournalEntry(
               lineNumber: idx + 1,
               accountCode: line.accountCode,
               accountName: line.accountName,
-              debit: line.debit || 0,
-              credit: line.credit || 0,
+              debit: toMoney(line.debit).toNumber(),
+              credit: toMoney(line.credit).toNumber(),
               description: line.description || null,
               projectId: line.projectId || null,
               partnerId: line.partnerId || null,

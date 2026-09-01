@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { siteOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { assertDelegation } from "@/lib/delegation";
+import { addMoney } from "@/lib/money";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 import { canTransition } from "@/server/utils/state-machine";
@@ -103,7 +104,8 @@ export const siteExpenseRouter = router({
       // both try to `create` — one would fail on the unique constraint
       // and the error would bubble to the user. Now we retry on P2002
       // (unique constraint violation), re-counting each time.
-      const totalAmount = input.amount + input.vatAmount;
+      // Exact Decimal addition — float addition of money can drift cents.
+      const totalAmount = addMoney(input.amount, input.vatAmount).toNumber();
       const MAX_RETRIES = 5;
       let expense;
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -199,7 +201,8 @@ export const siteExpenseRouter = router({
         const current = await db.siteExpense.findUnique({ where: { id }, select: { amount: true, vatAmount: true } });
         const amt = data.amount ?? current!.amount;
         const vat = data.vatAmount ?? current!.vatAmount;
-        const newTotal = amt + vat;
+        // Exact Decimal addition (amt/vat may arrive as Prisma Decimals).
+        const newTotal = addMoney(amt, vat).toNumber();
         updateData.totalAmount = newTotal;
         await assertDelegation(ctx.user, "create_site_expense", newTotal);
       }

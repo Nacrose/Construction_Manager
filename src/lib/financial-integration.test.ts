@@ -1,3 +1,4 @@
+import { addMoney } from "./money";
 import { describe, it, expect } from "vitest";
 import {
   vendorPaymentEntry,
@@ -27,8 +28,8 @@ import { round2 } from "@/lib/decimal-precision";
  */
 
 function checkBalance(entry: JournalEntryInput) {
-  const debit = entry.lines.reduce((s, l) => s + (l.debit || 0), 0);
-  const credit = entry.lines.reduce((s, l) => s + (l.credit || 0), 0);
+  const debit = addMoney(...entry.lines.map((l) => l.debit)).toNumber();
+  const credit = addMoney(...entry.lines.map((l) => l.credit)).toNumber();
   return { debit: round2(debit), credit: round2(credit), balanced: Math.abs(debit - credit) < 0.01 };
 }
 
@@ -229,8 +230,8 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
         },
       ];
 
-      const debit = lines.reduce((s, l) => s + (l.debit || 0), 0);
-      const credit = lines.reduce((s, l) => s + (l.credit || 0), 0);
+      const debit = addMoney(...lines.map((l) => l.debit)).toNumber();
+      const credit = addMoney(...lines.map((l) => l.credit)).toNumber();
 
       expect(round2(debit)).toBe(round2(credit));
       expect(round2(debit)).toBe(15000);
@@ -265,8 +266,8 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
         },
       ];
 
-      const debit = lines.reduce((s, l) => s + (l.debit || 0), 0);
-      const credit = lines.reduce((s, l) => s + (l.credit || 0), 0);
+      const debit = addMoney(...lines.map((l) => l.debit)).toNumber();
+      const credit = addMoney(...lines.map((l) => l.credit)).toNumber();
 
       expect(round2(debit)).toBe(round2(credit));
       expect(round2(debit)).toBe(500000);
@@ -284,8 +285,8 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
         { accountCode: "1110", accountName: "Retention Receivable", debit: 0, credit: retentionAmount, projectId: "proj-1" },
       ];
 
-      const debit = lines.reduce((s, l) => s + (l.debit || 0), 0);
-      const credit = lines.reduce((s, l) => s + (l.credit || 0), 0);
+      const debit = addMoney(...lines.map((l) => l.debit)).toNumber();
+      const credit = addMoney(...lines.map((l) => l.credit)).toNumber();
 
       expect(round2(debit)).toBe(round2(credit));
       expect(round2(debit)).toBe(50000);
@@ -301,8 +302,8 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
         { accountCode: "2002", accountName: "Subcontractor Payables", debit: 0, credit: retentionAmount, projectId: "proj-1", partnerId: "sub-1" },
       ];
 
-      const debit = lines.reduce((s, l) => s + (l.debit || 0), 0);
-      const credit = lines.reduce((s, l) => s + (l.credit || 0), 0);
+      const debit = addMoney(...lines.map((l) => l.debit)).toNumber();
+      const credit = addMoney(...lines.map((l) => l.credit)).toNumber();
 
       expect(round2(debit)).toBe(round2(credit));
       expect(round2(debit)).toBe(30000);

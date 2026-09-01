@@ -21,6 +21,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { toMoney } from "@/lib/money";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -416,7 +417,7 @@ describe("bankGuarantee release/update/delete", () => {
     // Restores old bank account
     expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
       where: { id: "bank-1" },
-      data: { currentBalance: { increment: 7500 } },
+      data: { currentBalance: { increment: toMoney(7500) } },
     });
     // Updates expense
     expect(anyDb.headOfficeExpense.update).toHaveBeenCalledWith(
@@ -457,7 +458,7 @@ describe("bankGuarantee release/update/delete", () => {
 
     expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
       where: { id: "bank-1" },
-      data: { currentBalance: { increment: 7500 } },
+      data: { currentBalance: { increment: toMoney(7500) } },
     });
     expect(anyDb.headOfficeExpense.delete).toHaveBeenCalledWith({
       where: { id: "exp-1" },

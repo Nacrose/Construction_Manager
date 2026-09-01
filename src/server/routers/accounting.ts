@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { toMoney, subMoney } from "@/lib/money";
 import { adToBs } from "@/lib/nepali-calendar";
 import { createJournalEntry, clientReceiptEntry, type InflowType } from "@/lib/journal-entry";
 import { aggregateTrialBalance, assertGlBalanced } from "@/server/utils/gl-trial-balance";
@@ -284,7 +285,7 @@ export const accountingRouter = router({
           partyPan: p.partyPan,
           debit: Number(p.amount || 0),
           credit: 0,
-          netAmount: Number(p.netPaid || (Number(p.amount || 0) - Number(p.tdsDeducted || 0)) || 0),
+          netAmount: toMoney(p.netPaid || subMoney(p.amount, p.tdsDeducted)).toNumber(),
           paymentMode: p.paymentMode,
           accountingSoftware: p.accountingSoftware,
           scannedBillUrl: p.scannedBillUrl,

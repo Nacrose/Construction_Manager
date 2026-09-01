@@ -10,6 +10,7 @@ import { assertProjectMember, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { toMoney } from "@/lib/money";
 import { adToBs } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
 
@@ -647,21 +648,21 @@ export const bankGuaranteeRouter = router({
           },
         });
 
-        const newCommission = input.commissionPaid !== undefined ? input.commissionPaid : Number(existing.commissionPaid);
+        const newCommission = input.commissionPaid !== undefined ? input.commissionPaid : toMoney(existing.commissionPaid);
         const newGuarNumber = (input.guaranteeNumber || existing.guaranteeNumber).trim();
         const newBankName = (input.issuingBank || existing.issuingBank).trim();
         const newBeneficiary = (input.beneficiary || existing.beneficiary).trim();
 
         if (linkedExpense) {
-          // Restore prior bank account balance
-          if (linkedExpense.bankAccountId && Number(linkedExpense.amount) > 0) {
+          // Restore prior bank account balance — exact Decimal increment
+          if (linkedExpense.bankAccountId && toMoney(linkedExpense.amount).gt(0)) {
             await tx.companyBankAccount.update({
               where: { id: linkedExpense.bankAccountId },
-              data: { currentBalance: { increment: Number(linkedExpense.amount) } },
+              data: { currentBalance: { increment: toMoney(linkedExpense.amount) } },
             });
           }
 
-          if (newCommission > 0 && (bankAccountId || linkedExpense.bankAccountId) && postToDayBook !== false) {
+          if (toMoney(newCommission).gt(0) && (bankAccountId || linkedExpense.bankAccountId) && postToDayBook !== false) {
             const targetBankAccountId = bankAccountId || linkedExpense.bankAccountId!;
             const vDate = voucherDate ? new Date(voucherDate) : (input.issuedDate ? new Date(input.issuedDate) : linkedExpense.date);
             let vMiti = voucherMiti;
@@ -692,7 +693,7 @@ export const bankGuaranteeRouter = router({
             // Commission removed or set to 0
             await tx.headOfficeExpense.delete({ where: { id: linkedExpense.id } });
           }
-        } else if (postToDayBook && bankAccountId && newCommission > 0) {
+        } else if (postToDayBook && bankAccountId && toMoney(newCommission).gt(0)) {
           // Create new linked expense
           const vDate = voucherDate ? new Date(voucherDate) : issuedD;
           let vMiti = voucherMiti;
@@ -766,10 +767,10 @@ export const bankGuaranteeRouter = router({
           });
 
           if (linkedExpense) {
-            if (linkedExpense.bankAccountId && Number(linkedExpense.amount) > 0) {
+            if (linkedExpense.bankAccountId && toMoney(linkedExpense.amount).gt(0)) {
               await tx.companyBankAccount.update({
                 where: { id: linkedExpense.bankAccountId },
-                data: { currentBalance: { increment: Number(linkedExpense.amount) } },
+                data: { currentBalance: { increment: toMoney(linkedExpense.amount) } },
               });
             }
             await tx.headOfficeExpense.delete({ where: { id: linkedExpense.id } });
