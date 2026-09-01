@@ -22,7 +22,10 @@ export type SupportedLifecycleModel =
   | "punchItem"
   | "boqVersion"
   | "payrollRun"
-  | "dailyProgram";
+  | "dailyProgram"
+  | "ipc"
+  | "rfi"
+  | "ganttVersion";
 
 /**
  * Declarative state transition graphs for all lifecycle models in Construction Manager.
@@ -113,11 +116,46 @@ export const LIFECYCLE_GRAPHS: Record<SupportedLifecycleModel, Record<string, st
     rejected: [],
   },
 
+  // Graph reconciled with the daily-report router (updateReport): reports
+  // can be reverted to draft, approved reports can be archived or reopened
+  // for re-approval. `rejected` remains a legacy terminal node — the column
+  // is a String and old rows may still carry it.
   dailyReport: {
     draft: ["submitted"],
-    submitted: ["approved", "rejected"],
-    approved: [],
+    submitted: ["draft", "approved"],
+    approved: ["archived", "submitted"],
+    archived: [],
     rejected: [],
+  },
+
+  // Interim Payment Certificates: draft → submitted → certified (revenue
+  // JE fires here) → approved → paid, with revision back-edges
+  // (submitted → draft, certified → submitted, approved → certified).
+  ipc: {
+    draft: ["submitted"],
+    submitted: ["certified", "draft"],
+    certified: ["approved", "submitted"],
+    approved: ["paid", "certified"],
+    paid: [],
+  },
+
+  // RFIs: request-for-inspection review flow. The generic update route and
+  // the admin-only respond route share this graph.
+  rfi: {
+    draft: ["submitted"],
+    submitted: ["approved", "rejected", "closed"],
+    approved: ["closed"],
+    rejected: ["closed"],
+    closed: [],
+  },
+
+  // Gantt schedule versions (uppercase VersionStatus enum — the engine
+  // lowercases for graph lookup and writes back exactly the caller's
+  // casing). One active version per project is enforced at the router.
+  ganttVersion: {
+    draft: ["approved"],
+    approved: ["archived"],
+    archived: [],
   },
 };
 
@@ -231,6 +269,9 @@ const MODEL_DELEGATES: Record<SupportedLifecycleModel, string> = {
   boqVersion: "boqVersion",
   payrollRun: "payrollRun",
   dailyProgram: "dailyProgram",
+  ipc: "ipc",
+  rfi: "rfi",
+  ganttVersion: "ganttVersion",
 };
 
 /**
@@ -323,7 +364,12 @@ export async function transitionEntityState(
 
   const updateData: Record<string, any> = {
     ...sanitizedAdditionalData,
-    status: targetStatus,
+    // Write the target EXACTLY as the caller passed it. Graph lookups above
+    // lowercase both sides (so "APPROVED" resolves against the "approved"
+    // node), but models with uppercase enums (e.g. GanttVersion's
+    // VersionStatus) would reject a lowercase value at the Prisma layer —
+    // preserving the caller's casing keeps stored values consistent.
+    status: input.targetState,
   };
 
   // 3. Populate audit timestamps & attribution fields if supported by model

@@ -20,6 +20,12 @@ const supportedModelSchema = z.enum([
   "dailyReport",
   "submittal",
   "punchItem",
+  "boqVersion",
+  "payrollRun",
+  "dailyProgram",
+  "ipc",
+  "rfi",
+  "ganttVersion",
 ]);
 
 export const lifecycleRouter = router({

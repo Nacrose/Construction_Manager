@@ -22,6 +22,9 @@ describe("Central Multi-Entity State Machine Engine", () => {
       expect(models).toContain("boqVersion");
       expect(models).toContain("payrollRun");
       expect(models).toContain("dailyProgram");
+      expect(models).toContain("ipc");
+      expect(models).toContain("rfi");
+      expect(models).toContain("ganttVersion");
     });
 
     it("evaluates valid and invalid transitions correctly with canTransition()", () => {
@@ -73,6 +76,49 @@ describe("Central Multi-Entity State Machine Engine", () => {
       expect(canTransition("subcontractorBill", "disputed", "submitted").allowed).toBe(true);
       // Legacy direct certify (pre-verification bills) stays legal.
       expect(canTransition("subcontractorBill", "submitted", "certified").allowed).toBe(true);
+
+      // IPC: certification chain with revision back-edges; certification
+      // can never be skipped.
+      expect(canTransition("ipc", "draft", "submitted").allowed).toBe(true);
+      expect(canTransition("ipc", "submitted", "certified").allowed).toBe(true);
+      expect(canTransition("ipc", "certified", "approved").allowed).toBe(true);
+      expect(canTransition("ipc", "approved", "paid").allowed).toBe(true);
+      expect(canTransition("ipc", "submitted", "draft").allowed).toBe(true);
+      expect(canTransition("ipc", "certified", "submitted").allowed).toBe(true);
+      expect(canTransition("ipc", "approved", "certified").allowed).toBe(true);
+      expect(canTransition("ipc", "draft", "paid").allowed).toBe(false);
+      expect(canTransition("ipc", "draft", "certified").allowed).toBe(false);
+      expect(canTransition("ipc", "submitted", "paid").allowed).toBe(false);
+      expect(canTransition("ipc", "paid", "draft").allowed).toBe(false);
+
+      // RFI: review flow — submit, decide/close, terminal close.
+      expect(canTransition("rfi", "draft", "submitted").allowed).toBe(true);
+      expect(canTransition("rfi", "submitted", "approved").allowed).toBe(true);
+      expect(canTransition("rfi", "submitted", "rejected").allowed).toBe(true);
+      expect(canTransition("rfi", "submitted", "closed").allowed).toBe(true);
+      expect(canTransition("rfi", "approved", "closed").allowed).toBe(true);
+      expect(canTransition("rfi", "rejected", "closed").allowed).toBe(true);
+      expect(canTransition("rfi", "draft", "approved").allowed).toBe(false);
+      expect(canTransition("rfi", "approved", "submitted").allowed).toBe(false);
+      expect(canTransition("rfi", "closed", "submitted").allowed).toBe(false);
+
+      // Gantt version: draft → approved → archived; archived is terminal.
+      // Uppercase enum values resolve against the lowercased graph nodes.
+      expect(canTransition("ganttVersion", "DRAFT", "APPROVED").allowed).toBe(true);
+      expect(canTransition("ganttVersion", "APPROVED", "ARCHIVED").allowed).toBe(true);
+      expect(canTransition("ganttVersion", "APPROVED", "DRAFT").allowed).toBe(false);
+      expect(canTransition("ganttVersion", "ARCHIVED", "APPROVED").allowed).toBe(false);
+
+      // Daily report graph reconciled with the router: revert, reopen and
+      // archive edges exist; rejected remains a legacy terminal node.
+      expect(canTransition("dailyReport", "draft", "submitted").allowed).toBe(true);
+      expect(canTransition("dailyReport", "submitted", "draft").allowed).toBe(true);
+      expect(canTransition("dailyReport", "submitted", "approved").allowed).toBe(true);
+      expect(canTransition("dailyReport", "approved", "archived").allowed).toBe(true);
+      expect(canTransition("dailyReport", "approved", "submitted").allowed).toBe(true);
+      expect(canTransition("dailyReport", "draft", "approved").allowed).toBe(false);
+      expect(canTransition("dailyReport", "archived", "submitted").allowed).toBe(false);
+      expect(canTransition("dailyReport", "rejected", "approved").allowed).toBe(false);
     });
 
     it("returns allowed next states using getAllowedTransitions()", () => {
@@ -169,6 +215,35 @@ describe("Central Multi-Entity State Machine Engine", () => {
           skipEventEmit: true,
         })
       ).rejects.toThrow("Invalid state transition for subcontractorBill");
+    });
+
+    it("preserves the caller's casing for uppercase-enum models (ganttVersion)", async () => {
+      const mockDb: any = {
+        ganttVersion: {
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({ id: "gv-1", status: "DRAFT" })
+            .mockResolvedValue({ id: "gv-1", status: "APPROVED" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      const res = await transitionEntityState(mockDb, {
+        model: "ganttVersion",
+        id: "gv-1",
+        targetState: "APPROVED",
+        additionalData: { isActive: true },
+        userId: "pm-1",
+        skipEventEmit: true,
+      });
+
+      // Graph lookup lowercases, but the write must carry the caller's
+      // exact casing — VersionStatus is a Prisma enum and would reject
+      // a lowercase "approved".
+      expect(mockDb.ganttVersion.updateMany).toHaveBeenCalledWith({
+        where: { id: "gv-1", status: "DRAFT" }, // CAS matches the stored casing
+        data: expect.objectContaining({ status: "APPROVED", isActive: true }),
+      });
+      expect(res.currentState).toBe("approved"); // informational result is normalized
     });
 
     it("captures rejection reason when transitioning to rejected", async () => {
