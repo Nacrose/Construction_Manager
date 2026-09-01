@@ -379,6 +379,16 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             icon: BookOpen,
             title: "No Journal Entries Recorded",
             description: "Day Book entries appear automatically when you record payments, client receipts, or bills.",
+            action: (
+              <Button
+                size="sm"
+                onClick={() => setRecordPaymentOpen(true)}
+                className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Record Voucher</span>
+              </Button>
+            ),
           }}
           headerActions={
             <div className="flex items-center gap-1.5">

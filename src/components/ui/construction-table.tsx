@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/matrix-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -321,12 +322,7 @@ export function ConstructionTable<T extends Record<string, any>>({
   const hasAnySummary = columns.some((c) => c.summary);
 
   if (isLoading) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-10 w-full rounded-lg bg-white/40" />
-        <Skeleton className="h-64 w-full rounded-lg bg-white/40" />
-      </div>
-    );
+    return <TableSkeleton rows={6} cols={columns.length} />;
   }
 
   return (

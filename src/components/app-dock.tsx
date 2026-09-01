@@ -100,7 +100,7 @@ function DockIcon({
     position === "left" ? "center left" : "center right";
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <TooltipProvider delayDuration={50}>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
@@ -129,7 +129,13 @@ function DockIcon({
             </Link>
           </div>
         </TooltipTrigger>
-        <TooltipContent side={tooltipSide} className="text-xs font-mono font-bold bg-white border border-[#c7d8e8] text-slate-900 shadow-md">{item.label}</TooltipContent>
+        <TooltipContent
+          side={tooltipSide}
+          sideOffset={8}
+          className="text-xs font-mono font-bold bg-slate-900 border border-slate-700 text-white shadow-xl px-2.5 py-1 rounded-md z-[100] animate-in fade-in zoom-in-95 duration-100"
+        >
+          {item.label}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

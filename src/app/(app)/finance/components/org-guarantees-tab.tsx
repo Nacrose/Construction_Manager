@@ -43,6 +43,7 @@ import { AttachmentDropzone } from "@/components/ui/attachment-dropzone";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { sanitizeUrl } from "@/lib/safe-url";
 import { GuaranteeFormDialog } from "@/app/(app)/projects/[id]/guarantees/dialogs/guarantee-form-dialog";
+import { StatCardSkeleton } from "@/components/ui/matrix-skeleton";
 
 const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: string }> = {
   bid_bond: {
@@ -303,40 +304,48 @@ export function OrgGuaranteesTab() {
     [deleteMutation, releaseMutation]
   );
 
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <StatCardSkeleton count={4} />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* 4 Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10 shadow-sm">
-          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Total Active Exposure</span>
-          <div className="text-xl font-bold font-mono text-white mt-1">
-            {formatNpr(kpis.totalActiveExposure, { compact: true, prefix: "Rs." })}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Total Active Exposure</span>
+          <div className="text-base font-bold font-matrix text-slate-900 mt-1">
+            {formatNpr(kpis.totalActiveExposure, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[11px] text-muted-foreground">{kpis.activeCount} active & extended bonds</span>
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{kpis.activeCount} active & extended bonds</span>
         </div>
 
-        <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10 shadow-sm">
-          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Total Blocked Margin (FD/Cash)</span>
-          <div className="text-xl font-bold font-mono text-amber-400 mt-1">
-            {formatNpr(kpis.totalMarginHeld, { compact: true, prefix: "Rs." })}
+        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Blocked Margin (FD/Cash)</span>
+          <div className="text-base font-bold font-matrix text-[#b45309] mt-1">
+            {formatNpr(kpis.totalMarginHeld, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[11px] text-muted-foreground">Bank collateral locked</span>
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Bank collateral locked</span>
         </div>
 
-        <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10 shadow-sm">
-          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Commission Paid to Banks</span>
-          <div className="text-xl font-bold font-mono text-blue-400 mt-1">
-            {formatNpr(kpis.totalCommissionPaid, { compact: true, prefix: "Rs." })}
+        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Commission Paid to Banks</span>
+          <div className="text-base font-bold font-matrix text-[#0369a1] mt-1">
+            {formatNpr(kpis.totalCommissionPaid, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[11px] text-muted-foreground">Total finance fee</span>
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Total finance charges</span>
         </div>
 
-        <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10 shadow-sm">
-          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Expiring in 30 Days (जोखिम)</span>
-          <div className={cn("text-xl font-bold font-mono mt-1", kpis.expiringWithin30DaysCount > 0 ? "text-rose-400 animate-pulse" : "text-emerald-400")}>
+        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Expiring in 30 Days (जोखिम)</span>
+          <div className={cn("text-base font-bold font-matrix mt-1", kpis.expiringWithin30DaysCount > 0 ? "text-rose-600 animate-pulse" : "text-emerald-700")}>
             {kpis.expiringWithin30DaysCount} Bonds
           </div>
-          <span className="text-[11px] text-muted-foreground">Require extension or release</span>
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Require renewal / release</span>
         </div>
       </div>
 
@@ -354,41 +363,57 @@ export function OrgGuaranteesTab() {
           icon: ShieldAlert,
           title: "No Guarantees or Bid Bonds Found",
           description: "Track tender bid bonds, performance securities, APG, and CAR insurances across all commercial banks.",
+          action: (
+            <Button
+              size="sm"
+              onClick={() => setCreateDialogOpen(true)}
+              className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Issue First Guarantee</span>
+            </Button>
+          ),
         }}
         headerActions={
-          <div className="flex items-center gap-2">
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-8 text-xs bg-[#161d26] border-white/10 text-white w-40 rounded-lg">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="bid_bond">Bid Bonds / Tender</SelectItem>
-                <SelectItem value="performance_bond">Performance Bonds</SelectItem>
-                <SelectItem value="advance_payment">Mobilization APG</SelectItem>
-                <SelectItem value="retention_bond">Retention Guarantees</SelectItem>
-                <SelectItem value="car_insurance">CAR Insurance</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-1.5">
+            <div className="w-36">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-slate-800 rounded-md font-mono">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                  <SelectItem value="all">⚡ All Types</SelectItem>
+                  <SelectItem value="bid_bond">Bid Bonds / Tender</SelectItem>
+                  <SelectItem value="performance_bond">Performance Bonds</SelectItem>
+                  <SelectItem value="advance_payment">Mobilization APG</SelectItem>
+                  <SelectItem value="retention_bond">Retention Guarantees</SelectItem>
+                  <SelectItem value="car_insurance">CAR Insurance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-              <SelectTrigger className="h-8 text-xs bg-[#161d26] border-white/10 text-white w-28 rounded-lg">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="extended">Extended</SelectItem>
-                <SelectItem value="released">Released</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="w-28">
+              <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-slate-800 rounded-md font-mono">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="extended">Extended</SelectItem>
+                  <SelectItem value="released">Released</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <Button
+              size="sm"
               onClick={() => setCreateDialogOpen(true)}
-              className="h-8 px-3 text-xs font-semibold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
+              className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
             >
-              <Plus className="h-3.5 w-3.5" /> Add BG
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Guarantee</span>
             </Button>
           </div>
         }
