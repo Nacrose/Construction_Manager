@@ -19,6 +19,9 @@ describe("Central Multi-Entity State Machine Engine", () => {
       expect(models).toContain("purchaseRequisition");
       expect(models).toContain("variationOrder");
       expect(models).toContain("dailyReport");
+      expect(models).toContain("boqVersion");
+      expect(models).toContain("payrollRun");
+      expect(models).toContain("dailyProgram");
     });
 
     it("evaluates valid and invalid transitions correctly with canTransition()", () => {
@@ -41,6 +44,35 @@ describe("Central Multi-Entity State Machine Engine", () => {
       expect(canTransition("punchItem", "verified", "closed").allowed).toBe(true);
       expect(canTransition("punchItem", "open", "closed").allowed).toBe(false);
       expect(canTransition("punchItem", "closed", "open").allowed).toBe(false);
+
+      // BOQ version: single approval edge, then frozen
+      expect(canTransition("boqVersion", "draft", "approved").allowed).toBe(true);
+      expect(canTransition("boqVersion", "approved", "draft").allowed).toBe(false);
+      expect(canTransition("boqVersion", "approved", "approved").allowed).toBe(false);
+
+      // Payroll run: linear chain with reopen before/after disbursement
+      expect(canTransition("payrollRun", "draft", "approved").allowed).toBe(true);
+      expect(canTransition("payrollRun", "approved", "disbursed").allowed).toBe(true);
+      expect(canTransition("payrollRun", "approved", "draft").allowed).toBe(true);
+      expect(canTransition("payrollRun", "disbursed", "draft").allowed).toBe(true);
+      // Out-of-order moves are rejected: cannot disburse a draft run or
+      // re-approve an already disbursed one.
+      expect(canTransition("payrollRun", "draft", "disbursed").allowed).toBe(false);
+      expect(canTransition("payrollRun", "disbursed", "approved").allowed).toBe(false);
+
+      // Daily program: draft → approved, then immutable
+      expect(canTransition("dailyProgram", "draft", "approved").allowed).toBe(true);
+      expect(canTransition("dailyProgram", "approved", "draft").allowed).toBe(false);
+
+      // Subcontractor bill graph reconciled with the schema enum:
+      // verification (submitted→verified) and dispute paths now exist.
+      expect(canTransition("subcontractorBill", "submitted", "verified").allowed).toBe(true);
+      expect(canTransition("subcontractorBill", "verified", "certified").allowed).toBe(true);
+      expect(canTransition("subcontractorBill", "submitted", "disputed").allowed).toBe(true);
+      expect(canTransition("subcontractorBill", "certified", "disputed").allowed).toBe(true);
+      expect(canTransition("subcontractorBill", "disputed", "submitted").allowed).toBe(true);
+      // Legacy direct certify (pre-verification bills) stays legal.
+      expect(canTransition("subcontractorBill", "submitted", "certified").allowed).toBe(true);
     });
 
     it("returns allowed next states using getAllowedTransitions()", () => {

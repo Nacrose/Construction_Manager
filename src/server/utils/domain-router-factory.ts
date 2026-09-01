@@ -16,8 +16,11 @@ import {
   type ProjectRole,
 } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
+import { emitDomainEvent } from "./domain-events";
 import {
   transitionEntityState,
+  buildTransitionEvent,
   type SupportedLifecycleModel,
 } from "./state-machine";
 
@@ -214,16 +217,46 @@ export function createDomainRouter<
           throw new TRPCError({ code: "FORBIDDEN", message: "Cross-organization access forbidden." });
         }
 
-        const result = await transitionEntityState(db, {
-          model,
-          id: input.id,
-          targetState: input.targetState,
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          notes: input.notes,
-          additionalData: input.additionalData,
-          projectId: entity.projectId || undefined,
+        // The transition and the afterTransition hook share ONE transaction:
+        // a failing side-effect (JE, counter-update, notification write) rolls
+        // back the status flip instead of stranding the entity in a new state
+        // with its side effects missing. The domain event is emitted only
+        // AFTER the transaction commits so failures can't broadcast
+        // transitions that never happened.
+        const result = await db.$transaction(async (tx) => {
+          await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: org-scoped tx
+          const r = await transitionEntityState(tx, {
+            model,
+            id: input.id,
+            targetState: input.targetState,
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            notes: input.notes,
+            additionalData: input.additionalData,
+            projectId: entity.projectId || undefined,
+            skipEventEmit: true,
+          });
+
+          if (hooks.afterTransition) {
+            await hooks.afterTransition(ctx, r, tx);
+          }
+
+          return r;
         });
+
+        if (entity.projectId) {
+          emitDomainEvent(
+            buildTransitionEvent({
+              model,
+              entityId: input.id,
+              projectId: entity.projectId,
+              actorUserId: ctx.user.id,
+              previousState: result.previousState,
+              currentState: result.currentState,
+              notes: input.notes,
+            }),
+          );
+        }
 
         await audit({
           userId: ctx.user.id,

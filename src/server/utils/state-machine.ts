@@ -19,7 +19,10 @@ export type SupportedLifecycleModel =
   | "leave"
   | "dailyReport"
   | "submittal"
-  | "punchItem";
+  | "punchItem"
+  | "boqVersion"
+  | "payrollRun"
+  | "dailyProgram";
 
 /**
  * Declarative state transition graphs for all lifecycle models in Construction Manager.
@@ -51,12 +54,37 @@ export const LIFECYCLE_GRAPHS: Record<SupportedLifecycleModel, Record<string, st
     approved: [],
     rejected: [],
   },
+  // Graph reconciled with the SubcontractorBill schema (draft | submitted |
+  // verified | certified | paid | disputed): verifyBill transitions
+  // submitted -> verified/disputed, certify follows verification, and
+  // disputed bills can be resubmitted. `rejected` remains as a legacy
+  // terminal node — the column is a String and old rows may still carry it.
   subcontractorBill: {
     draft: ["submitted"],
-    submitted: ["certified", "rejected"],
-    certified: ["paid", "rejected"],
+    submitted: ["verified", "certified", "rejected", "disputed"],
+    verified: ["certified", "disputed"],
+    certified: ["paid", "rejected", "disputed"],
     paid: [],
     rejected: [],
+    disputed: ["submitted"],
+  },
+
+  boqVersion: {
+    draft: ["approved"],
+    approved: [],
+  },
+
+  // Payroll runs may reopen (approved|disbursed -> draft) to fix errors
+  // before re-approval — matches updateRunStatus's "reopen" action.
+  payrollRun: {
+    draft: ["approved"],
+    approved: ["disbursed", "draft"],
+    disbursed: ["draft"],
+  },
+
+  dailyProgram: {
+    draft: ["approved"],
+    approved: [],
   },
 
   purchaseOrder: {
@@ -152,6 +180,42 @@ export type TransitionEntityStateResult<T = any> = {
   transitionedAt: Date;
 };
 
+/**
+ * Build the `lifecycle.transitioned` domain event for a transition.
+ *
+ * Exported separately from `transitionEntityState` so callers that run the
+ * transition inside a transaction (with `skipEventEmit: true`) can emit the
+ * identical event AFTER the transaction commits — a hook or journal-entry
+ * failure must never broadcast an event for a transition that never happened.
+ */
+export function buildTransitionEvent(args: {
+  model: SupportedLifecycleModel;
+  entityId: string;
+  projectId?: string;
+  actorUserId: string;
+  previousState: string;
+  currentState: string;
+  notes?: string | null;
+}) {
+  return {
+    type: "lifecycle.transitioned" as const,
+    projectId: args.projectId,
+    actorUserId: args.actorUserId,
+    entityType: args.model,
+    entityId: args.entityId,
+    title: `${args.model.toUpperCase()} marked as ${args.currentState.toUpperCase()}`,
+    message:
+      args.notes ||
+      `State transitioned from ${args.previousState} to ${args.currentState}.`,
+    metadata: {
+      entityId: args.entityId,
+      model: args.model,
+      previousState: args.previousState,
+      newState: args.currentState,
+    },
+  };
+}
+
 type DbClientOrTx = DbTxClient;
 
 const MODEL_DELEGATES: Record<SupportedLifecycleModel, string> = {
@@ -164,6 +228,9 @@ const MODEL_DELEGATES: Record<SupportedLifecycleModel, string> = {
   variationOrder: "variationOrder",
   dailyReport: "dailyReport",
   submittal: "submittal",
+  boqVersion: "boqVersion",
+  payrollRun: "payrollRun",
+  dailyProgram: "dailyProgram",
 };
 
 /**
@@ -173,12 +240,13 @@ export async function transitionEntityState(
   db: DbClientOrTx,
   input: TransitionEntityStateInput
 ): Promise<TransitionEntityStateResult> {
-  const delegateKey =
-    (db as any)[input.model] && typeof (db as any)[input.model].findUnique === "function"
-      ? input.model
-      : MODEL_DELEGATES[input.model] || input.model;
-
-  const modelDelegate = (db as any)[delegateKey];
+  // Resolve the Prisma delegate: the explicit MODEL_DELEGATES map wins
+  // (e.g. leave → leaveRequest); fall back to the model name itself. Do NOT
+  // probe `db[model]` first — any object that happens to carry a matching
+  // property (test proxies, annotated clients) would hijack resolution and
+  // silently query an empty delegate.
+  const delegateKey = MODEL_DELEGATES[input.model] || input.model;
+  const modelDelegate = (db as any)[delegateKey] ?? (db as any)[input.model];
   if (!modelDelegate || typeof modelDelegate.findUnique !== "function") {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
@@ -310,21 +378,17 @@ export async function transitionEntityState(
 
   // 5. Emit Domain Event
   if (!input.skipEventEmit && input.projectId) {
-    emitDomainEvent({
-      type: "lifecycle.transitioned",
-      projectId: input.projectId,
-      actorUserId: input.userId,
-      entityType: input.model,
-      entityId: input.id,
-      title: `${input.model.toUpperCase()} marked as ${targetStatus.toUpperCase()}`,
-      message: input.notes || `State transitioned from ${currentStatus} to ${targetStatus}.`,
-      metadata: {
-        entityId: input.id,
+    emitDomainEvent(
+      buildTransitionEvent({
         model: input.model,
+        entityId: input.id,
+        projectId: input.projectId,
+        actorUserId: input.userId,
         previousState: currentStatus,
-        newState: targetStatus,
-      },
-    });
+        currentState: targetStatus,
+        notes: input.notes,
+      }),
+    );
   }
 
   return {
