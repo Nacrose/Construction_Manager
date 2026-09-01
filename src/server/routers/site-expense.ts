@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { createDomainRouter, financialGuard, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
@@ -16,10 +16,11 @@ import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 import { canTransition } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
+const { router, proc } = createDomainRouter();
 
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
-  list: protectedProcedure
+  list: proc.member
     .input(z.object({
       projectId: z.string(),
       category: z.string().optional(),
@@ -27,9 +28,7 @@ export const siteExpenseRouter = router({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
     }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-
+    .query(async ({ input }) => {
       const where: Record<string, unknown> = { projectId: input.projectId };
       if (input.category) where.category = input.category;
       if (input.status) where.status = input.status;
@@ -73,7 +72,12 @@ export const siteExpenseRouter = router({
     }),
 
   /** Create expense (auto-generate number EXP-{seq}). */
-  create: protectedProcedure
+  create: proc.write
+    .use(financialGuard({
+      action: "create_site_expense",
+      dateField: "date",
+      amountFields: ["amount", "vatAmount"],
+    }))
     .input(z.object({
       projectId: z.string(),
       date: z.string().optional(),
@@ -88,10 +92,7 @@ export const siteExpenseRouter = router({
       receiptName: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
       const expenseDate = input.date ? new Date(input.date) : new Date();
-      await assertNotLocked(ctx.user.organizationId, expenseDate);
-      await assertDelegation(ctx.user, "create_site_expense", input.amount + (input.vatAmount || 0));
 
       // Auto-generate expense number with collision-prevention retry.
       //
@@ -198,7 +199,9 @@ export const siteExpenseRouter = router({
         const current = await db.siteExpense.findUnique({ where: { id }, select: { amount: true, vatAmount: true } });
         const amt = data.amount ?? current!.amount;
         const vat = data.vatAmount ?? current!.vatAmount;
-        updateData.totalAmount = amt + vat;
+        const newTotal = amt + vat;
+        updateData.totalAmount = newTotal;
+        await assertDelegation(ctx.user, "create_site_expense", newTotal);
       }
 
       const updated = await db.siteExpense.update({ where: { id }, data: updateData });
@@ -211,9 +214,18 @@ export const siteExpenseRouter = router({
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true, date: true, totalAmount: true },
+        select: { projectId: true, status: true, date: true, totalAmount: true, createdById: true },
       });
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
+
+      // Segregation of duties: Creator cannot approve their own expense
+      if (expense.createdById && expense.createdById === ctx.user.id && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Segregation of duties violation: you cannot approve an expense you created.",
+        });
+      }
+
       await assertProjectAdmin(ctx.user, expense.projectId);
       await assertDelegation(ctx.user, "approve_site_expense", expense.totalAmount);
 
@@ -229,12 +241,7 @@ export const siteExpenseRouter = router({
         });
       }
 
-      // STATUS UPDATE + JOURNAL ENTRY — ONE TRANSACTION. Previously the
-      // status flipped to "approved" first and the JE was posted via `db`
-      // afterwards — a JE failure (unbalanced line, entry-number
-      // collision) left an approved expense with no GL trace, and
-      // re-approval is impossible ("only pending expenses can be
-      // approved"), so the GL entry could never be recovered.
+      // STATUS UPDATE + JOURNAL ENTRY — ONE TRANSACTION.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
         const exp = await tx.siteExpense.update({
@@ -392,10 +399,9 @@ export const siteExpenseRouter = router({
     }),
 
   /** Stats: total by category, total pending, total approved. */
-  stats: protectedProcedure
+  stats: proc.member
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+    .query(async ({ input }) => {
 
       const allExpenses = await db.siteExpense.findMany({
         where: { projectId: input.projectId },

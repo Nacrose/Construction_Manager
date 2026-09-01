@@ -46,7 +46,7 @@ export const LIFECYCLE_GRAPHS: Record<SupportedLifecycleModel, Record<string, st
     closed: [],
   },
   siteExpense: {
-    draft: ["pending", "approved", "rejected"],
+    draft: ["pending"],
     pending: ["approved", "rejected"],
     approved: [],
     rejected: [],
@@ -228,9 +228,34 @@ export async function transitionEntityState(
   }
 
   const now = new Date();
+
+  // Strip reserved / protected fields from additionalData to prevent mass-assignment
+  const RESERVED_KEYS = new Set([
+    "id",
+    "status",
+    "projectId",
+    "organizationId",
+    "approvedById",
+    "approvedAt",
+    "rejectedAt",
+    "submittedById",
+    "submittedAt",
+    "createdById",
+    "createdAt",
+  ]);
+
+  const sanitizedAdditionalData: Record<string, any> = {};
+  if (input.additionalData && typeof input.additionalData === "object") {
+    for (const [k, v] of Object.entries(input.additionalData)) {
+      if (!RESERVED_KEYS.has(k)) {
+        sanitizedAdditionalData[k] = v;
+      }
+    }
+  }
+
   const updateData: Record<string, any> = {
+    ...sanitizedAdditionalData,
     status: targetStatus,
-    ...(input.additionalData || {}),
   };
 
   // 3. Populate audit timestamps & attribution fields if supported by model

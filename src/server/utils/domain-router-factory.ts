@@ -139,6 +139,8 @@ export function createDomainRouter<
 
         if (entity.projectId) {
           await assertRole(ctx.user, entity.projectId, roles.get || "member");
+        } else if ("organizationId" in entity && (entity as any).organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cross-organization access forbidden." });
         }
 
         return { item: entity };
@@ -199,7 +201,7 @@ export function createDomainRouter<
         const delegate = getDelegate(db);
         const entity = await delegate.findUnique({
           where: { id: input.id },
-          select: { id: true, projectId: true, status: true },
+          select: { id: true, projectId: true, status: true, organizationId: true },
         });
 
         if (!entity) {
@@ -208,6 +210,8 @@ export function createDomainRouter<
 
         if (entity.projectId) {
           await assertRole(ctx.user, entity.projectId, roles.transition || "write");
+        } else if (entity.organizationId && entity.organizationId !== ctx.user.organizationId && !ctx.user.isSuperAdmin) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cross-organization access forbidden." });
         }
 
         const result = await transitionEntityState(db, {

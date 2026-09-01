@@ -115,7 +115,13 @@ export async function getOrgConfig(orgId: string | null | undefined) {
     where: { id: orgId },
     select: { operatingModel: true, sitePettyCashLimit: true },
   });
-  if (!org) return null;
+  if (!org) {
+    return {
+      operatingModel: "hybrid_project_autonomous" as OperatingModel,
+      sitePettyCashLimit: 50000,
+      rules: new Map<string, { maxAmount: number | null; allowedRoles: string[]; siteScopedOnly: boolean }>(),
+    };
+  }
 
   const rules = await db.delegationRule.findMany({
     where: { organizationId: orgId },
@@ -129,8 +135,8 @@ export async function getOrgConfig(orgId: string | null | undefined) {
     });
   }
   return {
-    operatingModel: org.operatingModel as OperatingModel,
-    sitePettyCashLimit: org.sitePettyCashLimit,
+    operatingModel: (org.operatingModel || "hybrid_project_autonomous") as OperatingModel,
+    sitePettyCashLimit: org.sitePettyCashLimit ?? 50000,
     rules: ruleMap,
   };
 }
@@ -141,10 +147,20 @@ export async function assertDelegation(
   amount?: number,
 ): Promise<void> {
   if (user.isSuperAdmin) return;
-  if (!user.organizationId) return;
+  if (!user.organizationId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "User must belong to an organization to perform financial actions.",
+    });
+  }
 
   const config = await getOrgConfig(user.organizationId);
-  if (!config) return;
+  if (!config) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Organization delegation configuration not found.",
+    });
+  }
 
   const rule = config.rules.get(action);
 
