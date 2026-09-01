@@ -7,6 +7,7 @@ import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
 import { withOrgContext } from "@/lib/rls";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const TxnSchema = z.object({
   projectId: z.string(),
@@ -297,9 +298,18 @@ export const materialTransactionProcedures = {
         });
 
         if (input.gateEntryId) {
-          await tx.gateEntry.update({
-            where: { id: input.gateEntryId },
-            data: { status: "received" },
+          // Engine transition: pending→received, CAS-claimed inside the same
+          // transaction as the stock update — a concurrent receive on the
+          // same gate entry rolls back the stock movement instead of
+          // double-counting it.
+          await transitionEntityState(tx, {
+            model: "gateEntry",
+            id: input.gateEntryId,
+            targetState: "received",
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            projectId: input.projectId,
+            skipEventEmit: true, // material txn flow has its own audit trail
           });
         }
 

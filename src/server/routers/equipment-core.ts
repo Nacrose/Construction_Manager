@@ -3,6 +3,36 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
+import { transitionEntityState } from "@/server/utils/state-machine";
+
+/**
+ * Idempotent equipment status cascade: flips the machine to the target
+ * operating state via the engine graph, but skips the write when it is
+ * already there (the equipment graph has no self-loops by design — a
+ * no-op flip must not consume a CAS claim or stamp a duplicate date).
+ */
+async function setEquipmentStatus(
+  tx: Parameters<typeof transitionEntityState>[0],
+  equipmentId: string,
+  targetState: "active" | "maintenance" | "breakdown" | "idle",
+  userId: string,
+  userName?: string
+) {
+  const eq = await tx.equipment.findUnique({
+    where: { id: equipmentId },
+    select: { id: true, status: true, projectId: true },
+  });
+  if (!eq || eq.status === targetState) return;
+  await transitionEntityState(tx, {
+    model: "equipment",
+    id: eq.id,
+    targetState,
+    userId,
+    userName,
+    projectId: eq.projectId,
+    skipEventEmit: true, // routine operating-state sync, no notification
+  });
+}
 
 export const CreateEquipmentSchema = z.object({
   projectId: z.string(),
@@ -554,15 +584,11 @@ export const equipmentCoreProcedures = {
       });
 
       if (input.type === "repair" && input.status === "pending") {
-        await db.equipment.update({
-          where: { id: input.equipmentId },
-          data: { status: "breakdown" },
-        });
+        // Engine cascade: active/idle/maintenance → breakdown (guarded skip)
+        await setEquipmentStatus(db, input.equipmentId, "breakdown", ctx.user.id, ctx.user.name);
       } else if (input.type === "routine" && input.status === "pending") {
-        await db.equipment.update({
-          where: { id: input.equipmentId },
-          data: { status: "maintenance" },
-        });
+        // Engine cascade: active/idle/breakdown → maintenance (guarded skip)
+        await setEquipmentStatus(db, input.equipmentId, "maintenance", ctx.user.id, ctx.user.name);
       }
 
       return { maintenance: maint };
@@ -579,20 +605,25 @@ export const equipmentCoreProcedures = {
       if (!maint) throw new TRPCError({ code: "NOT_FOUND", message: "Maintenance record not found." });
       await assertCanWrite(ctx.user, maint.projectId);
 
-      const updated = await db.equipmentMaintenance.update({
-        where: { id: input.maintId },
-        data: {
-          status: "resolved",
-          resolvedDate: new Date(),
-          resolvedNotes: input.resolvedNotes,
-          cost: input.cost,
-        },
+      // Engine transition: pending→resolved, CAS-claimed — resolving an
+      // already-resolved work order fails loudly instead of restamping
+      // resolvedDate and re-applying cost. resolvedNotes/resolvedDate/
+      // resolvedBy are engine-populated from notes + actor; cost rides
+      // additionalData.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "equipmentMaintenance",
+        id: input.maintId,
+        targetState: "resolved",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: maint.projectId,
+        notes: input.resolvedNotes,
+        additionalData: { cost: input.cost },
+        skipEventEmit: true, // routine operating-state sync, no notification
       });
 
-      await db.equipment.update({
-        where: { id: maint.equipmentId },
-        data: { status: "active" },
-      });
+      // Back to service once the work order closes (guarded skip)
+      await setEquipmentStatus(db, maint.equipmentId, "active", ctx.user.id, ctx.user.name);
 
       return { maintenance: updated };
     }),

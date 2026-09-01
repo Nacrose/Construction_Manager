@@ -13,6 +13,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { toMoney } from "@/lib/money";
 import { adToBs } from "@/lib/nepali-calendar";
 import { TRPCError } from "@trpc/server";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 async function assertGuaranteeAccess(
   user: any,
@@ -481,17 +482,28 @@ export const bankGuaranteeRouter = router({
       const targetOrg = existing.organizationId || ctx.user.organizationId;
       const guarantee = await db.$transaction(async (tx) => {
         await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
-        return tx.bankGuarantee.update({
-          where: { id: input.id },
-          data: {
+        // Engine transition: active|extended→extended (self-loop edge allows
+        // repeated extensions), CAS-claimed — a concurrent extend/release
+        // race fails CONFLICT instead of double-adding the commission.
+        // NOTE: auto-expiry in list() intentionally stays a plain updateMany
+        // sweep — it is date-derived machine sync, not a user lifecycle move.
+        const { entity: guarantee } = await transitionEntityState(tx, {
+          model: "bankGuarantee",
+          id: input.id,
+          targetState: "extended",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: existing.projectId || undefined,
+          additionalData: {
             expiryDate: newExpiryD,
             expiryMiti: newMiti || null,
             claimExpiryDate,
-            status: "extended",
             commissionPaid: existing.commissionPaid + input.additionalCommission,
             amendments: updatedAmendments,
           },
+          skipEventEmit: true, // audited below with amendment metadata
         });
+        return guarantee;
       });
 
       await audit({
@@ -528,15 +540,23 @@ export const bankGuaranteeRouter = router({
       const targetOrg = existing.organizationId || ctx.user.organizationId;
       const guarantee = await db.$transaction(async (tx) => {
         await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
-        return tx.bankGuarantee.update({
-          where: { id: input.id },
-          data: {
-            status: "released",
+        // Engine transition: active|extended→released (terminal), CAS-claimed
+        // — a double-release race fails CONFLICT instead of restamping.
+        const { entity: guarantee } = await transitionEntityState(tx, {
+          model: "bankGuarantee",
+          id: input.id,
+          targetState: "released",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: existing.projectId || undefined,
+          additionalData: {
             notes: input.notes
               ? `${existing.notes || ""}\nReleased with Ref: ${input.releaseLetterRef || "N/A"}. ${input.notes}`.trim()
               : existing.notes,
           },
+          skipEventEmit: true, // audited below with release metadata
         });
+        return guarantee;
       });
 
       await audit({

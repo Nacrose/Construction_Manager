@@ -337,6 +337,8 @@ describe("materialTransaction.createTransaction — PO linkage", () => {
   it("flips the cited gate entry to received", async () => {
     member("engineer");
     anyDb.material.findFirst.mockResolvedValue(material());
+    // engine pre-read inside tx (CAS source for the pending→received claim)
+    anyDb.gateEntry.findUnique.mockResolvedValue({ id: "ge-1", status: "pending" });
     const caller = createCaller(materialTxnRouter, USER);
     await caller.createTransaction({
       projectId: "p-1",
@@ -346,8 +348,11 @@ describe("materialTransaction.createTransaction — PO linkage", () => {
       rate: 100,
       gateEntryId: "ge-1",
     });
-    expect(anyDb.gateEntry.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: "received" } }),
+    expect(anyDb.gateEntry.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "ge-1", status: "pending" },
+        data: expect.objectContaining({ status: "received" }),
+      }),
     );
   });
 });

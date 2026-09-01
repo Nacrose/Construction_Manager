@@ -218,14 +218,19 @@ describe("purchaseOrder.updateStatus", () => {
   it("PM can issue a draft PO", async () => {
     member("project_manager");
     anyDb.purchaseOrder.findFirst.mockResolvedValue(po());
+    anyDb.purchaseOrder.findUnique.mockResolvedValue(po()); // engine pre-read inside tx
     const caller = createCaller(purchaseOrderRouter, PM);
     await caller.updateStatus({ projectId: "p-1", poId: "po-1", status: "issued" });
-    expect(anyDb.purchaseOrder.update).toHaveBeenCalled();
+    expect(anyDb.purchaseOrder.updateMany).toHaveBeenCalledWith({
+      where: { id: "po-1", status: "draft" },
+      data: expect.objectContaining({ status: "issued" }),
+    });
   });
 
   it("receiving tops up stock by REMAINING qty only and records the receive transaction", async () => {
     member("project_manager");
     anyDb.purchaseOrder.findFirst.mockResolvedValue(po());
+    anyDb.purchaseOrder.findUnique.mockResolvedValue(po()); // engine pre-read inside tx
     anyDb.material.findUnique.mockResolvedValue({ ...material(), currentStock: 50 });
 
     const caller = createCaller(purchaseOrderRouter, PM);

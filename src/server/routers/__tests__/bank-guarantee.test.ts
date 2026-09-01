@@ -253,6 +253,7 @@ describe("bankGuarantee.extend", () => {
   it("appends the amendment, accumulates commission, and recomputes claim expiry", async () => {
     member("project_manager");
     anyDb.bankGuarantee.findUniqueOrThrow.mockResolvedValue(existing());
+    anyDb.bankGuarantee.findUnique.mockResolvedValue(existing()); // engine pre-read inside tx
     const caller = createCaller(bankGuaranteeRouter, PM);
     await caller.extend({
       id: "bg-1",
@@ -262,7 +263,10 @@ describe("bankGuarantee.extend", () => {
       remarks: "Client approved",
     });
 
-    const data = anyDb.bankGuarantee.update.mock.calls[0][0].data;
+    // Engine transition: CAS updateMany on the pre-read status
+    const call = anyDb.bankGuarantee.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "bg-1", status: "active" });
+    const data = call.data;
     expect(data.status).toBe("extended");
     expect(data.commissionPaid).toBe(1500);
     expect(data.amendments).toHaveLength(2);
@@ -293,11 +297,21 @@ describe("bankGuarantee release/update/delete", () => {
       projectId: "p-1",
       organizationId: null,
       notes: "Original note",
+      status: "active",
+    });
+    anyDb.bankGuarantee.findUnique.mockResolvedValue({
+      id: "bg-1",
+      projectId: "p-1",
+      organizationId: null,
+      notes: "Original note",
+      status: "active",
     });
     const caller = createCaller(bankGuaranteeRouter, PM);
     await caller.release({ id: "bg-1", releaseLetterRef: "RL-7", notes: "Done" });
 
-    const data = anyDb.bankGuarantee.update.mock.calls[0][0].data;
+    const call = anyDb.bankGuarantee.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "bg-1", status: "active" }); // CAS claim
+    const data = call.data;
     expect(data.status).toBe("released");
     expect(data.notes).toContain("Released with Ref: RL-7");
     expect(data.notes).toContain("Original note");

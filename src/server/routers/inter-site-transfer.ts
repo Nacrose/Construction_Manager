@@ -7,6 +7,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { withOrgContext } from "@/lib/rls";
 import { Prisma } from "@prisma/client";
 import { adToBs } from "@/lib/nepali-calendar";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const interSiteTransferRouter = router({
   // ── 1. List Material & Equipment Transfers ────────────────────
@@ -411,11 +412,20 @@ export const interSiteTransferRouter = router({
           });
         }
 
-        // 5. Update transfer record
-        const updated = await tx.interSiteTransfer.update({
-          where: { id: transfer.id },
-          data: {
-            status: "received",
+        // 5. Update transfer record — engine transition: validates the
+        // dispatched/in_transit→received edge and CAS-claims the row, so a
+        // double-receive race fails CONFLICT instead of double-posting the
+        // destination stock and the debit journal entry above. receivedById
+        // rides additionalData (the engine reserves *_ById for its own
+        // attribution fields only on approved/rejected/submitted).
+        const { entity: updated } = await transitionEntityState(tx, {
+          model: "interSiteTransfer",
+          id: transfer.id,
+          targetState: "received",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: transfer.destinationProjectId,
+          additionalData: {
             receivedDate: now,
             receivedMiti: miti,
             receivedById: ctx.user.id,

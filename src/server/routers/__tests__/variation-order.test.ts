@@ -158,6 +158,7 @@ describe("variationOrder.updateStatus", () => {
   it("non-approved transitions skip the fiscal lock entirely", async () => {
     member("engineer");
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
+    anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     const caller = createCaller(variationOrderRouter, ENGINEER);
     await caller.updateStatus({ id: "vo-1", projectId: "p-1", status: "submitted" });
     expect(anyDb.fiscalYearLock.findFirst).not.toHaveBeenCalled();
@@ -167,6 +168,7 @@ describe("variationOrder.updateStatus", () => {
   it("re-approval of an approved VO is rejected (idempotency guard)", async () => {
     member("engineer");
     anyDb.variationOrder.findFirst.mockResolvedValue(vo({ status: "approved" }));
+    anyDb.variationOrder.findUnique.mockResolvedValue(vo({ status: "approved" }));
     const caller = createCaller(variationOrderRouter, ENGINEER);
     await expectTRPCError(
       caller.updateStatus({ id: "vo-1", projectId: "p-1", status: "approved" }),
@@ -177,6 +179,7 @@ describe("variationOrder.updateStatus", () => {
   it("approval merges VO items into the BOQ: baseline frozen, current values replaced", async () => {
     member("engineer");
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
+    anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.boqItem.findUnique.mockResolvedValue({
       id: "boq-1",
       quantity: 100,
@@ -244,16 +247,19 @@ describe("variationOrder.updateStatus", () => {
       }),
     });
 
-    // Status flip
-    expect(anyDb.variationOrder.update).toHaveBeenCalledWith({
-      where: { id: "vo-1" },
-      data: expect.objectContaining({ status: "approved" }),
+    // Status flip — rides the engine: CAS updateMany on the status we
+    // validated (id + exact pre-read status), with the engine-stamped
+    // dateApproved from additionalData.
+    expect(anyDb.variationOrder.updateMany).toHaveBeenCalledWith({
+      where: { id: "vo-1", status: "draft" },
+      data: expect.objectContaining({ status: "approved", dateApproved: expect.any(Date) }),
     });
   });
 
   it("REGRESSION: approval posts NO revenue journal entry (IPC bills it later)", async () => {
     member("engineer");
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
+    anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.analysisLibrary.findMany.mockResolvedValue([]);
     anyDb.boqItem.aggregate.mockResolvedValue({ _max: {} });
     anyDb.boqVersion.aggregate.mockResolvedValue({ _max: {} });
@@ -269,6 +275,7 @@ describe("variationOrder.updateStatus", () => {
   it("audit log records the approval with value-change metadata", async () => {
     member("engineer");
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
+    anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.analysisLibrary.findMany.mockResolvedValue([]);
     anyDb.boqItem.aggregate.mockResolvedValue({ _max: {} });
     anyDb.boqVersion.aggregate.mockResolvedValue({ _max: {} });

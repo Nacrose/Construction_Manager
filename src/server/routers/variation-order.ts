@@ -6,7 +6,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
-import { canTransition } from "@/server/utils/state-machine";
+import { transitionEntityState } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 
@@ -172,22 +172,27 @@ export const variationOrderRouter = router({
       });
 
       if (!vo) throw new TRPCError({ code: "NOT_FOUND" });
-      const transitionCheck = canTransition("variationOrder", vo.status, input.status);
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || "Variation Order is already approved and locked.",
-        });
-      }
-
 
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
-        const updateData: any = { status: input.status };
+
+        // Engine transition replaces the hand-rolled canTransition + update
+        // pair: graph validation + CAS-claim happen at the write point, so
+        // an invalid edge (e.g. re-approval of an approved VO) or a
+        // concurrent status flip aborts the whole transaction — the BOQ
+        // merge below can never commit for a stale read. dateApproved
+        // rides additionalData — the engine strips reserved keys.
+        await transitionEntityState(tx, {
+          model: "variationOrder",
+          id: input.id,
+          targetState: input.status,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: input.projectId,
+          additionalData: input.status === "approved" ? { dateApproved: new Date() } : undefined,
+        });
 
         if (input.status === "approved") {
-          updateData.dateApproved = new Date();
-
           // Pre-fetch libraries and sortOrder for any new extra items
           const libraries = await tx.analysisLibrary.findMany({
             where: { projectId: input.projectId },
@@ -282,11 +287,6 @@ export const variationOrderRouter = router({
             },
           });
         }
-
-        await tx.variationOrder.update({
-          where: { id: input.id },
-          data: updateData,
-        });
 
         // VO APPROVAL — NO REVENUE JOURNAL ENTRY (intentionally).
         //

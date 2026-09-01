@@ -12,6 +12,7 @@ import bcrypt from "bcryptjs";
 import { passwordSchema } from "@/lib/password-policy";
 import { withOrgContext } from "@/lib/rls";
 import { buildPresetModules, ModulePreset } from "@/lib/project-modules";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -400,9 +401,17 @@ export const projectRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertProjectManager(ctx.user, input.id);
 
-      const project = await db.project.update({
-        where: { id: input.id },
-        data: { status: "archived" },
+      // Engine transition: validates the active/on_hold/completed→archived
+      // edge and CAS-claims the row — archiving an already-archived project
+      // fails loudly instead of re-stamping the archive date.
+      const { entity: project } = await transitionEntityState(db, {
+        model: "project",
+        id: input.id,
+        targetState: "archived",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.id,
+        skipEventEmit: true, // archived projects have no active audience to notify
       });
 
       await audit({

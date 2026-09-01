@@ -75,9 +75,18 @@ const BASELINES = {
      *  adoption pass: submittal(2), punch-list(1), leave(2), site-expense(2),
      *  boq-version(1), payroll(1), daily-program(1), requisition(2),
      *  subcontractor-bill(2); batch 2: gantt-versions(2), ipc(1), rfi(2),
-     *  daily-report(1). May only grow — new lifecycle moves must ride
-     *  the engine so graphs, CAS and attribution stay centralized. */
-    TRANSITIONS: 20,
+     *  daily-report(1); batch 3 (full-lifecycle sweep): variation-order(1),
+     *  purchase-order(1), uncataloged-material(4), gate-entry via
+     *  material-transaction(1), inter-site-transfer(1), project archive(1),
+     *  equipment maintenance+resolves(2), equipment-rental lifecycle(4),
+     *  bank-guarantee extend/release(2). Known intentional non-adoptions:
+     *  vendor-bill recordPayment (status is DERIVED from paidAmount via an
+     *  atomic increment — the engine's status CAS would reject legitimate
+     *  concurrent partial payments) and bank-guarantee list auto-expiry
+     *  (date-derived machine sweep, no user actor). May only grow — new
+     *  lifecycle moves must ride the engine so graphs, CAS and attribution
+     *  stay centralized. */
+    TRANSITIONS: 37,
   },
 };
 

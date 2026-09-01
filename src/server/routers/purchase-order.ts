@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
-import { canTransition } from "@/server/utils/state-machine";
+import { canTransition, transitionEntityState } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 
@@ -321,9 +321,23 @@ export const purchaseOrderRouter = router({
           }
         }
 
-        return tx.purchaseOrder.update({
+        // Engine transition: CAS on the status we validated above — a
+        // concurrent flip rolls back the receive side effects instead of
+        // double-crediting stock. The manual domain event after the tx keeps
+        // the PO-numbered notification title, so the engine's generic event
+        // is suppressed here.
+        await transitionEntityState(tx, {
+          model: "purchaseOrder",
+          id: input.poId,
+          projectId: input.projectId,
+          targetState: input.status,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          skipEventEmit: true,
+        });
+
+        const refreshed = await tx.purchaseOrder.findUnique({
           where: { id: input.poId },
-          data: { status: input.status },
           include: {
             supplier: { select: { name: true } },
             items: {
@@ -333,6 +347,8 @@ export const purchaseOrderRouter = router({
             },
           },
         });
+        if (!refreshed) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Order not found." });
+        return refreshed;
       });
 
       emitDomainEvent({

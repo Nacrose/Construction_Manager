@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { findSimilarMaterials, normalizeMaterialName } from "@/lib/fuzzy-match";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const uncatalogedMaterialRouter = router({
   list: protectedProcedure
@@ -195,13 +196,16 @@ export const uncatalogedMaterialRouter = router({
         console.error("Failed to append alias on mapToExisting non-fatal", e);
       }
 
-      // Mark uncataloged item as mapped
-      const updated = await db.uncatalogedMaterial.update({
-        where: { id: input.id },
-        data: {
-          status: "mapped",
-          mappedToId: finalTargetId,
-        },
+      // Mark uncataloged item as mapped — engine transition: validates the
+      // pending→mapped edge and CAS-claims the row, so a double-map race
+      // fails CONFLICT instead of silently overwriting the alias append.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "uncatalogedMaterial",
+        id: input.id,
+        targetState: "mapped",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        additionalData: { mappedToId: finalTargetId },
       });
 
       return { success: true, item: updated, remappedCount };
@@ -258,13 +262,14 @@ export const uncatalogedMaterialRouter = router({
         },
       });
 
-      // Mark uncataloged as promoted
-      const updated = await db.uncatalogedMaterial.update({
-        where: { id: input.id },
-        data: {
-          status: "promoted",
-          mappedToId: globalItem.id,
-        },
+      // Mark uncataloged as promoted (engine: pending→promoted, CAS)
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "uncatalogedMaterial",
+        id: input.id,
+        targetState: "promoted",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        additionalData: { mappedToId: globalItem.id },
       });
 
       return { globalItem, uncataloged: updated };
@@ -402,13 +407,14 @@ export const uncatalogedMaterialRouter = router({
         });
       }
 
-      // Mark uncataloged as promoted
-      const updated = await db.uncatalogedMaterial.update({
-        where: { id: input.id },
-        data: {
-          status: "promoted",
-          mappedToId: orgItem.id,
-        },
+      // Mark uncataloged as promoted (engine: pending→promoted, CAS)
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "uncatalogedMaterial",
+        id: input.id,
+        targetState: "promoted",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        additionalData: { mappedToId: orgItem.id },
       });
 
       return { orgItem, uncataloged: updated, remappedCount };
@@ -437,9 +443,14 @@ export const uncatalogedMaterialRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Only super admins can ignore global uncataloged materials." });
       }
 
-      const updated = await db.uncatalogedMaterial.update({
-        where: { id: input.id },
-        data: { status: "ignored" },
+      // Engine transition: pending→ignored is terminal — an already-mapped
+      // or promoted entry can no longer be discarded via this route.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "uncatalogedMaterial",
+        id: input.id,
+        targetState: "ignored",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
       });
       return { item: updated };
     }),

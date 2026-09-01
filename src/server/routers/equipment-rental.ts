@@ -4,6 +4,34 @@ import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { transitionEntityState } from "@/server/utils/state-machine";
+
+/**
+ * Idempotent equipment operating-state cascade (see equipment-core).
+ * Skips the write when the machine is already in the target state —
+ * the equipment graph has no self-loops by design.
+ */
+async function setEquipmentStatus(
+  equipmentId: string,
+  targetState: "active" | "maintenance" | "breakdown" | "idle",
+  userId: string,
+  userName?: string
+) {
+  const eq = await db.equipment.findUnique({
+    where: { id: equipmentId },
+    select: { id: true, status: true, projectId: true },
+  });
+  if (!eq || eq.status === targetState) return;
+  await transitionEntityState(db, {
+    model: "equipment",
+    id: eq.id,
+    targetState,
+    userId,
+    userName,
+    projectId: eq.projectId,
+    skipEventEmit: true, // routine operating-state sync, no notification
+  });
+}
 
 export const equipmentRentalProcedures = {
   listRentals: protectedProcedure
@@ -160,10 +188,8 @@ export const equipmentRentalProcedures = {
         },
       });
 
-      await db.equipment.update({
-        where: { id: input.equipmentId },
-        data: { status: "active" },
-      });
+      // Put the machine back to work (guarded skip when already active)
+      await setEquipmentStatus(input.equipmentId, "active", ctx.user.id, ctx.user.name);
 
       return { rental };
     }),
@@ -188,21 +214,27 @@ export const equipmentRentalProcedures = {
       const billableDays = Math.max(0, Math.round((Date.now() - new Date(rental.startDate).getTime()) / 86400000));
       const totalCost = billableDays * rental.rentalRate;
 
-      const updated = await db.equipmentRental.update({
-        where: { id: input.rentalId },
-        data: {
-          status: "stored_on_site",
+      // Engine transition: active→stored_on_site, CAS-claimed — a double
+      // markStored race fails CONFLICT instead of re-deriving billableDays
+      // from an already-moved startDate. Rent accrual stops at storedFromDate.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "equipmentRental",
+        id: input.rentalId,
+        targetState: "stored_on_site",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: rental.projectId,
+        additionalData: {
           storedFromDate: new Date(),
           totalBillableDays: billableDays,
           totalRentalCost: totalCost,
           notes: input.notes ? `${rental.notes ?? ""}\n[Stored] ${input.notes}`.trim() : rental.notes,
         },
+        skipEventEmit: true, // routine operating-state sync, no notification
       });
 
-      await db.equipment.update({
-        where: { id: rental.equipmentId },
-        data: { status: "idle" },
-      });
+      // Machine comes off hire (guarded skip when already idle)
+      await setEquipmentStatus(rental.equipmentId, "idle", ctx.user.id, ctx.user.name);
 
       return { rental: updated };
     }),
@@ -233,21 +265,27 @@ export const equipmentRentalProcedures = {
       const billableDays = Math.max(0, Math.round((billableEnd.getTime() - new Date(rental.startDate).getTime()) / 86400000));
       const totalCost = billableDays * rental.rentalRate;
 
-      const updated = await db.equipmentRental.update({
-        where: { id: input.rentalId },
-        data: {
-          status: "returned",
+      // Engine transition: active|stored_on_site → returned (terminal).
+      // The CAS claim makes a re-return race fail CONFLICT instead of
+      // overwriting actualReturnDate/totalRentalCost — settled money figures.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "equipmentRental",
+        id: input.rentalId,
+        targetState: "returned",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: rental.projectId,
+        additionalData: {
           actualReturnDate: returnDate,
           totalBillableDays: billableDays,
           totalRentalCost: totalCost,
           notes: input.notes ? `${rental.notes ?? ""}\n[Returned] ${input.notes}`.trim() : rental.notes,
         },
+        skipEventEmit: true, // routine operating-state sync, no notification
       });
 
-      await db.equipment.update({
-        where: { id: rental.equipmentId },
-        data: { status: "active" },
-      });
+      // Back to service (guarded skip when already active)
+      await setEquipmentStatus(rental.equipmentId, "active", ctx.user.id, ctx.user.name);
 
       return { rental: updated };
     }),
@@ -278,20 +316,26 @@ export const equipmentRentalProcedures = {
       const billableDays = Math.max(0, Math.round((storedDate.getTime() - new Date(rental.startDate).getTime()) / 86400000));
       const totalCost = billableDays * rental.rentalRate;
 
-      const updated = await db.equipmentRental.update({
-        where: { id: input.rentalId },
-        data: {
-          status: "active",
+      // Engine transition: stored_on_site → active (reactivation edge).
+      // CAS-claimed so a reactivate/markReturned race fails loudly instead
+      // of double-recomputing the billed period.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "equipmentRental",
+        id: input.rentalId,
+        targetState: "active",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: rental.projectId,
+        additionalData: {
           totalBillableDays: billableDays,
           totalRentalCost: totalCost,
           notes: input.notes ? `${rental.notes ?? ""}\n[Reactivated] ${input.notes}`.trim() : rental.notes,
         },
+        skipEventEmit: true, // routine operating-state sync, no notification
       });
 
-      await db.equipment.update({
-        where: { id: rental.equipmentId },
-        data: { status: "active" },
-      });
+      // Machine is back on hire (guarded skip when already active)
+      await setEquipmentStatus(rental.equipmentId, "active", ctx.user.id, ctx.user.name);
 
       return { rental: updated };
     }),

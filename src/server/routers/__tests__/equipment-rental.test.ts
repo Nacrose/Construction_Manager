@@ -215,6 +215,7 @@ describe("equipment.createRental", () => {
     member("engineer");
     anyDb.equipment.findFirst.mockResolvedValue({ id: "eq-1" });
     anyDb.equipmentRental.findFirst.mockResolvedValue(null); // no duplicate
+    anyDb.equipment.findUnique.mockResolvedValue({ id: "eq-1", status: "idle", projectId: "p-1" });
 
     const caller = createCaller(rentalRouter, ENGINEER);
     await caller.createRental(baseInput);
@@ -228,9 +229,10 @@ describe("equipment.createRental", () => {
       createdById: ENGINEER.id,
     });
     expect(data.startDate).toBeInstanceOf(Date);
-    expect(anyDb.equipment.update).toHaveBeenCalledWith({
-      where: { id: "eq-1" },
-      data: { status: "active" },
+    // Engine cascade: idle → active (guarded, CAS updateMany)
+    expect(anyDb.equipment.updateMany).toHaveBeenCalledWith({
+      where: { id: "eq-1", status: "idle" },
+      data: expect.objectContaining({ status: "active" }),
     });
   });
 
@@ -275,7 +277,7 @@ describe("equipment.createRental", () => {
     await expectTRPCError(caller.createRental(baseInput), "NOT_FOUND");
     expect(anyDb.equipmentRental.create).not.toHaveBeenCalled();
     // the other project's equipment status must never be flipped
-    expect(anyDb.equipment.update).not.toHaveBeenCalled();
+    expect(anyDb.equipment.updateMany).not.toHaveBeenCalled();
   });
 
   it("FORBIDDENs read-only roles and rejects negative rates (zod)", async () => {
@@ -300,18 +302,22 @@ describe("rental status machine", () => {
     anyDb.equipmentRental.findUnique.mockResolvedValue(
       rental({ startDate: daysAgo(12), rentalRate: 5000 }),
     );
+    anyDb.equipment.findUnique.mockResolvedValue({ id: "eq-1", status: "active", projectId: "p-1" });
     const caller = createCaller(rentalRouter, ENGINEER);
     await caller.markStored({ rentalId: "rent-1", notes: "work done" });
 
-    const data = anyDb.equipmentRental.update.mock.calls[0][0].data;
+    // Engine transition: CAS updateMany on the pre-read status
+    const call = anyDb.equipmentRental.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rent-1", status: "active" });
+    const data = call.data;
     expect(data.status).toBe("stored_on_site");
     expect(data.storedFromDate).toBeInstanceOf(Date);
     expect(data.totalBillableDays).toBe(12);
     expect(data.totalRentalCost).toBe(60000);
     expect(data.notes).toContain("[Stored] work done");
-    expect(anyDb.equipment.update).toHaveBeenCalledWith({
-      where: { id: "eq-1" },
-      data: { status: "idle" },
+    expect(anyDb.equipment.updateMany).toHaveBeenCalledWith({
+      where: { id: "eq-1", status: "active" },
+      data: expect.objectContaining({ status: "idle" }),
     });
   });
 
@@ -320,7 +326,7 @@ describe("rental status machine", () => {
     anyDb.equipmentRental.findUnique.mockResolvedValue(rental({ status: "returned" }));
     const caller = createCaller(rentalRouter, ENGINEER);
     await expectTRPCError(caller.markStored({ rentalId: "rent-1" }), "BAD_REQUEST");
-    expect(anyDb.equipmentRental.update).not.toHaveBeenCalled();
+    expect(anyDb.equipmentRental.updateMany).not.toHaveBeenCalled();
 
     anyDb.equipmentRental.findUnique.mockResolvedValue(null);
     await expectTRPCError(caller.markStored({ rentalId: "nope" }), "NOT_FOUND");
@@ -331,7 +337,7 @@ describe("rental status machine", () => {
     member(null); // no membership in p-2
     const caller = createCaller(rentalRouter, ENGINEER);
     await expectTRPCError(caller.markStored({ rentalId: "rent-1" }), "FORBIDDEN");
-    expect(anyDb.equipmentRental.update).not.toHaveBeenCalled();
+    expect(anyDb.equipmentRental.updateMany).not.toHaveBeenCalled();
   });
 
   it("markReturned from ACTIVE bills to the return date", async () => {
@@ -347,7 +353,8 @@ describe("rental status machine", () => {
       actualReturnDate: returnDate.toISOString(),
     });
 
-    const data = anyDb.equipmentRental.update.mock.calls[0][0].data;
+    // Engine transition: CAS updateMany on the pre-read status
+    const data = anyDb.equipmentRental.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("returned");
     expect(data.actualReturnDate).toEqual(returnDate);
     expect(data.totalBillableDays).toBe(8);
@@ -367,7 +374,7 @@ describe("rental status machine", () => {
     const caller = createCaller(rentalRouter, ENGINEER);
     await caller.markReturned({ rentalId: "rent-1" });
 
-    const data = anyDb.equipmentRental.update.mock.calls[0][0].data;
+    const data = anyDb.equipmentRental.updateMany.mock.calls[0][0].data;
     expect(data.totalBillableDays).toBe(10); // start → stored, not today
     expect(data.totalRentalCost).toBe(30000);
     expect(data.status).toBe("returned");
@@ -382,7 +389,7 @@ describe("rental status machine", () => {
       rentalId: "rent-1",
       actualReturnDate: new Date(start.getTime() - 3 * DAY).toISOString(),
     });
-    const data = anyDb.equipmentRental.update.mock.calls[0][0].data;
+    const data = anyDb.equipmentRental.updateMany.mock.calls[0][0].data;
     expect(data.totalBillableDays).toBe(0);
     expect(data.totalRentalCost).toBe(0);
   });
@@ -392,8 +399,8 @@ describe("rental status machine", () => {
     anyDb.equipmentRental.findUnique.mockResolvedValue(rental({ status: "returned" }));
     const caller = createCaller(rentalRouter, ENGINEER);
     await expectTRPCError(caller.markReturned({ rentalId: "rent-1" }), "BAD_REQUEST");
-    expect(anyDb.equipmentRental.update).not.toHaveBeenCalled();
-    expect(anyDb.equipment.update).not.toHaveBeenCalled();
+    expect(anyDb.equipmentRental.updateMany).not.toHaveBeenCalled();
+    expect(anyDb.equipment.updateMany).not.toHaveBeenCalled();
   });
 
   it("reactivate is stored-only and recomputes the frozen segment to the stored date", async () => {
@@ -406,16 +413,20 @@ describe("rental status machine", () => {
         rentalRate: 1000,
       }),
     );
+    anyDb.equipment.findUnique.mockResolvedValue({ id: "eq-1", status: "idle", projectId: "p-1" });
     const caller = createCaller(rentalRouter, ENGINEER);
     await caller.reactivate({ rentalId: "rent-1" });
 
-    const data = anyDb.equipmentRental.update.mock.calls[0][0].data;
+    // Engine transition: CAS updateMany on the pre-read status
+    const call = anyDb.equipmentRental.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rent-1", status: "stored_on_site" });
+    const data = call.data;
     expect(data.status).toBe("active");
     expect(data.totalBillableDays).toBe(12); // start → storedFromDate
     expect(data.totalRentalCost).toBe(12000);
-    expect(anyDb.equipment.update).toHaveBeenCalledWith({
-      where: { id: "eq-1" },
-      data: { status: "active" },
+    expect(anyDb.equipment.updateMany).toHaveBeenCalledWith({
+      where: { id: "eq-1", status: "idle" }, // the MACHINE was idle, not the rental
+      data: expect.objectContaining({ status: "active" }),
     });
 
     // active rentals cannot be reactivated
