@@ -88,7 +88,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await ensureSchema();
+    const schemaResult = await ensureSchema();
+    if (schemaResult.failed > 0) {
+      // Surface silent schema failures (e.g. unique-index creation issues)
+      // instead of swallowing them into an unread result object.
+      console.error("ensureSchema reported failures:", schemaResult.errors);
+    }
 
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
@@ -143,6 +148,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: "Superadmin created. Log in with these credentials.",
       token,
+      schemaWarnings: schemaResult.failed > 0 ? schemaResult.errors : [],
       user: {
         id: superadmin.id,
         email: superadmin.email,

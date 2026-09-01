@@ -1789,6 +1789,7 @@ export async function ensureSchema(): Promise<EnsureSchemaResult> {
     `ALTER TABLE "BankReconciliation" ALTER COLUMN "adjustedBalance" TYPE DECIMAL(15, 2) USING "adjustedBalance"::DECIMAL(15, 2)`,
     `ALTER TABLE "BankReconciliation" ALTER COLUMN "outstandingPayments" TYPE DECIMAL(15, 2) USING "outstandingPayments"::DECIMAL(15, 2)`,
     `ALTER TABLE "BankReconciliation" ALTER COLUMN "unmatchedDeposits" TYPE DECIMAL(15, 2) USING "unmatchedDeposits"::DECIMAL(15, 2)`,
+    `DELETE FROM "JournalEntry" je USING "JournalEntry" keep WHERE je."sourceRefId" IS NOT NULL AND keep."sourceRefId" IS NOT NULL AND je."source" = keep."source" AND je."sourceRefId" = keep."sourceRefId" AND je."id" > keep."id"`,
     `DROP INDEX IF EXISTS "JournalEntry_source_sourceRefId_idx"`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "JournalEntry_source_sourceRefId_key" ON "JournalEntry"("source", "sourceRefId")`,
   ];
