@@ -2,9 +2,27 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  LEGACY_RAW_TABLE_FILES,
+  LEGACY_TO_LOCALE_FILES,
+} from "./eslint-ratchet.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ── Engine Protocol bans (no-restricted-syntax selectors) ────────────────
+// Each selector is kept separate so legacy overrides can re-scope instead
+// of disabling the whole rule for a file.
+const RAW_TABLE_BAN = {
+  selector: "JSXOpeningElement[name.name='table']",
+  message:
+    "Raw <table> is banned by the Engine Protocol — use <ConstructionTable /> from @/components/ui/construction-table. To add legitimate exceptions, extend the sanctioned primitives, never the page.",
+};
+const TO_LOCALE_BAN = {
+  selector: "CallExpression[callee.property.name='toLocaleString']",
+  message:
+    "toLocaleString() is banned by the Engine Protocol — use formatNpr() from @/lib/construction-finance for NPR/number rendering.",
+};
 
 /**
  * ESLint config — Construction Manager
@@ -73,7 +91,25 @@ const eslintConfig = [
       "no-undef": "off",
       "no-unreachable": "error",
       "no-useless-escape": "warn",
+
+      // ── Engine Protocol ratchet (see eslint-ratchet.mjs) ─────────────
+      "no-restricted-syntax": ["error", RAW_TABLE_BAN, TO_LOCALE_BAN],
     },
+  },
+  // Legacy files: re-scope the ban instead of disabling it, so a file
+  // grandfathered for one pattern still errors on the other.
+  {
+    files: LEGACY_RAW_TABLE_FILES,
+    rules: { "no-restricted-syntax": ["error", TO_LOCALE_BAN] },
+  },
+  {
+    files: LEGACY_TO_LOCALE_FILES,
+    rules: { "no-restricted-syntax": ["error", RAW_TABLE_BAN] },
+  },
+  // Files in BOTH legacy lists are fully grandfathered until migration.
+  {
+    files: LEGACY_RAW_TABLE_FILES.filter((f) => LEGACY_TO_LOCALE_FILES.includes(f)),
+    rules: { "no-restricted-syntax": "off" },
   },
   {
     ignores: [

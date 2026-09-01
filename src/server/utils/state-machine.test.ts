@@ -61,12 +61,12 @@ describe("Central Multi-Entity State Machine Engine", () => {
     ).rejects.toThrow("Invalid state transition for subcontractorBill. Current status is 'approved', but expected one of: [draft, submitted].");
   });
 
-  it("captures rejection reason when transitioning to rejected", async () => {
+  it("captures rejection reason when transitioning to rejected (graph-derived from-states)", async () => {
     const mockDb: any = {
-      leave: {
+      leaveRequest: {
         findUnique: vi.fn().mockResolvedValue({
           id: "leave-1",
-          status: "submitted",
+          status: "pending",
           rejectionReason: null,
         }),
         update: vi.fn().mockImplementation(({ data }) =>
@@ -76,9 +76,10 @@ describe("Central Multi-Entity State Machine Engine", () => {
     };
 
     const res = await transitionEntityState(mockDb, {
-      model: "leave",
+      model: "leaveRequest",
       id: "leave-1",
-      allowedCurrentStates: ["submitted"],
+      // allowedCurrentStates intentionally omitted — derived from the
+      // lifecycle graph (pending → rejected is a real edge).
       targetState: "rejected",
       userId: "user-approver",
       notes: "Insufficient remaining leave quota",
@@ -86,7 +87,7 @@ describe("Central Multi-Entity State Machine Engine", () => {
     });
 
     expect(res.currentState).toBe("rejected");
-    expect(mockDb.leave.update).toHaveBeenCalledWith(
+    expect(mockDb.leaveRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           status: "rejected",
@@ -94,5 +95,26 @@ describe("Central Multi-Entity State Machine Engine", () => {
         }),
       })
     );
+  });
+
+  it("rejects a graph-unknown transition when from-states are derived", async () => {
+    const mockDb: any = {
+      leaveRequest: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "leave-2",
+          status: "draft", // "draft" is not a leaveRequest state — no graph edge to rejected
+        }),
+      },
+    };
+
+    await expect(
+      transitionEntityState(mockDb, {
+        model: "leaveRequest",
+        id: "leave-2",
+        targetState: "rejected",
+        userId: "user-1",
+        skipEventEmit: true,
+      })
+    ).rejects.toThrow(/Invalid state transition for leaveRequest/);
   });
 });

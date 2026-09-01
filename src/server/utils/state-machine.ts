@@ -9,21 +9,24 @@
 import { TRPCError } from "@trpc/server";
 import type { DbTxClient } from "@/lib/db";
 import { emitDomainEvent } from "./domain-events";
+import { LIFECYCLE_GRAPHS, sourceStatesFor, type LifecycleModel } from "./lifecycle-graph";
+import { logger } from "@/lib/logger";
 
-export type SupportedLifecycleModel =
-  | "siteExpense"
-  | "subcontractorBill"
-  | "purchaseOrder"
-  | "purchaseRequisition"
-  | "variationOrder"
-  | "leave"
-  | "dailyReport";
+/** Module-scoped structured logger (JSON lines — serverless-queryable). */
+const log = logger({ module: "state-machine" });
+
+export type SupportedLifecycleModel = LifecycleModel;
 
 export type TransitionEntityStateInput = {
   model: SupportedLifecycleModel;
   id: string;
   projectId?: string;
-  allowedCurrentStates: string[];
+  /**
+   * Explicit from-states. OPTIONAL when the lifecycle graph covers the
+   * (from → targetState) edge — omit it and the graph derives the valid
+   * source states via `sourceStatesFor(model, targetState)`.
+   */
+  allowedCurrentStates?: string[];
   targetState: string;
   userId: string;
   userName?: string;
@@ -69,13 +72,35 @@ export async function transitionEntityState(
   }
 
   const currentStatus = String(entity.status || "draft").toLowerCase();
-  const normalizedAllowed = input.allowedCurrentStates.map((s) => s.toLowerCase());
+
+  // Resolve allowed from-states: explicit argument wins; otherwise derive
+  // from the central lifecycle graph (single source of truth).
+  const graphModel = input.model as LifecycleModel;
+  const graph = LIFECYCLE_GRAPHS[graphModel];
+  const allowedFromStates =
+    input.allowedCurrentStates ??
+    (graph ? sourceStatesFor(graphModel, input.targetState.toLowerCase()) : []);
+  const normalizedAllowed = allowedFromStates.map((s) => s.toLowerCase());
 
   // 2. Validate state transition
   if (!normalizedAllowed.includes(currentStatus)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Invalid state transition for ${input.model}. Current status is '${currentStatus}', but expected one of: [${input.allowedCurrentStates.join(", ")}].`,
+      message: `Invalid state transition for ${input.model}. Current status is '${currentStatus}', but expected one of: [${allowedFromStates.join(", ")}].`,
+    });
+  }
+
+  // 2b. Graph alignment (Phase A: observational, non-blocking).
+  // The lifecycle graph is the single source of truth; while call sites
+  // still pass per-call allowedCurrentStates, we log drift so the graph
+  // can be tightened BEFORE hard enforcement (Phase E).
+  const graphEdge = LIFECYCLE_GRAPHS[input.model as LifecycleModel]?.transitions[currentStatus]?.[input.targetState.toLowerCase()];
+  if (!graphEdge) {
+    log.warn("lifecycle transition not covered by graph", {
+      model: input.model,
+      from: currentStatus,
+      to: input.targetState,
+      entityId: input.id,
     });
   }
 
