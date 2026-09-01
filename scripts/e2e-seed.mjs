@@ -80,6 +80,30 @@ async function main() {
     });
   }
 
+  // Site Engineer (distinct creator for Segregation of Duties)
+  const engineer = await db.user.upsert({
+    where: { email: "engineer@e2e.test" },
+    create: {
+      email: "engineer@e2e.test",
+      name: "E2E Site Engineer",
+      passwordHash,
+      role: "site_engineer",
+      organizationId: org.id,
+      orgRole: "member",
+      isSuperAdmin: false,
+    },
+    update: { passwordHash, organizationId: org.id, deactivatedAt: null, deactivatedReason: null },
+  });
+
+  const engMember = await db.projectMember.findFirst({
+    where: { projectId: project.id, userId: engineer.id },
+  });
+  if (!engMember) {
+    await db.projectMember.create({
+      data: { projectId: project.id, userId: engineer.id, role: "site_engineer" },
+    });
+  }
+
   // One fresh PENDING expense per run (delete stale copies first).
   await db.siteExpense.deleteMany({ where: { projectId: project.id, number: EXPENSE_NUMBER } });
   const expense = await db.siteExpense.create({
@@ -94,7 +118,7 @@ async function main() {
       totalAmount: 12500.5,
       paymentMode: "cash",
       status: "pending",
-      createdById: user.id,
+      createdById: engineer.id,
     },
   });
 
