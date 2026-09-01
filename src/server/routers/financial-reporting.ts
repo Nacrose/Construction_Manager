@@ -18,7 +18,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import type { Prisma } from "@prisma/client";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, reportingProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
@@ -42,7 +42,7 @@ export const financialReportingRouter = router({
    * Profit/Loss = Revenue - Direct Costs - Overheads
    * Margin % = Profit / Revenue * 100
    */
-  projectPnl: protectedProcedure
+  projectPnl: reportingProcedure
     .input(z.object({
       projectId: z.string(),
       fromDate: z.string().optional(),
@@ -267,7 +267,7 @@ export const financialReportingRouter = router({
    * Retention Ledger: how much retention is the client holding from me
    * (receivable) and how much am I holding from subcontractors (payable)?
    */
-  retentionLedger: protectedProcedure
+  retentionLedger: reportingProcedure
     .input(z.object({
       projectId: z.string().optional(),
       summaryOnly: z.boolean().default(false),
@@ -407,7 +407,7 @@ export const financialReportingRouter = router({
    * TDS Certificate: generate a printable TDS certificate for a
    * vendor/subcontractor per quarter (Nepal IRD requirement).
    */
-  tdsCertificate: protectedProcedure
+  tdsCertificate: reportingProcedure
     .input(z.object({
       projectId: z.string().optional(),
       partnerName: z.string().optional(),
@@ -565,7 +565,7 @@ export const financialReportingRouter = router({
    * TDS Reconciliation: compare TDS deducted (per payments) vs TDS
    * deposited with IRD (per bank transactions tagged as "TDS deposit").
    */
-  tdsReconciliation: protectedProcedure
+  tdsReconciliation: reportingProcedure
     .input(z.object({
       fromDate: z.string(),
       toDate: z.string(),
@@ -655,7 +655,7 @@ export const financialReportingRouter = router({
    * Cash Runway: how many months can the org survive at current
    * burn rate?
    */
-  cashRunway: protectedProcedure
+  cashRunway: reportingProcedure
     .input(z.object({
       monthsToAverage: z.number().min(1).max(12).default(3),
     }))
@@ -807,7 +807,7 @@ export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
 
   /** List all cost codes (hierarchical). */
-  costCodeList: protectedProcedure
+  costCodeList: reportingProcedure
     .input(z.object({
       category: z.string().optional(),
       activeOnly: z.boolean().default(true),
@@ -829,7 +829,7 @@ export const financialReportingRouter = router({
     }),
 
   /** Create a custom cost code. */
-  costCodeCreate: protectedProcedure
+  costCodeCreate: reportingProcedure
     .input(z.object({
       code: z.string().min(1).max(20),
       name: z.string().min(1).max(200),
@@ -892,7 +892,7 @@ export const financialReportingRouter = router({
     }),
 
   /** Seed standard cost codes (idempotent — only inserts missing codes). */
-  costCodeSeed: protectedProcedure
+  costCodeSeed: reportingProcedure
     .mutation(async ({ ctx }) => {
       assertOrgAdmin(ctx.user);
 
@@ -951,7 +951,7 @@ export const financialReportingRouter = router({
     }),
 
   /** Seed chart of accounts (for journal entry system). */
-  chartOfAccountsSeed: protectedProcedure
+  chartOfAccountsSeed: reportingProcedure
     .mutation(async ({ ctx }) => {
       assertOrgAdmin(ctx.user);
 
@@ -993,7 +993,7 @@ export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
 
   /** List fiscal year locks for the caller's org. */
-  fiscalYearLockList: protectedProcedure
+  fiscalYearLockList: reportingProcedure
     .query(async ({ ctx }) => {
       if (!ctx.user.organizationId) {
         return { locks: [] };
@@ -1003,7 +1003,7 @@ export const financialReportingRouter = router({
     }),
 
   /** Create or update a fiscal year lock. */
-  fiscalYearLockUpsert: protectedProcedure
+  fiscalYearLockUpsert: reportingProcedure
     .input(z.object({
       fiscalYear: z.string().regex(/^\d{4}\/\d{2}$/, "Must be BS format like 2081/82"),
       startDate: z.string(),
@@ -1105,7 +1105,7 @@ export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
 
   /** List journal entries (with optional source/project filter). */
-  journalEntryList: protectedProcedure
+  journalEntryList: reportingProcedure
     .input(z.object({
       projectId: z.string().optional(),
       source: z.string().optional(),
@@ -1210,7 +1210,7 @@ export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
 
   /** Save a report snapshot (for audit trail). */
-  reportSnapshotSave: protectedProcedure
+  reportSnapshotSave: reportingProcedure
     .input(z.object({
       reportType: z.enum(["pnl", "trial_balance", "cash_flow", "retention_ledger", "tds_reconciliation"]),
       projectId: z.string().optional(),
@@ -1246,7 +1246,7 @@ export const financialReportingRouter = router({
     }),
 
   /** List report snapshots. */
-  reportSnapshotList: protectedProcedure
+  reportSnapshotList: reportingProcedure
     .input(z.object({
       reportType: z.string().optional(),
       projectId: z.string().optional(),
@@ -1298,7 +1298,7 @@ export const financialReportingRouter = router({
     }),
 
   /** Retrieve a specific report snapshot (full data). */
-  reportSnapshotGet: protectedProcedure
+  reportSnapshotGet: reportingProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const snapshot = await db.reportSnapshot.findUnique({
@@ -1358,7 +1358,7 @@ export const financialReportingRouter = router({
    * The system auto-matches them against Payment records by amount ±2 days.
    * Unmatched entries are flagged (outstanding checks, bank charges, interest).
    */
-  bankReconciliation: protectedProcedure
+  bankReconciliation: reportingProcedure
     .input(z.object({
       bankAccountId: z.string(),
       fromDate: z.string(),
@@ -1551,7 +1551,7 @@ export const financialReportingRouter = router({
    *    Dr Retention Payable (retention now due to sub)
    *       Cr Subcontractor Payables
    */
-  releaseRetention: protectedProcedure
+  releaseRetention: reportingProcedure
     .input(z.object({
       projectId: z.string(),
       defectLiabilityDays: z.number().min(0).max(730).default(365),

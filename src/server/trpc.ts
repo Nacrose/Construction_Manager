@@ -133,6 +133,45 @@ const enforceAuth = t.middleware(async ({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(enforceAuth);
 
+// ─── Rate limiting (in-memory, per-user sliding window) ──────────────
+//
+// Protects expensive aggregate/report endpoints from runaway client loops
+// and accidental request storms. Single-instance memory store: for
+// multi-instance deployments back this with Redis (interface unchanged).
+type RateLimitOptions = { windowMs?: number; max?: number };
+
+const rateLimitBuckets = new Map<string, number[]>();
+
+export const rateLimit = (options: RateLimitOptions = {}) => {
+  const windowMs = options.windowMs ?? 60_000;
+  const max = options.max ?? 20;
+
+  return t.middleware(async ({ ctx, path, next }) => {
+    const key = `${ctx.user?.id ?? "anon"}:${path ?? "unknown"}`;
+    const now = Date.now();
+    const recent = (rateLimitBuckets.get(key) ?? []).filter((ts) => ts > now - windowMs);
+    if (recent.length >= max) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "Too many requests — please slow down.",
+      });
+    }
+    recent.push(now);
+    rateLimitBuckets.set(key, recent);
+
+    // Occasional GC so idle buckets do not accumulate forever.
+    if (rateLimitBuckets.size > 5_000) {
+      for (const [k, v] of rateLimitBuckets) {
+        if (v.every((ts) => ts <= now - windowMs)) rateLimitBuckets.delete(k);
+      }
+    }
+    return next();
+  });
+};
+
+/** reportingProcedure — auth + RLS + a 20 req/min per-user cap. */
+export const reportingProcedure = protectedProcedure.use(rateLimit({ max: 20 }));
+
 // ═══════════════════════════════════════════════════════════════
 // CENTRAL SECURITY CONTROL PLANE: Declarative Security Procedures
 // ═══════════════════════════════════════════════════════════════

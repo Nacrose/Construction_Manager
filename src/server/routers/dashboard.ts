@@ -8,7 +8,7 @@
  *   - progressSCurve: planned vs actual cumulative progress over time
  */
 import { z } from "zod";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, reportingProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember } from "@/lib/authz";
 
@@ -21,7 +21,7 @@ function getWeekKey(date: Date): string {
 
 export const dashboardRouter = router({
   /** Activity Feed — recent audit logs for a project. */
-  activityFeed: protectedProcedure
+  activityFeed: reportingProcedure
     .input(z.object({
       projectId: z.string(),
       limit: z.number().min(1).max(200).default(50),
@@ -48,7 +48,7 @@ export const dashboardRouter = router({
     }),
 
   /** Cost vs Budget — actual costs vs BOQ budget amounts, broken down by category. */
-  costVsBudget: protectedProcedure
+  costVsBudget: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -113,7 +113,7 @@ export const dashboardRouter = router({
     }),
 
   /** RFI Metrics — response time, overdue count, status breakdown. */
-  rfiMetrics: protectedProcedure
+  rfiMetrics: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -182,7 +182,7 @@ export const dashboardRouter = router({
     }),
 
   /** Progress S-Curve — planned vs actual cumulative progress over time. */
-  progressSCurve: protectedProcedure
+  progressSCurve: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -331,7 +331,7 @@ export const dashboardRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** Delay Register — tasks with execution delays (partial/uncompleted/postponed). */
-  delayRegister: protectedProcedure
+  delayRegister: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -400,7 +400,7 @@ export const dashboardRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** Quality Test Register — material test results from daily reports. */
-  qualityTestRegister: protectedProcedure
+  qualityTestRegister: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -459,7 +459,7 @@ export const dashboardRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** Photographic Timeline — site photos from daily report attachments. */
-  photoTimeline: protectedProcedure
+  photoTimeline: reportingProcedure
     .input(z.object({
       projectId: z.string(),
       limit: z.number().min(1).max(200).default(50),
@@ -515,7 +515,7 @@ export const dashboardRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** Cash Flow Forecast — IPC billing vs actual costs over time. */
-  cashFlow: protectedProcedure
+  cashFlow: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -608,7 +608,7 @@ export const dashboardRouter = router({
   // WEATHER IMPACT ON PRODUCTIVITY
   // ─────────────────────────────────────────────────────────
 
-  weatherImpact: protectedProcedure
+  weatherImpact: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -757,7 +757,7 @@ export const dashboardRouter = router({
   // DELAY ROOT CAUSE ANALYTICS
   // ─────────────────────────────────────────────────────────
 
-  delayAnalytics: protectedProcedure
+  delayAnalytics: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -829,7 +829,7 @@ export const dashboardRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** Enhanced Visitor Log — all site visitors across daily reports. */
-  visitorLog: protectedProcedure
+  visitorLog: reportingProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
