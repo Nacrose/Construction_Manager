@@ -3818,7 +3818,7 @@ model JournalEntry {
   lines           JournalEntryLine[]
 
   @@index([entryDate])
-  @@index([source, sourceRefId])
+  @@unique([source, sourceRefId])
   @@index([fiscalYearId])
   @@index([isPosted])
   @@index([organizationId])

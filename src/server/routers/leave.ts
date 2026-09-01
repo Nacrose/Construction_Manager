@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { createDomainRouter, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectAdmin } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 
 const { router, proc } = createDomainRouter();
 
@@ -111,15 +112,24 @@ export const leaveRouter = router({
       return { leave };
     }),
 
-  /** PM/coordinator approves leave request. */
+  /** PM approves leave request. */
   approve: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true, staffId: true, totalDays: true, leaveType: true },
+        select: { projectId: true, status: true, staffId: true, totalDays: true, leaveType: true, createdById: true },
       });
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
+
+      // Segregation of duties: Creator cannot approve their own leave request
+      if (leave.createdById && leave.createdById === ctx.user.id && !ctx.user.isSuperAdmin) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Segregation of duties violation: you cannot approve a leave request you created.",
+        });
+      }
+
       await assertProjectAdmin(ctx.user, leave.projectId);
 
       if (leave.status !== "pending") {
@@ -128,39 +138,45 @@ export const leaveRouter = router({
 
       const currentYear = new Date().getFullYear();
 
-      // Update leave request
-      const updated = await db.leaveRequest.update({
-        where: { id: input.id },
-        data: {
-          status: "approved",
-          approvedById: ctx.user.id,
-          approvedAt: new Date(),
-        },
-      });
+      // STATUS UPDATE + LEAVE BALANCE UPSERT — ONE TRANSACTION
+      const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
-      // Update LeaveBalance: increment taken, decrement remaining
-      await db.leaveBalance.upsert({
-        where: {
-          projectId_staffId_leaveType_year: {
+        const req = await tx.leaveRequest.update({
+          where: { id: input.id },
+          data: {
+            status: "approved",
+            approvedById: ctx.user.id,
+            approvedAt: new Date(),
+          },
+        });
+
+        // Update LeaveBalance: increment taken, decrement remaining
+        await tx.leaveBalance.upsert({
+          where: {
+            projectId_staffId_leaveType_year: {
+              projectId: leave.projectId,
+              staffId: leave.staffId,
+              leaveType: leave.leaveType,
+              year: currentYear,
+            },
+          },
+          update: {
+            taken: { increment: leave.totalDays },
+            remaining: { decrement: leave.totalDays },
+          },
+          create: {
             projectId: leave.projectId,
             staffId: leave.staffId,
             leaveType: leave.leaveType,
             year: currentYear,
+            totalAllowed: 0,
+            taken: leave.totalDays,
+            remaining: -leave.totalDays,
           },
-        },
-        update: {
-          taken: { increment: leave.totalDays },
-          remaining: { decrement: leave.totalDays },
-        },
-        create: {
-          projectId: leave.projectId,
-          staffId: leave.staffId,
-          leaveType: leave.leaveType,
-          year: currentYear,
-          totalAllowed: 0,
-          taken: leave.totalDays,
-          remaining: -leave.totalDays,
-        },
+        });
+
+        return req;
       });
 
       return { leave: updated };
