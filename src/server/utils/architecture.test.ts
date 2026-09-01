@@ -167,7 +167,8 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
       expect(trpc.orgAdminProcedure).toBeDefined();
       expect(trpc.superAdminProcedure).toBeDefined();
       expect(trpc.projectProcedure).toBeDefined();
-      expect(trpc.financialProcedure).toBeDefined();
+      expect(trpc.createDomainRouter).toBeDefined();
+      expect(trpc.financialGuard).toBeDefined();
     });
 
     it("projectProcedure factory returns a callable tRPC procedure with role middleware", async () => {
@@ -177,11 +178,30 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
       expect(typeof proc.input).toBe("function");
     });
 
-    it("financialProcedure factory accepts valid DelegationActions and returns procedure", async () => {
-      const { financialProcedure } = await import("@/server/trpc");
-      const proc = financialProcedure("record_jv_payout");
-      expect(proc).toBeDefined();
-      expect(typeof proc.input).toBe("function");
+    it("createDomainRouter pre-binds the policy vocabulary (router + 5 procedure flavors)", async () => {
+      const { createDomainRouter } = await import("@/server/trpc");
+      const { router, proc } = createDomainRouter();
+      expect(router).toBeDefined();
+      for (const flavor of ["protected", "member", "write", "admin", "manager"] as const) {
+        const p = proc[flavor];
+        expect(p, `proc.${flavor}`).toBeDefined();
+        expect(typeof p.input, `proc.${flavor}.input`).toBe("function");
+      }
+    });
+
+    it("financialGuard composes into a procedure chain with explicit (non-guessing) money fields", async () => {
+      const { financialGuard, protectedProcedure } = await import("@/server/trpc");
+      const mw = financialGuard({
+        action: "record_jv_payout",
+        dateField: "payoutDate",
+        amountFields: ["grossAmount"],
+        bankAccountFields: ["bankAccountId"],
+      });
+      // The guard's contract is composability: it must slot into a
+      // procedure chain via .use(). Full caller-level pipeline behavior is
+      // covered in financial-guard.test.ts.
+      const chained = protectedProcedure.use(mw);
+      expect(typeof chained.input).toBe("function");
     });
   });
 });
