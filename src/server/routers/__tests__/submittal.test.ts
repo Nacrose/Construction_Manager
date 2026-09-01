@@ -197,10 +197,9 @@ describe("submittal.submit", () => {
   it("submits a draft and stamps submittedDate", async () => {
     member("engineer");
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "draft" }));
-    anyDb.submittal.update.mockResolvedValue(submittal({ status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await caller.submit({ id: "sub-1" });
-    const data = anyDb.submittal.update.mock.calls[0][0].data;
+    const data = anyDb.submittal.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("submitted");
     expect(data.submittedDate).toBeInstanceOf(Date);
   });
@@ -210,7 +209,7 @@ describe("submittal.submit", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "revise_resubmit" }));
     const caller = createCaller(submittalRouter, USER);
     await caller.submit({ id: "sub-1" });
-    expect(anyDb.submittal.update.mock.calls[0][0].data.status).toBe("submitted");
+    expect(anyDb.submittal.updateMany.mock.calls[0][0].data.status).toBe("submitted");
   });
 
   /**
@@ -224,7 +223,7 @@ describe("submittal.submit", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "approved" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.submit({ id: "sub-1" }), "BAD_REQUEST");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects re-submitting an already submitted submittal", async () => {
@@ -232,7 +231,7 @@ describe("submittal.submit", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.submit({ id: "sub-1" }), "BAD_REQUEST");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
   it("NOT_FOUNDs a missing submittal", async () => {
@@ -247,7 +246,7 @@ describe("submittal.submit", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ projectId: "p-other" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.submit({ id: "sub-1" }), "FORBIDDEN");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -261,7 +260,6 @@ describe("submittal.review", () => {
   it("approves a submitted submittal, stamping reviewer (default caller name), date, and comments", async () => {
     member("project_manager");
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "submitted" }));
-    anyDb.submittal.update.mockResolvedValue(submittal({ status: "approved" }));
     const caller = createCaller(submittalRouter, buildUser({ id: "user-1", name: "Eng Name" }));
     await caller.review({
       ...reviewInput,
@@ -271,8 +269,8 @@ describe("submittal.review", () => {
       returnedFileType: "application/pdf",
     });
 
-    expect(anyDb.submittal.update).toHaveBeenCalledWith({
-      where: { id: "sub-1" },
+    expect(anyDb.submittal.updateMany).toHaveBeenCalledWith({
+      where: { id: "sub-1", status: "submitted" },
       data: expect.objectContaining({
         status: "approved",
         reviewedDate: expect.any(Date),
@@ -290,7 +288,7 @@ describe("submittal.review", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await caller.review({ ...reviewInput, status: "revise_resubmit" });
-    expect(anyDb.submittal.update.mock.calls[0][0].data.status).toBe("revise_resubmit");
+    expect(anyDb.submittal.updateMany.mock.calls[0][0].data.status).toBe("revise_resubmit");
   });
 
   /**
@@ -303,7 +301,7 @@ describe("submittal.review", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "draft" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.review(reviewInput), "BAD_REQUEST");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects re-reviewing an already decided (approved) submittal", async () => {
@@ -314,7 +312,7 @@ describe("submittal.review", () => {
       caller.review({ ...reviewInput, status: "rejected" }),
       "BAD_REQUEST",
     );
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
   it("NOT_FOUNDs a missing submittal", async () => {
@@ -329,7 +327,7 @@ describe("submittal.review", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ projectId: "p-other", status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.review(reviewInput), "FORBIDDEN");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
   it("FORBIDDENs read-only roles", async () => {
@@ -337,7 +335,7 @@ describe("submittal.review", () => {
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.review(reviewInput), "FORBIDDEN");
-    expect(anyDb.submittal.update).not.toHaveBeenCalled();
+    expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 });
 

@@ -244,14 +244,26 @@ export const siteExpenseRouter = router({
       // STATUS UPDATE + JOURNAL ENTRY — ONE TRANSACTION.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
-        const exp = await tx.siteExpense.update({
-          where: { id: input.id },
+
+        // Optimistic lock (compare-and-swap): only transition while the
+        // status still equals what we validated above. If a concurrent
+        // request already approved/rejected, 0 rows match and we fail with
+        // CONFLICT — a second journal entry can never be posted.
+        const claimed = await tx.siteExpense.updateMany({
+          where: { id: input.id, status: expense.status },
           data: {
             status: "approved",
             approvedById: ctx.user.id,
             approvedAt: new Date(),
           },
         });
+        if (claimed.count === 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Expense was already processed by another approver.",
+          });
+        }
+        const exp = await tx.siteExpense.findUniqueOrThrow({ where: { id: input.id } });
 
         // Generate journal entry for the site expense:
         // Dr Site Overhead (6001-6006 based on category) NPR totalAmount
@@ -338,10 +350,20 @@ export const siteExpenseRouter = router({
         });
       }
 
-      const updated = await db.siteExpense.update({
-        where: { id: input.id },
+      // Optimistic lock: match on the status we validated so a concurrent
+      // decision (approve/reject race) yields CONFLICT instead of a silent
+      // last-write-wins overwrite.
+      const claimed = await db.siteExpense.updateMany({
+        where: { id: input.id, status: expense.status },
         data: { status: "rejected" },
       });
+      if (claimed.count === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Expense was already processed by another approver.",
+        });
+      }
+      const updated = await db.siteExpense.findUniqueOrThrow({ where: { id: input.id } });
 
 
       await audit({

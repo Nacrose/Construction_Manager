@@ -143,7 +143,7 @@ describe("siteExpense.approve", () => {
     member("engineer");
     const caller = createCaller(siteExpenseRouter, ENGINEER);
     await expectTRPCError(caller.approve({ id: "exp-1" }), "FORBIDDEN");
-    expect(anyDb.siteExpense.update).not.toHaveBeenCalled();
+    expect(anyDb.siteExpense.updateMany).not.toHaveBeenCalled();
   });
 
   it("BAD_REQUESTs non-pending expenses", async () => {
@@ -151,7 +151,7 @@ describe("siteExpense.approve", () => {
     member("project_manager");
     const caller = createCaller(siteExpenseRouter, PM);
     await expectTRPCError(caller.approve({ id: "exp-1" }), "BAD_REQUEST");
-    expect(anyDb.siteExpense.update).not.toHaveBeenCalled();
+    expect(anyDb.siteExpense.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects back-dated expenses in a locked fiscal year BEFORE any write", async () => {
@@ -162,7 +162,7 @@ describe("siteExpense.approve", () => {
     anyDb.fiscalYearLock.findFirst.mockResolvedValue({ fiscalYear: "2082-83" });
     const caller = createCaller(siteExpenseRouter, PM);
     await expectTRPCError(caller.approve({ id: "exp-1" }), "FORBIDDEN");
-    expect(anyDb.siteExpense.update).not.toHaveBeenCalled();
+    expect(anyDb.siteExpense.updateMany).not.toHaveBeenCalled();
 
     // lock checked against the EXPENSE date, not today
     const where = anyDb.fiscalYearLock.findFirst.mock.calls[0][0].where;
@@ -172,17 +172,17 @@ describe("siteExpense.approve", () => {
   it("posts a balanced JE to the category-mapped overhead account, in the same transaction", async () => {
     anyDb.siteExpense.findUnique.mockResolvedValue(pendingExpense());
     member("project_manager");
-    // the tx update returns the full expense the JE is built from
-    anyDb.siteExpense.update.mockResolvedValue(pendingExpense());
+    // the tx re-read returns the full expense the JE is built from
+    anyDb.siteExpense.findUniqueOrThrow.mockResolvedValue(pendingExpense());
 
     const caller = createCaller(siteExpenseRouter, PM);
     const res = await caller.approve({ id: "exp-1" });
     expect(res.expense.id).toBe("exp-1");
 
-    // status flip happened
-    expect(anyDb.siteExpense.update).toHaveBeenCalledWith(
+    // status flip happened — compare-and-swap on the validated status
+    expect(anyDb.siteExpense.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "exp-1" },
+        where: { id: "exp-1", status: "pending" },
         data: expect.objectContaining({ status: "approved" }),
       }),
     );
@@ -203,7 +203,7 @@ describe("siteExpense.approve", () => {
       pendingExpense({ category: "food", paymentMode: "cash" }),
     );
     member("project_manager");
-    anyDb.siteExpense.update.mockResolvedValue(
+    anyDb.siteExpense.findUniqueOrThrow.mockResolvedValue(
       pendingExpense({ category: "food", paymentMode: "cash" }),
     );
 
@@ -220,7 +220,7 @@ describe("siteExpense.approve", () => {
       pendingExpense({ category: "something-new" }),
     );
     member("project_manager");
-    anyDb.siteExpense.update.mockResolvedValue(
+    anyDb.siteExpense.findUniqueOrThrow.mockResolvedValue(
       pendingExpense({ category: "something-new" }),
     );
 
@@ -267,7 +267,7 @@ describe("siteExpense status machine", () => {
     member("project_manager");
     const caller = createCaller(siteExpenseRouter, PM);
     await expectTRPCError(caller.reject({ id: "exp-1" }), "BAD_REQUEST");
-    expect(anyDb.siteExpense.update).not.toHaveBeenCalled();
+    expect(anyDb.siteExpense.updateMany).not.toHaveBeenCalled();
   });
 
   it("delete: only pending expenses can be deleted", async () => {

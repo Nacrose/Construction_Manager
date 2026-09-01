@@ -158,11 +158,10 @@ describe("punchList.updateStatus", () => {
   it("advances open → in_progress without stamping resolution fields", async () => {
     member("engineer");
     anyDb.punchItem.findUnique.mockResolvedValue(item());
-    anyDb.punchItem.update.mockResolvedValue(item({ status: "in_progress" }));
     const caller = createCaller(punchListRouter, USER);
     await caller.updateStatus({ id: "pi-1", status: "in_progress" });
 
-    const data = anyDb.punchItem.update.mock.calls[0][0].data;
+    const data = anyDb.punchItem.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("in_progress");
     expect(data.resolvedDate).toBeNull();
     expect(data.verifiedDate).toBeNull();
@@ -174,7 +173,7 @@ describe("punchList.updateStatus", () => {
     const caller = createCaller(punchListRouter, buildUser({ id: "user-1", name: "Site Eng" }));
     await caller.updateStatus({ id: "pi-1", status: "resolved", resolvedNotes: "Re-cast" });
 
-    const data = anyDb.punchItem.update.mock.calls[0][0].data;
+    const data = anyDb.punchItem.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("resolved");
     expect(data.resolvedBy).toBe("Site Eng");
     expect(data.resolvedDate).toBeInstanceOf(Date);
@@ -190,7 +189,7 @@ describe("punchList.updateStatus", () => {
     const caller = createCaller(punchListRouter, USER);
     await caller.updateStatus({ id: "pi-1", status: "verified", verifiedBy: "QA Lead" });
 
-    const data = anyDb.punchItem.update.mock.calls[0][0].data;
+    const data = anyDb.punchItem.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("verified");
     expect(data.verifiedBy).toBe("QA Lead");
     expect(data.verifiedDate).toBeInstanceOf(Date);
@@ -215,7 +214,7 @@ describe("punchList.updateStatus", () => {
       caller.updateStatus({ id: "pi-1", status: "open" }),
       "BAD_REQUEST",
     );
-    expect(anyDb.punchItem.update).not.toHaveBeenCalled();
+    expect(anyDb.punchItem.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects skipping states (open → verified, open → resolved)", async () => {
@@ -230,7 +229,7 @@ describe("punchList.updateStatus", () => {
       caller.updateStatus({ id: "pi-1", status: "resolved" }),
       "BAD_REQUEST",
     );
-    expect(anyDb.punchItem.update).not.toHaveBeenCalled();
+    expect(anyDb.punchItem.updateMany).not.toHaveBeenCalled();
   });
 
   it("rejects regressing a resolved item back to open", async () => {
@@ -241,7 +240,7 @@ describe("punchList.updateStatus", () => {
       caller.updateStatus({ id: "pi-1", status: "open" }),
       "BAD_REQUEST",
     );
-    expect(anyDb.punchItem.update).not.toHaveBeenCalled();
+    expect(anyDb.punchItem.updateMany).not.toHaveBeenCalled();
   });
 
   it("NOT_FOUNDs a missing item", async () => {
@@ -259,7 +258,7 @@ describe("punchList.updateStatus", () => {
       caller.updateStatus({ id: "pi-1", status: "in_progress" }),
       "FORBIDDEN",
     );
-    expect(anyDb.punchItem.update).not.toHaveBeenCalled();
+    expect(anyDb.punchItem.updateMany).not.toHaveBeenCalled();
   });
 
   it("FORBIDDENs read-only roles", async () => {

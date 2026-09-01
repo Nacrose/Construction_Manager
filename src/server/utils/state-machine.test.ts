@@ -59,15 +59,15 @@ describe("Central Multi-Entity State Machine Engine", () => {
     it("successfully transitions from pending to approved with attribution", async () => {
       const mockDb: any = {
         siteExpense: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: "exp-1",
-            status: "pending",
-            approvedById: null,
-            approvedAt: null,
-          }),
-          update: vi.fn().mockImplementation(({ data }) =>
-            Promise.resolve({ id: "exp-1", ...data })
-          ),
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({
+              id: "exp-1",
+              status: "pending",
+              approvedById: null,
+              approvedAt: null,
+            })
+            .mockResolvedValue({ id: "exp-1", status: "approved" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       };
 
@@ -81,15 +81,40 @@ describe("Central Multi-Entity State Machine Engine", () => {
 
       expect(res.previousState).toBe("pending");
       expect(res.currentState).toBe("approved");
-      expect(mockDb.siteExpense.update).toHaveBeenCalledWith(
+      // Optimistic lock: the write must compare-and-swap on the status
+      // that was read, so concurrent transitions cannot double-apply.
+      expect(mockDb.siteExpense.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "exp-1" },
+          where: { id: "exp-1", status: "pending" },
           data: expect.objectContaining({
             status: "approved",
             approvedById: "user-admin-1",
           }),
         })
       );
+    });
+
+    it("throws CONFLICT when a concurrent transition wins the race", async () => {
+      const mockDb: any = {
+        siteExpense: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "exp-1",
+            status: "pending",
+          }),
+          // 0 rows matched => another request already transitioned it
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+      };
+
+      await expect(
+        transitionEntityState(mockDb, {
+          model: "siteExpense",
+          id: "exp-1",
+          targetState: "approved",
+          userId: "user-admin-1",
+          skipEventEmit: true,
+        })
+      ).rejects.toThrow(/modified by someone else/);
     });
 
     it("throws BAD_REQUEST when entity is not in an allowed state", async () => {
@@ -117,14 +142,14 @@ describe("Central Multi-Entity State Machine Engine", () => {
     it("captures rejection reason when transitioning to rejected", async () => {
       const mockDb: any = {
         leave: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: "leave-1",
-            status: "pending",
-            rejectionReason: null,
-          }),
-          update: vi.fn().mockImplementation(({ data }) =>
-            Promise.resolve({ id: "leave-1", ...data })
-          ),
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({
+              id: "leave-1",
+              status: "pending",
+              rejectionReason: null,
+            })
+            .mockResolvedValue({ id: "leave-1", status: "rejected" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       };
 
@@ -138,8 +163,9 @@ describe("Central Multi-Entity State Machine Engine", () => {
       });
 
       expect(res.currentState).toBe("rejected");
-      expect(mockDb.leave.update).toHaveBeenCalledWith(
+      expect(mockDb.leave.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
+          where: { id: "leave-1", status: "pending" },
           data: expect.objectContaining({
             status: "rejected",
             rejectionReason: "Insufficient remaining leave quota",

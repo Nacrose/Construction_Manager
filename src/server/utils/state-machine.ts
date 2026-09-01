@@ -289,10 +289,23 @@ export async function transitionEntityState(
   }
 
 
-  // 4. Persist transition
-  const updatedEntity = await modelDelegate.update({
-    where: { id: input.id },
+  // 4. Persist transition — compare-and-swap on the status we just read
+  // and validated. `updateMany` matches 0 rows if a concurrent request
+  // already transitioned the record between our read and our write, so a
+  // double-approval (double journal entry) fails loudly with CONFLICT
+  // instead of silently overwriting.
+  const claimed = await modelDelegate.updateMany({
+    where: { id: input.id, status: entity.status },
     data: updateData,
+  });
+  if (claimed.count === 0) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `${input.model} record was just modified by someone else — reload and retry.`,
+    });
+  }
+  const updatedEntity = await modelDelegate.findUnique({
+    where: { id: input.id },
   });
 
   // 5. Emit Domain Event
