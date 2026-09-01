@@ -45,6 +45,7 @@ import { plantProductionRouter } from "./plant-production";
 import { adminRouter } from "./admin";
 import { subcontractorBillRouter } from "./subcontractor-bill";
 import { leaveRouter } from "./leave";
+import { lifecycleRouter } from "./lifecycle";
 import { payrollRouter } from "./payroll";
 import { siteExpenseRouter } from "./site-expense";
 import { catalogV2Router } from "./catalog-v2";
@@ -99,6 +100,7 @@ export const appRouter = router({
   plantProduction: plantProductionRouter,
   admin: adminRouter,
   leave: leaveRouter,
+  lifecycle: lifecycleRouter,
   payroll: payrollRouter,
   siteExpense: siteExpenseRouter,
   catalogV2: catalogV2Router,

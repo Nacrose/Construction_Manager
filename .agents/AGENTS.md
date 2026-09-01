@@ -1,6 +1,30 @@
 # Workspace Rules
 
 - **CRITICAL DIRECTIVE FOR ALL AI AGENTS**: ALWAYS consult the user and present findings/proposed changes for explicit confirmation BEFORE modifying or creating files. Never edit files unannounced.
+
+## ENGINE PROTOCOL (Long-Term Architecture Law — adopted Phase A)
+
+The codebase is being consolidated onto a central engine kit. The kit is exactly these artifacts — nothing else is an engine without user approval:
+
+| Engine | Location | Owns |
+|---|---|---|
+| Lifecycle Graph | `src/server/utils/lifecycle-graph.ts` | ALL status transitions: edges, roles, fiscal-lock/JE/delegation flags, `canTransition()` |
+| State Machine | `src/server/utils/state-machine.ts` | Executing transitions (audit attribution, domain events, graph-derived from-states) |
+| ConstructionTable | `src/components/ui/construction-table.tsx` | ALL tabular data rendering, search, summaries, Excel export |
+| StatusBadge | `src/components/ui/status-badge.tsx` | ALL lifecycle status chips |
+| formatNpr | `src/lib/currency.ts` | ALL NPR/number rendering |
+
+**Protocol rules every change must obey:**
+
+1. **Single path** — a concern owned by an engine exists ONLY in that engine. Parallel implementations are build errors (enforced by ESLint ratchet: `eslint-ratchet.mjs`).
+2. **Fail loud** — engines validate and throw; they never silently degrade (see `createJournalEntry` unbalanced check as the standard).
+3. **Typed end-to-end** — zod → tRPC → React inference at engine boundaries; no `any` escapes.
+4. **Escape hatch without fork** — extend an engine via its config/slots/props when it doesn't fit; NEVER copy it into a page.
+5. **Extractive, not speculative** — new engines are pulled out of a real migrated screen, never designed in the abstract. No engine "exists" until it has replaced at least one real page.
+6. **The ratchet only tightens** — `eslint-ratchet.mjs` allowlists may only shrink in a PR, never grow. A PR that adds a violation is rejected; extend the engine instead.
+7. **Graph is normative** — `LIFECYCLE_GRAPHS` defines what transitions SHOULD exist. Known current-behavior drift is tracked in `KNOWN_DRIFT` (lifecycle-graph.test.ts) and must be closed when the domain migrates. Adding a feature = adding an edge; UI renders it automatically via the `lifecycle` tRPC router.
+8. **Definition of done** (extends the sweep directive below): implemented + sweep-verified (grep/ESLint counts move only downward) + tests pass + `npm run build` green.
+
 - **MANDATORY ENGINE REUSE & EVOLUTION DIRECTIVE (ZERO AD-HOC DUPLICATION RULE)**:
   - **MANDATORY: ALWAYS USE THE EXISTING CENTRAL ENGINE OR EVOLVE/REMAKE THE ENGINE. NEVER RE-IMPLEMENT AD-HOC DUPLICATES.**
   - **Tables & Data Grids**: ALWAYS use `<ConstructionTable />` (`@/components/ui/construction-table`) for all tabular data, search, column filters, pagination, summary calculation footers, and Excel exports. **NEVER** write manual HTML `<table>` elements with custom ad-hoc state.
