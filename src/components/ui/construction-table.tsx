@@ -438,7 +438,7 @@ export function ConstructionTable<T extends Record<string, any>>({
               {visibleRows.map((node, rIdx) => {
                 const row = node.row;
                 const id = rowKey(row);
-                const isSelected = !selectedIds[id];
+                const isSelected = Boolean(selectedIds[id]);
                 const isExpanded = expandedNodes[id] ?? true;
 
                 return (
@@ -610,7 +610,7 @@ export function ConstructionTable<T extends Record<string, any>>({
 
       {/* Row Preview Slide-Out Drawer (Sheet) */}
       {renderRowPreview && (
-        <Sheet open={!previewRow} onOpenChange={(open) => !open && setPreviewRow(null)}>
+        <Sheet open={Boolean(previewRow)} onOpenChange={(open) => !open && setPreviewRow(null)}>
           <SheetContent className="w-full sm:max-w-xl bg-white border-l border-[#c7d8e8] text-slate-900 backdrop-blur-2xl p-6 overflow-y-auto z-50">
             <SheetHeader className="mb-4 pb-3 border-b border-[#c7d8e8]">
               <SheetTitle className="text-base font-bold font-mono text-slate-900">
