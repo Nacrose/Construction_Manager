@@ -50,6 +50,7 @@ import { Button } from "@/components/ui/button";
 export type RouterUtils = ReturnType<typeof trpc.useUtils>;
 
 export interface EngineMutationResult<TInput, TData> {
+  mutate(variables: TInput): void;
   mutateAsync(variables: TInput): Promise<TData>;
   isPending: boolean;
 }

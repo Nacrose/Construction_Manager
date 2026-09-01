@@ -16,10 +16,15 @@ The codebase is being consolidated onto a central engine kit. The kit is exactly
 | FormDialogEngine | `src/components/engine/form-dialog-engine.tsx` | ALL dialogs that create/edit/submit via tRPC: Aero framing, form state, zod validation, submit, toast, invalidation, close/reset (adopted Phase B, extracted from the leaves pilot) |
 | Engine form fields | `src/components/engine/form-fields.tsx` | ALL fields inside engine dialogs (text/number/currency/date/Nepali-date/select/textarea/switch) — extend the kit, never restyle ad hoc |
 | useRegister | `src/hooks/use-register.ts` | Register/list page query plumbing: typed query + pick, loading/fetching, refresh (adopted Phase B, extracted from the leaves pilot) |
+| useAction | `src/hooks/use-action.ts` | ALL non-dialog tRPC mutations (approve/reject/delete/status changes): success toast -> invalidate -> onSuccess, error toast -> onError. Returns the full mutation shape, so adoption is a mechanical swap of `proc.useMutation({...})` blocks (adopted Phase C, extracted from leaves + expenses) |
 
 Phase B notes:
 - The speculative `src/components/ui/form-engine.tsx` (ConstructionForm, zero adopters) was DELETED; its field kit lives on in `src/components/engine/form-fields.tsx` behind FormDialogEngine.
 - Page-in-page embedding: a page embedded in a host that already renders the tab bar (e.g. PaymentsPage / TaxSummaryPage inside `/finance`) takes an `embedded` prop and skips its own `<ModuleTabs />`. Never stack two tab bars.
+
+Phase C notes (adoption wave):
+- `useAction` supersedes hand-written `useMutation` blocks with inline `toast.success` + `utils.*.invalidate` for approve/reject/delete-style actions. Dialog submissions keep using FormDialogEngine (which owns the same protocol internally).
+- Engine form fields: numeric/currency fields hold `number | undefined` (empty = `undefined`), so zod can enforce "required" cleanly. Annotate form value types explicitly when a field is optional.
 
 **Protocol rules every change must obey:**
 

@@ -21,12 +21,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
 import { FormDateField, FormSelectField, FormTextField } from "@/components/engine/form-fields";
 import { useRegister } from "@/hooks/use-register";
+import { useAction } from "@/hooks/use-action";
 
 const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity"];
 
@@ -65,8 +65,6 @@ export function LeavesTab({
     dates: string;
   } | null>(null);
 
-  const utils = trpc.useUtils();
-
   // List side: register engine (typed data + pick + refresh).
   const status = statusFilter === "pending" || statusFilter === "approved" || statusFilter === "rejected" ? statusFilter : undefined;
   const listQuery = trpc.leave.list.useQuery({ projectId, status });
@@ -83,22 +81,17 @@ export function LeavesTab({
   const approvedCount = leaves.filter((l) => l.status === "approved").length;
   const rejectedCount = leaves.filter((l) => l.status === "rejected").length;
 
-  const approveMut = trpc.leave.approve.useMutation({
-    onSuccess: () => {
-      toast.success("Leave approved");
-      utils.leave.list.invalidate({ projectId });
-      setConfirmAction(null);
-    },
-    onError: (e) => toast.error(e.message),
+  // Transition actions: useAction owns toast + invalidate + error protocol.
+  const approveMut = useAction(trpc.leave.approve, {
+    successMessage: "Leave approved",
+    invalidate: (u) => u.leave.list.invalidate({ projectId }),
+    onSuccess: () => setConfirmAction(null),
   });
 
-  const rejectMut = trpc.leave.reject.useMutation({
-    onSuccess: () => {
-      toast.success("Leave rejected");
-      utils.leave.list.invalidate({ projectId });
-      setConfirmAction(null);
-    },
-    onError: (e) => toast.error(e.message),
+  const rejectMut = useAction(trpc.leave.reject, {
+    successMessage: "Leave rejected",
+    invalidate: (u) => u.leave.list.invalidate({ projectId }),
+    onSuccess: () => setConfirmAction(null),
   });
 
   return (

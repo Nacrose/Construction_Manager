@@ -142,7 +142,7 @@ export function FormNumberField({
           max={max}
           step={step}
           value={(values[name] as number | string | undefined) ?? ""}
-          onChange={(e) => setValue(name, e.target.value === "" ? "" : parseFloat(e.target.value))}
+          onChange={(e) => setValue(name, e.target.value === "" ? undefined : parseFloat(e.target.value))}
           disabled={disabled}
           placeholder={placeholder}
           className={cn(INPUT_CLASSES, "font-mono", unit && "pr-12")}
@@ -183,7 +183,7 @@ export function FormCurrencyField({
           step="0.01"
           min="0"
           value={rawValue ?? ""}
-          onChange={(e) => setValue(name, e.target.value === "" ? "" : parseFloat(e.target.value))}
+          onChange={(e) => setValue(name, e.target.value === "" ? undefined : parseFloat(e.target.value))}
           disabled={disabled}
           placeholder={placeholder}
           className={cn(INPUT_CLASSES, "pl-11 font-mono", errors[name] && "border-red-500/60 focus:border-red-500")}

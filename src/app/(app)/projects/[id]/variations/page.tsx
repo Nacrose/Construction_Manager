@@ -3,26 +3,25 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
+import { z } from "zod";
 import { trpc } from "@/lib/trpc-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, FileSignature } from "lucide-react";
 import { format } from "date-fns";
 import { AnimatedPage } from "@/components/ui/animated-page";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
 import { BoqVersionsTab } from "../boq/components/boq-versions-tab";
+import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
+import { FormTextField, FormTextareaField } from "@/components/engine/form-fields";
+
+const createVOSchema = z.object({
+  number: z.string().min(1, "VO number is required"),
+  title: z.string().min(1, "Title is required"),
+  description: z.string(),
+});
 
 export default function VariationsPage() {
   const params = useParams();
@@ -30,36 +29,12 @@ export default function VariationsPage() {
   const projectId = params.id as string;
   const [q, setQ] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [newNumber, setNewNumber] = useState("");
-  const [newTitle, setNewTitle] = useState("");
-  const [newDesc, setNewDesc] = useState("");
 
   const { data: projectData } = trpc.project.get.useQuery({ id: projectId });
   const { data: vos, isLoading } = trpc.variationOrder.list.useQuery({ projectId });
-  const utils = trpc.useUtils();
 
   const myRole = projectData?.myRole ?? "";
   const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
-
-  const createMutation = trpc.variationOrder.create.useMutation({
-    onSuccess: (data) => {
-      utils.variationOrder.list.invalidate({ projectId });
-      toast.success("Variation Order created successfully");
-      setCreateOpen(false);
-      router.push(`/projects/${projectId}/variations/${data.id}`);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    createMutation.mutate({
-      projectId,
-      number: newNumber,
-      title: newTitle,
-      description: newDesc,
-    });
-  };
 
   const filteredVOs = vos?.filter(
     (vo) =>
@@ -179,49 +154,44 @@ export default function VariationsPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Variation Order</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-              <Label>VO Number *</Label>
-              <Input
-                placeholder="e.g. VO-001"
-                required
-                value={newNumber}
-                onChange={(e) => setNewNumber(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                placeholder="e.g. Additional Earthworks for Retaining Wall"
-                required
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Textarea
-                placeholder="Briefly describe the reason for this variation..."
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Creating..." : "Create & Edit Details"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Create Variation Order — FormDialogEngine (Tier 2): framing, state, validation,
+          toast, invalidation, close/reset owned by the engine; onSuccess navigates. */}
+      {canWrite && (
+        <FormDialogEngine
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          title="Create Variation Order"
+          description="Record a change to the baseline BOQ. You can attach changed items after creation."
+          icon={FileSignature}
+          size="md"
+          initialValues={{ number: "", title: "", description: "" }}
+          schema={createVOSchema}
+          mutation={trpc.variationOrder.create}
+          buildInput={(v) => ({
+            projectId,
+            number: v.number,
+            title: v.title,
+            description: v.description || undefined,
+          })}
+          invalidate={(u) => u.variationOrder.list.invalidate({ projectId })}
+          successMessage="Variation Order created successfully"
+          onSuccess={(data) => router.push(`/projects/${projectId}/variations/${data.id}`)}
+          submitLabel="Create & Edit Details"
+        >
+          <FormTextField name="number" label="VO Number" required placeholder="e.g. VO-001" />
+          <FormTextField
+            name="title"
+            label="Title"
+            required
+            placeholder="e.g. Additional Earthworks for Retaining Wall"
+          />
+          <FormTextareaField
+            name="description"
+            label="Description"
+            placeholder="Briefly describe the reason for this variation..."
+          />
+        </FormDialogEngine>
+      )}
     </AnimatedPage>
   );
 }
