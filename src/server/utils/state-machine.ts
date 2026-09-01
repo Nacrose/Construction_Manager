@@ -4,28 +4,138 @@
  * Provides safe, audited status transitions across construction domain entities:
  * - Subcontractor Bills, Vendor Invoices, Site Expenses
  * - Purchase Orders, Requisitions, Variation Orders
- * - Leaves, RFIs, Daily Reports, Drawing Approvals
+ * - Leaves, RFIs, Daily Reports, Drawing Approvals, Submittals, Punch Items
  */
 import { TRPCError } from "@trpc/server";
 import type { DbTxClient } from "@/lib/db";
 import { emitDomainEvent } from "./domain-events";
-import { LIFECYCLE_GRAPHS, sourceStatesFor, type LifecycleModel } from "./lifecycle-graph";
-import { logger } from "@/lib/logger";
 
-/** Module-scoped structured logger (JSON lines — serverless-queryable). */
-const log = logger({ module: "state-machine" });
+export type SupportedLifecycleModel =
+  | "siteExpense"
+  | "subcontractorBill"
+  | "purchaseOrder"
+  | "purchaseRequisition"
+  | "variationOrder"
+  | "leave"
+  | "dailyReport"
+  | "submittal"
+  | "punchItem";
 
-export type SupportedLifecycleModel = LifecycleModel;
+/**
+ * Declarative state transition graphs for all lifecycle models in Construction Manager.
+ * Maps: Model -> Current Status -> Allowed Next Statuses
+ */
+export const LIFECYCLE_GRAPHS: Record<SupportedLifecycleModel, Record<string, string[]>> = {
+  leave: {
+    pending: ["approved", "rejected"],
+    approved: [],
+    rejected: [],
+  },
+  submittal: {
+    draft: ["submitted"],
+    revise_resubmit: ["submitted"],
+    submitted: ["approved", "rejected", "revise_resubmit"],
+    approved: [],
+    rejected: [],
+  },
+  punchItem: {
+    open: ["in_progress"],
+    in_progress: ["resolved"],
+    resolved: ["verified"],
+    verified: ["closed"],
+    closed: [],
+  },
+  siteExpense: {
+    draft: ["pending", "approved", "rejected"],
+    pending: ["approved", "rejected"],
+    approved: [],
+    rejected: [],
+  },
+  subcontractorBill: {
+    draft: ["submitted"],
+    submitted: ["certified", "rejected"],
+    certified: ["paid", "rejected"],
+    paid: [],
+    rejected: [],
+  },
+
+  purchaseOrder: {
+    draft: ["issued", "pending_approval", "received", "cancelled"],
+    pending_approval: ["issued", "rejected", "cancelled"],
+    issued: ["partially_received", "received", "cancelled"],
+    partially_received: ["received", "cancelled"],
+    received: [],
+    cancelled: [],
+  },
+
+  purchaseRequisition: {
+    draft: ["submitted", "pending_approval"],
+    submitted: ["approved", "rejected"],
+    pending_approval: ["approved", "rejected"],
+    approved: ["partially_ordered", "ordered"],
+    partially_ordered: ["ordered"],
+    ordered: [],
+    rejected: [],
+  },
+
+  variationOrder: {
+    draft: ["submitted", "approved"],
+    submitted: ["approved", "rejected"],
+    approved: [],
+    rejected: [],
+  },
+
+  dailyReport: {
+    draft: ["submitted"],
+    submitted: ["approved", "rejected"],
+    approved: [],
+    rejected: [],
+  },
+};
+
+/**
+ * Check whether an entity transition is valid according to the declarative state graph.
+ */
+export function canTransition(
+  model: SupportedLifecycleModel,
+  currentState: string,
+  targetState: string
+): { allowed: boolean; reason?: string } {
+  const graph = LIFECYCLE_GRAPHS[model];
+  if (!graph) {
+    return { allowed: false, reason: `Unknown lifecycle model '${model}'.` };
+  }
+
+  const normalizedCurrent = String(currentState || "draft").toLowerCase();
+  const normalizedTarget = String(targetState || "").toLowerCase();
+
+  const allowedTargets = graph[normalizedCurrent] || [];
+  if (!allowedTargets.includes(normalizedTarget)) {
+    return {
+      allowed: false,
+      reason: `Invalid state transition for ${model}: cannot transition from '${normalizedCurrent}' to '${normalizedTarget}'. Allowed next states: [${allowedTargets.join(", ") || "none"}].`,
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Get all permitted target states from the current state.
+ */
+export function getAllowedTransitions(
+  model: SupportedLifecycleModel,
+  currentState: string
+): string[] {
+  const graph = LIFECYCLE_GRAPHS[model];
+  if (!graph) return [];
+  return graph[String(currentState || "draft").toLowerCase()] || [];
+}
 
 export type TransitionEntityStateInput = {
   model: SupportedLifecycleModel;
   id: string;
   projectId?: string;
-  /**
-   * Explicit from-states. OPTIONAL when the lifecycle graph covers the
-   * (from → targetState) edge — omit it and the graph derives the valid
-   * source states via `sourceStatesFor(model, targetState)`.
-   */
   allowedCurrentStates?: string[];
   targetState: string;
   userId: string;
@@ -44,6 +154,18 @@ export type TransitionEntityStateResult<T = any> = {
 
 type DbClientOrTx = DbTxClient;
 
+const MODEL_DELEGATES: Record<SupportedLifecycleModel, string> = {
+  leave: "leaveRequest",
+  punchItem: "punchItem",
+  siteExpense: "siteExpense",
+  subcontractorBill: "subcontractorBill",
+  purchaseOrder: "purchaseOrder",
+  purchaseRequisition: "purchaseRequisition",
+  variationOrder: "variationOrder",
+  dailyReport: "dailyReport",
+  submittal: "submittal",
+};
+
 /**
  * Execute an atomic state transition with validation, user attribution, and event dispatch.
  */
@@ -51,7 +173,12 @@ export async function transitionEntityState(
   db: DbClientOrTx,
   input: TransitionEntityStateInput
 ): Promise<TransitionEntityStateResult> {
-  const modelDelegate = (db as any)[input.model];
+  const delegateKey =
+    (db as any)[input.model] && typeof (db as any)[input.model].findUnique === "function"
+      ? input.model
+      : MODEL_DELEGATES[input.model] || input.model;
+
+  const modelDelegate = (db as any)[delegateKey];
   if (!modelDelegate || typeof modelDelegate.findUnique !== "function") {
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
@@ -72,55 +199,70 @@ export async function transitionEntityState(
   }
 
   const currentStatus = String(entity.status || "draft").toLowerCase();
+  const targetStatus = input.targetState.toLowerCase();
 
-  // Resolve allowed from-states: explicit argument wins; otherwise derive
-  // from the central lifecycle graph (single source of truth).
-  const graphModel = input.model as LifecycleModel;
-  const graph = LIFECYCLE_GRAPHS[graphModel];
-  const allowedFromStates =
-    input.allowedCurrentStates ??
-    (graph ? sourceStatesFor(graphModel, input.targetState.toLowerCase()) : []);
-  const normalizedAllowed = allowedFromStates.map((s) => s.toLowerCase());
-
-  // 2. Validate state transition
-  if (!normalizedAllowed.includes(currentStatus)) {
+  // 2. Validate state transition against declarative graph
+  const transitionCheck = canTransition(input.model, currentStatus, targetStatus);
+  if (!transitionCheck.allowed) {
+    if (input.allowedCurrentStates && !input.allowedCurrentStates.map((s) => s.toLowerCase()).includes(currentStatus)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Invalid state transition for ${input.model}. Current status is '${currentStatus}', but expected one of: [${input.allowedCurrentStates.join(", ")}].`,
+      });
+    }
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: `Invalid state transition for ${input.model}. Current status is '${currentStatus}', but expected one of: [${allowedFromStates.join(", ")}].`,
+      message: transitionCheck.reason || `Invalid transition for ${input.model} from '${currentStatus}' to '${targetStatus}'.`,
     });
   }
 
-  // 2b. Graph alignment (Phase A: observational, non-blocking).
-  // The lifecycle graph is the single source of truth; while call sites
-  // still pass per-call allowedCurrentStates, we log drift so the graph
-  // can be tightened BEFORE hard enforcement (Phase E).
-  const graphEdge = LIFECYCLE_GRAPHS[input.model as LifecycleModel]?.transitions[currentStatus]?.[input.targetState.toLowerCase()];
-  if (!graphEdge) {
-    log.warn("lifecycle transition not covered by graph", {
-      model: input.model,
-      from: currentStatus,
-      to: input.targetState,
-      entityId: input.id,
-    });
+  // Also verify explicit allowedCurrentStates if supplied
+  if (input.allowedCurrentStates) {
+    const normalizedAllowed = input.allowedCurrentStates.map((s) => s.toLowerCase());
+    if (!normalizedAllowed.includes(currentStatus)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Invalid state transition for ${input.model}. Current status is '${currentStatus}', but expected one of: [${input.allowedCurrentStates.join(", ")}].`,
+      });
+    }
   }
 
   const now = new Date();
   const updateData: Record<string, any> = {
-    status: input.targetState.toLowerCase(),
+    status: targetStatus,
     ...(input.additionalData || {}),
   };
 
   // 3. Populate audit timestamps & attribution fields if supported by model
-  if (input.targetState.toLowerCase() === "approved") {
+  if (targetStatus === "approved") {
     if ("approvedById" in entity) updateData.approvedById = input.userId;
     if ("approvedAt" in entity) updateData.approvedAt = now;
-  } else if (input.targetState.toLowerCase() === "rejected") {
+    if ("reviewedDate" in entity) updateData.reviewedDate = now;
+    if ("reviewedBy" in entity) updateData.reviewedBy = input.userName || input.userId;
+  } else if (targetStatus === "rejected") {
     if ("rejectionReason" in entity) updateData.rejectionReason = input.notes || null;
     if ("rejectedAt" in entity) updateData.rejectedAt = now;
-  } else if (input.targetState.toLowerCase() === "submitted") {
+    if ("reviewedDate" in entity) updateData.reviewedDate = now;
+    if ("reviewedBy" in entity) updateData.reviewedBy = input.userName || input.userId;
+  } else if (targetStatus === "submitted") {
     if ("submittedById" in entity) updateData.submittedById = input.userId;
     if ("submittedAt" in entity) updateData.submittedAt = now;
+    if ("submittedDate" in entity) updateData.submittedDate = now;
+  } else if (targetStatus === "resolved") {
+    if ("resolvedNotes" in entity) updateData.resolvedNotes = input.notes || entity.resolvedNotes;
+    if ("resolvedDate" in entity) updateData.resolvedDate = now;
+    if ("resolvedBy" in entity) updateData.resolvedBy = input.userName || input.userId;
+  } else if (targetStatus === "verified") {
+    if ("resolvedNotes" in entity) updateData.resolvedNotes = entity.resolvedNotes;
+    if ("resolvedDate" in entity) updateData.resolvedDate = entity.resolvedDate;
+    if ("resolvedBy" in entity) updateData.resolvedBy = entity.resolvedBy;
+    if ("verifiedDate" in entity) updateData.verifiedDate = now;
+    if ("verifiedBy" in entity) updateData.verifiedBy = input.userName || input.userId;
+  } else if (input.model === "punchItem") {
+    if ("resolvedDate" in entity) updateData.resolvedDate = entity.resolvedDate ?? null;
+    if ("verifiedDate" in entity) updateData.verifiedDate = entity.verifiedDate ?? null;
   }
+
 
   // 4. Persist transition
   const updatedEntity = await modelDelegate.update({
@@ -131,22 +273,18 @@ export async function transitionEntityState(
   // 5. Emit Domain Event
   if (!input.skipEventEmit && input.projectId) {
     emitDomainEvent({
-      // Generic lifecycle event — the previous hard-coded "expense.created"
-      // mislabeled every transition (leave requests, RFIs, POs...) as
-      // expense events. Model + from/to travel in metadata; title/message
-      // stay human-readable.
       type: "lifecycle.transitioned",
       projectId: input.projectId,
       actorUserId: input.userId,
       entityType: input.model,
       entityId: input.id,
-      title: `${input.model.toUpperCase()} marked as ${input.targetState.toUpperCase()}`,
-      message: input.notes || `State transitioned from ${currentStatus} to ${input.targetState}.`,
+      title: `${input.model.toUpperCase()} marked as ${targetStatus.toUpperCase()}`,
+      message: input.notes || `State transitioned from ${currentStatus} to ${targetStatus}.`,
       metadata: {
         entityId: input.id,
         model: input.model,
         previousState: currentStatus,
-        newState: input.targetState,
+        newState: targetStatus,
       },
     });
   }
@@ -154,7 +292,7 @@ export async function transitionEntityState(
   return {
     entity: updatedEntity,
     previousState: currentStatus,
-    currentState: input.targetState.toLowerCase(),
+    currentState: targetStatus,
     transitionedAt: now,
   };
 }

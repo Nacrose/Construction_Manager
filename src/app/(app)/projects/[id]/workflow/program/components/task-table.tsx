@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, Fragment } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, MapPin, Layers } from "lucide-react";
+import { MapPin, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/currency";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export type ProgramTask = {
   id: string;
@@ -32,8 +33,6 @@ export type ProgramTask = {
 };
 
 export function TaskTable({ tasks, projectId }: { tasks: ProgramTask[]; projectId: string }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
   const execStatusColors: Record<string, string> = {
     planned: "bg-muted/40 text-muted-foreground border-border/80",
     done: "bg-primary/10 text-primary border-primary/40",
@@ -49,188 +48,178 @@ export function TaskTable({ tasks, projectId }: { tasks: ProgramTask[]; projectI
     temporary: "bg-amber-500/10 text-amber-400 border-amber-500/30",
   };
 
-  return (
-    <div className="overflow-x-auto no-scrollbar font-mono text-xs">
-      <table className="w-full table-auto tabular-nums">
-        <thead className="sticky top-0 z-20 bg-muted/90 backdrop-blur-md border-b border-border/80">
-          <tr className="text-left uppercase font-bold text-[10px] tracking-wide text-primary">
-            <th className="w-7 py-2 px-1 text-center">#</th>
-            <th className="w-28 py-2 px-2">RFI / Task</th>
-            <th className="py-2 px-3 min-w-[200px]">Description &amp; BOQ</th>
-            <th className="w-28 py-2 px-2">Location</th>
-            <th className="w-20 py-2 px-2 text-right">Planned</th>
-            <th className="w-20 py-2 px-2 text-right">Actual</th>
-            <th className="w-12 py-2 px-1 text-center">Unit</th>
-            <th className="w-20 py-2 px-2 text-center">Payment</th>
-            <th className="w-24 py-2 px-2 text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/40">
-          {tasks.map((t, i) => {
-            const hasIngredients = !!(t.boqItem?.ingredients && t.boqItem.ingredients.length > 0);
-            const isExpanded = expandedId === t.id;
+  const columns: ConstructionTableColumn<ProgramTask>[] = [
+    {
+      key: "rfi",
+      header: "RFI / Task",
+      render: (_, t) => (
+        <div className="flex flex-col gap-0.5 font-mono text-xs">
+          {t.rfi ? (
+            <Link
+              href={`/projects/${projectId}/workflow/rfi`}
+              className="font-bold text-primary hover:underline truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {t.rfi.number}
+            </Link>
+          ) : (
+            <span className="text-muted-foreground/60">—</span>
+          )}
+          {t.ganttTask && (
+            <span className="text-[9px] text-muted-foreground truncate" title={t.ganttTask.name}>
+              [{t.ganttTask.code ?? "T"}] {t.ganttTask.name}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "taskName",
+      header: "Description & BOQ",
+      render: (_, t) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground leading-snug text-xs">{t.taskName}</span>
+          {t.boqCode && (
+            <span className="text-[10px] text-muted-foreground truncate font-mono" title={t.boqDesc ?? ""}>
+              BOQ: {t.boqCode} {t.boqDesc ? `· ${t.boqDesc}` : ""}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "location",
+      header: "Location",
+      render: (_, t) =>
+        t.location ? (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+            <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+            {t.location}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/40 text-xs">—</span>
+        ),
+    },
+    {
+      key: "plannedQty",
+      header: "Planned",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-foreground text-xs">{t.plannedQty}</span>
+      ),
+    },
+    {
+      key: "actualQty",
+      header: "Actual",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-primary text-xs">
+          {t.actualQty !== null && t.actualQty !== undefined ? t.actualQty : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      align: "center",
+      render: (_, t) => (
+        <span className="text-muted-foreground font-mono text-xs">{t.unit || "—"}</span>
+      ),
+    },
+    {
+      key: "paymentType",
+      header: "Payment",
+      align: "center",
+      render: (_, t) => (
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded border text-[9px] uppercase font-bold font-mono",
+            paymentColors[t.paymentType] || paymentColors.payable
+          )}
+        >
+          {t.paymentType}
+        </span>
+      ),
+    },
+    {
+      key: "executionStatus",
+      header: "Status",
+      align: "center",
+      render: (_, t) => (
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded border text-[9px] uppercase font-bold font-mono",
+            execStatusColors[t.executionStatus] || execStatusColors.planned
+          )}
+        >
+          {t.executionStatus?.replace(/_/g, " ")}
+        </span>
+      ),
+    },
+  ];
 
+  const renderRowPreview = (task: ProgramTask) => {
+    const ingredients = task.boqItem?.ingredients || [];
+    if (ingredients.length === 0) {
+      return (
+        <div className="p-4 text-center text-xs text-muted-foreground font-mono">
+          No rate analysis ingredients configured for this task.
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 space-y-3 font-mono">
+        <div className="flex items-center justify-between text-xs font-bold text-primary border-b pb-2">
+          <span className="flex items-center gap-1.5 uppercase tracking-wide">
+            <Layers className="h-4 w-4" />
+            Rate Analysis Ingredients Breakdown
+          </span>
+          <span className="text-muted-foreground font-normal text-[11px]">
+            Calculated for Planned Qty: {task.plannedQty} {task.unit}
+          </span>
+        </div>
+
+        <div className="rounded border divide-y text-xs">
+          <div className="grid grid-cols-6 p-2 bg-muted/40 font-bold text-[10px] text-muted-foreground uppercase">
+            <span>Type</span>
+            <span className="col-span-2">Resource Name</span>
+            <span className="text-right">Coefficient</span>
+            <span className="text-right">Total Qty</span>
+            <span className="text-right">Estimated Cost</span>
+          </div>
+          {ingredients.map((ing, j) => {
+            const totalQty = ing.quantity * task.plannedQty;
+            const totalCost = ing.amount * task.plannedQty;
             return (
-              <Fragment key={t.id}>
-                <tr
-                  className={cn(
-                    "hover:bg-primary/5 transition-colors cursor-pointer",
-                    i % 2 === 1 ? "bg-muted/15" : "bg-card",
-                    isExpanded && "bg-primary/10"
-                  )}
-                  onClick={() => hasIngredients && setExpandedId(isExpanded ? null : t.id)}
-                >
-                  {/* Row Number & Expand Arrow */}
-                  <td className="py-1.5 px-1 text-center text-muted-foreground">
-                    {hasIngredients ? (
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedId(isExpanded ? null : t.id);
-                        }}
-                      >
-                        {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                      </button>
-                    ) : (
-                      <span className="text-[10px]">{i + 1}</span>
-                    )}
-                  </td>
-
-                  {/* RFI / Task Code */}
-                  <td className="py-1.5 px-2">
-                    <div className="flex flex-col gap-0.5">
-                      {t.rfi ? (
-                        <Link
-                          href={`/projects/${projectId}/workflow/rfi`}
-                          className="font-bold text-primary hover:underline truncate"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {t.rfi.number}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground/60">—</span>
-                      )}
-                      {t.ganttTask && (
-                        <span className="text-[9px] text-muted-foreground truncate" title={t.ganttTask.name}>
-                          [{t.ganttTask.code ?? "T"}] {t.ganttTask.name}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Description & BOQ */}
-                  <td className="py-1.5 px-3">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-foreground leading-snug">{t.taskName}</span>
-                      {t.boqCode && (
-                        <span className="text-[10px] text-muted-foreground truncate" title={t.boqDesc ?? ""}>
-                          BOQ: {t.boqCode} {t.boqDesc ? `· ${t.boqDesc}` : ""}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Location */}
-                  <td className="py-1.5 px-2 text-muted-foreground">
-                    {t.location ? (
-                      <span className="flex items-center gap-1 text-[11px] truncate">
-                        <MapPin className="h-2.5 w-2.5 shrink-0 text-muted-foreground/60" />
-                        {t.location}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/40">—</span>
-                    )}
-                  </td>
-
-                  {/* Planned Qty */}
-                  <td className="py-1.5 px-2 text-right font-bold text-foreground tabular-nums">
-                    {t.plannedQty}
-                  </td>
-
-                  {/* Actual Qty */}
-                  <td className="py-1.5 px-2 text-right font-bold text-primary tabular-nums">
-                    {t.actualQty !== null && t.actualQty !== undefined ? t.actualQty : "—"}
-                  </td>
-
-                  {/* Unit */}
-                  <td className="py-1.5 px-1 text-center text-muted-foreground text-[10px]">
-                    {t.unit || "—"}
-                  </td>
-
-                  {/* Payment */}
-                  <td className="py-1.5 px-2 text-center">
-                    <span className={cn("px-1.5 py-0.5 rounded border text-[9px] uppercase font-bold", paymentColors[t.paymentType] || paymentColors.payable)}>
-                      {t.paymentType}
-                    </span>
-                  </td>
-
-                  {/* Status */}
-                  <td className="py-1.5 px-2 text-center">
-                    <span className={cn("px-1.5 py-0.5 rounded border text-[9px] uppercase font-bold", execStatusColors[t.executionStatus] || execStatusColors.planned)}>
-                      {t.executionStatus?.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                </tr>
-
-                {/* Expanded BOQ Rate Analysis Ingredients Breakdown */}
-                {isExpanded && hasIngredients && (
-                  <tr className="bg-muted/30">
-                    <td colSpan={9} className="p-3 pl-8">
-                      <div className="rounded border border-border/80 bg-card p-2.5 space-y-2">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-primary">
-                          <span className="flex items-center gap-1.5 uppercase tracking-wide">
-                            <Layers className="h-3.5 w-3.5" />
-                            Rate Analysis Ingredients Breakdown
-                          </span>
-                          <span className="text-muted-foreground font-normal text-[10px]">
-                            Calculated for Planned Qty: {t.plannedQty} {t.unit}
-                          </span>
-                        </div>
-                        <table className="w-full text-[11px] tabular-nums">
-                          <thead>
-                            <tr className="border-b border-border/60 text-left text-muted-foreground text-[9px] uppercase">
-                              <th className="py-1 px-1">Type</th>
-                              <th className="py-1 px-2">Resource Name</th>
-                              <th className="py-1 px-2 text-right">Coefficient</th>
-                              <th className="py-1 px-2 text-right">Total Requirement</th>
-                              <th className="py-1 px-1 text-center">Unit</th>
-                              <th className="py-1 px-2 text-right">Estimated Cost</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/30">
-                            {t.boqItem!.ingredients.map((ing, j) => {
-                              const totalQty = ing.quantity * t.plannedQty;
-                              const totalCost = ing.amount * t.plannedQty;
-                              return (
-                                <tr key={j} className="hover:bg-muted/20">
-                                  <td className="py-1 px-1">
-                                    <span className="px-1 py-0.5 rounded border border-border/60 text-[9px] uppercase text-muted-foreground bg-muted/40">
-                                      {ing.type?.slice(0, 3) || "res"}
-                                    </span>
-                                  </td>
-                                  <td className="py-1 px-2 font-medium text-foreground">{ing.name}</td>
-                                  <td className="py-1 px-2 text-right text-muted-foreground">{ing.quantity}</td>
-                                  <td className="py-1 px-2 text-right font-bold text-foreground">{totalQty.toFixed(2)}</td>
-                                  <td className="py-1 px-1 text-center text-muted-foreground">{ing.unit}</td>
-                                  <td className="py-1 px-2 text-right font-bold text-primary font-mono">
-                                    {formatNpr(totalCost)}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
+              <div key={j} className="grid grid-cols-6 p-2 hover:bg-muted/20 items-center">
+                <span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] uppercase bg-muted text-muted-foreground border">
+                    {ing.type?.slice(0, 3) || "res"}
+                  </span>
+                </span>
+                <span className="col-span-2 font-medium truncate">{ing.name}</span>
+                <span className="text-right text-muted-foreground">{ing.quantity}</span>
+                <span className="text-right font-bold text-foreground">
+                  {totalQty.toFixed(2)} {ing.unit}
+                </span>
+                <span className="text-right font-bold text-primary">{formatNpr(totalCost)}</span>
+              </div>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <ConstructionTable
+      data={tasks}
+      columns={columns}
+      renderRowPreview={renderRowPreview}
+      rowPreviewTitle={(task) => `Task Details: ${task.taskName}`}
+      searchPlaceholder="Search site tasks by name, BOQ, location..."
+      searchFilterKeys={["taskName", "boqCode", "boqDesc", "location", "paymentType", "executionStatus"]}
+    />
   );
 }

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -14,10 +13,8 @@ import {
 } from "@/components/ui/select";
 import {
   Plus,
-  Search,
   Download,
   Trash2,
-  Loader2,
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +23,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { LogSpotHireDialog } from "../dialogs/log-spot-hire-dialog";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function SpotHireTab({
   projectId,
@@ -35,7 +33,6 @@ export function SpotHireTab({
   canWrite?: boolean;
 }) {
   const [viewMode, setViewMode] = useState<"slips" | "statements">("slips");
-  const [search, setSearch] = useState("");
   const [billedFilter, setBilledFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
 
@@ -43,7 +40,6 @@ export function SpotHireTab({
 
   const { data, isLoading, refetch, isFetching } = trpc.equipment.listSpotHires.useQuery({
     projectId,
-    vendorName: search || undefined,
     isBilled: billedFilter === "all" ? undefined : billedFilter === "billed",
   });
 
@@ -101,137 +97,343 @@ export function SpotHireTab({
         "Vendor / Supplier": t.vendorName,
         "Machine Name": t.machineName,
         "Plate / Reg No": t.registrationNo || "—",
-        Type: t.equipmentType || "—",
-        Basis: t.hireType,
+        Type: t.equipmentType,
+        Basis: t.hireType === "trip" ? "Per Trip" : "Hourly",
         "Rate (NPR)": t.rate,
-        "Hours Worked": t.hoursWorked,
-        "Trip Count": t.tripCount,
+        "Hours Worked": t.hireType === "hourly" ? t.hoursWorked : 0,
+        "Trip Count": t.hireType === "trip" ? t.tripCount : 0,
         "Mob. Fee (NPR)": t.mobilizationFee,
         "Gross (NPR)": t.totalGross,
-        "Fuel Mode": t.fuelMode,
+        "Fuel Mode": t.fuelMode === "with_fuel" ? "With Fuel" : "Dry (Site Fuel)",
         "Site Diesel (L)": t.fuelLitersIssued,
         "Diesel Debit (NPR)": t.fuelDeduction,
+
         "Net Due (NPR)": t.netPayable,
         "BOQ Charge Code": t.boqItem?.code || "—",
-        Remarks: t.remarks || "—",
+        Remarks: t.remarks || "",
         "Billing Status": t.isBilled ? "Billed" : "Unbilled",
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportRows, { header: headers });
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Spot Tickets");
+      XLSX.utils.book_append_sheet(wb, ws, "Spot Machinery Slips");
 
-      const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 3, 14) }));
-      ws["!cols"] = colWidths;
-
-      XLSX.writeFile(wb, `equipment-spot-tickets-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      toast.success("Spot tickets exported to Excel");
-    } catch {
-      toast.error("Failed to export Excel");
+      XLSX.writeFile(wb, `Spot_Hire_Register_${projectId}.xlsx`);
+      toast.success("Spot hire tickets exported to Excel");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to export spot tickets");
     }
   };
 
-  return (
-    <div className="space-y-2.5">
-      {/* Dense Controls & Action Ribbon */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="inline-flex rounded-md bg-muted p-0.5 border font-mono">
-            <button
-              type="button"
-              onClick={() => setViewMode("slips")}
-              className={cn(
-                "px-2.5 py-1 rounded text-xs font-semibold transition-colors",
-                viewMode === "slips"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              All Machine Slips ({tickets.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("statements")}
-              className={cn(
-                "px-2.5 py-1 rounded text-xs font-semibold transition-colors",
-                viewMode === "statements"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Vendor Summary ({statements.length})
-            </button>
-          </div>
-
-          <div className="relative min-w-[160px] max-w-xs flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input
-              placeholder="Search vendor or machine..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-7 text-xs pl-7 font-mono"
-            />
-          </div>
-
-          <Select value={billedFilter} onValueChange={setBilledFilter}>
-            <SelectTrigger className="h-7 w-28 text-xs bg-card font-mono">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="font-mono text-xs">
-              <SelectItem value="all">All Slips</SelectItem>
-              <SelectItem value="unbilled">Unbilled</SelectItem>
-              <SelectItem value="billed">Billed</SelectItem>
-            </SelectContent>
-          </Select>
+  const slipColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (_, t) => (
+        <span className="text-muted-foreground font-mono text-xs">
+          {format(new Date(t.date), "dd MMM")}
+        </span>
+      ),
+    },
+    {
+      key: "vendorName",
+      header: "Vendor / Supplier",
+      render: (_, t) => (
+        <div>
+          <span className="font-sans font-medium text-foreground">{t.vendorName}</span>
+          {t.vendorPhone && (
+            <span className="block text-[10px] text-muted-foreground font-mono">
+              {t.vendorPhone}
+            </span>
+          )}
         </div>
-
-        <div className="flex items-center gap-1.5 font-mono">
+      ),
+    },
+    {
+      key: "machineName",
+      header: "Machine & Plate",
+      render: (_, t) => (
+        <div>
+          <span className="font-semibold text-foreground">{t.machineName}</span>
+          {t.registrationNo && (
+            <span className="block text-[10px] text-muted-foreground font-mono">
+              {t.registrationNo}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "duration",
+      header: "Duration",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold text-blue-600 font-mono text-xs">
+          {t.hireType === "trip" ? `${t.tripCount} tr` : `${t.hoursWorked}h`}
+        </span>
+      ),
+    },
+    {
+      key: "rate",
+      header: "Rate",
+      align: "right",
+      render: (_, t) => (
+        <span className="text-muted-foreground font-mono text-xs">{formatNpr(t.rate)}</span>
+      ),
+    },
+    {
+      key: "totalGross",
+      header: "Gross",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-mono text-xs">{formatNpr(t.totalGross)}</span>
+      ),
+    },
+    {
+      key: "fuelDeduction",
+      header: "Fuel Debit",
+      align: "right",
+      render: (_, t) => (
+        <span
+          className={cn(
+            "font-mono text-xs",
+            t.fuelDeduction > 0 ? "text-amber-600 font-bold" : "text-muted-foreground"
+          )}
+        >
+          {t.fuelDeduction > 0 ? `-${formatNpr(t.fuelDeduction)}` : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "netPayable",
+      header: "Net Due",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300 text-xs">
+          {formatNpr(t.netPayable)}
+        </span>
+      ),
+    },
+    {
+      key: "boqCode",
+      header: "Charge Code",
+      render: (_, t) => (
+        <span
+          className="text-muted-foreground text-xs truncate max-w-[140px] block"
+          title={t.boqItem ? `${t.boqItem.code} - ${t.boqItem.description}` : t.remarks || ""}
+        >
+          {t.boqItem?.code || t.remarks || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      align: "center",
+      render: (_, t) => (
+        <Badge
+          variant="secondary"
+          className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", {
+            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold":
+              t.isBilled,
+            "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": !t.isBilled,
+          })}
+        >
+          {t.isBilled ? "Billed" : "Unbilled"}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (_, t) => {
+        if (t.isBilled || !canWrite) return null;
+        return (
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
+            onClick={() => deleteMut.mutate({ ticketId: t.id, projectId })}
+            disabled={deleteMut.isPending}
+            className="h-5 w-5 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        );
+      },
+    },
+  ];
+
+  const statementColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "vendorName",
+      header: "Vendor / Supplier",
+      render: (_, v) => (
+        <div>
+          <span className="font-sans font-semibold text-foreground">{v.vendorName}</span>
+          {v.vendorPhone && (
+            <span className="block text-[10px] text-muted-foreground font-mono font-normal">
+              {v.vendorPhone}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "ticketCount",
+      header: "Slips Count",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-bold text-foreground font-mono text-xs">{v.ticketCount} slips</span>
+      ),
+    },
+    {
+      key: "totalHours",
+      header: "Total Hours",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-mono text-blue-600 font-semibold text-xs">
+          {v.totalHours.toFixed(1)} hrs
+        </span>
+      ),
+    },
+    {
+      key: "totalTrips",
+      header: "Total Trips",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-mono text-muted-foreground text-xs">
+          {v.totalTrips > 0 ? `${v.totalTrips}` : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "totalGross",
+      header: "Total Gross",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-mono text-xs">{formatNpr(v.totalGross)}</span>
+      ),
+    },
+    {
+      key: "totalFuelDeductions",
+      header: "Site Diesel Debits",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-mono text-amber-600 text-xs">
+          {v.totalFuelDeductions > 0 ? `-${formatNpr(v.totalFuelDeductions)}` : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "netPayable",
+      header: "Total Incurred",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-mono font-semibold text-foreground text-xs">
+          {formatNpr(v.netPayable)}
+        </span>
+      ),
+    },
+    {
+      key: "unbilledAmount",
+      header: "Unbilled Payable",
+      align: "right",
+      render: (_, v) => (
+        <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300 text-xs">
+          {formatNpr(v.unbilledAmount)}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Controls Ribbon */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          {/* Mode Tabs */}
+          <div className="flex items-center gap-1 bg-background p-0.5 rounded border font-mono">
+            <Button
+              size="sm"
+              variant={viewMode === "slips" ? "default" : "ghost"}
+              onClick={() => setViewMode("slips")}
+              className="h-6 text-xs px-2.5"
+            >
+              Daily Slips ({tickets.length})
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "statements" ? "default" : "ghost"}
+              onClick={() => setViewMode("statements")}
+              className="h-6 text-xs px-2.5"
+            >
+              Vendor Summary ({statements.length})
+            </Button>
+          </div>
+
+          {viewMode === "slips" && (
+            <Select value={billedFilter} onValueChange={setBilledFilter}>
+              <SelectTrigger className="h-7 w-28 text-xs font-mono">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Slips</SelectItem>
+                <SelectItem value="unbilled">Unbilled</SelectItem>
+                <SelectItem value="billed">Billed</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => refetch()}
-            disabled={isFetching}
-            className="h-7 text-xs gap-1 px-2"
+            className="h-7 w-7 p-0"
+            title="Refresh"
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
+        </div>
 
+        <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-7 text-xs text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 gap-1 px-2.5"
+            disabled={tickets.length === 0}
+            className="h-7 text-xs gap-1.5 font-mono"
           >
-            <Download className="h-3 w-3" /> Export Excel
+            <Download className="h-3 w-3" />
+            Export (.xlsx)
           </Button>
 
           {canWrite && (
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1 px-3 shadow-xs"
+              className="h-7 text-xs gap-1 font-mono bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <Plus className="h-3 w-3" /> Log Spot Ticket
+              <Plus className="h-3 w-3" />
+              Log Spot Ticket
             </Button>
           )}
         </div>
       </div>
 
-      {/* Slim 28px High-Density Inline Metrics Ribbon */}
+      {/* Aggregate Stats Summary */}
       {summary && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 bg-muted/40 rounded border text-[11px] font-mono tabular-nums">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-muted/20 rounded border text-[11px] font-mono">
           <div className="flex items-center gap-3">
-            <span>
+            <span className="text-muted-foreground font-semibold">
               <strong className="text-foreground">Total Tickets:</strong> {summary.totalTickets}
             </span>
             <span className="text-muted-foreground/40">│</span>
             <span className="text-blue-600 dark:text-blue-400 font-semibold">
-              ⏱ Total Hours: {summary.totalHours.toFixed(1)}h {summary.totalTrips > 0 ? `+ ${summary.totalTrips} trips` : ""}
+              {summary.totalHours.toFixed(1)} hrs
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span>
-              Gross: {formatNpr(summary.totalGross)}
-            </span>
+            <span>Gross: {formatNpr(summary.totalGross)}</span>
             {summary.totalFuelDeductions > 0 && (
               <>
                 <span className="text-muted-foreground/40">│</span>
@@ -250,200 +452,23 @@ export function SpotHireTab({
         </div>
       )}
 
-      {/* View Mode: All Individual Slips Table */}
-      {viewMode === "slips" && (
-        <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
-          <table className="w-full text-xs font-mono tabular-nums border-collapse">
-            <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
-              <tr>
-                <th className="py-2 px-3 text-left w-20">Date</th>
-                <th className="py-2 px-3 text-left min-w-[140px] font-semibold text-foreground">Vendor / Supplier</th>
-                <th className="py-2 px-3 text-left min-w-[150px]">Machine &amp; Plate</th>
-                <th className="py-2 px-2 text-right w-16">Duration</th>
-                <th className="py-2 px-2 text-right w-20">Rate</th>
-                <th className="py-2 px-2 text-right w-20">Gross</th>
-                <th className="py-2 px-2 text-right w-20 text-amber-600">Fuel Debit</th>
-                <th className="py-2 px-3 text-right w-24 font-bold text-foreground bg-emerald-50/20 dark:bg-emerald-950/10">
-                  Net Due
-                </th>
-                <th className="py-2 px-3 text-left min-w-[120px]">Charge Code</th>
-                <th className="py-2 px-2 text-center w-20">Status</th>
-                <th className="py-2 px-2 text-right w-14">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={11} className="p-8 text-center text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
-                    Loading spot hire tickets...
-                  </td>
-                </tr>
-              ) : tickets.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="p-8 text-center text-muted-foreground font-mono">
-                    No spot equipment tickets found. Click &quot;Log Spot Ticket&quot; to add on-demand machinery.
-                  </td>
-                </tr>
-              ) : (
-                tickets.map((t) => (
-                  <tr key={t.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="py-1.5 px-3 text-muted-foreground text-[11px]">
-                      {format(new Date(t.date), "dd MMM")}
-                    </td>
-
-                    <td className="py-1.5 px-3 font-sans font-medium text-foreground">
-                      {t.vendorName}
-                      {t.vendorPhone && (
-                        <span className="block text-[10px] text-muted-foreground font-mono">
-                          {t.vendorPhone}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-1.5 px-3 font-sans">
-                      <span className="font-semibold text-foreground">{t.machineName}</span>
-                      {t.registrationNo && (
-                        <span className="block text-[10px] text-muted-foreground font-mono">
-                          {t.registrationNo}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-1.5 px-2 text-right font-bold text-blue-600">
-                      {t.hireType === "trip" ? `${t.tripCount} tr` : `${t.hoursWorked}h`}
-                    </td>
-
-                    <td className="py-1.5 px-2 text-right text-muted-foreground">
-                      {formatNpr(t.rate)}
-                    </td>
-
-                    <td className="py-1.5 px-2 text-right font-mono">
-                      {formatNpr(t.totalGross)}
-                    </td>
-
-                    <td className={cn("py-1.5 px-2 text-right font-mono", t.fuelDeduction > 0 ? "text-amber-600 font-bold" : "text-muted-foreground")}>
-                      {t.fuelDeduction > 0 ? `-${formatNpr(t.fuelDeduction)}` : "—"}
-                    </td>
-
-                    <td className="py-1.5 px-3 text-right font-bold font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10">
-                      {formatNpr(t.netPayable)}
-                    </td>
-
-                    <td className="py-1.5 px-3 text-muted-foreground text-[10px] truncate max-w-[140px]" title={t.boqItem ? `${t.boqItem.code} - ${t.boqItem.description}` : t.remarks || ""}>
-                      {t.boqItem?.code || t.remarks || "—"}
-                    </td>
-
-                    <td className="py-1.5 px-2 text-center">
-                      <Badge
-                        variant="secondary"
-                        className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", {
-                          "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold": t.isBilled,
-                          "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": !t.isBilled,
-                        })}
-                      >
-                        {t.isBilled ? "Billed" : "Unbilled"}
-                      </Badge>
-                    </td>
-
-                    <td className="py-1.5 px-2 text-right">
-                      {!t.isBilled && canWrite && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteMut.mutate({ ticketId: t.id, projectId })}
-                          disabled={deleteMut.isPending}
-                          className="h-5 w-5 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* View Mode: Cumulative Vendor Statements Table */}
-      {viewMode === "statements" && (
-        <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
-          <table className="w-full text-xs font-mono tabular-nums border-collapse">
-            <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
-              <tr>
-                <th className="py-2 px-3 text-left min-w-[180px] font-semibold text-foreground">Vendor / Supplier</th>
-                <th className="py-2 px-2 text-right w-20">Slips Count</th>
-                <th className="py-2 px-2 text-right w-24">Total Hours</th>
-                <th className="py-2 px-2 text-right w-20">Total Trips</th>
-                <th className="py-2 px-3 text-right w-28">Total Gross</th>
-                <th className="py-2 px-3 text-right w-28 text-amber-600">Site Diesel Debits</th>
-                <th className="py-2 px-3 text-right w-28 font-bold text-foreground">Total Incurred</th>
-                <th className="py-2 px-3 text-right w-32 font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10">
-                  Unbilled Payable
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40">
-              {isStatementsLoading ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
-                    Calculating cumulative vendor statements...
-                  </td>
-                </tr>
-              ) : statements.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted-foreground font-mono">
-                    No vendor spot hire statements recorded.
-                  </td>
-                </tr>
-              ) : (
-                statements.map((v) => (
-                  <tr key={v.vendorName} className="hover:bg-muted/20 transition-colors">
-                    <td className="py-2 px-3 font-sans font-semibold text-foreground">
-                      {v.vendorName}
-                      {v.vendorPhone && (
-                        <span className="block text-[10px] text-muted-foreground font-mono font-normal">
-                          {v.vendorPhone}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-2 px-2 text-right font-bold text-foreground">
-                      {v.ticketCount} slips
-                    </td>
-
-                    <td className="py-2 px-2 text-right font-mono text-blue-600 font-semibold">
-                      {v.totalHours.toFixed(1)} hrs
-                    </td>
-
-                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                      {v.totalTrips > 0 ? `${v.totalTrips}` : "—"}
-                    </td>
-
-                    <td className="py-2 px-3 text-right font-mono">
-                      {formatNpr(v.totalGross)}
-                    </td>
-
-                    <td className="py-2 px-3 text-right font-mono text-amber-600">
-                      {v.totalFuelDeductions > 0 ? `-${formatNpr(v.totalFuelDeductions)}` : "—"}
-                    </td>
-
-                    <td className="py-2 px-3 text-right font-mono font-semibold text-foreground">
-                      {formatNpr(v.netPayable)}
-                    </td>
-
-                    <td className="py-2 px-3 text-right font-bold font-mono text-emerald-700 dark:text-emerald-300 text-sm bg-emerald-50/20 dark:bg-emerald-950/10">
-                      {formatNpr(v.unbilledAmount)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* Central Table Engine Rendering */}
+      {viewMode === "slips" ? (
+        <ConstructionTable
+          data={tickets}
+          columns={slipColumns}
+          isLoading={isLoading}
+          searchPlaceholder="Search spot tickets by vendor, machine, registration..."
+          searchFilterKeys={["vendorName", "machineName", "registrationNo", "equipmentType", "remarks"]}
+        />
+      ) : (
+        <ConstructionTable
+          data={statements}
+          columns={statementColumns}
+          isLoading={isStatementsLoading}
+          searchPlaceholder="Search vendor statements..."
+          searchFilterKeys={["vendorName", "vendorPhone"]}
+        />
       )}
 
       {/* Log Spot Ticket Modal */}

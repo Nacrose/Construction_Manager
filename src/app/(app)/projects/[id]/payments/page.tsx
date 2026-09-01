@@ -13,42 +13,31 @@ import {
   Phone,
   FileText,
   CheckCircle2,
-  ArrowDownRight,
-  ArrowUpRight,
   Receipt,
   Eye,
   Loader2,
-  LayoutList,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { adToBs } from "@/lib/nepali-calendar";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { RecordPaymentDialog } from "./components/record-payment-dialog";
 import { AddClaimDialog } from "./components/add-claim-dialog";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import * as XLSX from "@e965/xlsx";
+import { toast } from "sonner";
 
+export const FIN_TABS = [
+  { label: "Day Book & Cashbook", href: "/accounting" },
+  { label: "Parties & Payables", href: "/payments" },
+  { label: "Reports & Compliance", href: "/tax-summary" },
+];
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-export default function PaymentsPage({
-  params,
-  embedded = false,
-}: {
-  params: Promise<{ id: string }>;
-  /** When embedded in /finance, the host owns the tab bar — do not render ModuleTabs. */
-  embedded?: boolean;
-}) {
+export default function PaymentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [isCompact, setIsCompact] = useState(true);
   const [searchParty, setSearchParty] = useState("");
   const [selectedParty, setSelectedParty] = useState<{
     id: string;
@@ -61,14 +50,6 @@ export default function PaymentsPage({
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   const [addClaimOpen, setAddClaimOpen] = useState(false);
   const [payableToSettle, setPayableToSettle] = useState<any | null>(null);
-
-  // Form states for Add Bill / Claim Modal
-  const [claimPartyName, setClaimPartyName] = useState("");
-  const [claimPan, setClaimPan] = useState("");
-  const [claimCategory, setClaimCategory] = useState("site_expense");
-  const [claimAmount, setClaimAmount] = useState("");
-  const [claimDesc, setClaimDesc] = useState("");
-  const [claimBillNo, setClaimBillNo] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -101,7 +82,7 @@ export default function PaymentsPage({
       accountType: activeParty?.type || "vendor",
       accountName: activeParty?.name,
     },
-    { enabled: Boolean(activeParty) }
+    { enabled: !!activeParty }
   );
 
   const transactions = statementData?.transactions || [];
@@ -109,196 +90,288 @@ export default function PaymentsPage({
   const totalDebit = statementData?.totalDebit || 0;
   const totalCredit = statementData?.totalCredit || 0;
 
-  const filteredParties = partiesList.filter((p) => {
-    if (!searchParty.trim()) return true;
-    const q = searchParty.toLowerCase();
-    return p.name.toLowerCase().includes(q) || (p.pan && p.pan.includes(q));
-  });
 
-  // Mutation for adding a bill / claim
-  const logVatBillMut = trpc.vatRegister.createDirectVatBill.useMutation({
-    onSuccess: () => {
-      toast.success("Bill / Expense Claim registered successfully!");
-      setAddClaimOpen(false);
-      setClaimPartyName("");
-      setClaimAmount("");
-      setClaimDesc("");
-      setClaimBillNo("");
-      utils.projectOps.payment.outstandingPayables.invalidate();
-      utils.accounting.ledgerAccounts.invalidate();
-      utils.accounting.ledgerStatement.invalidate();
-      utils.accounting.dayBook.invalidate();
-    },
-    onError: (err) => {
-      toast.error(err.message || "Failed to log bill / claim");
-    },
+  const filteredParties = partiesList.filter((p) => {
+    if (!searchParty) return true;
+    const q = searchParty.toLowerCase();
+    return p.name.toLowerCase().includes(q) || (p.pan && p.pan.includes(q)) || (p.phone && p.phone.includes(q));
   });
 
   const handleExportStatement = () => {
-    if (!activeParty) return;
-    try {
-      const rows = transactions.map((t, idx) => [
-        idx + 1,
-        t.date ? format(new Date(t.date), "yyyy-MM-dd") : "—",
-        t.miti || "—",
-        t.voucherNo,
-        t.voucherType,
-        t.particulars,
-        t.debit,
-        t.credit,
-        t.runningBalance,
-      ]);
-
-      const wsData = [
-        [`STATEMENT OF ACCOUNT: ${activeParty.name.toUpperCase()}`],
-        [`Party Type: ${activeParty.type.toUpperCase()}`, `PAN: ${activeParty.pan || "N/A"}`],
-        ["S.N.", "Date (AD)", "Miti (BS)", "Voucher No", "Type", "Particulars", "Debit (NPR)", "Credit (NPR)", "Balance (NPR)"],
-        ...rows,
-        ["", "", "", "", "", "TOTAL", totalDebit, totalCredit, closingBalance],
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(wsData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Statement");
-      XLSX.writeFile(wb, `${activeParty.name}_Statement_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    } catch (e) {
-      console.error(e);
+    if (!transactions.length || !activeParty) {
+      toast.info("No statement entries to export");
+      return;
     }
+    const headers = ["Miti", "Date", "Voucher #", "Type", "Particulars", "Debit (Paid)", "Credit (Billed)", "Balance"];
+    const exportRows = transactions.map((t) => ({
+      Miti: t.miti || "",
+      Date: t.date ? format(new Date(t.date), "yyyy-MM-dd") : "",
+      "Voucher #": t.voucherNo,
+      Type: t.voucherType,
+      Particulars: t.particulars,
+      "Debit (Paid)": t.debit,
+      "Credit (Billed)": t.credit,
+      Balance: t.runningBalance,
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportRows, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Statement");
+    XLSX.writeFile(wb, `${activeParty.name}_Statement.xlsx`);
+    toast.success("Statement exported successfully");
   };
+
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date (BS/AD)",
+      render: (_, t) => (
+        <div className="font-mono text-xs">
+          <div className="font-bold text-foreground leading-tight">{t.miti || "—"}</div>
+          <div className="text-[10px] text-muted-foreground leading-tight">
+            {t.date ? format(new Date(t.date), "yyyy-MM-dd") : "—"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "voucherNo",
+      header: "Voucher #",
+      render: (_, t) => <span className="font-bold text-primary font-mono text-xs">{t.voucherNo}</span>,
+    },
+    {
+      key: "voucherType",
+      header: "Type",
+      render: (_, t) => (
+        <Badge variant="outline" className="text-[10px] font-mono py-0 px-1.5 h-5">
+          {t.voucherType}
+        </Badge>
+      ),
+    },
+    {
+      key: "particulars",
+      header: "Particulars",
+      render: (_, t) => (
+        <span className="font-sans font-medium text-foreground truncate max-w-sm block text-xs" title={t.particulars}>
+          {t.particulars}
+        </span>
+      ),
+    },
+    {
+      key: "debit",
+      header: "Debit (Dr - Paid)",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-xs text-primary">
+          {t.debit > 0 ? formatNpr(t.debit) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "credit",
+      header: "Credit (Cr - Billed)",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-xs text-amber-600 dark:text-amber-400">
+          {t.credit > 0 ? formatNpr(t.credit) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "runningBalance",
+      header: "Balance",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-bold font-mono text-xs text-foreground">
+          {formatNpr(t.runningBalance)}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <>
-      {!embedded && <ModuleTabs projectId={id} cluster="finance-compact" />}
-      <div className="space-y-3 pb-8">
-        {/* Compact Top Summary Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-[#000000] text-xs font-mono">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Total Payables:</span>
-              <span className="font-bold text-red-400">NPR {fmt(summary.totalDue)}</span>
+      <ModuleTabs projectId={id} tabs={FIN_TABS} />
+      <div className="space-y-4 p-4 pb-12">
+        {/* KPI Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1">
+            <div className="text-[10px] font-mono text-muted-foreground uppercase">
+              Total Outstanding Payables (कुल तिर्न बाँकी)
             </div>
-            <div className="h-3 w-[1px] bg-white/10" />
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Vendors Due:</span>
-              <span className="font-bold text-amber-400">NPR {fmt(summary.totalVendorDue)}</span>
+            <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+              {formatNpr(summary.totalDue)}
             </div>
-            <div className="h-3 w-[1px] bg-white/10" />
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Subs & Staff Due:</span>
-              <span className="font-bold text-blue-400">NPR {fmt(summary.totalSubcontractorDue + summary.totalStaffDue)}</span>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {summary.totalCount} total unsettled claims
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-gray-500 font-mono">
-              {filteredParties.length} Parties
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsCompact(!isCompact)}
-              className="h-7 px-2 text-[11px] gap-1 font-mono bg-[#f8fbfe] text-slate-700 border-[#c7d8e8] hover:text-slate-900 rounded-lg"
-              title={isCompact ? "Switch to Comfortable View" : "Switch to Compact View"}
-            >
-              <LayoutList className="h-3 w-3 text-[#0284c7]" />
-              {isCompact ? "Compact" : "Comfortable"}
-            </Button>
+          <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1">
+            <div className="text-[10px] font-mono text-muted-foreground uppercase">
+              Supplier Payables (सामग्री आपूर्तिकर्ता)
+            </div>
+            <div className="text-xl font-bold font-mono text-foreground">
+              {formatNpr(summary.totalVendorDue)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {summary.vendorBillsCount} vendor invoices
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1">
+            <div className="text-[10px] font-mono text-muted-foreground uppercase">
+              Subcontractor Payables (पेटी ठेकेदार)
+            </div>
+            <div className="text-xl font-bold font-mono text-foreground">
+              {formatNpr(summary.totalSubcontractorDue)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {summary.subBillsCount} verified bills
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/80 bg-card p-3.5 space-y-1">
+            <div className="text-[10px] font-mono text-muted-foreground uppercase">
+              Staff / Petty Cash Payables (स्टाफ / खर्च)
+            </div>
+            <div className="text-xl font-bold font-mono text-foreground">
+              {formatNpr(summary.totalStaffDue)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              {summary.staffBillsCount} expense claims
+            </div>
           </div>
         </div>
 
-        {/* 2-Column Khatabook Split Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* Left Column: Parties Directory (4 cols) */}
-          <div className="lg:col-span-4 space-y-3 rounded-2xl border border-[#c7d8e8] bg-white p-3.5">
-            <div className="flex items-center justify-between pb-2 border-b border-[#e2edf7]">
-              <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Suppliers & Contractors ({filteredParties.length})
-              </span>
+        {/* Master-Detail Split Ledger */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start min-h-[580px]">
+          {/* Left Column: Parties Directory */}
+          <div className="md:col-span-4 rounded-xl border bg-card p-3 space-y-3 flex flex-col h-full max-h-[640px]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-xs font-bold uppercase font-mono tracking-wide text-foreground">
+                  Parties & Creditors ({partiesList.length})
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs font-mono gap-1"
+                onClick={() => setAddClaimOpen(true)}
+              >
+                <Plus className="h-3 w-3" /> Add Bill
+              </Button>
             </div>
 
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search party by name or PAN..."
-                className="pl-8 h-9 text-xs bg-[#f8fbfe] text-slate-900 rounded-xl border-[#c7d8e8] focus:border-emerald-400"
                 value={searchParty}
                 onChange={(e) => setSearchParty(e.target.value)}
+                placeholder="Search vendor, sub, PAN..."
+                className="h-8 text-xs pl-8 font-mono"
               />
             </div>
 
-            <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-1 custom-scrollbar">
-              {filteredParties.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-500">
-                  No parties found matching "{searchParty}"
-                </div>
-              ) : (
-                filteredParties.map((p) => {
-                  const isSelected = activeParty?.id === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setSelectedParty(p as any)}
-                      className={cn(
-                        "w-full text-left p-3 rounded-xl border transition-all text-xs flex items-center justify-between group",
-                        isSelected
-                          ? "bg-emerald-500/10 border-emerald-500/40 text-slate-900 shadow-[0_0_15px_rgba(0,255,102,0.06)]"
-                          : "border-[#e2edf7] bg-[#f8fbfe]/60 hover:bg-[#f8fbfe] text-slate-700 hover:text-slate-900"
-                      )}
-                    >
-                      <div className="space-y-1 min-w-0 pr-2">
-                        <div className="font-semibold truncate text-slate-900 flex items-center gap-1.5">
-                          {p.name}
-                        </div>
-                        <div className="text-[10px] text-slate-500 truncate font-mono">
-                          {p.type === "vendor"
-                            ? "Material Supplier"
-                            : p.type === "subcontractor"
-                            ? "Subcontractor"
-                            : "Staff Member"}
-                          {p.pan ? ` • PAN: ${p.pan}` : ""}
-                        </div>
-                      </div>
+            <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+              {filteredParties.map((p) => {
+                const isSelected = activeParty?.id === p.id && activeParty?.type === p.type;
+                const isSupplier = p.type === "vendor";
+                const isSub = p.type === "subcontractor";
 
-                      <div className="text-right shrink-0">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white/5 border border-[#c7d8e8] text-slate-700">
-                          View खाता →
-                        </span>
+                return (
+                  <div
+                    key={`${p.type}-${p.id}`}
+                    onClick={() => setSelectedParty(p as any)}
+                    className={cn(
+                      "p-2.5 rounded-lg border cursor-pointer transition select-none flex items-center justify-between gap-2",
+                      isSelected
+                        ? "bg-primary/10 border-primary/40 shadow-xs"
+                        : "bg-muted/20 border-transparent hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-xs text-foreground truncate">{p.name}</span>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[9px] px-1 py-0 uppercase font-mono shrink-0",
+                            isSupplier
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              : isSub
+                              ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
+                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                          )}
+                        >
+                          {p.type}
+                        </Badge>
                       </div>
-                    </button>
-                  );
-                })
-              )}
+                      <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2 mt-0.5">
+                        {p.pan && <span>PAN: {p.pan}</span>}
+                        {p.phone && <span>Ph: {p.phone}</span>}
+                      </div>
+                    </div>
+
+                    <div className="text-right font-mono text-xs">
+                      <span
+                        className={cn(
+                          "font-bold",
+                          ((p as any).balance || 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                        )}
+                      >
+                        {formatNpr((p as any).balance || 0)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Right Column: Statement of Account / Bahi Khata (8 cols) */}
-          <div className="lg:col-span-8 rounded-2xl border border-[#c7d8e8] bg-white p-5 flex flex-col min-h-[620px]">
+          {/* Right Column: Live Statement & Settlement Ledger */}
+          <div className="md:col-span-8 space-y-3">
             {activeParty ? (
-              <div className="space-y-4 flex-1 flex flex-col">
-                {/* Party Header Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border border-emerald-500/20 bg-[#f8fbfe]">
-                  <div className="space-y-0.5">
+              <div className="rounded-xl border bg-card p-4 space-y-3">
+                {/* Active Party Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
+                  <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-slate-900 tracking-tight">{activeParty.name}</h2>
-                      <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-[#0284c7] bg-emerald-500/10">
-                        {activeParty.type.toUpperCase()}
+                      <h2 className="text-base font-bold text-foreground">{activeParty.name}</h2>
+                      <Badge variant="outline" className="text-[10px] font-mono capitalize">
+                        {activeParty.type}
                       </Badge>
                     </div>
-                    <p className="text-xs text-slate-500 font-mono">
-                      {activeParty.pan ? `PAN: ${activeParty.pan}` : "Statement of Account (बही खाता)"}
-                    </p>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5 flex items-center gap-3">
+                      {activeParty.pan && <span>PAN: {activeParty.pan}</span>}
+                      {activeParty.phone && <span>Ph: {activeParty.phone}</span>}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <div className="text-right font-mono px-3 py-1 bg-muted/40 rounded-lg border">
+                      <div className="text-[10px] text-muted-foreground uppercase">Closing Balance</div>
+                      <div
+                        className={cn(
+                          "text-sm font-bold",
+                          closingBalance > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"
+                        )}
+                      >
+                        {formatNpr(closingBalance)}
+                      </div>
+                    </div>
+
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={handleExportStatement}
-                      className="h-8 text-xs bg-white text-slate-700 border-[#c7d8e8] hover:text-slate-900 rounded-lg gap-1.5"
+                      disabled={transactions.length === 0}
+                      className="h-8 text-xs font-mono gap-1"
                     >
-                      <Download className="h-3 w-3 text-[#0284c7]" /> Export Excel
+                      <Download className="h-3 w-3" /> Export
                     </Button>
+
                     <Button
                       size="sm"
                       onClick={() => {
@@ -314,110 +387,61 @@ export default function PaymentsPage({
                         });
                         setRecordPaymentOpen(true);
                       }}
-                      className="h-8 text-xs font-bold amber-cta-btn rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.3)] transition gap-1"
+                      className="h-8 text-xs font-bold font-mono bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
                       Pay Now (भुक्तानी)
                     </Button>
                   </div>
                 </div>
 
-                {/* Live Running Statement Table */}
-                <div className="flex-1 overflow-x-auto rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
-                  {statementLoading ? (
-                    <div className="p-16 text-center text-xs text-slate-500">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-[#0284c7]" />
-                      Loading statement...
-                    </div>
-                  ) : transactions.length === 0 ? (
-                    <div className="p-16 text-center text-xs text-slate-500">
-                      <FileText className="h-8 w-8 mx-auto text-gray-600 mb-2" />
-                      No bills or payment transactions recorded yet for this party.
-                    </div>
-                  ) : (
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="border-b border-[#c7d8e8] bg-white uppercase text-[10px] text-slate-500">
-                        <tr>
-                          <th className={cn(isCompact ? "px-3 py-1.5" : "px-3 py-3")}>Date (BS/AD)</th>
-                          <th className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Voucher #</th>
-                          <th className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Type</th>
-                          <th className={cn("font-sans", isCompact ? "px-3 py-1.5" : "px-4 py-3")}>Particulars</th>
-                          <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Debit (Dr - Paid)</th>
-                          <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Credit (Cr - Billed)</th>
-                          <th className={cn("text-right", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {transactions.map((t, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                            <td className={cn(isCompact ? "px-3 py-1.5" : "px-3 py-2.5")}>
-                              <div className="font-bold text-slate-900 leading-tight">{t.miti || "—"}</div>
-                              <div className="text-[10px] text-slate-500 leading-tight">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "—"}</div>
-                            </td>
-                            <td className={cn("font-bold text-[#0284c7]", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2.5")}>{t.voucherNo}</td>
-                            <td className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
-                              <Badge variant="outline" className="text-[10px] bg-white/5 border-[#c7d8e8] text-slate-700 font-mono py-0 px-1.5 h-5">
-                                {t.voucherType}
-                              </Badge>
-                            </td>
-                            <td className={cn("font-sans font-medium text-slate-900 truncate max-w-sm", isCompact ? "px-3 py-1.5 text-xs" : "px-4 py-2.5")}>{t.particulars}</td>
-                            <td className={cn("text-right font-bold text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
-                              {t.debit > 0 ? fmt(t.debit) : "—"}
-                            </td>
-                            <td className={cn("text-right font-bold text-red-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
-                              {t.credit > 0 ? fmt(t.credit) : "—"}
-                            </td>
-                            <td className={cn("text-right font-bold font-mono text-slate-900", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
-                              {fmt(t.runningBalance)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="border-t-2 border-[#c7d8e8] bg-white font-bold text-slate-900">
-                        <tr>
-                          <td colSpan={4} className={cn("text-right uppercase", isCompact ? "px-3 py-1.5 text-xs" : "px-4 py-3")}>
-                            Total / Net Balance (जम्मा):
-                          </td>
-                          <td className={cn("text-right text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                            NPR {fmt(totalDebit)}
-                          </td>
-                          <td className={cn("text-right text-red-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                            NPR {fmt(totalCredit)}
-                          </td>
-                          <td className={cn("text-right font-bold", closingBalance >= 0 ? "text-red-400" : "text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
-                            NPR {fmt(Math.abs(closingBalance))} {closingBalance >= 0 ? "(Dr Due)" : "(Cr Adv)"}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
-                </div>
+                {/* Live Running Statement Table with ConstructionTable */}
+                <ConstructionTable
+                  data={transactions}
+                  columns={columns}
+                  isLoading={statementLoading}
+                  searchPlaceholder="Search transactions in statement..."
+                  searchFilterKeys={["voucherNo", "voucherType", "particulars"]}
+                />
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-xs text-slate-500">
-                <Users className="h-10 w-10 text-gray-600 mb-2" />
-                Select a party from the left directory to view their live statement of account.
+              <div className="rounded-xl border border-dashed p-16 text-center text-muted-foreground">
+                <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">Select a party on the left to view statement</p>
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Modal 1: Record Payment / Disbursement (Outflow) */}
+      {/* Record Payment Dialog */}
+      {recordPaymentOpen && (
         <RecordPaymentDialog
           projectId={id}
           open={recordPaymentOpen}
           onOpenChange={setRecordPaymentOpen}
           initialPayable={payableToSettle}
-          onSuccess={() => setPayableToSettle(null)}
+          onSuccess={() => {
+            utils.projectOps.payment.outstandingPayables.invalidate({ projectId: id });
+            utils.accounting.ledgerStatement.invalidate();
+            setRecordPaymentOpen(false);
+          }}
         />
+      )}
 
-        {/* Modal 2: Add Bill / Staff Expense Claim */}
+
+      {/* Add Claim Dialog */}
+      {addClaimOpen && (
         <AddClaimDialog
           projectId={id}
           open={addClaimOpen}
           onOpenChange={setAddClaimOpen}
+          onSuccess={() => {
+            utils.projectOps.payment.outstandingPayables.invalidate({ projectId: id });
+            utils.accounting.ledgerAccounts.invalidate();
+            setAddClaimOpen(false);
+          }}
         />
-      </div>
+      )}
     </>
   );
 }
-

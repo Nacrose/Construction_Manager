@@ -4,6 +4,7 @@ import { Printer, AlertTriangle, Building2, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 interface QuoteItem {
   partnerId: string;
@@ -50,7 +51,7 @@ export function QuotationComparisonMatrix({ requisitionNumber, items }: Quotatio
             <span>Quotation Comparative Statement (CS Matrix)</span>
             <Badge variant="outline" className="font-mono text-xs">{requisitionNumber}</Badge>
           </h3>
-          <p className="text-xs text-muted-foreground">3-Vendor rate comparison and lowest bidder evaluation</p>
+          <p className="text-xs text-muted-foreground font-mono">3-Vendor rate comparison and lowest bidder evaluation</p>
         </div>
         <Button size="sm" variant="outline" onClick={handlePrint} className="gap-1.5 h-8 text-xs shrink-0 print:hidden font-mono">
           <Printer className="h-3.5 w-3.5" />
@@ -86,8 +87,68 @@ export function QuotationComparisonMatrix({ requisitionNumber, items }: Quotatio
           const selectedQuote = parsedQuotes.find((q) => q.isSelected);
           const isHigherThanLowest = selectedQuote && selectedQuote.totalRate > minRate;
 
+          const columns: ConstructionTableColumn<QuoteItem>[] = [
+            {
+              key: "partnerName",
+              header: "Vendor / Supplier",
+              render: (_, q) => (
+                <div className="font-sans">
+                  <div className="flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-semibold text-foreground text-xs">{q.partnerName}</span>
+                    {q.isSelected && (
+                      <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] py-0 px-1.5 h-4 font-mono">
+                        Selected
+                      </Badge>
+                    )}
+                  </div>
+                  {q.notes && <p className="text-[11px] text-muted-foreground pl-5 font-mono">{q.notes}</p>}
+                </div>
+              ),
+            },
+            {
+              key: "exFactoryRate",
+              header: "Ex-Factory Rate",
+              align: "right",
+              render: (_, q) => <span className="font-mono text-xs">{formatNpr(q.exFactoryRate)}</span>,
+            },
+            {
+              key: "transportRate",
+              header: "Freight / Transport",
+              align: "right",
+              render: (_, q) => <span className="font-mono text-xs">{formatNpr(q.transportRate)}</span>,
+            },
+            {
+              key: "totalRate",
+              header: "Landed Rate",
+              align: "right",
+              render: (_, q) => <span className="font-mono text-xs font-bold text-foreground">{formatNpr(q.totalRate)}</span>,
+            },
+            {
+              key: "totalCost",
+              header: "Total Cost",
+              align: "right",
+              render: (_, q) => <span className="font-mono text-xs font-bold text-primary">{formatNpr(q.totalRate * item.quantity)}</span>,
+            },
+            {
+              key: "evaluation",
+              header: "Evaluation",
+              align: "center",
+              render: (_, q) =>
+                q.isLowest ? (
+                  <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-mono text-[10px] gap-1 py-0 px-2 font-bold">
+                    <TrendingDown className="h-3 w-3" /> L1 (Lowest)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground py-0 px-1.5">
+                    +{(((q.totalRate - minRate) / (minRate || 1)) * 100).toFixed(1)}%
+                  </Badge>
+                ),
+            },
+          ];
+
           return (
-            <div key={item.id} className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-sm">
+            <div key={item.id} className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xs">
               <div className="p-3.5 bg-muted/40 border-b flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs font-mono">
@@ -99,75 +160,19 @@ export function QuotationComparisonMatrix({ requisitionNumber, items }: Quotatio
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="font-medium text-muted-foreground font-mono">
+                <div className="flex items-center gap-3 text-xs font-mono">
+                  <span className="font-medium text-muted-foreground">
                     Required Quantity: <strong className="text-foreground">{item.quantity.toLocaleString("en-IN")} {item.unit}</strong>
                   </span>
                 </div>
               </div>
 
-              {/* Matrix Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs font-mono tabular-nums">
-                  <thead className="bg-muted/20 border-b text-[10px] uppercase text-muted-foreground">
-                    <tr>
-                      <th className="py-2.5 px-3 text-left font-medium">Vendor / Supplier</th>
-                      <th className="py-2.5 px-3 text-right font-medium">Ex-Factory Rate</th>
-                      <th className="py-2.5 px-3 text-right font-medium">Freight / Transport</th>
-                      <th className="py-2.5 px-3 text-right font-medium">Landed Rate</th>
-                      <th className="py-2.5 px-3 text-right font-medium">Total Cost</th>
-                      <th className="py-2.5 px-3 text-center font-medium w-28">Evaluation</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {parsedQuotes.map((q) => {
-                      const totalCost = q.totalRate * item.quantity;
-                      return (
-                        <tr
-                          key={q.partnerId}
-                          className={q.isSelected ? "bg-emerald-50/50 dark:bg-emerald-950/20 font-medium" : "hover:bg-muted/10"}
-                        >
-                          <td className="py-2.5 px-3 font-sans">
-                            <div className="flex items-center gap-1.5">
-                              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="font-semibold text-foreground">{q.partnerName}</span>
-                              {q.isSelected && (
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] py-0 px-1.5 h-4 font-mono">
-                                  Selected
-                                </Badge>
-                              )}
-                            </div>
-                            {q.notes && <p className="text-[11px] text-muted-foreground pl-5 font-mono">{q.notes}</p>}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {formatNpr(q.exFactoryRate)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {formatNpr(q.transportRate)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-foreground">
-                            {formatNpr(q.totalRate)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-primary">
-                            {formatNpr(totalCost)}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            {q.isLowest ? (
-                              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-mono text-[10px] gap-1 py-0 px-2 font-bold">
-                                <TrendingDown className="h-3 w-3" /> L1 (Lowest)
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground py-0 px-1.5">
-                                +{(((q.totalRate - minRate) / minRate) * 100).toFixed(1)}%
-                              </Badge>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {/* Matrix Table with ConstructionTable */}
+              <ConstructionTable
+                data={parsedQuotes}
+                columns={columns}
+                isLoading={false}
+              />
 
               {/* Justification Box if L1 was not picked */}
               {isHigherThanLowest && (

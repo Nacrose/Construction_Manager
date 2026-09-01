@@ -20,6 +20,11 @@ import { ModuleTabs } from "@/components/module-tabs";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 
+const QS_TABS = [
+  { label: "Quality", href: "/quality" },
+  { label: "Punch List", href: "/punch-list" },
+  { label: "Safety", href: "/safety" },
+];
 
 const CHECKLIST_TEMPLATES: Record<string, Array<{ item: string; passed: boolean | null; notes: string }>> = {
   work_inspection: [
@@ -251,7 +256,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="quality-safety" />
+      <ModuleTabs projectId={id} tabs={QS_TABS} />
       <div className="space-y-4 pb-8 font-sans">
         {/* KPI Header */}
         {stats && (

@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
 
 type VerifiedItem = {
   id: string;
@@ -101,7 +102,7 @@ export function VerifyBillDialog({
             disallowedReason: item.disallowedReason || "",
             remarks: item.remarks || "",
             rate: item.rate || 0,
-            amount: item.amount || 0,
+            amount: verifiedQty * (item.rate || 0),
           };
         })
       );
@@ -109,153 +110,160 @@ export function VerifyBillDialog({
   }, [bill]);
 
   const verifyMut = trpc.subcontractorBill.verifyBill.useMutation({
-    onSuccess: (_data, vars) => {
+    onSuccess: (data) => {
       toast.success(
-        vars.action === "certify"
-          ? "Bill verified & certified successfully"
-          : vars.action === "dispute"
+        data.bill.status === "certified"
+          ? "Bill verified & certified successfully!"
+          : data.bill.status === "disputed"
           ? "Bill marked as disputed"
-          : "Verification saved"
+          : "Verification saved as draft"
       );
-      onSuccess();
       onOpenChange(false);
+      onSuccess();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const updateItemVerifiedQty = (index: number, val: number) => {
-    const next = [...items];
-    const item = next[index];
-    const verifiedQty = Math.max(0, val);
-    const disallowedQty = Math.max(0, item.thisQty - verifiedQty);
 
-    next[index] = {
-      ...item,
-      verifiedQty,
-      disallowedQty,
-      disallowedReason: disallowedQty > 0 && !item.disallowedReason ? DISALLOWED_REASONS[0] : item.disallowedReason,
-    };
-    setItems(next);
+
+  const updateItemVerifiedQty = (idx: number, qty: number) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      const it = copy[idx];
+      const validQty = isNaN(qty) || qty < 0 ? 0 : qty;
+      const disallowed = Math.max(0, it.thisQty - validQty);
+
+      copy[idx] = {
+        ...it,
+        verifiedQty: validQty,
+        disallowedQty: disallowed,
+        disallowedReason: disallowed > 0 ? it.disallowedReason || DISALLOWED_REASONS[0] : "",
+        amount: validQty * it.rate,
+      };
+      return copy;
+    });
   };
 
-  const updateItemReason = (index: number, reason: string) => {
-    const next = [...items];
-    next[index].disallowedReason = reason;
-    setItems(next);
+  const updateItemReason = (idx: number, reason: string) => {
+    setItems((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], disallowedReason: reason };
+      return copy;
+    });
   };
 
-  // Recalculations
-  const originalGross = bill?.grossAmount || 0;
-  const verifiedGross = items.reduce((sum, item) => sum + item.verifiedQty * item.rate, 0);
+  if (!bill) return null;
+
+  const originalGross = bill.grossAmount || 0;
+  const verifiedGross = items.reduce((sum, it) => sum + it.verifiedQty * it.rate, 0);
   const totalDisallowed = originalGross - verifiedGross;
 
-  const retentionPercent = bill?.retentionPercent || 0;
-  const vatPercent = bill?.vatPercent || 13;
-  const tdsPercent = bill?.tdsPercent || 1.5;
-  const materialDeduction = bill?.materialDeduction || 0;
-  const advanceRecovery = bill?.advanceRecovery || 0;
-
-  const retentionAmt = (verifiedGross * retentionPercent) / 100;
-  const vatAmt = (verifiedGross * vatPercent) / 100;
-  const tdsAmt = (verifiedGross * tdsPercent) / 100;
-  const netCertified = Math.max(
-    0,
-    verifiedGross - retentionAmt + vatAmt - tdsAmt - materialDeduction - advanceRecovery
-  );
+  // Deductions from bill
+  const retention = (verifiedGross * (bill.retentionPercent || 0)) / 100;
+  const tds = (verifiedGross * (bill.tdsPercent || 0)) / 100;
+  const advance = bill.advanceDeduction || 0;
+  const material = bill.materialDeduction || 0;
+  const other = bill.otherDeductions || 0;
+  const netCertified = Math.max(0, verifiedGross - retention - tds - advance - material - other);
 
   const handleAction = (action: "verify" | "certify" | "dispute") => {
     verifyMut.mutate({
       projectId,
       billId: bill.id,
       action,
-      notes: notes || undefined,
-      items: items.map((i) => ({
-        id: i.id,
-        verifiedQty: i.verifiedQty,
-        disallowedReason: i.disallowedQty > 0 ? i.disallowedReason : undefined,
-        remarks: i.remarks || undefined,
+      notes,
+      items: items.map((it) => ({
+        id: it.id,
+        verifiedQty: it.verifiedQty,
+        disallowedReason: it.disallowedReason || undefined,
+        remarks: it.remarks || undefined,
       })),
     });
   };
 
-  if (!bill) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            Engineer Bill Verification & Certification: {bill.number}
-          </DialogTitle>
-          <DialogDescription>
-            Verify measured quantities line-by-line against site joint measurements and Client IPC records.
+          <div className="flex items-center justify-between pr-6">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              <DialogTitle className="text-base font-bold">
+                Engineer Verification &amp; Certification: {bill.billNumber}
+              </DialogTitle>
+            </div>
+            <Badge variant="outline" className="font-mono text-[10px] uppercase border-white/20 text-white">
+              {bill.status.replace("_", " ")}
+            </Badge>
+          </div>
+          <DialogDescription className="text-white/60 text-xs font-mono">
+            Verify claimed quantities against site measurements (JMP / MB), record disallowed deductions with statutory reasons, and certify net payable.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Subcontractor & Period Info */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/30 border text-xs">
+          {/* Metadata Bar */}
+          <div className="grid grid-cols-3 gap-2 bg-white/5 p-3 rounded-lg border border-white/10 text-xs font-mono">
             <div>
-              <span className="text-muted-foreground">Subcontractor: </span>
-              <strong className="text-foreground">{bill.subcontractor?.name}</strong>
+              <span className="text-white/60">Subcontractor: </span>
+              <strong className="text-white font-sans">{bill.subcontractor?.name}</strong>
             </div>
             <div>
-              <span className="text-muted-foreground">Period: </span>
-              <span className="font-mono">{bill.period || "—"}</span>
+              <span className="text-white/60">Period: </span>
+              <span className="font-mono text-white">{bill.period || "—"}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Claimed Gross: </span>
-              <span className="font-mono font-bold">NPR {originalGross.toLocaleString()}</span>
+              <span className="text-white/60">Claimed Gross: </span>
+              <span className="font-mono font-bold text-white">{formatNpr(originalGross)}</span>
             </div>
           </div>
 
           {/* Line Items Verification Grid */}
-          <div className="rounded-lg border overflow-hidden">
+          <div className="rounded-lg border border-white/10 overflow-hidden bg-white/5">
             <table className="w-full text-xs font-mono tabular-nums">
-              <thead className="bg-muted/60 border-b text-[10px] text-muted-foreground uppercase">
+              <thead className="bg-white/10 border-b border-white/10 text-[10px] text-white/70 uppercase">
                 <tr>
                   <th className="p-2 text-left w-16">BOQ</th>
                   <th className="p-2 text-left">Description</th>
                   <th className="p-2 text-right w-16">Claimed</th>
-                  <th className="p-2 text-right w-24 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-bold">
+                  <th className="p-2 text-right w-24 bg-emerald-500/20 text-emerald-300 font-bold">
                     Verified Qty
                   </th>
-                  <th className="p-2 text-right w-20 text-red-600">Disallowed</th>
+                  <th className="p-2 text-right w-20 text-red-400">Disallowed</th>
                   <th className="p-2 text-right w-20">Rate</th>
                   <th className="p-2 text-right w-24">Verified Amt</th>
                   <th className="p-2 text-left w-48">Disallowed Reason / Remarks</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/30">
+              <tbody className="divide-y divide-white/10">
                 {items.map((item, idx) => {
                   const isDisallowed = item.disallowedQty > 0;
                   return (
-                    <tr key={item.id} className={cn("hover:bg-muted/15", isDisallowed && "bg-amber-50/20 dark:bg-amber-950/10")}>
+                    <tr key={item.id} className={cn("hover:bg-white/5", isDisallowed && "bg-amber-500/10")}>
                       <td className="p-2 font-bold text-primary">{item.boqCode || "—"}</td>
-                      <td className="p-2 font-sans text-foreground truncate max-w-[180px]" title={item.description}>
+                      <td className="p-2 font-sans text-white truncate max-w-[180px]" title={item.description}>
                         {item.description}
                       </td>
-                      <td className="p-2 text-right text-muted-foreground">
+                      <td className="p-2 text-right text-white/60">
                         {item.thisQty} {item.unit}
                       </td>
-                      <td className="p-1.5 text-right bg-emerald-50/40 dark:bg-emerald-950/15">
+                      <td className="p-1.5 text-right bg-emerald-500/15">
                         <Input
                           type="number"
                           step="any"
                           value={item.verifiedQty}
                           onChange={(e) => updateItemVerifiedQty(idx, parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs text-right font-bold font-mono text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800"
+                          className="h-7 text-xs text-right font-bold font-mono text-emerald-300 bg-white/5 border-emerald-500/40"
                         />
                       </td>
-                      <td className={cn("p-2 text-right font-bold", isDisallowed ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+                      <td className={cn("p-2 text-right font-bold", isDisallowed ? "text-red-400" : "text-white/40")}>
                         {item.disallowedQty > 0 ? `-${item.disallowedQty.toFixed(2)}` : "0"}
                       </td>
-                      <td className="p-2 text-right text-muted-foreground font-mono">
-                        {item.rate.toLocaleString()}
+                      <td className="p-2 text-right text-white/60 font-mono">
+                        {formatNpr(item.rate)}
                       </td>
-                      <td className="p-2 text-right font-bold font-mono text-foreground">
-                        {(item.verifiedQty * item.rate).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                      <td className="p-2 text-right font-bold font-mono text-white">
+                        {formatNpr(item.verifiedQty * item.rate)}
                       </td>
                       <td className="p-1.5">
                         {isDisallowed ? (
@@ -263,10 +271,10 @@ export function VerifyBillDialog({
                             value={item.disallowedReason}
                             onValueChange={(val) => updateItemReason(idx, val)}
                           >
-                            <SelectTrigger className="h-7 text-[10px] text-red-600 dark:text-red-400 border-red-200 dark:border-red-900">
+                            <SelectTrigger className="h-7 text-[10px] text-red-300 border-red-500/40 bg-white/5">
                               <SelectValue placeholder="Select Reason" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="backdrop-blur-md bg-black/90 border-white/10 text-white">
                               {DISALLOWED_REASONS.map((r) => (
                                 <SelectItem key={r} value={r} className="text-xs">
                                   {r}
@@ -275,7 +283,7 @@ export function VerifyBillDialog({
                             </SelectContent>
                           </Select>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground/60 italic pl-1">No deductions</span>
+                          <span className="text-[10px] text-white/40 italic pl-1">No deductions</span>
                         )}
                       </td>
                     </tr>
@@ -286,50 +294,51 @@ export function VerifyBillDialog({
           </div>
 
           {/* Verification Financial Summary Abstract */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-muted/20 p-3 rounded-lg border text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white/5 p-3 rounded-lg border border-white/10 text-xs font-mono">
             <div className="space-y-1">
-              <span className="text-muted-foreground">Original Claimed Gross:</span>
-              <p className="font-mono font-bold">NPR {originalGross.toLocaleString()}</p>
+              <span className="text-white/60">Original Claimed:</span>
+              <p className="font-mono font-bold text-white">{formatNpr(originalGross)}</p>
             </div>
             <div className="space-y-1">
-              <span className="text-muted-foreground">Engineer Verified Gross:</span>
-              <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                NPR {verifiedGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              <span className="text-white/60">Verified Gross:</span>
+              <p className="font-mono font-bold text-emerald-400">
+                {formatNpr(verifiedGross)}
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-muted-foreground">Total Disallowed Variance:</span>
-              <p className={cn("font-mono font-bold", totalDisallowed > 0 ? "text-red-600" : "text-muted-foreground")}>
-                {totalDisallowed > 0 ? `-NPR ${totalDisallowed.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "NPR 0"}
+              <span className="text-white/60">Disallowed Variance:</span>
+              <p className={cn("font-mono font-bold", totalDisallowed > 0 ? "text-red-400" : "text-white/40")}>
+                {totalDisallowed > 0 ? `-${formatNpr(totalDisallowed)}` : "NPR 0"}
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-muted-foreground font-semibold">Net Certified Payable:</span>
-              <p className="font-mono text-base font-bold text-violet-700 dark:text-violet-300">
-                NPR {netCertified.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              <span className="text-white/60 font-semibold">Net Certified:</span>
+              <p className="font-mono text-sm font-bold text-primary">
+                {formatNpr(netCertified)}
               </p>
             </div>
           </div>
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Engineer Certification Notes / Remarks</Label>
+            <Label className="text-xs text-white">Engineer Certification Notes / Remarks</Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Enter site verification notes, measurement sheet references, or joint inspection remarks..."
               rows={2}
-              className="text-xs"
+              className="text-xs bg-white/5 border-white/20 text-white font-mono"
             />
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col sm:flex-row justify-between gap-2 border-t pt-3">
+        <DialogFooter className="flex flex-col sm:flex-row justify-between gap-2 border-t border-white/10 pt-3">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={verifyMut.isPending}
+            className="font-mono text-xs"
           >
             Cancel
           </Button>
@@ -338,7 +347,7 @@ export function VerifyBillDialog({
             <Button
               variant="outline"
               size="sm"
-              className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950"
+              className="text-red-400 border-red-500/30 hover:bg-red-950/20 font-mono text-xs"
               onClick={() => handleAction("dispute")}
               disabled={verifyMut.isPending}
             >
@@ -350,13 +359,14 @@ export function VerifyBillDialog({
               size="sm"
               onClick={() => handleAction("verify")}
               disabled={verifyMut.isPending}
+              className="font-mono text-xs"
             >
               Save Verification Draft
             </Button>
 
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-semibold"
               onClick={() => handleAction("certify")}
               disabled={verifyMut.isPending}
             >
@@ -365,7 +375,7 @@ export function VerifyBillDialog({
               ) : (
                 <Award className="h-3.5 w-3.5 mr-1.5" />
               )}
-              Certify Bill (NPR {netCertified.toLocaleString("en-IN", { maximumFractionDigits: 0 })})
+              Certify Bill ({formatNpr(netCertified)})
             </Button>
           </div>
         </DialogFooter>

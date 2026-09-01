@@ -7,14 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -23,17 +15,18 @@ import {
 } from "@/components/ui/select";
 import {
   Plus,
-  Banknote,
-  CheckCircle2,
   Trash2,
   Loader2,
   RefreshCw,
+  CheckCircle2,
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
+import { FormDialogEngine } from "@/components/ui/form-dialog-engine";
 
 export function AdvancesLedgerTab({
   projectId,
@@ -100,37 +93,126 @@ export function AdvancesLedgerTab({
     createMut.mutate({
       projectId,
       staffId: targetStaffId,
+      amount,
       date: advanceDate,
-      amount: Number(amount),
       type: advanceType,
       remarks: remarks || undefined,
     });
   };
 
-  const typeColor = (type: string) => {
-    switch (type) {
+  const typeColor = (t: string) => {
+    switch (t) {
       case "cash_advance":
         return "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
       case "mess_deduction":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300";
+        return "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300";
       case "safety_gear":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300";
+        return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300";
       default:
         return "bg-slate-100 text-slate-700 dark:bg-slate-800";
     }
   };
 
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (_, item) => (
+        <span className="text-muted-foreground font-mono text-xs">
+          {format(new Date(item.date), "dd MMM yyyy")}
+        </span>
+      ),
+    },
+    {
+      key: "staffName",
+      header: "Worker Name",
+      render: (_, item) => (
+        <div>
+          <span className="font-sans font-medium text-foreground">{item.staff.name}</span>
+          {item.staff.designation && (
+            <span className="block text-[10px] text-muted-foreground font-normal font-mono">
+              {item.staff.designation}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      align: "center",
+      render: (_, item) => (
+        <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", typeColor(item.type))}>
+          {item.type.replace("_", " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (_, item) => (
+        <span className="font-bold font-mono text-amber-700 dark:text-amber-300 text-xs">
+          {formatNpr(item.amount)}
+        </span>
+      ),
+    },
+    {
+      key: "remarks",
+      header: "Remarks / Purpose",
+      render: (_, item) => (
+        <span className="text-muted-foreground font-sans text-xs truncate max-w-[200px] block" title={item.remarks || ""}>
+          {item.remarks || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      align: "center",
+      render: (_, item) =>
+        item.isRecovered ? (
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1 font-mono">
+            <CheckCircle2 className="h-2.5 w-2.5" /> Recovered
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold gap-1 font-mono">
+            <ShieldAlert className="h-2.5 w-2.5" /> Pending
+          </Badge>
+        ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (_, item) => {
+        if (item.isRecovered) return null;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => deleteMut.mutate({ advanceId: item.id, projectId })}
+            disabled={deleteMut.isPending}
+            className="h-6 w-6 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        );
+      },
+    },
+  ];
+
   return (
-    <div className="space-y-2.5">
-      {/* Dense Controls & Action Ribbon */}
+    <div className="space-y-3">
+      {/* Controls Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           <Select value={selectedStaffFilter} onValueChange={setSelectedStaffFilter}>
-            <SelectTrigger className="h-7 w-44 text-xs bg-card font-mono">
-              <SelectValue placeholder="All Workers" />
+            <SelectTrigger className="h-7 w-48 text-xs font-mono">
+              <SelectValue placeholder="All Personnel" />
             </SelectTrigger>
-            <SelectContent className="font-mono text-xs">
-              <SelectItem value="all">All Workers</SelectItem>
+            <SelectContent>
+              <SelectItem value="all">All Personnel</SelectItem>
               {staffList.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -140,43 +222,41 @@ export function AdvancesLedgerTab({
           </Select>
 
           <Select value={recoveredFilter} onValueChange={setRecoveredFilter}>
-            <SelectTrigger className="h-7 w-32 text-xs bg-card font-mono">
-              <SelectValue />
+            <SelectTrigger className="h-7 w-32 text-xs font-mono">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="font-mono text-xs">
-              <SelectItem value="all">All Records</SelectItem>
-              <SelectItem value="unrecovered">Pending Only</SelectItem>
+            <SelectContent>
+              <SelectItem value="all">All Slips</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="recovered">Recovered</SelectItem>
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="flex items-center gap-2">
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => refetch()}
-            disabled={isFetching}
-            className="h-7 text-xs gap-1 px-2 font-mono"
+            className="h-7 w-7 p-0"
+            title="Refresh"
           >
             <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
           </Button>
-
-          <Button
-            size="sm"
-            onClick={() => setAddOpen(true)}
-            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-slate-900 font-semibold gap-1 px-3 shadow-xs font-mono"
-          >
-            <Plus className="h-3 w-3" />
-            Issue Advance
-          </Button>
         </div>
+
+        <Button
+          size="sm"
+          onClick={() => setAddOpen(true)}
+          className="h-7 text-xs gap-1 font-mono bg-amber-600 hover:bg-amber-700 text-white"
+        >
+          <Plus className="h-3 w-3" />
+          Issue Cash Advance
+        </Button>
       </div>
 
-      {/* Slim 28px High-Density Inline Metrics Ribbon */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 bg-muted/40 rounded border text-[11px] font-mono tabular-nums">
+      {/* Advance Metrics Ribbon */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 bg-muted/20 rounded border text-[11px] font-mono">
         <div className="flex items-center gap-3">
-          <span>
+          <span className="text-muted-foreground font-semibold">
             <strong className="text-foreground">Total Slips:</strong> {advances.length}
           </span>
           <span className="text-muted-foreground/40">│</span>
@@ -190,196 +270,103 @@ export function AdvancesLedgerTab({
         </div>
       </div>
 
-      {/* Full-Bleed Advance Ledger Table */}
-      <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
-        <table className="w-full text-xs font-mono tabular-nums border-collapse">
-          <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
-            <tr>
-              <th className="py-2 px-3 text-left w-24">Date</th>
-              <th className="py-2 px-3 text-left font-semibold min-w-[160px]">Worker Name</th>
-              <th className="py-2 px-2 text-center w-28">Type</th>
-              <th className="py-2 px-3 text-right w-28 font-bold text-foreground">Amount</th>
-              <th className="py-2 px-3 text-left min-w-[180px]">Remarks / Purpose</th>
-              <th className="py-2 px-2 text-center w-28">Status</th>
-              <th className="py-2 px-2 text-right w-16">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/40">
-            {isLoading ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
-                  Loading advance ledger...
-                </td>
-              </tr>
-            ) : advances.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground font-mono">
-                  No site advances or mess deductions recorded.
-                </td>
-              </tr>
-            ) : (
-              advances.map((item) => (
-                <tr key={item.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="py-1.5 px-3 text-muted-foreground">
-                    {format(new Date(item.date), "dd MMM yyyy")}
-                  </td>
+      {/* Central Table Engine */}
+      <ConstructionTable
+        data={advances}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search advances by worker, remarks, voucher..."
+        searchFilterKeys={["staff.name", "remarks", "type"]}
+      />
 
-                  <td className="py-1.5 px-3 font-sans font-medium text-foreground">
-                    {item.staff.name}
-                    {item.staff.designation && (
-                      <span className="block text-[10px] text-muted-foreground font-normal font-mono">
-                        {item.staff.designation}
-                      </span>
-                    )}
-                  </td>
+      {/* Standard Form Dialog Engine */}
+      <FormDialogEngine
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Issue Site Cash Advance / Log Deduction"
+        description="Record cash handouts or canteen charges that will be deducted from the worker's monthly wage envelope."
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Select Worker *</Label>
+            <Select value={targetStaffId} onValueChange={setTargetStaffId} required>
+              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                <SelectValue placeholder="Choose personnel..." />
+              </SelectTrigger>
+              <SelectContent>
+                {staffList.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} ({s.designation || s.category || "Labor"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-                  <td className="py-1.5 px-2 text-center">
-                    <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", typeColor(item.type))}>
-                      {item.type.replace("_", " ")}
-                    </Badge>
-                  </td>
-
-                  <td className="py-1.5 px-3 text-right font-bold font-mono text-amber-700 dark:text-amber-300">
-                    {formatNpr(item.amount)}
-                  </td>
-
-                  <td className="py-1.5 px-3 text-muted-foreground font-sans text-[11px] truncate max-w-[200px]" title={item.remarks || ""}>
-                    {item.remarks || "—"}
-                  </td>
-
-                  <td className="py-1.5 px-2 text-center">
-                    {item.isRecovered ? (
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1 font-mono">
-                        <CheckCircle2 className="h-2.5 w-2.5" /> Recovered
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold gap-1 font-mono">
-                        <ShieldAlert className="h-2.5 w-2.5" /> Pending
-                      </Badge>
-                    )}
-                  </td>
-
-                  <td className="py-1.5 px-2 text-right">
-                    {!item.isRecovered && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteMut.mutate({ advanceId: item.id, projectId })}
-                        disabled={deleteMut.isPending}
-                        className="h-6 w-6 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add Advance / Deduction Modal with Backdrop Blur */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-[#c7d8e8] text-slate-900">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-slate-900">
-              <Banknote className="h-5 w-5 text-amber-400" />
-              Issue Site Cash Advance / Log Deduction
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground font-mono">
-              Record cash handouts or canteen charges that will be deducted from the worker&apos;s monthly wage envelope.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreate} className="space-y-3.5 py-2">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Select Worker *</Label>
-              <Select value={targetStaffId} onValueChange={setTargetStaffId} required>
-                <SelectTrigger className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
-                  <SelectValue placeholder="Choose personnel..." />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
-                  {staffList.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.designation || s.category || "Labor"})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Advance Date *</Label>
-                <Input
-                  type="date"
-                  value={advanceDate}
-                  onChange={(e) => setAdvanceDate(e.target.value)}
-                  className="h-8 text-xs font-mono bg-white/5 border-[#c7d8e8] text-slate-900"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Deduction Type</Label>
-                <Select value={advanceType} onValueChange={(val: any) => setAdvanceType(val)}>
-                  <SelectTrigger className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
-                    <SelectItem value="cash_advance">Cash Advance</SelectItem>
-                    <SelectItem value="mess_deduction">Canteen / Mess Charge</SelectItem>
-                    <SelectItem value="safety_gear">PPE / Boots Charge</SelectItem>
-                    <SelectItem value="other">Other Site Deduction</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Amount (NPR) *</Label>
+              <Label className="text-xs font-semibold">Advance Date *</Label>
               <Input
-                type="number"
-                min="50"
-                step="50"
-                value={amount}
-                onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-mono font-bold bg-white/5 border-[#c7d8e8] text-slate-900"
+                type="date"
+                value={advanceDate}
+                onChange={(e) => setAdvanceDate(e.target.value)}
+                className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs">Voucher Ref / Remarks</Label>
-              <Input
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="e.g. Festival advance, Canteen Slip #104"
-                className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900"
-              />
+              <Label className="text-xs font-semibold">Deduction Type</Label>
+              <Select value={advanceType} onValueChange={(val: any) => setAdvanceType(val)}>
+                <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash_advance">Cash Advance</SelectItem>
+                  <SelectItem value="mess_deduction">Canteen / Mess Charge</SelectItem>
+                  <SelectItem value="safety_gear">PPE / Boots Charge</SelectItem>
+                  <SelectItem value="other">Other Site Deduction</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <DialogFooter className="border-t border-[#c7d8e8] pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setAddOpen(false)}
-                disabled={createMut.isPending}
-                className="h-8 text-xs font-mono"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-amber-600 hover:bg-amber-700 text-slate-900 font-semibold">
-                {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Record Advance ({formatNpr(amount)})
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Amount (NPR) *</Label>
+            <Input
+              type="number"
+              min="50"
+              step="50"
+              value={amount}
+              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+              className="h-8 text-xs font-mono font-bold bg-white/5 border-white/10 text-white"
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Voucher Ref / Remarks</Label>
+            <Input
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g. Festival advance, Canteen Slip #104"
+              className="h-8 text-xs bg-white/5 border-white/10 text-white"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={createMut.isPending}
+              className="h-8 text-xs font-mono bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+            >
+              {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+              Record Advance ({formatNpr(amount)})
+            </Button>
+          </div>
+        </form>
+      </FormDialogEngine>
     </div>
   );
 }

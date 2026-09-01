@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { z } from "zod";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -21,28 +22,35 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
-import { FormDateField, FormSelectField, FormTextField } from "@/components/engine/form-fields";
-import { useRegister } from "@/hooks/use-register";
-import { useAction } from "@/hooks/use-action";
+import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { FormDialogEngine } from "@/components/ui/form-dialog-engine";
 
 const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity"];
 
-/** Client-side validation for the Apply Leave dialog (server re-validates). */
-const applyLeaveSchema = z
-  .object({
-    staffId: z.string().min(1, "Please select a worker"),
-    leaveType: z.string(),
-    startDate: z.string().min(1, "Start date is required"),
-    endDate: z.string().min(1, "End date is required"),
-    reason: z.string(),
-  })
-  .refine((v) => v.endDate >= v.startDate, {
-    message: "End date must be on or after start date",
-    path: ["endDate"],
-  });
+export interface LeaveRecord {
+  id: string;
+  projectId: string;
+  staffId: string;
+  leaveType: string;
+  startDate: string | Date;
+  endDate: string | Date;
+  totalDays: number;
+  reason?: string | null;
+  status: string;
+  approvedById?: string | null;
+  staff: {
+    name: string;
+    designation: string | null;
+    category: string | null;
+  };
+  approvedBy?: {
+    name: string;
+  } | null;
+}
 
 export function LeavesTab({
   projectId,
@@ -57,6 +65,13 @@ export function LeavesTab({
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
+
+  // Form states
+  const [staffId, setStaffId] = useState("");
+  const [leaveType, setLeaveType] = useState("casual");
+  const [startDate, setStartDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [reason, setReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<{
     open: boolean;
     type: "approve" | "reject";
@@ -65,45 +80,210 @@ export function LeavesTab({
     dates: string;
   } | null>(null);
 
-  // List side: register engine (typed data + pick + refresh).
-  const status = statusFilter === "pending" || statusFilter === "approved" || statusFilter === "rejected" ? statusFilter : undefined;
-  const listQuery = trpc.leave.list.useQuery({ projectId, status });
-  const register = useRegister({
-    data: listQuery.data,
-    isLoading: listQuery.isLoading,
-    isFetching: listQuery.isFetching,
-    refresh: listQuery.refetch,
-    pick: (d) => d?.leaves ?? [],
-  });
-  const { items: leaves } = register;
+  const utils = trpc.useUtils();
 
+  const { data, isLoading, refetch, isFetching } = trpc.leave.list.useQuery({
+    projectId,
+    status: statusFilter !== "all" ? (statusFilter as any) : undefined,
+  });
+
+  const leaves = (data?.leaves || []) as unknown as LeaveRecord[];
   const pendingCount = leaves.filter((l) => l.status === "pending").length;
   const approvedCount = leaves.filter((l) => l.status === "approved").length;
   const rejectedCount = leaves.filter((l) => l.status === "rejected").length;
 
-  // Transition actions: useAction owns toast + invalidate + error protocol.
-  const approveMut = useAction(trpc.leave.approve, {
-    successMessage: "Leave approved",
-    invalidate: (u) => u.leave.list.invalidate({ projectId }),
-    onSuccess: () => setConfirmAction(null),
+  const createMut = trpc.leave.create.useMutation({
+    onSuccess: () => {
+      toast.success("Leave request submitted");
+      utils.leave.list.invalidate({ projectId });
+      setAddOpen(false);
+      setReason("");
+    },
+    onError: (e) => toast.error(e.message),
   });
 
-  const rejectMut = useAction(trpc.leave.reject, {
-    successMessage: "Leave rejected",
-    invalidate: (u) => u.leave.list.invalidate({ projectId }),
-    onSuccess: () => setConfirmAction(null),
+  const approveMut = trpc.leave.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Leave approved");
+      utils.leave.list.invalidate({ projectId });
+      setConfirmAction(null);
+    },
+    onError: (e) => toast.error(e.message),
   });
+
+  const rejectMut = trpc.leave.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Leave rejected");
+      utils.leave.list.invalidate({ projectId });
+      setConfirmAction(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffId) {
+      toast.error("Please select a worker");
+      return;
+    }
+    createMut.mutate({
+      projectId,
+      staffId,
+      leaveType,
+      startDate,
+      endDate,
+      reason: reason || undefined,
+    });
+  };
+
+  const columns: ConstructionTableColumn<LeaveRecord>[] = useMemo(
+    () => [
+      {
+        key: "staffName",
+        header: "Worker Name",
+        accessor: (row) => row.staff.name,
+        sortable: true,
+        render: (_, row) => (
+          <div className="font-sans">
+            <span className="font-semibold text-slate-900 text-xs">{row.staff.name}</span>
+            {row.staff.designation && (
+              <span className="block text-[10px] text-slate-500 font-mono">
+                {row.staff.designation}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "leaveType",
+        header: "Type",
+        accessor: (row) => row.leaveType,
+        align: "center",
+        width: "110px",
+        render: (val) => (
+          <Badge variant="outline" className="text-[10px] font-mono capitalize px-2 py-0.5 border-[#c7d8e8] bg-white text-slate-800">
+            {val}
+          </Badge>
+        ),
+      },
+      {
+        key: "startDate",
+        header: "Start Date",
+        accessor: (row) => row.startDate,
+        width: "120px",
+        render: (val) => (
+          <span className="text-slate-600 font-mono text-xs">
+            {val ? format(new Date(val), "dd MMM yyyy") : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "endDate",
+        header: "End Date",
+        accessor: (row) => row.endDate,
+        width: "120px",
+        render: (val) => (
+          <span className="text-slate-600 font-mono text-xs">
+            {val ? format(new Date(val), "dd MMM yyyy") : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "totalDays",
+        header: "Days",
+        accessor: (row) => row.totalDays,
+        align: "center",
+        width: "80px",
+        render: (val) => (
+          <span className="font-mono font-bold text-xs text-[#0284c7]">
+            {val} {val === 1 ? "day" : "days"}
+          </span>
+        ),
+      },
+      {
+        key: "reason",
+        header: "Reason / Handover Notes",
+        accessor: (row) => row.reason || "",
+        render: (val) => (
+          <span className="text-xs text-slate-600 truncate max-w-xs block" title={val || ""}>
+            {val || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        header: "Status",
+        accessor: (row) => row.status,
+        align: "center",
+        width: "120px",
+        render: (val) => <StatusBadge status={val} />,
+      },
+      {
+        key: "actions",
+        header: "Actions",
+        width: "160px",
+        align: "right",
+        render: (_, leave) => (
+          <div className="flex items-center justify-end gap-1.5 font-mono">
+            {isAdmin && leave.status === "pending" ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setConfirmAction({
+                      open: true,
+                      type: "approve",
+                      id: leave.id,
+                      employeeName: leave.staff.name,
+                      dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
+                    })
+                  }
+                  disabled={approveMut.isPending}
+                  className="h-6 text-[10px] text-emerald-600 border-emerald-500/30 gap-1 bg-emerald-50 px-2 hover:bg-emerald-100 font-bold"
+                >
+                  <CheckCircle2 className="h-3 w-3" /> Approve
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setConfirmAction({
+                      open: true,
+                      type: "reject",
+                      id: leave.id,
+                      employeeName: leave.staff.name,
+                      dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
+                    })
+                  }
+                  disabled={rejectMut.isPending}
+                  className="h-6 text-[10px] text-rose-600 border-rose-500/30 px-2 hover:bg-rose-50 font-bold"
+                >
+                  <XCircle className="h-3 w-3" /> Reject
+                </Button>
+              </>
+            ) : (
+              <span className="text-[10px] text-slate-500 font-mono">
+                {leave.approvedBy ? `By ${leave.approvedBy.name}` : "—"}
+              </span>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [isAdmin, approveMut.isPending, rejectMut.isPending]
+  );
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3 font-sans">
       {/* Action Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 rounded-md border text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
         <div className="flex items-center gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-7 w-36 text-xs bg-card font-mono">
+            <SelectTrigger className="h-8 w-40 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-lg font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="font-mono text-xs">
+            <SelectContent className="font-mono text-xs bg-white border-[#c7d8e8] text-slate-900 shadow-xl rounded-xl">
               <SelectItem value="all">All Requests</SelectItem>
               <SelectItem value="pending">Pending Approval</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -116,44 +296,45 @@ export function LeavesTab({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => register.refresh()}
-            disabled={register.isFetching}
-            className="h-7 text-xs gap-1 px-2 font-mono"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-8 text-xs gap-1.5 px-3 font-mono bg-white border-[#c7d8e8] text-slate-700 hover:bg-slate-50 rounded-lg"
           >
-            <RefreshCw className={cn("h-3 w-3", register.isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            <span>Refresh</span>
           </Button>
 
           {canWrite && (
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="h-7 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-1 px-3 shadow-xs font-mono"
+              className="h-8 text-xs bg-[#0284c7] hover:bg-[#0369a1] text-white font-semibold gap-1.5 px-3.5 shadow-xs font-mono rounded-lg"
             >
-              <Plus className="h-3 w-3" />
-              Apply Leave
+              <Plus className="h-3.5 w-3.5" />
+              Apply Leave (बिदा अनुरोध)
             </Button>
           )}
         </div>
       </div>
 
-      {/* Inline KPI Ribbon */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 bg-muted/40 rounded border text-[11px] font-mono tabular-nums">
+      {/* KPI Ribbon */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2 bg-white rounded-xl border border-[#c7d8e8] text-xs font-mono shadow-xs">
         <div className="flex items-center gap-3">
           <span>
-            <strong className="text-foreground">Total Requests:</strong> {leaves.length}
+            <strong className="text-slate-900">Total:</strong> {leaves.length}
           </span>
-          <span className="text-muted-foreground/40">│</span>
-          <span className="text-amber-600 dark:text-amber-400 font-semibold">
+          <span className="text-slate-300">│</span>
+          <span className="text-amber-600 font-semibold">
             ⏳ Pending: {pendingCount}
           </span>
-          <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-[#0284c7] font-semibold">
+          <span className="text-slate-300">│</span>
+          <span className="text-emerald-600 font-semibold">
             ✓ Approved: {approvedCount}
           </span>
           {rejectedCount > 0 && (
             <>
-              <span className="text-muted-foreground/40">│</span>
-              <span className="text-red-600 dark:text-red-400 font-medium">
+              <span className="text-slate-300">│</span>
+              <span className="text-rose-600 font-semibold">
                 ✗ Rejected: {rejectedCount}
               </span>
             </>
@@ -161,187 +342,127 @@ export function LeavesTab({
         </div>
       </div>
 
-      {/* Full-Bleed Table */}
-      <div className="overflow-x-auto rounded border border-border/80 max-h-[calc(100vh-210px)]">
-        <table className="w-full text-xs font-mono tabular-nums border-collapse">
-          <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs border-b text-[10px] text-muted-foreground uppercase">
-            <tr>
-              <th className="py-2 px-3 text-left font-semibold min-w-[160px]">Worker Name</th>
-              <th className="py-2 px-2 text-center w-24">Type</th>
-              <th className="py-2 px-3 text-left w-24">Start Date</th>
-              <th className="py-2 px-3 text-left w-24">End Date</th>
-              <th className="py-2 px-3 text-left min-w-[180px]">Reason / Notes</th>
-              <th className="py-2 px-2 text-center w-24">Status</th>
-              <th className="py-2 px-2 text-right w-28">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/40">
-            {register.isLoading ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
-                  Loading leave records...
-                </td>
-              </tr>
-            ) : leaves.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground font-mono">
-                  No leave requests found.
-                </td>
-              </tr>
-            ) : (
-              leaves.map((leave) => (
-                <tr key={leave.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="py-1.5 px-3 font-sans font-medium text-foreground">
-                    {leave.staff.name}
-                    {leave.staff.designation && (
-                      <span className="block text-[10px] text-muted-foreground font-normal font-mono">
-                        {leave.staff.designation}
-                      </span>
-                    )}
-                  </td>
+      {/* Standardized ConstructionTable Engine */}
+      <ConstructionTable<LeaveRecord>
+        data={leaves}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search employee name, leave type, reason..."
+        searchFilterKeys={["staffName", "leaveType", "reason", "status"]}
+        exportExcel={{
+          filename: `Staff_Leave_Register_${format(new Date(), "yyyy-MM-dd")}`,
+          sheetName: "Leaves",
+        }}
+        emptyState={{
+          title: "No Leave Requests",
+          description: "No leave requests have been filed for this project.",
+        }}
+      />
 
-                  <td className="py-1.5 px-2 text-center">
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 capitalize font-mono">
-                      {leave.leaveType}
-                    </Badge>
-                  </td>
+      {/* Leave Application Dialog with FormDialogEngine */}
+      <FormDialogEngine
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Apply for Site Leave"
+        description="Submit a site staff leave request for Project Manager approval and attendance deduction."
+        badge={
+          <Badge className="bg-[#e5eef7] text-[#0284c7] border border-[#c7d8e8] font-mono text-[10px]">
+            HR Module
+          </Badge>
+        }
+        maxWidth="lg"
+        aspectRatio="auto"
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-800">Select Worker / Staff *</Label>
+            <Select value={staffId} onValueChange={setStaffId} required>
+              <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono rounded-xl">
+                <SelectValue placeholder="Choose personnel..." />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                {staffList.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} ({s.designation || s.category || "Staff"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-                  <td className="py-1.5 px-3 text-muted-foreground">
-                    {format(new Date(leave.startDate), "dd MMM yyyy")}
-                  </td>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-800">Leave Type</Label>
+            <Select value={leaveType} onValueChange={setLeaveType}>
+              <SelectTrigger className="h-9 text-xs capitalize bg-white border-[#c7d8e8] text-slate-900 font-mono rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                {LEAVE_TYPES.map((lt) => (
+                  <SelectItem key={lt} value={lt} className="capitalize">
+                    {lt} Leave
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-                  <td className="py-1.5 px-3 text-muted-foreground">
-                    {format(new Date(leave.endDate), "dd MMM yyyy")}
-                  </td>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-800">Start Date *</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+                required
+              />
+            </div>
 
-                  <td className="py-1.5 px-3 text-muted-foreground font-sans text-[11px] truncate max-w-[200px]" title={leave.reason || ""}>
-                    {leave.reason || "—"}
-                  </td>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-800">End Date *</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+                required
+              />
+            </div>
+          </div>
 
-                  <td className="py-1.5 px-2 text-center font-mono">
-                    {leave.status === "approved" ? (
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1">
-                        <CheckCircle2 className="h-2.5 w-2.5" /> Approved
-                      </Badge>
-                    ) : leave.status === "rejected" ? (
-                      <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-1">
-                        <XCircle className="h-2.5 w-2.5" /> Rejected
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800 font-bold">
-                        Pending
-                      </Badge>
-                    )}
-                  </td>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-800">Reason / Handover Notes</Label>
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Medical emergency, Family festival"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+            />
+          </div>
 
-                  <td className="py-1.5 px-2 text-right">
-                    {isAdmin && leave.status === "pending" ? (
-                      <div className="flex items-center justify-end gap-1 font-mono">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setConfirmAction({
-                              open: true,
-                              type: "approve",
-                              id: leave.id,
-                              employeeName: leave.staff.name,
-                              dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
-                            })
-                          }
-                          disabled={approveMut.isPending}
-                          className="h-5 text-[9px] text-[#0284c7] border-emerald-500/30 gap-1 bg-emerald-500/10 px-1.5 hover:bg-emerald-500/20"
-                        >
-                          <CheckCircle2 className="h-2.5 w-2.5" /> Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setConfirmAction({
-                              open: true,
-                              type: "reject",
-                              id: leave.id,
-                              employeeName: leave.staff.name,
-                              dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
-                            })
-                          }
-                          disabled={rejectMut.isPending}
-                          className="h-5 text-[9px] text-rose-400 border-rose-500/30 px-1.5 hover:bg-rose-500/20"
-                        >
-                          <XCircle className="h-2.5 w-2.5" /> Reject
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {leave.approvedBy ? `By ${leave.approvedBy.name}` : "—"}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Apply Leave — FormDialogEngine (Tier 2): owns framing, state, validation,
-          toast, invalidation, close/reset. No per-field useState, no Dialog wiring. */}
-      {canWrite && (
-        <FormDialogEngine
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          title="Apply for Leave"
-          description="Submit a site leave request for Project Manager review and attendance linking."
-          icon={Calendar}
-          size="md"
-          initialValues={{
-            staffId: "",
-            leaveType: "casual",
-            startDate: format(new Date(), "yyyy-MM-dd"),
-            endDate: format(new Date(), "yyyy-MM-dd"),
-            reason: "",
-          }}
-          schema={applyLeaveSchema}
-          mutation={trpc.leave.create}
-          buildInput={(v) => ({
-            projectId,
-            staffId: v.staffId,
-            leaveType: v.leaveType,
-            startDate: v.startDate,
-            endDate: v.endDate,
-            reason: v.reason || undefined,
-          })}
-          invalidate={(u) => u.leave.list.invalidate({ projectId })}
-          successMessage="Leave request submitted"
-          submitLabel="Submit Leave"
-        >
-          <FormSelectField
-            name="staffId"
-            label="Select Worker"
-            required
-            placeholder="Choose personnel..."
-            options={staffList.map((s) => ({
-              value: s.id,
-              label: `${s.name} (${s.designation || s.category || "Staff"})`,
-            }))}
-          />
-          <FormSelectField
-            name="leaveType"
-            label="Leave Type"
-            options={LEAVE_TYPES.map((lt) => ({ value: lt, label: `${lt.charAt(0).toUpperCase()}${lt.slice(1)} Leave` }))}
-          />
-          <FormDateField name="startDate" label="Start Date" required />
-          <FormDateField name="endDate" label="End Date" required />
-          <FormTextField
-            name="reason"
-            label="Reason / Handover Notes"
-            placeholder="e.g. Medical emergency, Family wedding"
-            colSpan="full"
-          />
-        </FormDialogEngine>
-      )}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#c7d8e8]">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAddOpen(false)}
+              disabled={createMut.isPending}
+              className="h-9 px-4 text-xs font-mono bg-white border-[#c7d8e8] text-slate-700 hover:bg-slate-50 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={createMut.isPending}
+              className="h-9 px-5 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl"
+            >
+              {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+              Submit Leave Request
+            </Button>
+          </div>
+        </form>
+      </FormDialogEngine>
 
       {/* Confirmation Dialog for Leave Approval / Rejection */}
       {confirmAction && (

@@ -10,6 +10,7 @@ import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Inbox, ReceiptText, Users } from "lucide-react";
 import { trpc } from "@/lib/trpc-client";
 import { AddIpcDialog } from "./dialogs/add-ipc-dialog";
+import { formatNpr } from "@/lib/currency";
 
 type Ipc = {
   id: string; number: string; period: string | null; status: string;
@@ -36,6 +37,14 @@ const STATUS_STYLES: Record<string, string> = {
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { ModuleTabs } from "@/components/module-tabs";
 
+const FIN_TABS = [
+  { label: "Payments", href: "/payments" },
+  { label: "Accounting & Day Book", href: "/accounting" },
+  { label: "IPC Certificates", href: "/ipc" },
+  { label: "Tax Summary", href: "/tax-summary" },
+  { label: "Cash Flow", href: "/cash-flow" },
+  { label: "Budget vs Actual", href: "/budget-variance" },
+];
 
 export default function IpcPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -50,7 +59,7 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="finance" />
+      <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Summary Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
@@ -105,24 +114,25 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
                         </Badge>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono font-matrix">
-                      <span className="text-slate-600">Gross: <span className="font-bold text-slate-900 font-matrix">NPR {ipc.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></span>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
+                      <span className="text-muted-foreground">Gross: <span className="font-bold text-foreground font-mono">{formatNpr(ipc.grossAmount)}</span></span>
                       {(ipc.vatAmount ?? 0) > 0 && (
-                        <span className="text-amber-700 font-matrix">
-                          +VAT ({ipc.vatPercent ?? 0}%): NPR {(ipc.vatAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        <span className="text-amber-600 dark:text-amber-400 font-mono">
+                          +VAT ({ipc.vatPercent ?? 0}%): {formatNpr(ipc.vatAmount ?? 0)}
                         </span>
                       )}
-                      <span className="text-slate-500 font-matrix">Retention: NPR {ipc.retentionAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-slate-500 font-matrix">Advance: NPR {ipc.advanceRecovery.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-muted-foreground font-mono">Retention: {formatNpr(ipc.retentionAmount)}</span>
+                      <span className="text-muted-foreground font-mono">Advance: {formatNpr(ipc.advanceRecovery)}</span>
                       {(ipc.tdsAmount ?? 0) > 0 && (
-                        <span className="text-rose-700 font-matrix">
-                          −TDS ({ipc.tdsPercent ?? 0}%): NPR {(ipc.tdsAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        <span className="text-red-600 dark:text-red-400 font-mono">
+                          −TDS ({ipc.tdsPercent ?? 0}%): {formatNpr(ipc.tdsAmount ?? 0)}
                         </span>
                       )}
-                      <span className="text-emerald-700 font-bold font-matrix">
-                        Final: NPR {(ipc.finalPayable ?? ipc.netPayable).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
+                        Final: {formatNpr(ipc.finalPayable ?? ipc.netPayable)}
                       </span>
                     </div>
+
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <Badge variant="outline" className="border-[#c7d8e8] text-slate-600 font-mono">{ipc._count.items} items</Badge>

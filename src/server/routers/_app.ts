@@ -45,7 +45,6 @@ import { plantProductionRouter } from "./plant-production";
 import { adminRouter } from "./admin";
 import { subcontractorBillRouter } from "./subcontractor-bill";
 import { leaveRouter } from "./leave";
-import { lifecycleRouter } from "./lifecycle";
 import { payrollRouter } from "./payroll";
 import { siteExpenseRouter } from "./site-expense";
 import { catalogV2Router } from "./catalog-v2";
@@ -56,6 +55,7 @@ import { bankGuaranteeRouter } from "./bank-guarantee";
 import { financialReportingRouter } from "./financial-reporting";
 import { jvPartnerRouter } from "./jv-partner";
 import { interSiteTransferRouter } from "./inter-site-transfer";
+import { lifecycleRouter } from "./lifecycle";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -100,7 +100,6 @@ export const appRouter = router({
   plantProduction: plantProductionRouter,
   admin: adminRouter,
   leave: leaveRouter,
-  lifecycle: lifecycleRouter,
   payroll: payrollRouter,
   siteExpense: siteExpenseRouter,
   catalogV2: catalogV2Router,
@@ -111,6 +110,8 @@ export const appRouter = router({
   financialReporting: financialReportingRouter,
   jvPartner: jvPartnerRouter,
   interSiteTransfer: interSiteTransferRouter,
+  lifecycle: lifecycleRouter,
 });
 
 export type AppRouter = typeof appRouter;
+

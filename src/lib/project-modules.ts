@@ -39,6 +39,7 @@ export interface ModuleDefinition {
   description: string;
   core: boolean; // core modules are locked ON and cannot be disabled
   group: ModuleGroup;
+  path: string; // relative path from /projects/[id]
 }
 
 export type ModuleGroup =
@@ -53,33 +54,34 @@ export type ModulePreset = "record_keeper" | "lean" | "enterprise" | "simple" | 
 
 export const MODULE_DEFINITIONS: ModuleDefinition[] = [
   // ── 11 Essential Core Pillars (Permanently Locked ON for ALL Contractors) ──
-  { key: "dashboard",       label: "Project Overview",         core: true,  group: "Core",                description: "Project health, metrics, costs & activity feed" },
-  { key: "boq",             label: "BOQ & Rate Analysis",      core: true,  group: "Core",                description: "Bill of Quantities & rate analysis library" },
-  { key: "accounting",      label: "Site Day Book & Cashbook", core: true,  group: "Core",                description: "Day Book (रोजकट्टी), Cash Inflow/Outflow & Vouchers" },
-  { key: "payments",        label: "Site Payables & Bahi Khata", core: true, group: "Core",               description: "Party ledgers, vendor claims & outstanding credit balances" },
-  { key: "materials",       label: "Materials & Stock Ledger", core: true,  group: "Procurement",         description: "Material catalog, direct buy, 1-click inter-site transfers & stock" },
-  { key: "subcontractors",  label: "Subcontractors & Theka",   core: true,  group: "Site Management",     description: "Subcontractor management, muster roll attendance & gang piece-rates" },
-  { key: "vat",             label: "VAT & Tax Summary",        core: true,  group: "Compliance",          description: "VAT bills, IRD Schedule 8/9/10 & TDS tax tracking" },
-  { key: "guarantees",      label: "Bank Guarantees & Insurance", core: true, group: "Contract Management", description: "Performance Bonds, APG, CAR Insurance & Expiry alerts" },
-  { key: "correspondence",  label: "Correspondence Register",  core: true,  group: "Contract Management", description: "Official letter logging, notice to commence & reply deadlines" },
-  { key: "drawings",        label: "Drawings & Blueprints",    core: true,  group: "Site Management",     description: "Master drawing register & architectural/structural revisions" },
-  { key: "documents",       label: "Documents Vault",          core: true,  group: "Core",                description: "Central document archive, transmittals & versioned project vault" },
+  { key: "dashboard",       label: "Project Overview",         core: true,  group: "Core",                path: "",                description: "Project health, metrics, costs & activity feed" },
+  { key: "boq",             label: "BOQ & Rate Analysis",      core: true,  group: "Core",                path: "/boq",            description: "Bill of Quantities & rate analysis library" },
+  { key: "accounting",      label: "Site Day Book & Cashbook", core: true,  group: "Core",                path: "/accounting",     description: "Day Book (रोजकट्टी), Cash Inflow/Outflow & Vouchers" },
+  { key: "payments",        label: "Site Payables & Bahi Khata", core: true, group: "Core",               path: "/payments",       description: "Party ledgers, vendor claims & outstanding credit balances" },
+  { key: "materials",       label: "Materials & Stock Ledger", core: true,  group: "Procurement",         path: "/materials",      description: "Material catalog, direct buy, 1-click inter-site transfers & stock" },
+  { key: "subcontractors",  label: "Subcontractors & Theka",   core: true,  group: "Site Management",     path: "/subcontractors", description: "Subcontractor management, muster roll attendance & gang piece-rates" },
+  { key: "vat",             label: "VAT & Tax Summary",        core: true,  group: "Compliance",          path: "/vat",            description: "VAT bills, IRD Schedule 8/9/10 & TDS tax tracking" },
+  { key: "guarantees",      label: "Bank Guarantees & Insurance", core: true, group: "Contract Management", path: "/guarantees",   description: "Performance Bonds, APG, CAR Insurance & Expiry alerts" },
+  { key: "correspondence",  label: "Correspondence Register",  core: true,  group: "Contract Management", path: "/correspondence", description: "Official letter logging, notice to commence & reply deadlines" },
+  { key: "drawings",        label: "Drawings & Blueprints",    core: true,  group: "Site Management",     path: "/drawings",       description: "Master drawing register & architectural/structural revisions" },
+  { key: "documents",       label: "Documents Vault",          core: true,  group: "Core",                path: "/documents",      description: "Central document archive, transmittals & versioned project vault" },
 
   // ── Modular Workflows (Toggleable via Presets or Granular Switches) ──
-  { key: "equipment",       label: "Equipment & Machinery",    core: false, group: "Site Management",     description: "Equipment fuel/hour logs, spot hire & maintenance" },
-  { key: "dailyProgramme",  label: "Daily Programme (Lookahead)", core: false, group: "Site Management",  description: "Daily & 3-day look-ahead site execution planning" },
-  { key: "punchList",       label: "Punch / Snag List",        core: false, group: "Site Management",     description: "Defect rectification & handover snag list" },
-  { key: "gantt",           label: "Gantt CPM Scheduling",     core: false, group: "Site Management",     description: "CPM Critical Path, dependencies, float & S-Curves" },
-  { key: "ipc",             label: "IPC Certificates",         core: false, group: "Contract Management", description: "Interim Payment Certificates (Nepal Don Bosco format)" },
-  { key: "variations",      label: "Variation Orders",         core: false, group: "Contract Management", description: "Contract changes, extra items & rate variations" },
-  { key: "rfi",             label: "RFI Management",           core: false, group: "Contract Management", description: "Requests for Information & formal employer queries" },
-  { key: "submittals",      label: "Formal Submittals",        core: false, group: "Contract Management", description: "Material & shop drawing submittals to consultant" },
-  { key: "purchaseOrders",  label: "Purchase Orders (PO)",     core: false, group: "Procurement",         description: "Formal PO issuance, approval gates & vendor matching" },
-  { key: "requisitions",    label: "Purchase Requisitions",    core: false, group: "Procurement",         description: "Site purchase requisitions with 3-quote comparison" },
-  { key: "qualitySafety",   label: "Quality & Safety (QA/QC)", core: false, group: "Site Management",     description: "Concrete cube crushing test register, safety & toolbox talks" },
-  { key: "production",      label: "Plant & Production",       core: false, group: "Advanced",            description: "Concrete & asphalt batching plants, JMF & batch tickets" },
-  { key: "hr",              label: "HR & Staff Payroll",       core: false, group: "Site Management",     description: "Company staff directory & payroll (Nepal CIT/SSF)" },
+  { key: "equipment",       label: "Equipment & Machinery",    core: false, group: "Site Management",     path: "/equipment",      description: "Equipment fuel/hour logs, spot hire & maintenance" },
+  { key: "dailyProgramme",  label: "Daily Programme (Lookahead)", core: false, group: "Site Management",  path: "/daily-programme", description: "Daily & 3-day look-ahead site execution planning" },
+  { key: "punchList",       label: "Punch / Snag List",        core: false, group: "Site Management",     path: "/punch-list",     description: "Defect rectification & handover snag list" },
+  { key: "gantt",           label: "Gantt CPM Scheduling",     core: false, group: "Site Management",     path: "/gantt",          description: "CPM Critical Path, dependencies, float & S-Curves" },
+  { key: "ipc",             label: "IPC Certificates",         core: false, group: "Contract Management", path: "/ipc",            description: "Interim Payment Certificates (Nepal Don Bosco format)" },
+  { key: "variations",      label: "Variation Orders",         core: false, group: "Contract Management", path: "/variations",     description: "Contract changes, extra items & rate variations" },
+  { key: "rfi",             label: "RFI Management",           core: false, group: "Contract Management", path: "/workflow/rfi",   description: "Requests for Information & formal employer queries" },
+  { key: "submittals",      label: "Formal Submittals",        core: false, group: "Contract Management", path: "/submittals",     description: "Material & shop drawing submittals to consultant" },
+  { key: "purchaseOrders",  label: "Purchase Orders (PO)",     core: false, group: "Procurement",         path: "/purchase-orders", description: "Formal PO issuance, approval gates & vendor matching" },
+  { key: "requisitions",    label: "Purchase Requisitions",    core: false, group: "Procurement",         path: "/requisitions",   description: "Site purchase requisitions with 3-quote comparison" },
+  { key: "qualitySafety",   label: "Quality & Safety (QA/QC)", core: false, group: "Site Management",     path: "/quality",        description: "Concrete cube crushing test register, safety & toolbox talks" },
+  { key: "production",      label: "Plant & Production",       core: false, group: "Advanced",            path: "/production",     description: "Concrete & asphalt batching plants, JMF & batch tickets" },
+  { key: "hr",              label: "HR & Staff Payroll",       core: false, group: "Site Management",     path: "/hr",             description: "Company staff directory & payroll (Nepal CIT/SSF)" },
 ];
+
 
 // ── Preset Templates ─────────────────────────────────────────────
 

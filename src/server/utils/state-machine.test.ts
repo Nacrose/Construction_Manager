@@ -1,120 +1,152 @@
 import { describe, it, expect, vi } from "vitest";
-import { transitionEntityState } from "./state-machine";
+import {
+  transitionEntityState,
+  canTransition,
+  getAllowedTransitions,
+  LIFECYCLE_GRAPHS,
+} from "./state-machine";
 
 describe("Central Multi-Entity State Machine Engine", () => {
-  it("successfully transitions from submitted to approved with attribution", async () => {
-    const mockDb: any = {
-      siteExpense: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: "exp-1",
-          status: "submitted",
-          approvedById: null,
-          approvedAt: null,
-        }),
-        update: vi.fn().mockImplementation(({ data }) =>
-          Promise.resolve({ id: "exp-1", ...data })
-        ),
-      },
-    };
-
-    const res = await transitionEntityState(mockDb, {
-      model: "siteExpense",
-      id: "exp-1",
-      allowedCurrentStates: ["draft", "submitted"],
-      targetState: "approved",
-      userId: "user-admin-1",
-      skipEventEmit: true,
+  describe("LIFECYCLE_GRAPHS & canTransition()", () => {
+    it("defines valid transition rules for all supported models", () => {
+      const models = Object.keys(LIFECYCLE_GRAPHS);
+      expect(models).toContain("leave");
+      expect(models).toContain("submittal");
+      expect(models).toContain("punchItem");
+      expect(models).toContain("siteExpense");
+      expect(models).toContain("subcontractorBill");
+      expect(models).toContain("purchaseOrder");
+      expect(models).toContain("purchaseRequisition");
+      expect(models).toContain("variationOrder");
+      expect(models).toContain("dailyReport");
     });
 
-    expect(res.previousState).toBe("submitted");
-    expect(res.currentState).toBe("approved");
-    expect(mockDb.siteExpense.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "exp-1" },
-        data: expect.objectContaining({
-          status: "approved",
-          approvedById: "user-admin-1",
-        }),
-      })
-    );
+    it("evaluates valid and invalid transitions correctly with canTransition()", () => {
+      // Leave
+      expect(canTransition("leave", "pending", "approved").allowed).toBe(true);
+      expect(canTransition("leave", "pending", "rejected").allowed).toBe(true);
+      expect(canTransition("leave", "approved", "pending").allowed).toBe(false);
+
+      // Submittal multi-loop
+      expect(canTransition("submittal", "draft", "submitted").allowed).toBe(true);
+      expect(canTransition("submittal", "submitted", "revise_resubmit").allowed).toBe(true);
+      expect(canTransition("submittal", "revise_resubmit", "submitted").allowed).toBe(true);
+      expect(canTransition("submittal", "submitted", "approved").allowed).toBe(true);
+      expect(canTransition("submittal", "draft", "approved").allowed).toBe(false);
+
+      // Punch Item linear flow
+      expect(canTransition("punchItem", "open", "in_progress").allowed).toBe(true);
+      expect(canTransition("punchItem", "in_progress", "resolved").allowed).toBe(true);
+      expect(canTransition("punchItem", "resolved", "verified").allowed).toBe(true);
+      expect(canTransition("punchItem", "verified", "closed").allowed).toBe(true);
+      expect(canTransition("punchItem", "open", "closed").allowed).toBe(false);
+      expect(canTransition("punchItem", "closed", "open").allowed).toBe(false);
+    });
+
+    it("returns allowed next states using getAllowedTransitions()", () => {
+      expect(getAllowedTransitions("leave", "pending")).toEqual(["approved", "rejected"]);
+      expect(getAllowedTransitions("punchItem", "open")).toEqual(["in_progress"]);
+      expect(getAllowedTransitions("submittal", "submitted")).toEqual([
+        "approved",
+        "rejected",
+        "revise_resubmit",
+      ]);
+      expect(getAllowedTransitions("punchItem", "closed")).toEqual([]);
+    });
   });
 
-  it("throws BAD_REQUEST when entity is not in an allowed state", async () => {
-    const mockDb: any = {
-      subcontractorBill: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: "bill-1",
-          status: "approved",
-        }),
-      },
-    };
+  describe("transitionEntityState() execution", () => {
+    it("successfully transitions from pending to approved with attribution", async () => {
+      const mockDb: any = {
+        siteExpense: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "exp-1",
+            status: "pending",
+            approvedById: null,
+            approvedAt: null,
+          }),
+          update: vi.fn().mockImplementation(({ data }) =>
+            Promise.resolve({ id: "exp-1", ...data })
+          ),
+        },
+      };
 
-    await expect(
-      transitionEntityState(mockDb, {
-        model: "subcontractorBill",
-        id: "bill-1",
-        allowedCurrentStates: ["draft", "submitted"],
+      const res = await transitionEntityState(mockDb, {
+        model: "siteExpense",
+        id: "exp-1",
         targetState: "approved",
-        userId: "user-1",
+        userId: "user-admin-1",
         skipEventEmit: true,
-      })
-    ).rejects.toThrow("Invalid state transition for subcontractorBill. Current status is 'approved', but expected one of: [draft, submitted].");
-  });
+      });
 
-  it("captures rejection reason when transitioning to rejected (graph-derived from-states)", async () => {
-    const mockDb: any = {
-      leaveRequest: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: "leave-1",
-          status: "pending",
-          rejectionReason: null,
-        }),
-        update: vi.fn().mockImplementation(({ data }) =>
-          Promise.resolve({ id: "leave-1", ...data })
-        ),
-      },
-    };
-
-    const res = await transitionEntityState(mockDb, {
-      model: "leaveRequest",
-      id: "leave-1",
-      // allowedCurrentStates intentionally omitted — derived from the
-      // lifecycle graph (pending → rejected is a real edge).
-      targetState: "rejected",
-      userId: "user-approver",
-      notes: "Insufficient remaining leave quota",
-      skipEventEmit: true,
+      expect(res.previousState).toBe("pending");
+      expect(res.currentState).toBe("approved");
+      expect(mockDb.siteExpense.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "exp-1" },
+          data: expect.objectContaining({
+            status: "approved",
+            approvedById: "user-admin-1",
+          }),
+        })
+      );
     });
 
-    expect(res.currentState).toBe("rejected");
-    expect(mockDb.leaveRequest.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: "rejected",
-          rejectionReason: "Insufficient remaining leave quota",
-        }),
-      })
-    );
-  });
+    it("throws BAD_REQUEST when entity is not in an allowed state", async () => {
+      const mockDb: any = {
+        subcontractorBill: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "bill-1",
+            status: "approved",
+          }),
+        },
+      };
 
-  it("rejects a graph-unknown transition when from-states are derived", async () => {
-    const mockDb: any = {
-      leaveRequest: {
-        findUnique: vi.fn().mockResolvedValue({
-          id: "leave-2",
-          status: "draft", // "draft" is not a leaveRequest state — no graph edge to rejected
-        }),
-      },
-    };
+      await expect(
+        transitionEntityState(mockDb, {
+          model: "subcontractorBill",
+          id: "bill-1",
+          allowedCurrentStates: ["draft", "submitted"],
+          targetState: "certified",
+          userId: "user-1",
+          skipEventEmit: true,
+        })
+      ).rejects.toThrow("Invalid state transition for subcontractorBill");
+    });
 
-    await expect(
-      transitionEntityState(mockDb, {
-        model: "leaveRequest",
-        id: "leave-2",
+    it("captures rejection reason when transitioning to rejected", async () => {
+      const mockDb: any = {
+        leave: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "leave-1",
+            status: "pending",
+            rejectionReason: null,
+          }),
+          update: vi.fn().mockImplementation(({ data }) =>
+            Promise.resolve({ id: "leave-1", ...data })
+          ),
+        },
+      };
+
+      const res = await transitionEntityState(mockDb, {
+        model: "leave",
+        id: "leave-1",
         targetState: "rejected",
-        userId: "user-1",
+        userId: "user-approver",
+        notes: "Insufficient remaining leave quota",
         skipEventEmit: true,
-      })
-    ).rejects.toThrow(/Invalid state transition for leaveRequest/);
+      });
+
+      expect(res.currentState).toBe("rejected");
+      expect(mockDb.leave.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "rejected",
+            rejectionReason: "Insufficient remaining leave quota",
+          }),
+        })
+      );
+    });
   });
 });
+

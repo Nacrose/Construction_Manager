@@ -9,6 +9,8 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
+import { transitionEntityState } from "@/server/utils/state-machine";
+
 export const submittalRouter = router({
   list: protectedProcedure
     .input(z.object({
@@ -82,20 +84,15 @@ export const submittalRouter = router({
       const s = await db.submittal.findUnique({ where: { id: input.id } });
       if (!s) throw new TRPCError({ code: "NOT_FOUND" });
       await assertCanWrite(ctx.user, s.projectId);
-      // State guard: only drafts (first submission) and revise_resubmit
-      // decisions (the resubmission loop) may be submitted. Without this,
-      // an already approved/rejected submittal could be flipped back to
-      // "submitted", silently destroying the review decision.
-      if (s.status !== "draft" && s.status !== "revise_resubmit") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Only draft or revise-resubmit submittals can be submitted (current status: ${s.status}).`,
-        });
-      }
-      const updated = await db.submittal.update({
-        where: { id: input.id },
-        data: { status: "submitted", submittedDate: new Date() },
+
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "submittal",
+        id: input.id,
+        targetState: "submitted",
+        userId: ctx.user.id,
+        projectId: s.projectId,
       });
+
       return { submittal: updated };
     }),
 
@@ -113,28 +110,23 @@ export const submittalRouter = router({
       const s = await db.submittal.findUnique({ where: { id: input.id } });
       if (!s) throw new TRPCError({ code: "NOT_FOUND" });
       await assertCanWrite(ctx.user, s.projectId);
-      // State guard: only submitted submittals are in the reviewer's court.
-      // Without this, a draft could be approved without ever being
-      // submitted (bypassing the consultant workflow) and a decided
-      // submittal could be re-reviewed, overwriting the first decision.
-      if (s.status !== "submitted") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Only submitted submittals can be reviewed (current status: ${s.status}).`,
-        });
-      }
-      const updated = await db.submittal.update({
-        where: { id: input.id },
-        data: {
-          status: input.status,
-          reviewedDate: new Date(),
+
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "submittal",
+        id: input.id,
+        targetState: input.status,
+        userId: ctx.user.id,
+        userName: input.reviewedBy || ctx.user.name,
+        notes: input.reviewComments,
+        projectId: s.projectId,
+        additionalData: {
           reviewComments: input.reviewComments || null,
-          reviewedBy: input.reviewedBy || ctx.user.name,
           returnedFileData: input.returnedFileData || null,
           returnedFileName: input.returnedFileName || null,
           returnedFileType: input.returnedFileType || null,
         },
       });
+
       await audit({
         userId: ctx.user.id,
         projectId: s.projectId,
@@ -145,6 +137,7 @@ export const submittalRouter = router({
       });
       return { submittal: updated };
     }),
+
 
   delete: protectedProcedure
     .input(z.object({ id: z.string(), projectId: z.string() }))

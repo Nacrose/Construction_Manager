@@ -133,7 +133,7 @@ async function dbGetAll(): Promise<QueueItem[]> {
 
 // ---------- External store (for React 18 useSyncExternalStore) ----------
 
-let listeners = new Set<() => void>();
+const listeners = new Set<() => void>();
 let cachedSnapshot: QueueItem[] = [];
 let lastReturnedSnapshot: QueueItem[] = [];
 let cacheVersion = 0;

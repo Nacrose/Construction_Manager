@@ -6,6 +6,9 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
+import { canTransition } from "@/server/utils/state-machine";
+import { emitDomainEvent } from "@/server/utils/domain-events";
+
 
 export const variationOrderRouter = router({
   /** List all Variation Orders for a project */
@@ -169,9 +172,14 @@ export const variationOrderRouter = router({
       });
 
       if (!vo) throw new TRPCError({ code: "NOT_FOUND" });
-      if (vo.status === "approved") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Variation Order is already approved and locked." });
+      const transitionCheck = canTransition("variationOrder", vo.status, input.status);
+      if (!transitionCheck.allowed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: transitionCheck.reason || "Variation Order is already approved and locked.",
+        });
       }
+
 
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
@@ -335,6 +343,18 @@ export const variationOrderRouter = router({
         },
       });
 
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: input.projectId,
+        actorUserId: ctx.user.id,
+        title: `Variation Order ${input.status === "approved" ? "Approved" : input.status === "rejected" ? "Rejected" : "Updated"} (${vo.number})`,
+        message: `Variation Order ${vo.number} marked as ${input.status} by ${ctx.user.name || "User"}.`,
+        entityType: "variationOrder",
+        entityId: input.id,
+        metadata: { model: "variationOrder", from: vo.status, to: input.status },
+      });
+
       return { success: true };
     }),
 });
+

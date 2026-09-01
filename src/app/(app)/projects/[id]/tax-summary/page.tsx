@@ -22,15 +22,13 @@ import { VatReturnTab } from "./components/vat-return-tab";
 import { MissingScansTab } from "./components/missing-scans-tab";
 import { LogVatBillDialog } from "./dialogs/log-vat-bill-dialog";
 
+const FIN_TABS = [
+  { label: "Day Book & Cashbook", href: "/accounting" },
+  { label: "Parties & Payables", href: "/payments" },
+  { label: "Reports & Compliance", href: "/tax-summary" },
+];
 
-export default function TaxSummaryPage({
-  params,
-  embedded = false,
-}: {
-  params: Promise<{ id: string }>;
-  /** When embedded in /finance, the host owns the tab bar — do not render ModuleTabs. */
-  embedded?: boolean;
-}) {
+export default function TaxSummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState<"purchase" | "sales" | "vat_return" | "missing_scans">("purchase");
   const [logDialogOpen, setLogDialogOpen] = useState(false);
@@ -44,7 +42,7 @@ export default function TaxSummaryPage({
 
   return (
     <AnimatedPage className="space-y-2.5 font-sans">
-      {!embedded && <ModuleTabs projectId={id} cluster="finance-compact" />}
+      <ModuleTabs projectId={id} tabs={FIN_TABS} />
 
       {/* Ultra-Clean Single-Line Sub-Tab Switcher & Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c7d8e8] pb-1">

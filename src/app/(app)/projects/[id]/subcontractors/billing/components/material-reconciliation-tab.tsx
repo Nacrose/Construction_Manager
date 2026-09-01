@@ -17,14 +17,13 @@ import {
   CheckCircle2,
   Download,
   RefreshCw,
-  Loader2,
   Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function MaterialReconciliationTab({
   projectId,
@@ -36,7 +35,6 @@ export function MaterialReconciliationTab({
   const [selectedSubId, setSelectedSubId] = useState<string>(() => {
     return subcontractors[0]?.id || "";
   });
-  const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(null);
 
   const { data, isLoading, refetch, isFetching } =
     trpc.subcontractorBill.getSubcontractorMaterialReconciliation.useQuery(
@@ -101,30 +99,150 @@ export function MaterialReconciliationTab({
     }
   };
 
-  if (!subcontractors.length) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center text-muted-foreground text-sm font-mono">
-          No subcontractors found for this project.
-        </CardContent>
-      </Card>
-    );
-  }
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "name",
+      header: "Material / Item",
+      render: (_, item) => (
+        <div className="font-sans font-medium text-foreground text-xs">
+          {item.name}
+          <span className="block text-[9px] font-mono text-muted-foreground">
+            {item.transactions?.length || 0} transaction slip(s)
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      align: "center",
+      render: (_, item) => <span className="text-muted-foreground text-[10px] font-mono">{item.unit}</span>,
+    },
+    {
+      key: "issuedQty",
+      header: "Issued",
+      align: "right",
+      render: (_, item) => (
+        <span className="text-emerald-600 font-mono text-xs font-semibold">
+          {item.issuedQty.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "returnedQty",
+      header: "Returned",
+      align: "right",
+      render: (_, item) => (
+        <span className="text-blue-600 font-mono text-xs">
+          {item.returnedQty > 0 ? item.returnedQty.toLocaleString() : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "netIssuedQty",
+      header: "Net Handed",
+      align: "right",
+      render: (_, item) => (
+        <span className="font-bold font-mono text-xs text-foreground">
+          {item.netIssuedQty.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "theoreticalReq",
+      header: "Theoretical Req",
+      align: "right",
+      render: (_, item) => (
+        <span className="text-blue-600 dark:text-blue-400 font-mono text-xs font-medium">
+          {item.theoreticalReq.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "allowedWastage",
+      header: "Allowed (2%)",
+      align: "right",
+      render: (_, item) => (
+        <span className="text-muted-foreground font-mono text-xs">
+          {item.allowedWastage.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "excessQty",
+      header: "Excess Qty",
+      align: "right",
+      render: (_, item) => (
+        <span
+          className={cn(
+            "font-mono text-xs font-bold",
+            item.excessQty > 0 ? "text-red-600 dark:text-red-400 font-extrabold" : "text-muted-foreground"
+          )}
+        >
+          {item.excessQty > 0 ? item.excessQty.toLocaleString() : "0"}
+        </span>
+      ),
+    },
+    {
+      key: "recoveryRate",
+      header: "Recovery Rate",
+      align: "right",
+      render: (_, item) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {formatNpr(item.recoveryRate)}
+        </span>
+      ),
+    },
+    {
+      key: "debitAmount",
+      header: "Debit (NPR)",
+      align: "right",
+      render: (_, item) => (
+        <span
+          className={cn(
+            "font-mono text-xs font-bold",
+            item.debitAmount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
+          )}
+        >
+          {item.debitAmount > 0 ? formatNpr(item.debitAmount) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      align: "center",
+      render: (_, item) => {
+        const isExcess = item.excessQty > 0;
+        return isExcess ? (
+          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-1 uppercase font-mono">
+            <ShieldAlert className="h-2.5 w-2.5" /> Debit Due
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 uppercase font-mono">
+            <CheckCircle2 className="h-2.5 w-2.5" /> Balanced
+          </Badge>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-4">
-      {/* Subcontractor Selector & Summary Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-muted/20 p-3 rounded-lg border">
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <span className="text-xs font-semibold text-muted-foreground shrink-0 font-mono">Subcontractor Package:</span>
+      {/* Top Filter & Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/40 rounded-lg border border-border/80">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider font-mono">
+            Select Subcontractor:
+          </span>
           <Select value={selectedSubId} onValueChange={setSelectedSubId}>
-            <SelectTrigger className="h-8 w-60 text-xs font-medium bg-card font-mono">
-              <SelectValue placeholder="Select Subcontractor" />
+            <SelectTrigger className="w-[260px] h-8 text-xs font-medium">
+              <SelectValue placeholder="Choose Subcontractor..." />
             </SelectTrigger>
-            <SelectContent className="font-mono text-xs">
-              {subcontractors.map((sub) => (
-                <SelectItem key={sub.id} value={sub.id}>
-                  {sub.name}
+            <SelectContent>
+              {subcontractors.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs font-mono">
+                  {s.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -132,177 +250,66 @@ export function MaterialReconciliationTab({
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="px-3 py-1 bg-muted/60 rounded-md border text-xs font-mono">
+            <span className="text-muted-foreground text-[10px] uppercase mr-2">Total Debit:</span>
+            <span className="font-bold text-red-600 dark:text-red-400">{formatNpr(totalDebit)}</span>
+          </div>
+
           <Button
-            size="sm"
             variant="outline"
+            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
             className="h-8 text-xs gap-1.5 font-mono"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-            Refresh
+            Recalculate
           </Button>
+
           <Button
+            variant="outline"
             size="sm"
             onClick={handleExportExcel}
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-mono"
+            className="h-8 text-xs gap-1.5 font-mono"
           >
             <Download className="h-3.5 w-3.5" />
-            Export Statement (Excel)
+            Excel
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards for Material Statement */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
-        <Card className="p-3 shadow-xs">
-          <p className="text-[10px] text-muted-foreground uppercase font-medium">Materials Tracked</p>
-          <p className="text-xl font-bold font-mono">{statement.length}</p>
-          <p className="text-[9px] text-muted-foreground mt-0.5 font-sans">Active warehouse items</p>
-        </Card>
-
-        <Card className="p-3 shadow-xs">
-          <p className="text-[10px] text-muted-foreground uppercase font-medium">Excess Wastage Items</p>
-          <p className={cn("text-xl font-bold font-mono", statement.filter((s) => s.excessQty > 0).length > 0 ? "text-amber-600" : "text-emerald-600")}>
-            {statement.filter((s) => s.excessQty > 0).length}
-          </p>
-          <p className="text-[9px] text-muted-foreground mt-0.5 font-sans">Exceeds 2% tolerance</p>
-        </Card>
-
-        <Card className="p-3 shadow-xs border-l-4 border-l-red-500 bg-red-50/20 dark:bg-red-950/10">
-          <p className="text-[10px] text-muted-foreground uppercase font-medium">Total Material Debit</p>
-          <p className="text-xl font-bold font-mono text-red-600 dark:text-red-400">
-            {formatNpr(totalDebit)}
-          </p>
-          <p className="text-[9px] text-muted-foreground mt-0.5 font-sans">Auto-deducted from bill</p>
-        </Card>
-
-        <Card className="p-3 shadow-xs border-l-4 border-l-emerald-500">
-          <p className="text-[10px] text-muted-foreground uppercase font-medium">Reconciliation Status</p>
-          <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-            {totalDebit === 0 ? "Balanced" : "Debit Active"}
-          </p>
-          <p className="text-[9px] text-muted-foreground mt-0.5 font-sans">Based on verified BOQ work</p>
-        </Card>
-      </div>
-
-      {/* Statement Table */}
-      <Card className="overflow-hidden border border-border/80 shadow-xs">
-        <CardHeader className="py-3 px-4 bg-muted/30 border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Layers className="h-4 w-4 text-violet-600" />
-                Material Issued vs. Consumed Reconciliation Statement
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Comparison of warehouse store issues against theoretical consumption calculated from {selectedSub?.name}&apos;s billed BOQ work.
-              </CardDescription>
+      {/* Central Table Engine */}
+      <ConstructionTable
+        data={statement}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search reconciliation items..."
+        searchFilterKeys={["name", "unit"]}
+        renderRowPreview={(item) =>
+          item.transactions && item.transactions.length > 0 ? (
+            <div className="space-y-2 p-2 font-mono text-xs">
+              <div className="font-semibold text-foreground">Transaction Slips for {item.name}:</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {item.transactions.map((tx: any, i: number) => (
+                  <div key={i} className="p-2 rounded bg-muted/30 border text-[11px] space-y-0.5">
+                    <div className="flex justify-between font-bold">
+                      <span>{tx.slipNo || `Slip #${i + 1}`}</span>
+                      <span className={tx.type === "issue" ? "text-emerald-600" : "text-blue-600"}>
+                        {tx.type === "issue" ? "+" : "-"}{tx.quantity} {item.unit}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground text-[10px]">
+                      {tx.date ? new Date(tx.date).toLocaleDateString() : ""} {tx.remarks ? `• ${tx.remarks}` : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono tabular-nums">
-              <thead className="bg-muted/50 border-b text-[10px] text-muted-foreground uppercase">
-                <tr>
-                  <th className="py-2.5 px-3 text-left font-semibold">Material / Item</th>
-                  <th className="py-2.5 px-1 text-center w-12">Unit</th>
-                  <th className="py-2.5 px-2 text-right w-20">Issued</th>
-                  <th className="py-2.5 px-2 text-right w-20">Returned</th>
-                  <th className="py-2.5 px-2 text-right w-24 font-bold text-foreground">Net Handed</th>
-                  <th className="py-2.5 px-2 text-right w-24 text-blue-600 dark:text-blue-400">Theoretical Req</th>
-                  <th className="py-2.5 px-2 text-right w-20 text-muted-foreground">Allowed (2%)</th>
-                  <th className="py-2.5 px-2 text-right w-20 text-red-600">Excess Qty</th>
-                  <th className="py-2.5 px-2 text-right w-24">Recovery Rate</th>
-                  <th className="py-2.5 px-3 text-right w-28 font-bold text-red-600">Debit (NPR)</th>
-                  <th className="py-2.5 px-2 text-center w-24">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={11} className="p-8 text-center text-muted-foreground">
-                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-                      Computing material reconciliation statement...
-                    </td>
-                  </tr>
-                ) : statement.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="p-8 text-center text-muted-foreground font-mono">
-                      No material transactions or issued materials recorded for this subcontractor.
-                    </td>
-                  </tr>
-                ) : (
-                  statement.map((item) => {
-                    const isExcess = item.excessQty > 0;
-                    const isExpanded = expandedMaterialId === item.materialId;
-
-                    return (
-                      <tr
-                        key={item.materialId}
-                        className={cn(
-                          "hover:bg-muted/15 transition-colors cursor-pointer",
-                          isExcess && "bg-amber-50/30 dark:bg-amber-950/15"
-                        )}
-                        onClick={() => setExpandedMaterialId(isExpanded ? null : item.materialId)}
-                      >
-                        <td className="py-2 px-3 font-sans font-medium text-foreground">
-                          {item.name}
-                          <span className="block text-[9px] font-mono text-muted-foreground">
-                            {item.transactions.length} transaction slip(s)
-                          </span>
-                        </td>
-                        <td className="py-2 px-1 text-center text-muted-foreground text-[10px] font-mono">{item.unit}</td>
-                        <td className="py-2 px-2 text-right text-emerald-600 font-semibold">{item.issuedQty.toLocaleString()}</td>
-                        <td className="py-2 px-2 text-right text-blue-600">{item.returnedQty > 0 ? item.returnedQty.toLocaleString() : "—"}</td>
-                        <td className="py-2 px-2 text-right font-bold text-foreground">{item.netIssuedQty.toLocaleString()}</td>
-                        <td className="py-2 px-2 text-right font-medium text-blue-600 dark:text-blue-400">
-                          {item.theoreticalReq.toLocaleString()}
-                        </td>
-                        <td className="py-2 px-2 text-right text-muted-foreground">{item.allowedWastage.toLocaleString()}</td>
-                        <td className={cn("py-2 px-2 text-right font-bold", isExcess ? "text-red-600 dark:text-red-400 font-extrabold" : "text-muted-foreground")}>
-                          {item.excessQty > 0 ? item.excessQty.toLocaleString() : "0"}
-                        </td>
-                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                          {formatNpr(item.recoveryRate)}
-                        </td>
-                        <td className={cn("py-2 px-3 text-right font-bold font-mono", item.debitAmount > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-                          {item.debitAmount > 0 ? formatNpr(item.debitAmount) : "—"}
-                        </td>
-                        <td className="py-2 px-2 text-center">
-                          {isExcess ? (
-                            <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold gap-1 uppercase font-mono">
-                              <ShieldAlert className="h-2.5 w-2.5" /> Debit Due
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 uppercase font-mono">
-                              <CheckCircle2 className="h-2.5 w-2.5" /> Balanced
-                            </Badge>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-              {statement.length > 0 && (
-                <tfoot>
-                  <tr className="border-t-2 bg-muted/40 font-bold text-xs">
-                    <td colSpan={9} className="py-2.5 px-3 text-right font-sans">
-                      Total Calculated Material Deduction for {selectedSub?.name}:
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-red-600 dark:text-red-400 font-extrabold text-sm">
-                      {formatNpr(totalDebit)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+          ) : (
+            <div className="p-2 text-xs text-muted-foreground font-mono">No transaction slips detailed.</div>
+          )
+        }
+      />
     </div>
   );
 }

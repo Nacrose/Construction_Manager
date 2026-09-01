@@ -12,6 +12,10 @@ import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
 import { createJournalEntry, vendorPaymentEntry } from "@/lib/journal-entry";
+import { formatNpr } from "@/lib/currency";
+
+
+
 
 const CreateVendorBillSchema = z.object({
   projectId: z.string(),
@@ -343,9 +347,10 @@ export const vendorBillRouter = router({
       if (input.amount > remainingPayable + 0.01) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Payment amount (NPR ${input.amount.toLocaleString()}) exceeds remaining net payable amount (NPR ${Math.max(0, remainingPayable).toLocaleString(undefined, { minimumFractionDigits: 2 })}).`,
+          message: `Payment amount (${formatNpr(input.amount)}) exceeds remaining net payable amount (${formatNpr(Math.max(0, remainingPayable))}).`,
         });
       }
+
 
       const isFull = (bill.paidAmount + input.amount) >= bill.netPayable - 0.01;
       const newStatus = isFull ? "paid" : "partially_paid";

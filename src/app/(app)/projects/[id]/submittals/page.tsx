@@ -14,6 +14,11 @@ import { SubmitButton } from "./components/submit-button";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 
+const DOCS_TABS = [
+  { label: "Drawings", href: "/drawings" },
+  { label: "Submittals", href: "/submittals" },
+  { label: "Doc Center", href: "/document-center" },
+];
 
 const TYPE_LABELS: Record<string, string> = {
   shop_drawing: "Shop Drawing",
@@ -123,7 +128,7 @@ export default function SubmittalsPage({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="documents" />
+      <ModuleTabs projectId={id} tabs={DOCS_TABS} />
       <div className="space-y-4 pb-8 font-sans">
         {/* KPI Stats */}
         {stats && (

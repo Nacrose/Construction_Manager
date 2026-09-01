@@ -5,44 +5,55 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 import { trpc } from "@/lib/trpc-client";
-import { isModuleEnabled } from "@/lib/project-modules";
-import {
-  NAV_CLUSTERS,
-  moduleKeyForTab,
-  type ClusterKey,
-  type NavTab,
-} from "@/lib/nav-registry";
+import { isModuleEnabled, type ModuleKey } from "@/lib/project-modules";
 
-/** Tab shape is owned by the nav registry; kept as an alias for existing imports. */
-export type ModuleTab = NavTab;
+export type ModuleTab = {
+  label: string;
+  href: string;
+  moduleKey?: ModuleKey;
+};
+
+const AUTO_MODULE_MAP: Record<string, ModuleKey> = {
+  "/ipc": "ipc",
+  "/tax-summary": "vat",
+  "/vendors": "purchaseOrders",
+  "/workflow/rfi": "rfi",
+  "/rfis": "rfi",
+  "/submittals": "submittals",
+  "/correspondence": "correspondence",
+  "/punch-list": "punchList",
+  "/quality": "qualitySafety",
+  "/safety": "qualitySafety",
+  "/production": "production",
+  "/drawings": "drawings",
+  "/document-center": "documents",
+  "/hr": "hr",
+  "/hr/payroll": "hr",
+  "/hr/leaves": "hr",
+  "/equipment": "equipment",
+  "/subcontractors": "subcontractors",
+  "/subcontractors/billing": "subcontractors",
+  "/variations": "variations",
+  "/workflow/program": "dailyProgramme",
+  "/daily-program": "dailyProgramme",
+  "/look-ahead": "dailyProgramme",
+  "/accounting": "accounting",
+  "/guarantees": "guarantees",
+};
 
 /**
  * Technical Matrix Sub-Navigation Bar for merged sidebar modules.
- *
- * Tab data comes from the nav registry (src/lib/nav-registry.ts): pass
- * `cluster="resources"` (etc.) instead of hand-building tab arrays.
- * The `tabs` prop remains as the sanctioned escape hatch for one-off bars —
- * exactly one of the two must be provided.
+ * Automatically filters out tabs for modules that are disabled for the project.
  */
 export function ModuleTabs({
   projectId,
-  cluster,
   tabs,
   rightContent,
 }: {
   projectId: string;
-  cluster?: ClusterKey;
-  tabs?: ModuleTab[];
+  tabs: ModuleTab[];
   rightContent?: ReactNode;
 }) {
-  if (!cluster && !tabs) {
-    // Fail loud: an empty tab bar is a bug, not a valid render state.
-    throw new Error("ModuleTabs: provide either `cluster` or `tabs`.");
-  }
-  if (cluster && tabs) {
-    throw new Error("ModuleTabs: pass `cluster` or `tabs`, not both.");
-  }
-
   const pathname = usePathname();
   const basePath = `/projects/${projectId}`;
 
@@ -52,10 +63,8 @@ export function ModuleTabs({
   );
   const enabledModules = data?.modules;
 
-  const resolvedTabs: readonly ModuleTab[] = cluster ? NAV_CLUSTERS[cluster] : tabs!;
-
-  const visibleTabs = resolvedTabs.filter((tab) => {
-    const key = moduleKeyForTab(tab);
+  const visibleTabs = tabs.filter((tab) => {
+    const key = tab.moduleKey ?? AUTO_MODULE_MAP[tab.href];
     if (!key) return true; // not a toggleable module or core
     return isModuleEnabled(enabledModules, key);
   });
@@ -88,3 +97,4 @@ export function ModuleTabs({
     </div>
   );
 }
+

@@ -16,9 +16,7 @@ import {
   Plus,
   CalendarClock,
   Building2,
-  FileText,
   AlertTriangle,
-  CheckCircle2,
   Download,
   Trash2,
   Check,
@@ -30,20 +28,21 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { GuaranteeFormDialog } from "./dialogs/guarantee-form-dialog";
 import { ExtendGuaranteeDialog } from "./dialogs/extend-guarantee-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtShort(n: number) {
-  if (Math.abs(n) >= 10000000) return `Rs. ${(n / 10000000).toFixed(2)} Cr`;
-  if (Math.abs(n) >= 100000) return `Rs. ${(n / 100000).toFixed(2)} L`;
-  return `Rs. ${fmt(n)}`;
-}
+const CONTRACT_TABS = [
+  { label: "BOQ & Rates", href: "/boq" },
+  { label: "Bank Guarantees & Insurance", href: "/guarantees" },
+  { label: "IPC Certificates", href: "/ipc" },
+  { label: "Variation Orders", href: "/variations" },
+  { label: "RFI / Workflow", href: "/workflow/rfi" },
+  { label: "Submittals", href: "/submittals" },
+];
 
 const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: string }> = {
   performance_bond: {
@@ -91,11 +90,6 @@ export default function BankGuaranteesPage({
   const [extendItem, setExtendItem] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "extended" | "released" | "expired">("all");
 
-  const { data, isLoading } = trpc.bankGuarantee.list.useQuery({
-    projectId,
-    status: statusFilter,
-  });
-
   const [confirmModal, setConfirmModal] = useState<{
     open: boolean;
     type: "release" | "delete";
@@ -106,362 +100,360 @@ export default function BankGuaranteesPage({
     confirmLabel: string;
   } | null>(null);
 
+  const { data, isLoading } = trpc.bankGuarantee.list.useQuery({
+    projectId,
+    status: statusFilter,
+  });
+
   const releaseMutation = trpc.bankGuarantee.release.useMutation({
     onSuccess: () => {
+      toast.success("Bank guarantee marked as released / returned");
       utils.bankGuarantee.list.invalidate({ projectId });
-      utils.bankGuarantee.portfolioAlerts.invalidate();
-      toast.success("Guarantee marked as Released.");
       setConfirmModal(null);
     },
-    onError: (e) => toastError("Guarantee could not be marked as released. Please try again.", e.message),
+    onError: (e) => toast.error(e.message || "Failed to release guarantee"),
   });
 
   const deleteMutation = trpc.bankGuarantee.delete.useMutation({
     onSuccess: () => {
+      toast.success("Guarantee record deleted");
       utils.bankGuarantee.list.invalidate({ projectId });
-      utils.bankGuarantee.portfolioAlerts.invalidate();
-      toast.success("Guarantee deleted.");
       setConfirmModal(null);
     },
-    onError: (e) => toastError("Guarantee record could not be deleted. Please try again.", e.message),
+    onError: (e) => toast.error(e.message || "Failed to delete guarantee"),
   });
 
   const items = data?.items || [];
-  const kpis = data?.kpis || {
-    totalActiveExposure: 0,
-    totalMarginHeld: 0,
-    totalCommissionPaid: 0,
-    expiringWithin30DaysCount: 0,
-    expiredCount: 0,
-    activeCount: 0,
-    totalCount: 0,
-  };
+  const kpis = data?.kpis;
+
+
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "type",
+      header: "Type & Details",
+      render: (_, g) => {
+        const typeMeta = TYPE_LABELS[g.type] || TYPE_LABELS.other;
+        return (
+          <div className="font-sans">
+            <Badge
+              variant="outline"
+              className={cn("text-[10px] font-medium border", typeMeta.color)}
+            >
+              {typeMeta.label}
+            </Badge>
+            <div className="font-mono font-bold text-foreground text-xs mt-1">
+              {g.guaranteeNumber}
+            </div>
+            {g.purpose && (
+              <div className="text-[11px] text-muted-foreground truncate max-w-xs mt-0.5">
+                {g.purpose}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "issuingBank",
+      header: "Issuing Bank & Beneficiary",
+      render: (_, g) => (
+        <div className="font-sans">
+          <div className="font-semibold text-foreground flex items-center gap-1 text-xs">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+            {g.issuingBank} {g.branch ? `(${g.branch})` : ""}
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            To: {g.beneficiary}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount (NPR)",
+      align: "right",
+      render: (_, g) => (
+        <span className="font-bold font-mono text-foreground text-xs">
+          {formatNpr(g.amount)}
+        </span>
+      ),
+    },
+    {
+      key: "marginAmount",
+      header: "Cash Margin",
+      align: "right",
+      render: (_, g) => (
+        <span className="font-mono text-muted-foreground text-xs">
+          {g.marginAmount > 0 ? formatNpr(g.marginAmount) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "issuedDate",
+      header: "Issue Date (BS)",
+      render: (_, g) => (
+        <div className="font-mono text-xs">
+          <div className="font-bold text-foreground">{g.issuedMiti || "—"}</div>
+          <div className="text-[10px] text-muted-foreground">
+            {format(new Date(g.issuedDate), "yyyy-MM-dd")}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "expiryDate",
+      header: "Expiry Date (BS)",
+      render: (_, g) => (
+        <div className="font-mono text-xs">
+          <div className="font-bold text-foreground">{g.expiryMiti || "—"}</div>
+          <div className="text-[10px] text-muted-foreground">
+            {format(new Date(g.expiryDate), "yyyy-MM-dd")}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status / Countdown",
+      align: "center",
+      render: (_, g) => {
+        const isReleased = g.status === "released";
+        if (isReleased) {
+          return (
+            <Badge variant="outline" className="bg-slate-100 text-slate-700 dark:bg-slate-800 text-[10px]">
+              Released
+            </Badge>
+          );
+        }
+        if (g.isExpired) {
+          return (
+            <Badge variant="destructive" className="text-[10px]">
+              Expired ({Math.abs(g.daysRemaining)}d ago)
+            </Badge>
+          );
+        }
+        if (g.isExpiringSoon) {
+          return (
+            <Badge className="bg-red-600 text-white animate-pulse text-[10px]">
+              {g.daysRemaining} Days Left
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 text-[10px] border-emerald-300">
+            {g.daysRemaining} Days Left
+          </Badge>
+        );
+      },
+    },
+    {
+      key: "doc",
+      header: "Doc",
+      align: "center",
+      render: (_, g) =>
+        g.documentUrl ? (
+          <a
+            href={sanitizeUrl(g.documentUrl) ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center text-primary hover:underline"
+            title="View Scanned Policy / BG"
+          >
+            <Eye className="h-4 w-4" />
+          </a>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "center",
+      render: (_, g) => {
+        const isReleased = g.status === "released";
+        return (
+          <div className="flex items-center justify-center gap-1">
+            {!isReleased && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs gap-1 font-mono"
+                  onClick={() => setExtendItem(g)}
+                >
+                  <CalendarClock className="h-3 w-3 text-amber-500" />
+                  Extend
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-400"
+                  title="Mark as Released / Returned"
+                  onClick={() =>
+                    setConfirmModal({
+                      open: true,
+                      type: "release",
+                      id: g.id,
+                      title: "Release Bank Guarantee?",
+                      description: `Mark guarantee #${g.guaranteeNumber} (${g.issuingBank}) as officially released/returned by the employer? This will unblock ${formatNpr(g.marginAmount)} in margin funds.`,
+                      variant: "warning",
+                      confirmLabel: "Confirm Release",
+                    })
+                  }
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              title="Edit Guarantee & Ledger"
+              onClick={() => setEditItem(g)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-rose-400"
+              onClick={() =>
+                setConfirmModal({
+                  open: true,
+                  type: "delete",
+                  id: g.id,
+                  title: "Delete Guarantee Record?",
+                  description: `Permanently delete guarantee #${g.guaranteeNumber}? This action cannot be undone.`,
+                  variant: "destructive",
+                  confirmLabel: "Delete Record",
+                })
+              }
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <>
-      <ModuleTabs projectId={projectId} cluster="contracts" />
-      <div className="space-y-4 pb-8">
-        {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-700">
-            <span>Active Guarantees: <span className="font-bold text-slate-900 font-matrix">{kpis.activeCount}</span></span>
-            {kpis.expiringWithin30DaysCount > 0 && (
-              <>
-                <div className="h-3 w-[1px] bg-[#c7d8e8]" />
-                <span className="text-amber-700 font-bold">⚠️ {kpis.expiringWithin30DaysCount} Expiring Soon</span>
-              </>
-            )}
+      <ModuleTabs projectId={projectId} tabs={CONTRACT_TABS} />
+      <div className="space-y-4 p-4">
+        {/* KPI Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="border-l-4 border-l-blue-500 shadow-xs bg-card">
+            <CardContent className="p-3.5 space-y-1">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">
+                Active Guarantees
+              </div>
+              <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">
+                {formatNpr(kpis?.totalActiveExposure || 0, { compact: true })}
+              </div>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                {kpis?.activeCount || 0} active instruments
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-purple-500 shadow-xs bg-card">
+            <CardContent className="p-3.5 space-y-1">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">
+                Blocked Cash Margin
+              </div>
+              <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">
+                {formatNpr(kpis?.totalMarginHeld || 0, { compact: true })}
+              </div>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                Locked bank FD / margins
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-amber-500 shadow-xs bg-card">
+            <CardContent className="p-3.5 space-y-1">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">
+                Expiring in 30 Days
+              </div>
+              <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                {kpis?.expiringWithin30DaysCount || 0}
+              </div>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                Require renewal / extension
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-red-500 shadow-xs bg-card">
+            <CardContent className="p-3.5 space-y-1">
+              <div className="text-[10px] font-mono text-muted-foreground uppercase">
+                Overdue / Expired
+              </div>
+              <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">
+                {kpis?.expiredCount || 0}
+              </div>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                Critical claim risk
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+
+        {/* Controls Ribbon */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-md border bg-background p-0.5">
+              <Button
+                size="sm"
+                variant={statusFilter === "all" ? "default" : "ghost"}
+                onClick={() => setStatusFilter("all")}
+                className="h-7 text-xs font-mono px-3"
+              >
+                All
+              </Button>
+              <Button
+                size="sm"
+                variant={statusFilter === "active" ? "default" : "ghost"}
+                onClick={() => setStatusFilter("active")}
+                className="h-7 text-xs font-mono px-3"
+              >
+                Active
+              </Button>
+              <Button
+                size="sm"
+                variant={statusFilter === "released" ? "default" : "ghost"}
+                onClick={() => setStatusFilter("released")}
+                className="h-7 text-xs font-mono px-3"
+              >
+                Released
+              </Button>
+            </div>
           </div>
 
           <Button
             size="sm"
             onClick={() => setAddOpen(true)}
-            className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 font-sans"
+            className="h-8 text-xs gap-1.5 font-mono bg-blue-600 hover:bg-blue-700 text-white"
           >
-            <Plus className="h-3.5 w-3.5" /> + Add Guarantee / Insurance (धरौटी / बीमा)
+            <Plus className="h-3.5 w-3.5" />
+            Add Guarantee
           </Button>
         </div>
 
-        {/* Top KPI Cards */}
-        {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {/* Total Exposure */}
-            <Card className="shadow-sm border-l-4 border-l-primary">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Active Guarantee Value
-                </div>
-                <div className="text-xl font-bold font-mono text-foreground">
-                  {fmtShort(kpis.totalActiveExposure)}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {kpis.activeCount} active policy/bonds
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Cash Margin Held */}
-            <Card className="shadow-sm border-l-4 border-l-amber-500">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Cash Margin Held
-                </div>
-                <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
-                  {fmtShort(kpis.totalMarginHeld)}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Held at issuing banks
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Expiring Soon Alert */}
-            <Card
-              className={cn(
-                "shadow-sm border-l-4 transition-colors",
-                kpis.expiringWithin30DaysCount > 0
-                  ? "border-l-red-500 bg-red-50/40 dark:bg-red-950/20"
-                  : "border-l-emerald-500"
-              )}
-            >
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Expiring in ≤30 Days
-                </div>
-                <div
-                  className={cn(
-                    "text-xl font-bold font-mono",
-                    kpis.expiringWithin30DaysCount > 0
-                      ? "text-red-600 dark:text-red-400 animate-pulse"
-                      : "text-emerald-600 dark:text-emerald-400"
-                  )}
-                >
-                  {kpis.expiringWithin30DaysCount}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {kpis.expiringWithin30DaysCount > 0 ? "Requires extension!" : "All dates healthy"}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total Commission Paid */}
-            <Card className="shadow-sm border-l-4 border-l-slate-400">
-              <CardContent className="p-4 space-y-1">
-                <div className="text-[10px] font-mono text-muted-foreground uppercase">
-                  Total Commission Paid
-                </div>
-                <div className="text-xl font-bold font-mono text-foreground">
-                  {fmtShort(kpis.totalCommissionPaid)}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Bank & insurance fees
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Guarantees Table */}
-        {isLoading ? (
-          <Skeleton className="h-64 rounded-xl" />
-        ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-12 text-center bg-card">
-            <ShieldCheck className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-            <h3 className="text-base font-bold text-foreground">No Guarantees or Insurance Logged</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-              Register your contract&apos;s Performance Security, Mobilization APG, or CAR Insurance policy to track expiry dates and prevent bank penalties.
-            </p>
-            <Button
-              size="sm"
-              onClick={() => setAddOpen(true)}
-              className="mt-4 gap-1.5 font-semibold text-xs"
-            >
-              <Plus className="h-4 w-4" />
-              Add First Guarantee
-            </Button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border bg-card shadow-sm">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="border-b bg-muted/60 uppercase text-[10px] text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3">Type & Details</th>
-                  <th className="px-3 py-3">Issuing Bank & Beneficiary</th>
-                  <th className="px-3 py-3 text-right">Amount (NPR)</th>
-                  <th className="px-3 py-3 text-right">Cash Margin</th>
-                  <th className="px-3 py-3">Issue Date (BS)</th>
-                  <th className="px-3 py-3">Expiry Date (BS)</th>
-                  <th className="px-3 py-3 text-center">Status / Countdown</th>
-                  <th className="px-3 py-3 text-center">Doc</th>
-                  <th className="px-4 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {items.map((g) => {
-                  const typeMeta = TYPE_LABELS[g.type] || TYPE_LABELS.other;
-                  const isReleased = g.status === "released";
-
-                  return (
-                    <tr
-                      key={g.id}
-                      className={cn(
-                        "hover:bg-muted/30 transition-colors",
-                        g.isExpiringSoon && !isReleased ? "bg-red-50/20 dark:bg-red-950/10" : ""
-                      )}
-                    >
-                      {/* Type & BG Number */}
-                      <td className="px-4 py-3 font-sans">
-                        <Badge
-                          variant="outline"
-                          className={cn("text-[10px] font-medium border", typeMeta.color)}
-                        >
-                          {typeMeta.label}
-                        </Badge>
-                        <div className="font-mono font-bold text-foreground text-sm mt-1">
-                          {g.guaranteeNumber}
-                        </div>
-                        {g.purpose && (
-                          <div className="text-[11px] text-muted-foreground truncate max-w-xs mt-0.5">
-                            {g.purpose}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Bank & Beneficiary */}
-                      <td className="px-3 py-3 font-sans">
-                        <div className="font-semibold text-foreground flex items-center gap-1">
-                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          {g.issuingBank} {g.branch ? `(${g.branch})` : ""}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          To: {g.beneficiary}
-                        </div>
-                      </td>
-
-                      {/* Amount */}
-                      <td className="px-3 py-3 text-right font-bold text-foreground text-sm">
-                        {fmt(g.amount)}
-                      </td>
-
-                      {/* Cash Margin */}
-                      <td className="px-3 py-3 text-right text-muted-foreground">
-                        {g.marginAmount > 0 ? fmt(g.marginAmount) : "—"}
-                      </td>
-
-                      {/* Issue Date */}
-                      <td className="px-3 py-3">
-                        <div className="font-bold text-foreground">{g.issuedMiti || "—"}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {format(new Date(g.issuedDate), "yyyy-MM-dd")}
-                        </div>
-                      </td>
-
-                      {/* Expiry Date */}
-                      <td className="px-3 py-3">
-                        <div className="font-bold text-foreground">{g.expiryMiti || "—"}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {format(new Date(g.expiryDate), "yyyy-MM-dd")}
-                        </div>
-                      </td>
-
-                      {/* Status / Countdown */}
-                      <td className="px-3 py-3 text-center">
-                        {isReleased ? (
-                          <Badge variant="outline" className="bg-slate-100 text-slate-700 dark:bg-slate-800 text-[10px]">
-                            Released
-                          </Badge>
-                        ) : g.isExpired ? (
-                          <Badge variant="destructive" className="text-[10px]">
-                            Expired ({Math.abs(g.daysRemaining)}d ago)
-                          </Badge>
-                        ) : g.isExpiringSoon ? (
-                          <Badge className="bg-red-600 text-white animate-pulse text-[10px]">
-                            {g.daysRemaining} Days Left
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 text-[10px] border-emerald-300">
-                            {g.daysRemaining} Days Left
-                          </Badge>
-                        )}
-                      </td>
-
-                      {/* Document Scanned URL */}
-                      <td className="px-3 py-3 text-center">
-                        {g.documentUrl ? (
-                          <a
-                            href={sanitizeUrl(g.documentUrl) ?? "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center text-primary hover:underline"
-                            title="View Scanned Policy / BG"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {!isReleased && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs gap-1 font-mono"
-                                onClick={() => setExtendItem(g)}
-                              >
-                                <CalendarClock className="h-3 w-3 text-amber-500" />
-                                Extend
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-400"
-                                title="Mark as Released / Returned"
-                                onClick={() =>
-                                  setConfirmModal({
-                                    open: true,
-                                    type: "release",
-                                    id: g.id,
-                                    title: "Release Bank Guarantee?",
-                                    description: `Mark guarantee #${g.guaranteeNumber} (${g.issuingBank}) as officially released/returned by the employer? This will unblock Rs. ${fmt(g.marginAmount)} in margin funds.`,
-                                    variant: "warning",
-                                    confirmLabel: "Confirm Release",
-                                  })
-                                }
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-white"
-                            title="Edit Guarantee & Ledger"
-                            onClick={() => setEditItem(g)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-rose-400"
-                            onClick={() =>
-                              setConfirmModal({
-                                open: true,
-                                type: "delete",
-                                id: g.id,
-                                title: "Delete Guarantee Record?",
-                                description: `Permanently delete guarantee #${g.guaranteeNumber}? This will also clean up any auto-posted Day Book commission entry. This action cannot be undone.`,
-                                variant: "destructive",
-                                confirmLabel: "Delete Record",
-                              })
-                            }
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Central Table Engine */}
+        <ConstructionTable
+          data={items}
+          columns={columns}
+          isLoading={isLoading}
+          searchPlaceholder="Search bank guarantees by number, bank, beneficiary..."
+          searchFilterKeys={["guaranteeNumber", "issuingBank", "beneficiary", "purpose", "type"]}
+        />
       </div>
 
       {/* Add Dialog */}

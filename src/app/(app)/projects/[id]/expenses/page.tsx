@@ -1,35 +1,25 @@
 "use client";
 
 import { trpc } from "@/lib/trpc-client";
-import { use, useState, useMemo } from "react";
-import { z } from "zod";
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/data-table";
+import { use, useMemo, useState } from "react";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Check, X, Trash2 } from "lucide-react";
+import { Plus, Check, X, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { formatNpr } from "@/lib/currency";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
-import {
-  FormDateField,
-  FormNumberField,
-  FormSelectField,
-  FormTextField,
-} from "@/components/engine/form-fields";
-import { useAction } from "@/hooks/use-action";
+import { FormDialogEngine } from "@/components/ui/form-dialog-engine";
+import { useRegister } from "@/hooks/use-register";
 
 const CATEGORIES = ["material", "transport", "labor", "food", "accommodation", "utility", "office", "travel", "other"];
 const PAYMENT_MODES = ["cash", "bank_transfer", "cheque", "mobile"];
-
 const PIE_COLORS = ["#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6b7280"];
 
 type Expense = {
@@ -58,64 +48,40 @@ type Stats = {
   totalCount: number;
 };
 
-/** Client-side validation for the New Site Expense dialog (server re-validates). */
-const newExpenseSchema = z.object({
-  category: z.string(),
-  date: z.string(),
-  description: z.string().min(1, "Description is required"),
-  amount: z.number({ message: "Amount is required" }).min(0),
-  vatAmount: z.number().min(0).optional(),
-  paymentMode: z.string(),
-  vendorName: z.string(),
-  referenceNo: z.string(),
-});
-
-type NewExpenseValues = {
-  category: string;
-  date: string;
-  description: string;
-  amount?: number;
-  vatAmount?: number;
-  paymentMode: string;
-  vendorName: string;
-  referenceNo: string;
-};
-
-const emptyExpense: NewExpenseValues = {
-  category: "material",
-  date: "",
-  description: "",
-  amount: undefined,
-  vatAmount: undefined,
-  paymentMode: "cash",
-  vendorName: "",
-  referenceNo: "",
-};
-
 export default function ExpensesPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const { id: projectId } = use(params);
+  const reg = useRegister();
+  const utils = trpc.useUtils();
+
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [addOpen, setAddOpen] = useState(false);
-  const [receiptFile, setReceiptFile] = useState<{ data: string; name: string } | null>(null);
 
-  const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
+  const { data: projectInfo } = trpc.project.get.useQuery({ id: projectId }, { staleTime: 300_000 });
   const isPM = projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 
   const { data, isLoading } = trpc.siteExpense.list.useQuery({
-    projectId: id,
-    category: categoryFilter === "all" ? undefined : categoryFilter,
-    status: statusFilter === "all" ? undefined : (statusFilter as "pending" | "approved" | "rejected"),
+    projectId,
+    status: reg.status === "all" ? undefined : (reg.status as "pending" | "approved" | "rejected"),
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
   });
 
-  const { data: statsData } = trpc.siteExpense.stats.useQuery({ projectId: id });
+  const { data: statsData } = trpc.siteExpense.stats.useQuery({ projectId });
 
-  const expenses = data?.expenses || [];
+  const rawExpenses = (data?.expenses || []) as Expense[];
   const stats = statsData as Stats | undefined;
+
+  const expenses = useMemo(() => {
+    if (!reg.search) return rawExpenses;
+    const q = reg.search.toLowerCase();
+    return rawExpenses.filter(
+      (e) =>
+        e.description.toLowerCase().includes(q) ||
+        e.number.toLowerCase().includes(q) ||
+        (e.vendorName && e.vendorName.toLowerCase().includes(q)) ||
+        e.category.toLowerCase().includes(q)
+    );
+  }, [rawExpenses, reg.search]);
 
   const pieData = useMemo(() => {
     if (!stats?.byCategory) return [];
@@ -125,140 +91,143 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
     }));
   }, [stats]);
 
-  // Transition/maintenance actions: useAction owns toast + invalidate + error protocol.
-  const approveMutation = useAction(trpc.siteExpense.approve, {
-    successMessage: "Expense approved",
-    invalidate: (u) => {
-      u.siteExpense.list.invalidate({ projectId: id });
-      u.siteExpense.stats.invalidate({ projectId: id });
+  const approveMutation = trpc.siteExpense.approve.useMutation({
+    onSuccess: () => {
+      utils.siteExpense.list.invalidate({ projectId });
+      utils.siteExpense.stats.invalidate({ projectId });
+      toast.success("Expense approved");
     },
+    onError: (e) => toast.error(e.message),
   });
 
-  const rejectMutation = useAction(trpc.siteExpense.reject, {
-    successMessage: "Expense rejected",
-    invalidate: (u) => {
-      u.siteExpense.list.invalidate({ projectId: id });
-      u.siteExpense.stats.invalidate({ projectId: id });
+  const rejectMutation = trpc.siteExpense.reject.useMutation({
+    onSuccess: () => {
+      utils.siteExpense.list.invalidate({ projectId });
+      utils.siteExpense.stats.invalidate({ projectId });
+      toast.success("Expense rejected");
     },
+    onError: (e) => toast.error(e.message),
   });
 
-  const deleteMutation = useAction(trpc.siteExpense.delete, {
-    successMessage: "Expense deleted",
-    invalidate: (u) => {
-      u.siteExpense.list.invalidate({ projectId: id });
-      u.siteExpense.stats.invalidate({ projectId: id });
+  const deleteMutation = trpc.siteExpense.delete.useMutation({
+    onSuccess: () => {
+      utils.siteExpense.list.invalidate({ projectId });
+      utils.siteExpense.stats.invalidate({ projectId });
+      toast.success("Expense deleted");
     },
+    onError: (e) => toast.error(e.message),
   });
 
-  const columns: ColumnDef<Expense>[] = [
+  const columns: ConstructionTableColumn<Expense>[] = [
     {
-      accessorKey: "number",
+      key: "number",
       header: "#",
-      cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.number}</span>,
+      render: (_, exp) => <span className="font-mono text-xs font-semibold">{exp.number}</span>,
     },
     {
-      accessorKey: "date",
+      key: "date",
       header: "Date",
-      cell: ({ row }) => (
+      render: (_, exp) => (
         <span className="font-mono text-xs text-muted-foreground">
-          {format(new Date(row.original.date), "dd MMM yyyy")}
+          {format(new Date(exp.date), "dd MMM yyyy")}
         </span>
       ),
     },
     {
-      accessorKey: "category",
+      key: "category",
       header: "Category",
-      cell: ({ row }) => (
-        <Badge variant="secondary" className="capitalize text-[10px]">{row.original.category}</Badge>
-      ),
+      render: (_, exp) => <span className="capitalize font-mono text-xs text-muted-foreground">{exp.category}</span>,
     },
     {
-      accessorKey: "description",
+      key: "description",
       header: "Description",
-      cell: ({ row }) => (
-        <span className="truncate max-w-[200px] block text-xs" title={row.original.description}>
-          {row.original.description}
+      render: (_, exp) => (
+        <span className="truncate max-w-[220px] block text-xs" title={exp.description}>
+          {exp.description}
         </span>
       ),
     },
     {
-      accessorKey: "amount",
-      header: () => <div className="text-right">Amount</div>,
-      cell: ({ row }) => <div className="text-right font-mono text-xs">{formatNpr(row.original.amount)}</div>,
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (_, exp) => <span className="font-mono text-xs">{formatNpr(exp.amount)}</span>,
     },
     {
-      accessorKey: "vatAmount",
-      header: () => <div className="text-right">VAT</div>,
-      cell: ({ row }) => (
-        <div className="text-right font-mono text-xs text-muted-foreground">
-          {row.original.vatAmount > 0 ? formatNpr(row.original.vatAmount) : "—"}
+      key: "vatAmount",
+      header: "VAT",
+      align: "right",
+      render: (_, exp) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {exp.vatAmount > 0 ? formatNpr(exp.vatAmount) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "totalAmount",
+      header: "Total",
+      align: "right",
+      render: (_, exp) => <span className="font-semibold font-mono text-xs">{formatNpr(exp.totalAmount)}</span>,
+    },
+    {
+      key: "paymentMode",
+      header: "Payment",
+      render: (_, exp) => (
+        <span className="capitalize text-muted-foreground text-xs">{exp.paymentMode.replace("_", " ")}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (_, exp) => <StatusBadge status={exp.status} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (_, exp) => (
+        <div className="flex justify-end gap-1">
+          {isPM && exp.status === "pending" && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                onClick={() => approveMutation.mutate({ id: exp.id })}
+                disabled={approveMutation.isPending}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => rejectMutation.mutate({ id: exp.id })}
+                disabled={rejectMutation.isPending}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
+          {exp.status === "pending" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-muted-foreground hover:text-red-600"
+              onClick={() => deleteMutation.mutate({ id: exp.id })}
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       ),
-    },
-    {
-      accessorKey: "totalAmount",
-      header: () => <div className="text-right">Total</div>,
-      cell: ({ row }) => (
-        <div className="text-right font-semibold font-mono text-xs">{formatNpr(row.original.totalAmount)}</div>
-      ),
-    },
-    {
-      accessorKey: "paymentMode",
-      header: "Payment",
-      cell: ({ row }) => (
-        <span className="capitalize text-muted-foreground text-xs">{row.original.paymentMode.replace("_", " ")}</span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <StatusBadge status={row.original.status} />
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const exp = row.original;
-        return (
-          <div className="flex gap-1">
-            {isPM && exp.status === "pending" && (
-              <>
-                <Button
-                  size="sm" variant="ghost" className="h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                  onClick={() => approveMutation.mutate({ id: exp.id })}
-                  disabled={approveMutation.isPending}
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="sm" variant="ghost" className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => rejectMutation.mutate({ id: exp.id })}
-                  disabled={rejectMutation.isPending}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-            {exp.status === "pending" && (
-              <Button
-                size="sm" variant="ghost" className="h-7 text-muted-foreground hover:text-red-600"
-                onClick={() => deleteMutation.mutate({ id: exp.id })}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-        );
-      },
     },
   ];
 
   return (
     <AnimatedPage className="space-y-4 pb-8">
-      {/* Stats Row */}
+      {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Total Expenses</CardTitle></CardHeader>
@@ -278,7 +247,7 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
         </Card>
       </div>
 
-      {/* Category Pie Chart + Filters */}
+      {/* Category Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="md:col-span-1">
           <CardHeader className="pb-2"><CardTitle className="text-xs font-mono uppercase">By Category</CardTitle></CardHeader>
@@ -286,9 +255,9 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
             {pieData.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-8">No data</p>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value">
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value">
                     {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
                   <Tooltip formatter={(v: number) => formatNpr(v)} />
@@ -313,160 +282,160 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
         </Card>
       </div>
 
-      {/* Filters + New Expense */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-mono">Category</Label>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-36 h-8 text-xs font-mono"><SelectValue placeholder="All" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {CATEGORIES.map((c) => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+      {/* Date Range Bar + Action Button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs font-mono">From:</Label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 h-8 text-xs font-mono" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs font-mono">To:</Label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 h-8 text-xs font-mono" />
+          </div>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-mono">Status</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32 h-8 text-xs font-mono"><SelectValue placeholder="All" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-mono">From</Label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36 h-8 text-xs font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-mono">To</Label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 h-8 text-xs font-mono" />
-        </div>
-        <Button size="sm" onClick={() => setAddOpen(true)} className="h-8 text-xs gap-1.5 font-mono">
+        <Button size="sm" className="h-8 text-xs gap-1.5 font-mono" onClick={() => reg.openCreate()}>
           <Plus className="h-3.5 w-3.5" />New Expense
         </Button>
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <Skeleton className="h-64 rounded-xl" />
-      ) : (
-        <DataTable tableId="expenses-table" columns={columns} data={expenses} searchPlaceholder="Search expenses..." searchColumn="description" />
-      )}
-
-      {/* New Site Expense — FormDialogEngine (Tier 2): framing, state, validation,
-          toast, invalidation, close/reset owned by the engine. Receipt file input and
-          the live total readout are page-specific slots via the render-prop children
-          (escape hatch without fork); the receipt blob itself lives in page state
-          because it is a file, not a form field. */}
-      <NewExpenseEngineDialog
-        projectId={id}
-        open={addOpen}
-        onOpenChange={(o) => {
-          setAddOpen(o);
-          if (!o) setReceiptFile(null);
-        }}
-        receiptFile={receiptFile}
-        onReceiptFile={setReceiptFile}
+      {/* Central Table Engine */}
+      <ConstructionTable
+        data={rawExpenses}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search expenses by number, payee, description..."
+        searchFilterKeys={["number", "description", "category", "vendorName", "paymentMode"]}
       />
+
+      {/* Standardized Form Dialog Engine */}
+      <FormDialogEngine
+        open={reg.dialog.open && reg.dialog.type === "create"}
+        onOpenChange={(open) => !open && reg.closeDialog()}
+        title="Record Site Expense"
+        description="Submit site petty cash or direct supplier expense voucher."
+      >
+        <NewExpenseForm projectId={projectId} onDone={() => reg.closeDialog()} />
+      </FormDialogEngine>
     </AnimatedPage>
   );
 }
 
-function NewExpenseEngineDialog({
-  projectId,
-  open,
-  onOpenChange,
-  receiptFile,
-  onReceiptFile,
-}: {
-  projectId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  receiptFile: { data: string; name: string } | null;
-  onReceiptFile: (f: { data: string; name: string } | null) => void;
-}) {
+
+function NewExpenseForm({ projectId, onDone }: { projectId: string; onDone: () => void }) {
+  const utils = trpc.useUtils();
+  const [category, setCategory] = useState("general");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [vatAmount, setVatAmount] = useState("0");
+  const [paymentMode, setPaymentMode] = useState("cash");
+  const [vendorName, setVendorName] = useState("");
+  const [referenceNo, setReferenceNo] = useState("");
+  const [date, setDate] = useState("");
+  const [receiptFile, setReceiptFile] = useState<{ data: string; name: string } | null>(null);
+
+  const mutation = trpc.siteExpense.create.useMutation({
+    onSuccess: () => {
+      utils.siteExpense.list.invalidate({ projectId });
+      utils.siteExpense.stats.invalidate({ projectId });
+      toast.success("Expense created");
+      onDone();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      onReceiptFile({ data: reader.result as string, name: file.name });
+      setReceiptFile({ data: reader.result as string, name: file.name });
     };
     reader.readAsDataURL(file);
   };
 
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    mutation.mutate({
+      projectId,
+      category,
+      description,
+      amount: parseFloat(amount) || 0,
+      vatAmount: parseFloat(vatAmount) || 0,
+      paymentMode,
+      vendorName: vendorName || undefined,
+      referenceNo: referenceNo || undefined,
+      date: date || undefined,
+      receiptData: receiptFile?.data,
+      receiptName: receiptFile?.name,
+    });
+  };
+
   return (
-    <FormDialogEngine
-      open={open}
-      onOpenChange={onOpenChange}
-      title="New Site Expense"
-      description="Log a site purchase or payment. Approved vouchers feed the day book and payables."
-      size="md"
-      initialValues={emptyExpense}
-      schema={newExpenseSchema}
-      mutation={trpc.siteExpense.create}
-      buildInput={(v) => ({
-        projectId,
-        category: v.category,
-        description: v.description,
-        amount: v.amount ?? 0,
-        vatAmount: v.vatAmount ?? 0,
-        paymentMode: v.paymentMode,
-        date: v.date || undefined,
-        vendorName: v.vendorName || undefined,
-        referenceNo: v.referenceNo || undefined,
-        receiptData: receiptFile?.data,
-        receiptName: receiptFile?.name,
-      })}
-      invalidate={(u) => {
-        u.siteExpense.list.invalidate({ projectId });
-        u.siteExpense.stats.invalidate({ projectId });
-      }}
-      successMessage="Expense created"
-      submitLabel="Create Expense"
-    >
-      {(ctx) => (
-        <>
-          <FormSelectField
-            name="category"
-            label="Category"
-            required
-            options={CATEGORIES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
-          />
-          <FormDateField name="date" label="Date" />
-          <FormTextField
-            name="description"
-            label="Description"
-            required
-            placeholder="What was this expense for?"
-            colSpan="full"
-          />
-          <FormNumberField name="amount" label="Amount (NPR)" required min={0} step="0.01" />
-          <FormNumberField name="vatAmount" label="VAT (NPR)" min={0} step="0.01" />
-          <div className="col-span-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#f8fbfe] border border-[#e2edf7] text-xs font-mono">
-            <span className="text-slate-500">Total (incl. VAT)</span>
-            <span className="font-bold text-[#0284c7]">
-              {formatNpr((ctx.values.amount || 0) + (ctx.values.vatAmount || 0))}
-            </span>
-          </div>
-          <FormSelectField
-            name="paymentMode"
-            label="Payment Mode"
-            options={PAYMENT_MODES.map((m) => ({ value: m, label: m.replace("_", " ") }))}
-          />
-          <FormTextField name="vendorName" label="Vendor / Payee" placeholder="Optional" />
-          <FormTextField name="referenceNo" label="Reference No." placeholder="Optional" />
-          <div className="col-span-full space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Receipt Photo</Label>
-            <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs" />
-            {receiptFile && <p className="text-[10px] text-emerald-700 font-mono">{receiptFile.name}</p>}
-          </div>
-        </>
-      )}
-    </FormDialogEngine>
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Category *</Label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Date</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Description *</Label>
+        <Input value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="What was this expense for?" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Amount (NPR) *</Label>
+          <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">VAT (NPR)</Label>
+          <Input type="number" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Total</Label>
+          <Input value={formatNpr((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0))} readOnly className="h-8 text-xs bg-white/10 border-white/10 text-emerald-400 font-mono font-bold" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Payment Mode</Label>
+          <Select value={paymentMode} onValueChange={setPaymentMode}>
+            <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAYMENT_MODES.map((m) => <SelectItem key={m} value={m} className="capitalize">{m.replace("_", " ")}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Vendor / Payee</Label>
+          <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Reference No.</Label>
+        <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Receipt Photo</Label>
+        <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs bg-white/5 border-white/10 text-white file:text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md file:mr-2" />
+        {receiptFile && <p className="text-xs text-emerald-400 font-mono">{receiptFile.name}</p>}
+      </div>
+      <div className="flex justify-end pt-2">
+        <Button type="submit" disabled={mutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
+          {mutation.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+          Create Expense
+        </Button>
+      </div>
+    </form>
   );
 }

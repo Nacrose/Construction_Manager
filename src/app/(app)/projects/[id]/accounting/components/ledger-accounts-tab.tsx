@@ -18,6 +18,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   const [searchAccount, setSearchAccount] = useState("");
@@ -103,140 +104,211 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
     }
   };
 
-  if (accountsLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Skeleton className="h-96 rounded-xl" />
-        <Skeleton className="h-96 md:col-span-2 rounded-xl" />
-      </div>
-    );
-  }
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date / Miti",
+      render: (_, t) => (
+        <div className="font-mono text-xs">
+          <div className="font-bold text-foreground">{t.miti}</div>
+          <div className="text-[10px] text-muted-foreground">
+            {format(new Date(t.date), "yyyy-MM-dd")}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "voucherNo",
+      header: "Voucher #",
+      render: (_, t) => <span className="font-bold font-mono text-xs text-primary">{t.voucherNo}</span>,
+    },
+    {
+      key: "voucherType",
+      header: "Type",
+      render: (_, t) => <span className="font-mono text-xs text-muted-foreground">{t.voucherType}</span>,
+    },
+    {
+      key: "particulars",
+      header: "Particulars",
+      render: (_, t) => (
+        <span className="font-sans font-medium text-foreground text-xs truncate max-w-sm block" title={t.particulars}>
+          {t.particulars}
+        </span>
+      ),
+    },
+    {
+      key: "debit",
+      header: "Debit (Dr)",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-mono text-xs text-primary font-bold">
+          {t.debit > 0 ? formatNpr(t.debit) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "credit",
+      header: "Credit (Cr)",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">
+          {t.credit > 0 ? formatNpr(t.credit) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "runningBalance",
+      header: "Balance",
+      align: "right",
+      render: (_, t) => (
+        <span className="font-mono text-xs font-bold text-foreground">
+          {formatNpr(Math.abs(t.runningBalance))}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Left Pane: Ledger Accounts Directory */}
-      <div className="rounded-xl border border-[#c7d8e8] bg-white shadow-xs p-3 space-y-3">
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+      {/* Left Column: Account Hierarchy & Directory */}
+      <div className="md:col-span-4 rounded-xl border bg-card p-3 space-y-3 flex flex-col max-h-[640px]">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 font-bold text-xs uppercase font-mono text-foreground">
+            <FolderTree className="h-4 w-4 text-primary" />
+            Chart of Accounts ({accounts.length})
+          </div>
+        </div>
+
+        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search party or account..."
-            className="pl-8 h-8 text-xs bg-white text-slate-900 border-[#c7d8e8] font-mono"
             value={searchAccount}
             onChange={(e) => setSearchAccount(e.target.value)}
+            placeholder="Search account, group, PAN..."
+            className="h-8 text-xs pl-8 font-mono"
           />
         </div>
 
-        {/* Category Pill Filters */}
-        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-[#e2edf7] text-[11px] font-medium font-mono">
-          <button
-            type="button"
+        {/* Quick Filter Buttons */}
+        <div className="flex flex-wrap gap-1">
+          <Button
+            size="sm"
+            variant={categoryFilter === "all" ? "default" : "outline"}
             onClick={() => setCategoryFilter("all")}
-            className={cn(
-              "px-2.5 py-0.5 rounded-md transition",
-              categoryFilter === "all"
-                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
-                : "text-slate-600 hover:text-slate-900"
-            )}
+            className="h-6 text-[10px] px-2 font-mono"
           >
-            All Ledgers
-          </button>
-          <button
-            type="button"
+            All
+          </Button>
+          <Button
+            size="sm"
+            variant={categoryFilter === "suppliers" ? "default" : "outline"}
             onClick={() => setCategoryFilter("suppliers")}
-            className={cn(
-              "px-2.5 py-0.5 rounded-md transition",
-              categoryFilter === "suppliers"
-                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
-                : "text-slate-600 hover:text-slate-900"
-            )}
+            className="h-6 text-[10px] px-2 font-mono"
           >
-            Suppliers
-          </button>
-          <button
-            type="button"
+            Vendors
+          </Button>
+          <Button
+            size="sm"
+            variant={categoryFilter === "subcontractors" ? "default" : "outline"}
             onClick={() => setCategoryFilter("subcontractors")}
-            className={cn(
-              "px-2.5 py-0.5 rounded-md transition",
-              categoryFilter === "subcontractors"
-                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
-                : "text-slate-600 hover:text-slate-900"
-            )}
+            className="h-6 text-[10px] px-2 font-mono"
           >
             Subs
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="sm"
+            variant={categoryFilter === "staff" ? "default" : "outline"}
             onClick={() => setCategoryFilter("staff")}
-            className={cn(
-              "px-2.5 py-0.5 rounded-md transition",
-              categoryFilter === "staff"
-                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
-                : "text-slate-600 hover:text-slate-900"
-            )}
+            className="h-6 text-[10px] px-2 font-mono"
           >
             Staff
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="sm"
+            variant={categoryFilter === "bank_cash" ? "default" : "outline"}
             onClick={() => setCategoryFilter("bank_cash")}
-            className={cn(
-              "px-2.5 py-0.5 rounded-md transition",
-              categoryFilter === "bank_cash"
-                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
-                : "text-slate-600 hover:text-slate-900"
-            )}
+            className="h-6 text-[10px] px-2 font-mono"
           >
             Bank/Cash
-          </button>
+          </Button>
         </div>
 
-        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
-          {filteredAccounts.map((acc) => {
-            const isSelected = activeAccount?.id === acc.id;
-            return (
-              <button
-                key={acc.id}
-                onClick={() => setSelectedAccount(acc)}
-                className={cn(
-                  "w-full text-left p-2.5 rounded-lg border transition-all text-xs flex items-center justify-between",
-                  isSelected
-                    ? "bg-sky-50 border-[#0284c7] text-[#0284c7] font-bold shadow-xs"
-                    : "border-transparent hover:bg-slate-50 text-slate-700 hover:text-slate-900"
-                )}
-              >
-                <div className="space-y-0.5 overflow-hidden pr-2">
-                  <div className="font-semibold text-slate-900 truncate">{acc.name}</div>
-                  <div className="text-[10px] text-slate-500 truncate font-mono">{acc.group}</div>
+        {/* Accounts List */}
+        <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+          {accountsLoading ? (
+            <div className="space-y-2 p-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : filteredAccounts.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted-foreground font-mono">
+              No accounts match filters.
+            </div>
+          ) : (
+            filteredAccounts.map((a) => {
+              const isSelected = activeAccount?.id === a.id;
+              return (
+                <div
+                  key={`${a.type}-${a.id}`}
+                  onClick={() => setSelectedAccount(a as any)}
+                  className={cn(
+                    "p-2 rounded-lg border cursor-pointer transition select-none flex items-center justify-between gap-2",
+                    isSelected
+                      ? "bg-primary/10 border-primary/40 shadow-xs"
+                      : "bg-muted/20 border-transparent hover:bg-muted/50"
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {a.type === "vendor" ? (
+                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
+                      ) : a.type === "subcontractor" ? (
+                        <Users className="h-3 w-3 text-purple-500 shrink-0" />
+                      ) : a.type === "bank" || a.type === "cash" ? (
+                        <Wallet className="h-3 w-3 text-emerald-500 shrink-0" />
+                      ) : (
+                        <Users className="h-3 w-3 text-amber-500 shrink-0" />
+                      )}
+                      <span className="font-semibold text-xs text-foreground truncate">{a.name}</span>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+                      {a.group} {a.pan ? `• PAN: ${a.pan}` : ""}
+                    </div>
+                  </div>
+
+                  <div className="text-right font-mono text-xs">
+                    <span
+                      className={cn(
+                        "font-bold",
+                        ((a as any).balance || 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                      )}
+                    >
+                      {formatNpr((a as any).balance || 0)}
+                    </span>
+                  </div>
+
                 </div>
-                {acc.type === "vendor" ? (
-                  <Building2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                ) : acc.type === "subcontractor" ? (
-                  <Users className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                ) : acc.type === "bank" ? (
-                  <Wallet className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                ) : (
-                  <FolderTree className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                )}
-              </button>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
-      {/* Right Pane: Statement of Account */}
-      <div className="md:col-span-2 rounded-xl border bg-card overflow-hidden flex flex-col">
+      {/* Right Column: Statement Table */}
+      <div className="md:col-span-8 rounded-xl border bg-card p-4 space-y-3 flex flex-col">
         {activeAccount ? (
           <>
-            {/* Account Header */}
-            <div className="p-4 border-b bg-muted/20 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-foreground">{activeAccount.name}</h3>
+                  <h3 className="font-bold text-foreground text-sm font-sans">{activeAccount.name}</h3>
                   <Badge variant="outline" className="text-[10px] font-mono">
                     {activeAccount.group}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono mt-0.5">
+                <div className="text-xs text-muted-foreground font-mono mt-0.5 flex items-center gap-3">
                   {activeAccount.pan && <span>PAN: {activeAccount.pan}</span>}
                   <span>Account ID: {activeAccount.id}</span>
                 </div>
@@ -261,68 +333,14 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
               </div>
             </div>
 
-            {/* Statement Table */}
-            {statementLoading ? (
-              <div className="p-8">
-                <Skeleton className="h-40 w-full rounded-xl" />
-              </div>
-            ) : transactions.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-xs font-mono">
-                No transactions recorded for this account yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead className="border-b bg-muted/60 uppercase text-[10px] text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2.5">Date / Miti</th>
-                      <th className="px-3 py-2.5">Voucher #</th>
-                      <th className="px-3 py-2.5">Type</th>
-                      <th className="px-4 py-2.5 font-sans">Particulars</th>
-                      <th className="px-3 py-2.5 text-right">Debit (Dr)</th>
-                      <th className="px-3 py-2.5 text-right">Credit (Cr)</th>
-                      <th className="px-3 py-2.5 text-right">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {transactions.map((t) => (
-                      <tr key={t.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2">
-                          <div className="font-bold text-foreground">{t.miti}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {format(new Date(t.date), "yyyy-MM-dd")}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-primary font-bold">{t.voucherNo}</td>
-                        <td className="px-3 py-2">{t.voucherType}</td>
-                        <td className="px-4 py-2 font-sans text-foreground">{t.particulars}</td>
-                        <td className="px-3 py-2 text-right">{t.debit > 0 ? formatNpr(t.debit) : "—"}</td>
-                        <td className="px-3 py-2 text-right">{t.credit > 0 ? formatNpr(t.credit) : "—"}</td>
-                        <td className="px-3 py-2 text-right font-bold">
-                          {formatNpr(Math.abs(t.runningBalance))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 bg-muted/40 font-bold">
-                    <tr>
-                      <td colSpan={4} className="px-4 py-2.5 uppercase font-sans text-xs">
-                        Account Total
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                        {formatNpr(totalDebit)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                        {formatNpr(totalCredit)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-bold text-foreground">
-                        {formatNpr(Math.abs(closingBalance))}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+            {/* Statement Table with ConstructionTable */}
+            <ConstructionTable
+              data={transactions}
+              columns={columns}
+              isLoading={statementLoading}
+              searchPlaceholder="Search statement transactions..."
+              searchFilterKeys={["voucherNo", "voucherType", "particulars"]}
+            />
           </>
         ) : (
           <div className="p-12 text-center text-muted-foreground text-xs font-mono">

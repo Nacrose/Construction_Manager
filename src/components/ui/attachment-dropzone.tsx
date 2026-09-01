@@ -186,7 +186,7 @@ export function AttachmentDropzone({
               {isPdf ? (
                 <iframe src={value} className="w-full h-[65vh] rounded-lg border border-[#c7d8e8]" />
               ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
+                 
                 <img
                   src={value}
                   alt="Attachment Preview"

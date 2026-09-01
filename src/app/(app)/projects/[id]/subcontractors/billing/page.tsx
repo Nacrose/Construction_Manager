@@ -36,28 +36,30 @@ import {
   Send,
   Award,
   Banknote,
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { formatNpr } from "@/lib/construction-finance";
-import { StatusBadge } from "@/components/ui/status-badge";
-
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ReconciliationMatrixTab } from "./components/reconciliation-matrix-tab";
-import { MaterialReconciliationTab } from "./components/material-reconciliation-tab";
-import { VerifyBillDialog } from "./dialogs/verify-bill-dialog";
-import {
   ShieldCheck,
   Layers,
   Package,
 } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ReconciliationMatrixTab } from "./components/reconciliation-matrix-tab";
+import { MaterialReconciliationTab } from "./components/material-reconciliation-tab";
+import { VerifyBillDialog } from "./dialogs/verify-bill-dialog";
 
+const RES_TABS = [
+  { label: "Materials & Procurement", href: "/materials" },
+  { label: "Resource & Rate Library", href: "/rate-library" },
+  { label: "Equipment & Fleet", href: "/equipment" },
+  { label: "Plant & Production", href: "/production" },
+  { label: "Subcontractors", href: "/subcontractors" },
+  { label: "HR / Staff", href: "/hr" },
+  { label: "Vendors Directory", href: "/vendors" },
+];
 
 type BillItem = {
   boqCode: string;
@@ -79,7 +81,6 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
   const [verifyBillId, setVerifyBillId] = useState<string | null>(null);
-  const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data: subsData } = trpc.partner.listSubcontractors.useQuery({ projectId: id });
@@ -100,360 +101,324 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   );
 
   const canWrite = Boolean(projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector");
-  const isAdmin = projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
+  const isAdmin = Boolean(projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "engineer");
+
 
   const submitMut = trpc.subcontractorBill.submit.useMutation({
     onSuccess: () => {
       toast.success("Bill submitted for certification");
       utils.subcontractorBill.list.invalidate({ projectId: id });
-      if (selectedBillId) utils.subcontractorBill.get.invalidate({ projectId: id, billId: selectedBillId });
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const certifyMut = trpc.subcontractorBill.certify.useMutation({
-    onSuccess: () => {
-      toast.success("Bill certified");
-      utils.subcontractorBill.list.invalidate({ projectId: id });
-      if (selectedBillId) utils.subcontractorBill.get.invalidate({ projectId: id, billId: selectedBillId });
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const markPaidMut = trpc.subcontractorBill.markPaid.useMutation({
-    onSuccess: (res) => {
-      toast.success(`Payment recorded. Remaining: NPR ${res.remaining.toLocaleString()}`);
-      utils.subcontractorBill.list.invalidate({ projectId: id });
-      if (selectedBillId) utils.subcontractorBill.get.invalidate({ projectId: id, billId: selectedBillId });
     },
     onError: (e) => toast.error(e.message),
   });
 
   const deleteMut = trpc.subcontractorBill.delete.useMutation({
     onSuccess: () => {
-      toast.success("Draft bill deleted");
-      setSelectedBillId(null);
+      toast.success("Bill deleted");
       utils.subcontractorBill.list.invalidate({ projectId: id });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "draft": return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
-      case "submitted": return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
-      case "verified": return "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300";
-      case "certified": return "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
-      case "paid": return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
-      case "disputed": return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
-      default: return "bg-muted text-muted-foreground";
-    }
-  };
+  const markPaidMut = trpc.subcontractorBill.markPaid.useMutation({
+    onSuccess: (res) => {
+      toast.success(`Marked as paid. Remaining due: ${formatNpr(res.remaining)}`);
+      utils.subcontractorBill.list.invalidate({ projectId: id });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const bills = billsData?.bills || [];
+  const breakdown = billsData?.subcontractorBreakdown || [];
+
+  const billColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "number",
+      header: "#",
+      render: (_, bill) => <span className="font-mono text-xs font-bold text-primary">{bill.number}</span>,
+    },
+    {
+      key: "subcontractor",
+      header: "Subcontractor",
+      render: (_, bill) => <span className="font-medium text-xs font-sans text-foreground">{bill.subcontractor.name}</span>,
+    },
+    {
+      key: "period",
+      header: "Period",
+      render: (_, bill) => <span className="text-muted-foreground font-mono text-xs">{bill.period || "—"}</span>,
+    },
+    {
+      key: "grossAmount",
+      header: "Gross",
+      align: "right",
+      render: (_, bill) => <span className="font-mono text-xs">{formatNpr(bill.grossAmount)}</span>,
+    },
+    {
+      key: "retentionAmount",
+      header: "Retention",
+      align: "right",
+      render: (_, bill) => <span className="font-mono text-xs text-amber-600 dark:text-amber-400">{formatNpr(bill.retentionAmount)}</span>,
+    },
+    {
+      key: "vatAmount",
+      header: "VAT",
+      align: "right",
+      render: (_, bill) => <span className="font-mono text-xs">{formatNpr(bill.vatAmount)}</span>,
+    },
+    {
+      key: "netPayable",
+      header: "Net Payable",
+      align: "right",
+      render: (_, bill) => <span className="font-bold font-mono text-xs text-foreground">{formatNpr(bill.netPayable)}</span>,
+    },
+    {
+      key: "paidAmount",
+      header: "Paid",
+      align: "right",
+      render: (_, bill) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(bill.paidAmount)}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      align: "center",
+      render: (_, bill) => <StatusBadge status={bill.status} size="xs" />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (_, bill) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {bill.status === "draft" && canWrite && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] text-blue-600"
+                onClick={() => submitMut.mutate({ projectId: id, billId: bill.id })}
+                disabled={submitMut.isPending}
+              >
+                <Send className="h-3 w-3 mr-1" /> Submit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] text-red-500"
+                onClick={() => deleteMut.mutate({ projectId: id, billId: bill.id })}
+                disabled={deleteMut.isPending}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </>
+          )}
+          {(bill.status === "submitted" || bill.status === "verified") && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
+              onClick={() => setVerifyBillId(bill.id)}
+            >
+              <ShieldCheck className="h-3 w-3" /> Verify
+            </Button>
+          )}
+          {bill.status === "certified" && isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-[10px] text-emerald-600"
+              onClick={() => {
+                const remaining = bill.netPayable - bill.paidAmount;
+                markPaidMut.mutate({ projectId: id, billId: bill.id, amount: remaining });
+              }}
+              disabled={markPaidMut.isPending}
+            >
+              <Banknote className="h-3 w-3 mr-1" /> Pay Full
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const breakdownColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "name",
+      header: "Subcontractor",
+      render: (_, sub) => <span className="font-medium text-xs font-sans text-foreground">{sub.name}</span>,
+    },
+    {
+      key: "billCount",
+      header: "Bills",
+      align: "right",
+      render: (_, sub) => <span className="font-mono text-xs">{sub.billCount}</span>,
+    },
+    {
+      key: "billed",
+      header: "Billed",
+      align: "right",
+      render: (_, sub) => <span className="font-mono text-xs">{formatNpr(sub.billed)}</span>,
+    },
+    {
+      key: "paid",
+      header: "Paid",
+      align: "right",
+      render: (_, sub) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(sub.paid)}</span>,
+    },
+    {
+      key: "outstanding",
+      header: "Outstanding",
+      align: "right",
+      render: (_, sub) => <span className="font-mono text-xs text-amber-600 dark:text-amber-400 font-bold">{formatNpr(sub.outstanding)}</span>,
+    },
+  ];
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="resources" />
-      <AnimatedPage className="space-y-4 pb-8">
-        {/* Primary Subcontractor Tabs & Actions */}
+      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <AnimatedPage className="space-y-5 pb-8 p-4">
+        {/* Navigation & Tab Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as any)} className="w-full">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <TabsList className="grid grid-cols-3 w-full sm:w-[540px] bg-[#f8fbfe] border border-[#c7d8e8] p-1 rounded-xl">
-                <TabsTrigger value="bills" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
-                  <ReceiptText className="h-3.5 w-3.5" /> Bills Register
+          <Tabs
+            value={activeMainTab}
+            onValueChange={(v) => setActiveMainTab(v as any)}
+            className="w-full"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 mb-4">
+              <TabsList className="bg-muted/60 p-1 rounded-xl">
+                <TabsTrigger value="bills" className="text-xs gap-1.5 font-mono">
+                  <ReceiptText className="h-3.5 w-3.5" />
+                  Bills &amp; Running Claims
                 </TabsTrigger>
-                <TabsTrigger value="matrix" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
-                  <Layers className="h-3.5 w-3.5" /> Reconciliation Matrix
+                <TabsTrigger value="matrix" className="text-xs gap-1.5 font-mono">
+                  <Layers className="h-3.5 w-3.5" />
+                  Cross-Package Reconciliation
                 </TabsTrigger>
-                <TabsTrigger value="materials" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
-                  <Package className="h-3.5 w-3.5" /> Material Recovery
+                <TabsTrigger value="materials" className="text-xs gap-1.5 font-mono">
+                  <Package className="h-3.5 w-3.5" />
+                  Material Issued/Consumed
                 </TabsTrigger>
               </TabsList>
 
-              {canWrite && (
-                <Button size="sm" onClick={() => setCreateOpen(true)} className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
-                  <Plus className="h-3.5 w-3.5" /> + New Subcontractor Bill
+              {activeMainTab === "bills" && canWrite && (
+                <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5 font-mono text-xs">
+                  <Plus className="h-3.5 w-3.5" />
+                  New Subcontractor Bill
                 </Button>
               )}
             </div>
 
-          {/* TAB 1: BILLS REGISTER */}
-          <TabsContent value="bills" className="space-y-4 m-0">
-            {/* Stats Cards */}
-            {billsData && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="shadow-xs">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Bills</p>
-                    <p className="text-2xl font-bold">{billsData.bills.length}</p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-xs">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Billed</p>
-                    <p className="text-2xl font-bold text-foreground">NPR {formatNpr(billsData.summary.totalBilled)}</p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-xs">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
-                    <p className="text-2xl font-bold text-amber-600">NPR {formatNpr(billsData.summary.outstanding)}</p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-xs">
-                  <CardContent className="p-3">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p>
-                    <p className="text-2xl font-bold text-emerald-600">NPR {formatNpr(billsData.summary.totalPaid)}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+            {/* TAB 1: RUNNING BILLS */}
+            <TabsContent value="bills" className="space-y-4 m-0">
+              {/* Financial KPIs */}
+              {billsData?.summary && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border bg-card p-3 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-mono">Total Billed</p>
+                    <p className="text-xl font-bold font-mono text-foreground">{formatNpr(billsData.summary.totalBilled)}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">{bills.length} bills recorded</p>
+                  </div>
+                  <div className="rounded-xl border bg-card p-3 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-mono">Total Paid</p>
+                    <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatNpr(billsData.summary.totalPaid)}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">Disbursed to subcontractors</p>
+                  </div>
+                  <div className="rounded-xl border bg-card p-3 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-mono">Outstanding Due</p>
+                    <p className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">{formatNpr(billsData.summary.outstanding)}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">Pending settlement</p>
+                  </div>
+                </div>
+              )}
 
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Select value={subFilter} onValueChange={setSubFilter}>
-                <SelectTrigger className="w-full sm:w-48 h-8 text-xs">
-                  <SelectValue placeholder="All Subcontractors" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Subcontractors</SelectItem>
-                  {subsData?.subcontractors?.map((sub: any) => (
-                    <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg text-xs">
-                {["all", "draft", "submitted", "verified", "certified", "paid"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={cn(
-                      "px-2.5 py-1 rounded-md capitalize transition-colors font-medium",
-                      statusFilter === st
-                        ? "bg-card text-foreground shadow-2xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {st}
-                  </button>
-                ))}
-              </div>
-            </div>
 
-        {/* Bills Table */}
-        {isLoading ? (
-          <Skeleton className="h-64 rounded-xl" />
-        ) : !billsData?.bills?.length ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-2 p-12 text-center text-muted-foreground">
-              <FileSpreadsheet className="h-10 w-10 opacity-40" />
-              <p className="text-sm font-medium">No bills found</p>
-              <p className="text-xs">Create a subcontractor bill to get started.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="border-b bg-muted/30 text-left text-muted-foreground">
-                  <tr>
-                    <th className="p-3 font-medium w-8" />
-                    <th className="p-3 font-medium">#</th>
-                    <th className="p-3 font-medium">Subcontractor</th>
-                    <th className="p-3 font-medium">Period</th>
-                    <th className="p-3 font-medium text-right">Gross</th>
-                    <th className="p-3 font-medium text-right">Retention</th>
-                    <th className="p-3 font-medium text-right">VAT</th>
-                    <th className="p-3 font-medium text-right">Net Payable</th>
-                    <th className="p-3 font-medium text-right">Paid</th>
-                    <th className="p-3 font-medium text-center">Status</th>
-                    <th className="p-3 font-medium text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billsData.bills.map((bill: any) => {
-                    const isExpanded = expandedBillId === bill.id;
-                    return (
-                      <>
-                        <tr
-                          key={bill.id}
-                          className={cn(
-                            "border-b hover:bg-muted/10 transition-colors cursor-pointer",
-                            selectedBillId === bill.id && "bg-violet-50/40 dark:bg-violet-950/10"
-                          )}
-                          onClick={() => setSelectedBillId(bill.id)}
-                        >
-                          <td className="p-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedBillId(isExpanded ? null : bill.id);
-                              }}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                            </button>
-                          </td>
-                          <td className="p-3 font-mono text-muted-foreground">{bill.number}</td>
-                          <td className="p-3 font-medium">{bill.subcontractor.name}</td>
-                          <td className="p-3 text-muted-foreground">{bill.period || "—"}</td>
-                          <td className="p-3 text-right font-mono">NPR {formatNpr(bill.grossAmount)}</td>
-                          <td className="p-3 text-right font-mono text-amber-600">NPR {formatNpr(bill.retentionAmount)}</td>
-                          <td className="p-3 text-right font-mono">NPR {formatNpr(bill.vatAmount)}</td>
-                          <td className="p-3 text-right font-bold font-mono">NPR {formatNpr(bill.netPayable)}</td>
-                          <td className="p-3 text-right font-mono text-emerald-600">NPR {formatNpr(bill.paidAmount)}</td>
-                          <td className="p-3 text-center">
-                            <StatusBadge status={bill.status} size="xs" />
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              {bill.status === "draft" && canWrite && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-[10px] text-blue-600"
-                                    onClick={() => submitMut.mutate({ projectId: id, billId: bill.id })}
-                                    disabled={submitMut.isPending}
-                                  >
-                                    <Send className="h-3 w-3 mr-1" /> Submit
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 text-[10px] text-red-500"
-                                    onClick={() => deleteMut.mutate({ projectId: id, billId: bill.id })}
-                                    disabled={deleteMut.isPending}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </>
-                              )}
-                              {(bill.status === "submitted" || bill.status === "verified") && isAdmin && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-6 text-[10px] text-emerald-700 dark:text-[#0284c7] border-emerald-300 dark:border-emerald-800 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
-                                  onClick={() => setVerifyBillId(bill.id)}
-                                >
-                                  <ShieldCheck className="h-3 w-3" /> Verify
-                                </Button>
-                              )}
-                              {bill.status === "certified" && isAdmin && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-[10px] text-emerald-600"
-                                  onClick={() => {
-                                    const remaining = bill.netPayable - bill.paidAmount;
-                                    markPaidMut.mutate({ projectId: id, billId: bill.id, amount: remaining });
-                                  }}
-                                  disabled={markPaidMut.isPending}
-                                >
-                                  <Banknote className="h-3 w-3 mr-1" /> Pay Full
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        {/* Expanded row: line items preview */}
-                        {isExpanded && (
-                          <tr key={`${bill.id}-expanded`}>
-                            <td colSpan={11} className="bg-muted/20 p-3">
-                              <div className="text-[10px] space-y-1">
-                                {bill.items?.length > 0 ? (
-                                  <table className="w-full">
-                                    <thead>
-                                      <tr className="text-muted-foreground">
-                                        <th className="text-left py-1 font-medium">Description</th>
-                                        <th className="text-right py-1 font-medium">Qty</th>
-                                        <th className="text-right py-1 font-medium">Rate</th>
-                                        <th className="text-right py-1 font-medium">Amount</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {bill.items.map((item: any) => (
-                                        <tr key={item.id} className="border-t border-border/30">
-                                          <td className="py-1">
-                                            {item.boqCode && <span className="font-mono text-muted-foreground mr-1">{item.boqCode}</span>}
-                                            {item.description}
-                                          </td>
-                                          <td className="text-right py-1 font-mono">{item.thisQty} {item.unit}</td>
-                                          <td className="text-right py-1 font-mono">NPR {item.rate.toLocaleString()}</td>
-                                          <td className="text-right py-1 font-mono font-semibold">NPR {item.amount.toLocaleString()}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                ) : (
-                                  <p className="text-muted-foreground">No line items</p>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
-
-        {/* Subcontractor Breakdown */}
-        {billsData?.subcontractorBreakdown && billsData.subcontractorBreakdown.length > 0 && (
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">By Subcontractor</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="border-b bg-muted/30 text-left text-muted-foreground">
-                    <tr>
-                      <th className="p-3 font-medium">Subcontractor</th>
-                      <th className="p-3 font-medium text-right">Bills</th>
-                      <th className="p-3 font-medium text-right">Billed</th>
-                      <th className="p-3 font-medium text-right">Paid</th>
-                      <th className="p-3 font-medium text-right">Outstanding</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billsData.subcontractorBreakdown.map((sub: any) => (
-                      <tr key={sub.name} className="border-b hover:bg-muted/10">
-                        <td className="p-3 font-medium">{sub.name}</td>
-                        <td className="p-3 text-right">{sub.billCount}</td>
-                        <td className="p-3 text-right font-mono">NPR {sub.billed.toLocaleString()}</td>
-                        <td className="p-3 text-right font-mono text-emerald-600">NPR {sub.paid.toLocaleString()}</td>
-                        <td className="p-3 text-right font-mono text-amber-600">NPR {sub.outstanding.toLocaleString()}</td>
-                      </tr>
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-3 p-3 bg-muted/40 rounded-lg border">
+                <Select value={subFilter} onValueChange={setSubFilter}>
+                  <SelectTrigger className="w-[180px] h-8 text-xs font-mono">
+                    <SelectValue placeholder="All Subcontractors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subcontractors</SelectItem>
+                    {subsData?.subcontractors.map((sub: any) => (
+                      <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  </SelectContent>
+                </Select>
 
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[150px] h-8 text-xs font-mono">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="verified">Verified</SelectItem>
+                    <SelectItem value="certified">Certified</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="disputed">Disputed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Bills Central ConstructionTable */}
+              <ConstructionTable
+                data={bills}
+                columns={billColumns}
+                isLoading={isLoading}
+                searchPlaceholder="Search bills by number, subcontractor, period..."
+                searchFilterKeys={["number", "period"]}
+                onRowClick={(bill) => setSelectedBillId(bill.id)}
+                renderRowPreview={(bill) => (
+                  <div className="p-3 bg-muted/20 rounded-lg space-y-2 font-mono text-xs">
+                    <div className="font-semibold text-foreground font-sans">Line Items Preview for Bill #{bill.number}:</div>
+                    {bill.items?.length > 0 ? (
+                      <div className="space-y-1">
+                        {bill.items.map((item: any) => (
+                          <div key={item.id} className="flex justify-between py-1 border-b border-border/40 text-[11px]">
+                            <span>{item.boqCode ? `[${item.boqCode}] ` : ""}{item.description}</span>
+                            <span>{item.thisQty} {item.unit} @ {formatNpr(item.rate)} = <strong>{formatNpr(item.amount)}</strong></span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">No line items detailed.</p>
+                    )}
+                  </div>
+                )}
+              />
+
+              {/* Subcontractor Breakdown */}
+              {breakdown.length > 0 && (
+                <div className="space-y-2 pt-4">
+                  <h3 className="text-sm font-bold font-sans text-foreground">Summary By Subcontractor</h3>
+                  <ConstructionTable
+                    data={breakdown}
+                    columns={breakdownColumns}
+                    isLoading={false}
+                    searchPlaceholder="Filter subcontractors..."
+                    searchFilterKeys={["name"]}
+                  />
+                </div>
+              )}
             </TabsContent>
 
-          {/* TAB 2: RECONCILIATION MATRIX */}
-          <TabsContent value="matrix" className="space-y-4 m-0">
-            <ReconciliationMatrixTab projectId={id} />
-          </TabsContent>
+            {/* TAB 2: RECONCILIATION MATRIX */}
+            <TabsContent value="matrix" className="space-y-4 m-0">
+              <ReconciliationMatrixTab projectId={id} />
+            </TabsContent>
 
-          {/* TAB 3: MATERIAL ISSUE & RETURN RECONCILIATION */}
-          <TabsContent value="materials" className="space-y-4 m-0">
-            <MaterialReconciliationTab projectId={id} subcontractors={subsData?.subcontractors || []} />
-          </TabsContent>
-        </Tabs>
-      </div>
+            {/* TAB 3: MATERIAL ISSUE & RETURN RECONCILIATION */}
+            <TabsContent value="materials" className="space-y-4 m-0">
+              <MaterialReconciliationTab projectId={id} subcontractors={subsData?.subcontractors || []} />
+            </TabsContent>
+          </Tabs>
+        </div>
 
         {/* Detail View Dialog */}
         {selectedBillId && (
           <Dialog open={!!selectedBillId} onOpenChange={(open) => !open && setSelectedBillId(null)}>
-            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
               {isDetailLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -530,14 +495,12 @@ function BillDetailView({
   onVerify?: () => void;
   onRefresh: () => void;
 }) {
-  const utils = trpc.useUtils();
-
   const submitMut = trpc.subcontractorBill.submit.useMutation({
     onSuccess: () => { toast.success("Bill submitted"); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
   const markPaidMut = trpc.subcontractorBill.markPaid.useMutation({
-    onSuccess: (res) => { toast.success(`Paid. Remaining: NPR ${res.remaining.toLocaleString()}`); onRefresh(); },
+    onSuccess: (res) => { toast.success(`Paid. Remaining: ${formatNpr(res.remaining)}`); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -558,28 +521,28 @@ function BillDetailView({
             {bill.status}
           </Badge>
         </DialogTitle>
-        <DialogDescription>
+        <DialogDescription className="text-white/60">
           {bill.subcontractor.name} &middot; {bill.period || "No period"} &middot; Created {format(new Date(bill.createdAt), "dd MMM yyyy")}
         </DialogDescription>
       </DialogHeader>
 
       {/* Financial Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg border p-3 text-center">
-          <p className="text-[10px] text-muted-foreground uppercase">Gross Amount</p>
-          <p className="text-lg font-bold font-mono">NPR {formatNpr(bill.grossAmount)}</p>
+        <div className="rounded-lg border border-white/10 p-3 text-center bg-white/5">
+          <p className="text-[10px] text-white/60 uppercase font-mono">Gross Amount</p>
+          <p className="text-lg font-bold font-mono">{formatNpr(bill.grossAmount)}</p>
         </div>
-        <div className="rounded-lg border p-3 text-center">
-          <p className="text-[10px] text-muted-foreground uppercase">Retention ({bill.retentionPercent}%)</p>
-          <p className="text-lg font-bold font-mono text-amber-600">-NPR {formatNpr(bill.retentionAmount)}</p>
+        <div className="rounded-lg border border-white/10 p-3 text-center bg-white/5">
+          <p className="text-[10px] text-white/60 uppercase font-mono">Retention ({bill.retentionPercent}%)</p>
+          <p className="text-lg font-bold font-mono text-amber-400">-{formatNpr(bill.retentionAmount)}</p>
         </div>
-        <div className="rounded-lg border p-3 text-center">
-          <p className="text-[10px] text-muted-foreground uppercase">VAT ({bill.vatPercent}%)</p>
-          <p className="text-lg font-bold font-mono">+NPR {formatNpr(bill.vatAmount)}</p>
+        <div className="rounded-lg border border-white/10 p-3 text-center bg-white/5">
+          <p className="text-[10px] text-white/60 uppercase font-mono">VAT ({bill.vatPercent}%)</p>
+          <p className="text-lg font-bold font-mono">+{formatNpr(bill.vatAmount)}</p>
         </div>
-        <div className="rounded-lg border p-3 text-center bg-violet-50/40 dark:bg-violet-950/10">
-          <p className="text-[10px] text-muted-foreground uppercase">Net Payable</p>
-          <p className="text-lg font-bold font-mono text-violet-700 dark:text-violet-300">NPR {formatNpr(bill.netPayable)}</p>
+        <div className="rounded-lg border border-primary/40 p-3 text-center bg-primary/10">
+          <p className="text-[10px] text-white/60 uppercase font-mono">Net Payable</p>
+          <p className="text-lg font-bold font-mono text-primary">{formatNpr(bill.netPayable)}</p>
         </div>
       </div>
 
@@ -587,56 +550,56 @@ function BillDetailView({
       {(bill.materialDeduction > 0 || bill.advanceRecovery > 0) && (
         <div className="flex gap-3 text-xs">
           {bill.materialDeduction > 0 && (
-            <span className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-1.5">
-              Material Deduction: <strong>NPR {formatNpr(bill.materialDeduction)}</strong>
+            <span className="rounded-md bg-red-950/40 border border-red-800 px-3 py-1.5 font-mono text-red-300">
+              Material Deduction: <strong>{formatNpr(bill.materialDeduction)}</strong>
             </span>
           )}
           {bill.advanceRecovery > 0 && (
-            <span className="rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 px-3 py-1.5">
-              Advance Recovery: <strong>NPR {formatNpr(bill.advanceRecovery)}</strong>
+            <span className="rounded-md bg-red-950/40 border border-red-800 px-3 py-1.5 font-mono text-red-300">
+              Advance Recovery: <strong>{formatNpr(bill.advanceRecovery)}</strong>
             </span>
           )}
         </div>
       )}
 
       {/* Payment Progress */}
-      <div className="rounded-lg border p-3">
-        <div className="flex justify-between text-xs mb-1.5">
-          <span className="text-muted-foreground">Payment Progress</span>
+      <div className="rounded-lg border border-white/10 p-3 bg-white/5">
+        <div className="flex justify-between text-xs mb-1.5 font-mono">
+          <span className="text-white/60">Payment Progress</span>
           <span className="font-semibold">{bill.netPayable > 0 ? Math.round((bill.paidAmount / bill.netPayable) * 100) : 0}%</span>
         </div>
-        <div className="w-full bg-muted rounded-full h-2">
+        <div className="w-full bg-white/10 rounded-full h-2">
           <div
             className="bg-emerald-500 h-2 rounded-full transition-all"
             style={{ width: `${Math.min(100, bill.netPayable > 0 ? (bill.paidAmount / bill.netPayable) * 100 : 0)}%` }}
           />
         </div>
-        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-          <span>Paid: NPR {formatNpr(bill.paidAmount)}</span>
-          <span>Remaining: NPR {formatNpr(Math.max(0, bill.netPayable - bill.paidAmount))}</span>
+        <div className="flex justify-between text-[10px] text-white/60 mt-1 font-mono">
+          <span>Paid: {formatNpr(bill.paidAmount)}</span>
+          <span>Remaining: {formatNpr(Math.max(0, bill.netPayable - bill.paidAmount))}</span>
         </div>
       </div>
 
       {/* Line Items */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold">Line Items &amp; Measurement Breakdown</h3>
+          <h3 className="text-sm font-semibold font-sans">Line Items &amp; Measurement Breakdown</h3>
           {onVerify && (bill.status === "submitted" || bill.status === "verified" || bill.status === "draft") && isAdmin && (
-            <Button size="sm" variant="outline" onClick={onVerify} className="h-7 text-xs gap-1 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+            <Button size="sm" variant="outline" onClick={onVerify} className="h-7 text-xs gap-1 text-emerald-300 border-emerald-500 font-mono">
               <ShieldCheck className="h-3.5 w-3.5" /> Engineer Line-Item Verification
             </Button>
           )}
         </div>
         {bill.items?.length > 0 ? (
-          <div className="rounded-lg border overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/30">
-                <tr className="text-muted-foreground">
+          <div className="rounded-lg border border-white/10 overflow-hidden bg-white/5">
+            <table className="w-full text-xs font-mono">
+              <thead className="bg-white/10">
+                <tr className="text-white/60">
                   <th className="text-left p-2 font-medium">BOQ Code</th>
-                  <th className="text-left p-2 font-medium">Description</th>
+                  <th className="text-left p-2 font-medium font-sans">Description</th>
                   <th className="text-right p-2 font-medium">Claimed Qty</th>
-                  <th className="text-right p-2 font-medium text-emerald-600">Verified Qty</th>
-                  <th className="text-right p-2 font-medium text-red-600">Disallowed</th>
+                  <th className="text-right p-2 font-medium text-emerald-400">Verified Qty</th>
+                  <th className="text-right p-2 font-medium text-red-400">Disallowed</th>
                   <th className="text-right p-2 font-medium">Rate</th>
                   <th className="text-right p-2 font-medium">Amount</th>
                 </tr>
@@ -647,53 +610,53 @@ function BillDetailView({
                   const disallowed = item.disallowedQty || Math.max(0, item.thisQty - verifiedQty);
 
                   return (
-                    <tr key={item.id} className="border-t hover:bg-muted/10">
-                      <td className="p-2 font-mono text-muted-foreground">{item.boqCode || "—"}</td>
-                      <td className="p-2 font-medium">
+                    <tr key={item.id} className="border-t border-white/10 hover:bg-white/5">
+                      <td className="p-2 text-white/60">{item.boqCode || "—"}</td>
+                      <td className="p-2 font-medium font-sans">
                         {item.description}
                         {item.disallowedReason && (
-                          <span className="block text-[9px] text-red-600 italic">
+                          <span className="block text-[9px] text-red-400 italic">
                             Deduction: {item.disallowedReason}
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-right font-mono text-muted-foreground">{item.thisQty} {item.unit}</td>
-                      <td className="p-2 text-right font-mono font-bold text-emerald-600">{verifiedQty} {item.unit}</td>
-                      <td className={cn("p-2 text-right font-mono", disallowed > 0 ? "text-red-600 font-bold" : "text-muted-foreground")}>
+                      <td className="p-2 text-right text-white/60">{item.thisQty} {item.unit}</td>
+                      <td className="p-2 text-right font-bold text-emerald-400">{verifiedQty} {item.unit}</td>
+                      <td className={cn("p-2 text-right", disallowed > 0 ? "text-red-400 font-bold" : "text-white/60")}>
                         {disallowed > 0 ? `-${disallowed}` : "0"}
                       </td>
-                      <td className="p-2 text-right font-mono">NPR {item.rate.toLocaleString()}</td>
-                      <td className="p-2 text-right font-mono font-bold">NPR {(verifiedQty * item.rate).toLocaleString()}</td>
+                      <td className="p-2 text-right">{formatNpr(item.rate)}</td>
+                      <td className="p-2 text-right font-bold">{formatNpr(verifiedQty * item.rate)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 bg-muted/20 font-semibold">
-                  <td colSpan={6} className="p-2 text-right">Gross Certified Amount</td>
-                  <td className="p-2 text-right font-mono">NPR {bill.grossAmount.toLocaleString()}</td>
+                <tr className="border-t-2 border-white/20 bg-white/10 font-semibold">
+                  <td colSpan={6} className="p-2 text-right font-sans">Gross Certified Amount</td>
+                  <td className="p-2 text-right font-bold">{formatNpr(bill.grossAmount)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground text-center py-4">No line items</p>
+          <p className="text-xs text-white/60 text-center py-4 font-mono">No line items</p>
         )}
       </div>
 
       {bill.notes && (
-        <div className="rounded-lg border p-3 bg-muted/20 text-xs">
-          <span className="text-muted-foreground">Notes: </span>
+        <div className="rounded-lg border border-white/10 p-3 bg-white/5 text-xs">
+          <span className="text-white/60">Notes: </span>
           <span className="italic">{bill.notes}</span>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-2 border-t pt-3">
+      <div className="flex justify-end gap-2 border-t border-white/10 pt-3">
         {bill.status === "draft" && canWrite && (
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-slate-900"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs"
             onClick={() => submitMut.mutate({ projectId, billId: bill.id })}
             disabled={submitMut.isPending}
           >
@@ -704,7 +667,7 @@ function BillDetailView({
         {onVerify && (bill.status === "submitted" || bill.status === "verified") && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-slate-900 gap-1.5 font-semibold"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold font-mono text-xs"
             onClick={onVerify}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
@@ -714,7 +677,7 @@ function BillDetailView({
         {bill.status === "certified" && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-slate-900"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs"
             onClick={() => {
               const remaining = bill.netPayable - bill.paidAmount;
               markPaidMut.mutate({ projectId, billId: bill.id, amount: remaining });
@@ -821,13 +784,13 @@ function CreateBillDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ReceiptText className="h-5 w-5 text-violet-500" />
             New Subcontractor Bill
           </DialogTitle>
-          <DialogDescription>Create a new bill with line items. Bill number auto-generated.</DialogDescription>
+          <DialogDescription className="text-white/60">Create a new bill with line items. Bill number auto-generated.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -836,7 +799,7 @@ function CreateBillDialog({
             <div className="space-y-1.5">
               <Label className="text-xs">Subcontractor *</Label>
               <Select value={subcontractorId} onValueChange={setSubcontractorId}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs font-mono">
                   <SelectValue placeholder="Select subcontractor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -848,7 +811,7 @@ function CreateBillDialog({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Period</Label>
-              <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. Aug 2026" className="h-8 text-xs" />
+              <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="e.g. Aug 2026" className="h-8 text-xs font-mono" />
             </div>
           </div>
 
@@ -856,41 +819,41 @@ function CreateBillDialog({
           <div className="grid grid-cols-4 gap-2">
             <div className="space-y-1">
               <Label className="text-[10px]">Retention %</Label>
-              <Input type="number" value={retentionPercent} onChange={(e) => setRetentionPercent(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" value={retentionPercent} onChange={(e) => setRetentionPercent(e.target.value)} className="h-7 text-xs font-mono" />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px]">VAT %</Label>
-              <Input type="number" value={vatPercent} onChange={(e) => setVatPercent(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" value={vatPercent} onChange={(e) => setVatPercent(e.target.value)} className="h-7 text-xs font-mono" />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px]">TDS %</Label>
-              <Input type="number" value={tdsPercent} onChange={(e) => setTdsPercent(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" value={tdsPercent} onChange={(e) => setTdsPercent(e.target.value)} className="h-7 text-xs font-mono" />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px]">Mat. Deduction</Label>
-              <Input type="number" value={materialDeduction} onChange={(e) => setMaterialDeduction(e.target.value)} className="h-7 text-xs" />
+              <Input type="number" value={materialDeduction} onChange={(e) => setMaterialDeduction(e.target.value)} className="h-7 text-xs font-mono" />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-[10px]">Advance Recovery</Label>
-            <Input type="number" value={advanceRecovery} onChange={(e) => setAdvanceRecovery(e.target.value)} className="h-7 text-xs max-w-[160px]" />
+            <Input type="number" value={advanceRecovery} onChange={(e) => setAdvanceRecovery(e.target.value)} className="h-7 text-xs max-w-[160px] font-mono" />
           </div>
 
           {/* Line Items */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label className="text-xs font-semibold">Line Items *</Label>
-              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={addItem}>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] font-mono" onClick={addItem}>
                 <Plus className="h-3 w-3 mr-1" /> Add Item
               </Button>
             </div>
             <div className="space-y-2">
               {items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-1.5 items-end border rounded-lg p-2 bg-muted/10">
-                  <div className="col-span-1">
+                <div key={idx} className="grid grid-cols-12 gap-1.5 items-end border border-white/10 rounded-lg p-2 bg-white/5">
+                  <div className="col-span-2">
                     <Label className="text-[9px]">BOQ Code</Label>
-                    <Input value={item.boqCode} onChange={(e) => updateItem(idx, "boqCode", e.target.value)} className="h-7 text-[10px]" placeholder="1.1.1" />
+                    <Input value={item.boqCode} onChange={(e) => updateItem(idx, "boqCode", e.target.value)} className="h-7 text-[10px] font-mono" placeholder="1.1.1" />
                   </div>
                   <div className="col-span-3">
                     <Label className="text-[9px]">Description *</Label>
@@ -898,27 +861,23 @@ function CreateBillDialog({
                   </div>
                   <div className="col-span-1">
                     <Label className="text-[9px]">Unit</Label>
-                    <Input value={item.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)} className="h-7 text-[10px]" placeholder="cum" />
+                    <Input value={item.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)} className="h-7 text-[10px] font-mono" placeholder="cum" />
                   </div>
                   <div className="col-span-1">
-                    <Label className="text-[9px]">Prev Qty</Label>
-                    <Input type="number" value={item.previousQty || ""} onChange={(e) => updateItem(idx, "previousQty", parseFloat(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    <Label className="text-[9px]">Prev</Label>
+                    <Input type="number" value={item.previousQty || ""} onChange={(e) => updateItem(idx, "previousQty", parseFloat(e.target.value) || 0)} className="h-7 text-[10px] font-mono" />
                   </div>
                   <div className="col-span-2">
                     <Label className="text-[9px]">This Qty *</Label>
-                    <Input type="number" value={item.thisQty || ""} onChange={(e) => updateItem(idx, "thisQty", parseFloat(e.target.value) || 0)} className="h-7 text-[10px]" />
+                    <Input type="number" value={item.thisQty || ""} onChange={(e) => updateItem(idx, "thisQty", parseFloat(e.target.value) || 0)} className="h-7 text-[10px] font-mono" />
                   </div>
                   <div className="col-span-2">
                     <Label className="text-[9px]">Rate (NPR) *</Label>
-                    <Input type="number" value={item.rate || ""} onChange={(e) => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} className="h-7 text-[10px]" />
-                  </div>
-                  <div className="col-span-1 text-right">
-                    <Label className="text-[9px]">Amount</Label>
-                    <p className="text-[10px] font-mono font-bold pt-1.5">{formatNpr(item.thisQty * item.rate)}</p>
+                    <Input type="number" value={item.rate || ""} onChange={(e) => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} className="h-7 text-[10px] font-mono" />
                   </div>
                   <div className="col-span-1 flex justify-center">
                     {items.length > 1 && (
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500" onClick={() => removeItem(idx)}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400 hover:text-red-300" onClick={() => removeItem(idx)}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     )}
@@ -934,20 +893,20 @@ function CreateBillDialog({
           </div>
 
           {/* Summary */}
-          <div className="rounded-lg border bg-muted/20 p-3 space-y-1 text-xs">
-            <div className="flex justify-between"><span className="text-muted-foreground">Gross Amount</span><span className="font-mono font-bold">NPR {formatNpr(grossTotal)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Retention ({retentionPercent}%)</span><span className="font-mono text-amber-600">-NPR {formatNpr(retentionAmt)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">VAT ({vatPercent}%)</span><span className="font-mono">+NPR {formatNpr(vatAmt)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">TDS ({tdsPercent}%)</span><span className="font-mono">-NPR {formatNpr(tdsAmt)}</span></div>
-            {parseFloat(materialDeduction || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Material Deduction</span><span className="font-mono text-red-600">-NPR {formatNpr(parseFloat(materialDeduction))}</span></div>}
-            {parseFloat(advanceRecovery || "0") > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Advance Recovery</span><span className="font-mono text-red-600">-NPR {formatNpr(parseFloat(advanceRecovery))}</span></div>}
-            <div className="flex justify-between border-t pt-1 font-bold"><span>Net Payable</span><span className="font-mono text-violet-700 dark:text-violet-300">NPR {formatNpr(netPayable)}</span></div>
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-1 text-xs font-mono">
+            <div className="flex justify-between"><span className="text-white/60">Gross Amount</span><span className="font-bold">{formatNpr(grossTotal)}</span></div>
+            <div className="flex justify-between"><span className="text-white/60">Retention ({retentionPercent}%)</span><span className="text-amber-400">-{formatNpr(retentionAmt)}</span></div>
+            <div className="flex justify-between"><span className="text-white/60">VAT ({vatPercent}%)</span><span>+{formatNpr(vatAmt)}</span></div>
+            <div className="flex justify-between"><span className="text-white/60">TDS ({tdsPercent}%)</span><span>-{formatNpr(tdsAmt)}</span></div>
+            {parseFloat(materialDeduction || "0") > 0 && <div className="flex justify-between"><span className="text-white/60">Material Deduction</span><span className="text-red-400">-{formatNpr(parseFloat(materialDeduction))}</span></div>}
+            {parseFloat(advanceRecovery || "0") > 0 && <div className="flex justify-between"><span className="text-white/60">Advance Recovery</span><span className="text-red-400">-{formatNpr(parseFloat(advanceRecovery))}</span></div>}
+            <div className="flex justify-between border-t border-white/10 pt-1 font-bold"><span>Net Payable</span><span className="text-primary">{formatNpr(netPayable)}</span></div>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={createMut.isPending}>Cancel</Button>
-          <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-slate-900" onClick={handleSubmit} disabled={createMut.isPending}>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={createMut.isPending} className="font-mono text-xs">Cancel</Button>
+          <Button size="sm" className="bg-primary text-primary-foreground font-mono text-xs" onClick={handleSubmit} disabled={createMut.isPending}>
             {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
             Create Bill
           </Button>

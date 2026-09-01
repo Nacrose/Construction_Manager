@@ -7,24 +7,16 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createDomainRouter, financialGuard } from "@/server/trpc";
+import { router, projectProcedure, financialProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertOrgBankAccount } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 import { normalizeDateMiti } from "@/server/utils/date-miti";
 
-/**
- * JV Partner router.
- * Phase E: declarative authz via createDomainRouter; recordPayout rides the
- * strict financialGuard (fiscal lock + delegation + org bank-account
- * isolation with explicitly named input fields).
- */
-const { router, proc } = createDomainRouter();
-
 export const jvPartnerRouter = router({
   /** Get JV partner agreement & statement for a project */
-  getAgreement: proc.member
+  getAgreement: projectProcedure("member")
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input }) => {
       const agreement = await db.jvPartnerAgreement.findUnique({
@@ -98,7 +90,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Save / Update JV Partner Agreement */
-  saveAgreement: proc.manager
+  saveAgreement: projectProcedure("manager")
     .input(
       z.object({
         projectId: z.string(),
@@ -163,13 +155,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Record a Commission Payout to the JV Partner */
-  recordPayout: proc.write
-    .use(financialGuard({
-      action: "record_jv_payout",
-      dateField: "payoutDate",
-      amountFields: ["grossAmount"],
-      bankAccountFields: ["bankAccountId"],
-    }))
+  recordPayout: financialProcedure("record_jv_payout")
     .input(
       z.object({
         projectId: z.string(),
@@ -287,7 +273,7 @@ export const jvPartnerRouter = router({
     }),
 
   /** Delete a commission payout record */
-  deletePayout: proc.manager
+  deletePayout: projectProcedure("manager")
     .input(
       z.object({
         projectId: z.string(),

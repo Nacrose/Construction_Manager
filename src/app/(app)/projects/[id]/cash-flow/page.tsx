@@ -16,6 +16,14 @@ import { AnimatedPage } from "@/components/ui/animated-page";
 import { ModuleTabs } from "@/components/module-tabs";
 import { formatNpr } from "@/lib/currency";
 
+const FIN_TABS = [
+  { label: "Payments", href: "/payments" },
+  { label: "Accounting & Day Book", href: "/accounting" },
+  { label: "IPC Certificates", href: "/ipc" },
+  { label: "Tax Summary", href: "/tax-summary" },
+  { label: "Cash Flow", href: "/cash-flow" },
+  { label: "Budget vs Actual", href: "/budget-variance" },
+];
 
 export default function CashFlowPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,7 +33,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="finance" />
+      <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Timeline Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">

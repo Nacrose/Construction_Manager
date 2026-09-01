@@ -17,8 +17,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Plus,
-  ArrowRight,
   ShieldCheck,
   Building,
 } from "lucide-react";
@@ -26,6 +24,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/currency";
 import { SettleMultiBillDialog, BillToSettle } from "../dialogs/settle-multi-bill-dialog";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function OrgPayablesTab() {
   const [search, setSearch] = useState("");
@@ -85,6 +84,84 @@ export function OrgPayablesTab() {
     setSettleModalOpen(true);
   };
 
+  const billColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "project",
+      header: "Project",
+      render: (_, b) => (
+        <div>
+          <span className="font-bold text-foreground font-mono text-xs">{b.projectCode}</span>
+          <div className="text-[10px] text-muted-foreground font-sans truncate max-w-[140px]">
+            {b.projectName}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "billNumber",
+      header: "Bill #",
+      render: (_, b) => <span className="font-bold text-foreground font-mono text-xs">{b.billNumber}</span>,
+    },
+    {
+      key: "billDate",
+      header: "Date",
+      render: (_, b) => (
+        <span className="text-muted-foreground font-mono text-xs">
+          {format(new Date(b.billDate), "yyyy-MM-dd")}
+        </span>
+      ),
+    },
+    {
+      key: "grossAmount",
+      header: "Gross",
+      align: "right",
+      render: (_, b) => <span className="font-mono text-xs">{formatNpr(b.grossAmount)}</span>,
+    },
+    {
+      key: "tdsAmount",
+      header: "1.5% TDS",
+      align: "right",
+      render: (_, b) => <span className="font-mono text-xs text-muted-foreground">{formatNpr(b.tdsAmount)}</span>,
+    },
+    {
+      key: "netPayable",
+      header: "Net Bill",
+      align: "right",
+      render: (_, b) => <span className="font-mono text-xs">{formatNpr(b.netPayable)}</span>,
+    },
+    {
+      key: "paidAmount",
+      header: "Paid",
+      align: "right",
+      render: (_, b) => <span className="font-mono text-xs text-muted-foreground">{formatNpr(b.paidAmount)}</span>,
+    },
+    {
+      key: "balanceDue",
+      header: "Balance Due",
+      align: "right",
+      render: (_, b) => (
+        <span className="font-bold font-mono text-xs text-amber-600 dark:text-amber-400">
+          {formatNpr(b.balanceDue)}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Action",
+      align: "center",
+      render: (_, b) => (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 px-2 text-[11px] font-sans text-primary hover:text-primary-foreground hover:bg-primary"
+          onClick={() => handlePaySingleBill(b)}
+        >
+          Pay →
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Top Metrics Row */}
@@ -98,161 +175,179 @@ export function OrgPayablesTab() {
               {formatNpr(totalDue, { prefix: "Rs.", compact: true })}
             </div>
             <div className="text-[11px] text-muted-foreground font-mono">
-              Across all active sites & suppliers
+              Across all sites and joint ventures
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-primary shadow-sm bg-card">
+        <Card className="border-l-4 border-l-blue-500 shadow-sm bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="text-[10px] font-mono text-muted-foreground uppercase">
-              Vendors & Subcontractors with Dues
+              Total Unsettled Bills (कुल बाँकी बिलहरू)
             </div>
             <div className="text-2xl font-bold font-mono text-foreground">
-              {suppliers.length}
+              {totalBills}{" "}
+              <span className="text-xs text-muted-foreground font-normal">vouchers</span>
             </div>
             <div className="text-[11px] text-muted-foreground font-mono">
-              Material vendors & labor contractors
+              Awaiting direct bank transfer / cheque
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-slate-400 shadow-sm bg-card">
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="text-[10px] font-mono text-muted-foreground uppercase">
-              Open Bills Pending Payment
+              Active Creditors (आपूर्तिकर्ता / ठेकेदार)
             </div>
-            <div className="text-2xl font-bold font-mono text-foreground">
-              {totalBills}
+            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+              {suppliers.length}{" "}
+              <span className="text-xs text-muted-foreground font-normal">entities</span>
             </div>
             <div className="text-[11px] text-muted-foreground font-mono">
-              Unpaid or partially settled bills
+              Consolidated vendor ledger
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-sm">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search vendor name, PAN, project code..."
-            className="pl-8 h-9 text-xs"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      {/* Filter and Search Ribbon */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-muted/40 rounded-lg border">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search vendor name, PAN, phone or bill..."
+              className="h-8 text-xs pl-8 font-mono"
+            />
+          </div>
+
+          <div className="flex items-center rounded-md border bg-background p-0.5">
+            <Button
+              size="sm"
+              variant={typeFilter === "all" ? "default" : "ghost"}
+              onClick={() => setTypeFilter("all")}
+              className="h-7 text-xs font-mono px-3"
+            >
+              All Types
+            </Button>
+            <Button
+              size="sm"
+              variant={typeFilter === "vendor" ? "default" : "ghost"}
+              onClick={() => setTypeFilter("vendor")}
+              className="h-7 text-xs font-mono px-3"
+            >
+              Suppliers
+            </Button>
+            <Button
+              size="sm"
+              variant={typeFilter === "subcontractor" ? "default" : "ghost"}
+              onClick={() => setTypeFilter("subcontractor")}
+              className="h-7 text-xs font-mono px-3"
+            >
+              Subcontractors
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 w-full sm:w-auto">
-          <Button
-            size="sm"
-            variant={typeFilter === "all" ? "default" : "outline"}
-            className="h-8 text-xs flex-1 sm:flex-initial"
-            onClick={() => setTypeFilter("all")}
-          >
-            All Parties ({suppliers.length})
-          </Button>
-          <Button
-            size="sm"
-            variant={typeFilter === "vendor" ? "default" : "outline"}
-            className="h-8 text-xs flex-1 sm:flex-initial"
-            onClick={() => setTypeFilter("vendor")}
-          >
-            Material Vendors
-          </Button>
-          <Button
-            size="sm"
-            variant={typeFilter === "subcontractor" ? "default" : "outline"}
-            className="h-8 text-xs flex-1 sm:flex-initial"
-            onClick={() => setTypeFilter("subcontractor")}
-          >
-            Subcontractors
-          </Button>
+        <div className="text-xs text-muted-foreground font-mono">
+          Showing <span className="font-bold text-foreground">{suppliers.length}</span> balance
+          statements
         </div>
       </div>
 
-      {/* Supplier Payables Accordion Matrix */}
+      {/* Suppliers / Subcontractors Statement Accordion */}
       {isLoading ? (
         <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
           ))}
         </div>
       ) : suppliers.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-12 text-center bg-card">
-          <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-500 mb-3" />
-          <h3 className="text-base font-bold text-foreground">All Clear! No Outstanding Payables</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            All vendor material bills and certified subcontractor bills across all projects are fully settled.
-          </p>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-2">
+            <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-1" />
+            <p className="text-sm font-semibold text-foreground font-mono">
+              No Outstanding Payables Found
+            </p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              All vendor bills and subcontractor certifications across all sites have been settled in full.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {suppliers.map((sup) => {
-            const isExpanded = expandedSuppliers[sup.key] ?? false;
+          {suppliers.map((sup: any) => {
+            const isExpanded = !!expandedSuppliers[sup.key];
 
             return (
               <div
                 key={sup.key}
-                className="rounded-xl border bg-card shadow-sm overflow-hidden transition-all"
+                className="rounded-lg border bg-card shadow-xs overflow-hidden transition-colors"
               >
-                {/* Supplier Header Row */}
+                {/* Header Row */}
                 <div
-                  className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors"
                   onClick={() => toggleExpand(sup.key)}
+                  className="flex flex-wrap items-center justify-between gap-3 p-3.5 hover:bg-muted/30 cursor-pointer select-none"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    <div className="h-9 w-9 rounded-md bg-muted/80 flex items-center justify-center text-muted-foreground shrink-0 border">
                       {sup.type === "vendor" ? (
-                        <Building2 className="h-5 w-5" />
+                        <Building2 className="h-4 w-4" />
                       ) : (
-                        <Building className="h-5 w-5" />
+                        <Building className="h-4 w-4 text-purple-500" />
                       )}
                     </div>
+
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-foreground text-sm font-sans">{sup.name}</span>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[9px] px-1.5 py-0 capitalize font-mono",
+                            sup.type === "vendor"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
+                          )}
+                        >
+                          {sup.type === "vendor" ? "Supplier" : "Subcontractor"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono mt-0.5">
                         {sup.pan && (
-                          <Badge variant="outline" className="text-[10px] font-mono">
+                          <span className="flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3 text-muted-foreground/70" />
                             PAN: {sup.pan}
-                          </Badge>
-                        )}
-                        {sup.phone && (
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
-                            <Phone className="h-3 w-3" /> {sup.phone}
                           </span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[11px] text-muted-foreground">Active in Projects:</span>
-                        {sup.projectCodes.map((code) => (
-                          <Badge
-                            key={code}
-                            variant="secondary"
-                            className="text-[10px] font-mono font-semibold"
-                          >
-                            {code}
-                          </Badge>
-                        ))}
-                        <span className="text-[11px] text-muted-foreground ml-2">
-                          • {sup.billsCount} open bill{sup.billsCount > 1 ? "s" : ""}
-                        </span>
+                        {sup.phone && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-muted-foreground/70" />
+                            {sup.phone}
+                          </span>
+                        )}
+                        <span>• {sup.billsCount} pending bills</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-center font-mono">
-                    <div className="text-right">
-                      <div className="text-[10px] text-muted-foreground uppercase">Total Due</div>
-                      <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                        NPR {formatNpr(sup.totalDue)}
+                  <div className="flex items-center gap-4">
+                    <div className="text-right font-mono">
+                      <div className="text-[10px] text-muted-foreground uppercase">
+                        Unsettled Balance
+                      </div>
+                      <div className="text-base font-bold text-amber-600 dark:text-amber-400">
+                        {formatNpr(sup.totalDue)}
                       </div>
                     </div>
 
                     <Button
                       size="sm"
-                      className="gap-1.5 text-xs font-semibold h-8 shadow-sm"
+                      className="gap-1.5 text-xs font-semibold h-8 shadow-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePaySupplierAll(sup);
@@ -280,65 +375,15 @@ export function OrgPayablesTab() {
                   </div>
                 </div>
 
-                {/* Expanded Bills Breakdown */}
+                {/* Expanded Bills Breakdown with ConstructionTable */}
                 {isExpanded && (
-                  <div className="border-t overflow-x-auto">
-                    <table className="w-full text-left text-xs font-mono">
-                      <thead className="bg-muted/60 text-[10px] uppercase text-muted-foreground">
-                        <tr>
-                          <th className="px-4 py-2">Project</th>
-                          <th className="px-3 py-2">Bill #</th>
-                          <th className="px-3 py-2">Date (AD)</th>
-                          <th className="px-3 py-2 text-right">Gross</th>
-                          <th className="px-3 py-2 text-right">1.5% TDS</th>
-                          <th className="px-3 py-2 text-right">Net Bill</th>
-                          <th className="px-3 py-2 text-right">Paid</th>
-                          <th className="px-3 py-2 text-right text-amber-600 dark:text-amber-400">
-                            Balance Due
-                          </th>
-                          <th className="px-4 py-2 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {sup.bills.map((b: any) => (
-                          <tr key={b.id} className="hover:bg-muted/20">
-                            <td className="px-4 py-2.5">
-                              <span className="font-bold text-foreground">{b.projectCode}</span>
-                              <div className="text-[10px] text-muted-foreground font-sans truncate max-w-[140px]">
-                                {b.projectName}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2.5 font-bold text-foreground">
-                              {b.billNumber}
-                            </td>
-                            <td className="px-3 py-2.5 text-muted-foreground">
-                              {format(new Date(b.billDate), "yyyy-MM-dd")}
-                            </td>
-                            <td className="px-3 py-2.5 text-right">{formatNpr(b.grossAmount)}</td>
-                            <td className="px-3 py-2.5 text-right text-muted-foreground">
-                              {formatNpr(b.tdsAmount)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right">{formatNpr(b.netPayable)}</td>
-                            <td className="px-3 py-2.5 text-right text-muted-foreground">
-                              {formatNpr(b.paidAmount)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right font-bold text-amber-600 dark:text-amber-400">
-                              {formatNpr(b.balanceDue)}
-                            </td>
-                            <td className="px-4 py-2.5 text-center">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-[11px] font-sans text-primary hover:text-primary-foreground hover:bg-primary"
-                                onClick={() => handlePaySingleBill(b)}
-                              >
-                                Pay →
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="border-t p-2 bg-muted/10">
+                    <ConstructionTable
+                      data={sup.bills}
+                      columns={billColumns}
+                      searchPlaceholder="Search vendor bills..."
+                      searchFilterKeys={["projectCode", "projectName", "billNumber"]}
+                    />
                   </div>
                 )}
               </div>

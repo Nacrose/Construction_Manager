@@ -78,7 +78,7 @@ export function MarkupOverlay({
   const { data } = trpc.document.listMarkups.useQuery({ drawingId, revisionId });
   useEffect(() => {
     if (data?.markups) setMarkups(data.markups);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [data?.markups]);
 
   useEffect(() => { onSelectionChange(selectedId); }, [selectedId, onSelectionChange]);

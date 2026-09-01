@@ -17,6 +17,13 @@ import { LetterDetailDialog } from "./components/letter-detail-dialog";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 
+const WF_TABS = [
+  { label: "RFIs", href: "/workflow/rfi" },
+  { label: "Daily Program", href: "/workflow/program" },
+  { label: "Daily Reports", href: "/workflow/reports" },
+  { label: "Correspondence", href: "/correspondence" },
+  { label: "Meetings", href: "/meetings" },
+];
 
 type CorrespondenceLetter = {
   id: string;
@@ -143,7 +150,7 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="workflow" />
+      <ModuleTabs projectId={id} tabs={WF_TABS} />
       <div className="space-y-4 pb-8 font-sans">
         {/* Stats bar */}
         {statsData && (

@@ -13,6 +13,9 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
+import { canTransition } from "@/server/utils/state-machine";
+import { emitDomainEvent } from "@/server/utils/domain-events";
+
 
 const BillItemSchema = z.object({
   boqCode: z.string().optional().nullable(),
@@ -484,13 +487,28 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
-      if (bill.status !== "draft") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft bills can be submitted." });
+      const transitionCheck = canTransition("subcontractorBill", bill.status, "submitted");
+      if (!transitionCheck.allowed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: transitionCheck.reason || "Only draft bills can be submitted.",
+        });
       }
 
       const updated = await db.subcontractorBill.update({
         where: { id: input.billId },
         data: { status: "submitted" },
+      });
+
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: input.projectId,
+        actorUserId: ctx.user.id,
+        title: `Subcontractor Bill Submitted (${bill.number})`,
+        message: `Bill ${bill.number} for ${bill.subcontractor.name} submitted for certification.`,
+        entityType: "subcontractorBill",
+        entityId: updated.id,
+        metadata: { model: "subcontractorBill", from: bill.status, to: "submitted" },
       });
 
       return { bill: updated };
@@ -507,8 +525,12 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
-      if (bill.status !== "submitted") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only submitted bills can be certified." });
+      const transitionCheck = canTransition("subcontractorBill", bill.status, "certified");
+      if (!transitionCheck.allowed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: transitionCheck.reason || "Only submitted bills can be certified.",
+        });
       }
 
       const updated = await db.subcontractorBill.update({
@@ -525,8 +547,20 @@ export const subcontractorBillRouter = router({
         metadata: { number: bill.number, certifiedNet: bill.netPayable },
       });
 
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: input.projectId,
+        actorUserId: ctx.user.id,
+        title: `Subcontractor Bill Certified (${bill.number})`,
+        message: `Bill ${bill.number} for ${bill.subcontractor.name} certified by ${ctx.user.name || "PM"}.`,
+        entityType: "subcontractorBill",
+        entityId: updated.id,
+        metadata: { model: "subcontractorBill", from: bill.status, to: "certified" },
+      });
+
       return { bill: updated };
     }),
+
 
   /** Mark bill as paid: certified → paid, set paidAmount. */
   markPaid: protectedProcedure

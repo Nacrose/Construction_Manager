@@ -64,68 +64,17 @@ function listFiles(dir: string, exts: string[], out: string[] = []): string[] {
 }
 
 function stripComments(src: string): string {
-  // Linear-time single pass: mask string/char/template literals, then strip
-  // comments, preserving literal contents (a URL like https://x contains //
-  // but lives inside a string).
-  //
-  // WHY NOT A REGEX: the original `(["'`])(?:\\.|(?!\1)[\s\S])*?\1` matcher
-  // backtracked catastrophically (O(n²)) on files containing a quote-like
-  // character that never terminates on its line (apostrophes in comments,
-  // quote chars inside regex literals) — one such file turned the whole
-  // source scan from ~600ms into ~60s. This scanner is strictly O(n) and
-  // keeps the same masking semantics (quote-to-quote, honoring backslash
-  // escapes; `${...}` inside templates is treated as literal content).
-  const out: string[] = [];
+  // Preserve string literals: replace their contents before removing comments,
+  // then restore. (A URL like https://x contains // but is inside a string.)
   const strings: string[] = [];
-  let token = "";
-  let i = 0;
-  const n = src.length;
-  const flush = () => {
-    if (token) {
-      out.push(token);
-      token = "";
-    }
-  };
-  while (i < n) {
-    const c = src[i];
-    const next = i + 1 < n ? src[i + 1] : "";
-    if (c === "/" && next === "/") {
-      flush();
-      while (i < n && src[i] !== "\n") i++;
-      out.push(" ");
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      flush();
-      i += 2;
-      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
-      i = Math.min(i + 2, n);
-      out.push(" ");
-      continue;
-    }
-    if (c === '"' || c === "'" || c === "`") {
-      let j = i + 1;
-      while (j < n) {
-        if (src[j] === "\\") {
-          j += 2;
-          continue;
-        }
-        if (src[j] === c) break;
-        j++;
-      }
-      strings.push(src.slice(i, Math.min(j + 1, n)));
-      out.push(`\u0000${strings.length - 1}\u0000`);
-      i = j + 1;
-      continue;
-    }
-    token += c;
-    i++;
-  }
-  flush();
-  // Restore literal contents after comment-stripping (the original regex
-  // implementation did the same): import specifiers and "use client" must
-  // come back intact for downstream analysis.
-  return out.join("").replace(/\u0000(\d+)\u0000/g, (_, idx) => strings[Number(idx)]);
+  const masked = src.replace(/(["'`])(?:\\.|(?!\1)[\s\S])*?\1/g, (m) => {
+    strings.push(m);
+    return `\u0000${strings.length - 1}\u0000`;
+  });
+  const noComments = masked
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/^\s*\/\/.*$/gm, " ");
+  return noComments.replace(/\u0000(\d+)\u0000/g, (_, i) => strings[Number(i)]);
 }
 
 function isClientDirectiveFile(absPath: string): boolean {

@@ -35,6 +35,15 @@ import { EquipmentDialogs } from "./components/equipment-dialogs";
 import { LogSpotHireDialog } from "./dialogs/log-spot-hire-dialog";
 import { Equipment, EquipmentLog, Maintenance } from "./components/types";
 
+const RES_TABS = [
+  { label: "Materials & Procurement", href: "/materials" },
+  { label: "Resource & Rate Library", href: "/rate-library" },
+  { label: "Equipment & Fleet", href: "/equipment" },
+  { label: "Plant & Production", href: "/production" },
+  { label: "Subcontractors", href: "/subcontractors" },
+  { label: "HR / Staff", href: "/hr" },
+  { label: "Vendors Directory", href: "/vendors" },
+];
 
 export default function EquipmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -160,7 +169,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="resources" />
+      <ModuleTabs projectId={id} tabs={RES_TABS} />
       <AnimatedPage>
         <div className="space-y-3 pb-8">
           {/* Single-Row Ultra-Compact Toolbar */}

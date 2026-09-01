@@ -8,6 +8,10 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
+import { canTransition } from "@/server/utils/state-machine";
+import { emitDomainEvent } from "@/server/utils/domain-events";
+
+
 
 const RequisitionItemQuoteSchema = z.object({
   partnerId: z.string().min(1),
@@ -564,10 +568,11 @@ export const requisitionRouter = router({
       });
       if (!pr) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Requisition not found." });
 
-      if (pr.status === "ordered") {
+      const transitionCheck = canTransition("purchaseRequisition", pr.status, input.status);
+      if (!transitionCheck.allowed) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Cannot change the status of an already ordered requisition.",
+          message: transitionCheck.reason || `Cannot change the status of an already ${pr.status} requisition.`,
         });
       }
 
@@ -587,7 +592,19 @@ export const requisitionRouter = router({
         },
       });
 
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: input.projectId,
+        actorUserId: ctx.user.id,
+        title: `Requisition ${input.status === "approved" ? "Approved" : "Rejected"} (${pr.number || "PR"})`,
+        message: `Purchase Requisition ${pr.number} marked as ${input.status} by ${ctx.user.name || "Manager"}.`,
+        entityType: "purchaseRequisition",
+        entityId: updated.id,
+        metadata: { model: "purchaseRequisition", from: pr.status, to: input.status },
+      });
+
       return { requisition: updated };
+
     }),
 
   /** Check budget allowance and variance for materials before requisition submission. */

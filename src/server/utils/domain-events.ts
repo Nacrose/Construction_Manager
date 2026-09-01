@@ -20,8 +20,10 @@ export type DomainEventType =
   | "expense.created"
   | "payment.created"
   | "material.po_created"
+  | "gl.imbalance.detected"
   /** Generic lifecycle transition (state machine) — model + from/to in metadata. */
   | "lifecycle.transitioned";
+
 
 export type DomainEventPayload = {
   type: DomainEventType;

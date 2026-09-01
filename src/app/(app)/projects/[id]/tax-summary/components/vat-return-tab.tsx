@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import * as XLSX from "@e965/xlsx";
 import { adToBs } from "@/lib/nepali-calendar";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
+import { cn } from "@/lib/utils";
 
 export function VatReturnTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = trpc.vatRegister.getVatReturnSchedule10.useQuery({ projectId });
@@ -104,7 +106,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
           }),
         ];
         const ws8 = XLSX.utils.aoa_to_sheet(s8Data);
-        XLSX.utils.book_append_sheet(wb, ws8, "Schedule 8 Purchases");
+        XLSX.utils.book_append_sheet(wb, ws8, "Schedule 8 Kharid Khata");
       }
 
       // Sheet 3: Schedule 9 Bikri Khata
@@ -115,14 +117,14 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
             "क्र.सं.",
             "मिति (BS)",
             "मिति (AD)",
-            "बीजक नं. / IPC",
+            "बीजक नं.",
             "ग्राहकको नाम",
             "PAN",
             "जम्मा बिक्री",
+            "कर छुट",
             "करयोग्य बिक्री",
+            "निर्यात",
             "VAT (१३%)",
-            "TDS",
-            "खुद प्राप्त",
           ],
           ...sData.rows.map((r, i) => {
             let bsMiti = "";
@@ -139,107 +141,198 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
               r.clientName,
               r.clientPan,
               r.totalAmount,
+              r.exemptSales,
               r.taxableSales,
+              (r as any).exportSales || 0,
               r.vatAmount,
-              r.tdsAmount,
-              r.netReceived,
+
             ];
           }),
         ];
         const ws9 = XLSX.utils.aoa_to_sheet(s9Data);
-        XLSX.utils.book_append_sheet(wb, ws9, "Schedule 9 Sales");
+        XLSX.utils.book_append_sheet(wb, ws9, "Schedule 9 Bikri Khata");
       }
 
-      XLSX.writeFile(wb, `Nepal-IRD-VAT-Filing-Workbook-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-      toast.success("Complete 3-Tab IRD Filing Workbook (.xlsx) generated successfully");
-    } catch {
-      toast.error("Failed to export IRD workbook");
+      XLSX.writeFile(wb, `VAT_Return_Schedule_10_Full_Audit_Package_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      toast.success("Statutory IRD Tax Pack (Schedules 8, 9 & 10) downloaded!");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to generate IRD export package");
     }
   };
 
+  const scheduleRows = [
+    {
+      description: "१. कुल करयोग्य बिक्री (Taxable Sales)",
+      taxable: sales.taxable,
+      vat: sales.outputVat,
+      type: "sales_taxable",
+    },
+    {
+      description: "२. कर छुट बिक्री (Exempt Sales)",
+      taxable: sales.exempt,
+      vat: 0,
+      type: "sales_exempt",
+    },
+    {
+      description: "जम्मा बिक्री कर (Output VAT Collected - A)",
+      taxable: sales.taxable + sales.exempt,
+      vat: sales.outputVat,
+      type: "sales_total",
+      isTotal: true,
+    },
+    {
+      description: "३. कुल करयोग्य खरिद (Taxable Purchases)",
+      taxable: purchases.taxable,
+      vat: purchases.inputVat,
+      type: "purchase_taxable",
+    },
+    {
+      description: "४. कर छुट खरिद (Exempt Purchases)",
+      taxable: purchases.exempt,
+      vat: 0,
+      type: "purchase_exempt",
+    },
+    {
+      description: "जम्मा खरिद कर कट्टी (Input VAT Credit - B)",
+      taxable: purchases.taxable + purchases.exempt,
+      vat: purchases.inputVat,
+      type: "purchase_total",
+      isTotal: true,
+    },
+    {
+      description: "५. खुद तिर्नुपर्ने कर / कट्टी बाँकी (Net VAT Position: A - B)",
+      taxable: 0,
+      vat: reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit,
+      type: "net_position",
+      isGrandTotal: true,
+    },
+  ];
+
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "description",
+      header: "विवरण (Description)",
+      render: (_, r) => (
+        <span
+          className={cn(
+            "font-mono text-xs",
+            r.isGrandTotal ? "font-bold text-foreground text-sm uppercase" : r.isTotal ? "font-bold text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {r.description}
+        </span>
+      ),
+    },
+    {
+      key: "taxable",
+      header: "करयोग्य रकम (Taxable Amount)",
+      align: "right",
+      render: (_, r) => (
+        <span
+          className={cn(
+            "font-mono text-xs",
+            r.isGrandTotal ? "text-muted-foreground" : r.isTotal ? "font-bold text-foreground" : "text-foreground"
+          )}
+        >
+          {r.isGrandTotal ? "—" : formatNpr(r.taxable)}
+        </span>
+      ),
+    },
+    {
+      key: "vat",
+      header: "कर रकम (VAT Amount)",
+      align: "right",
+      render: (_, r) => (
+        <span
+          className={cn(
+            "font-mono text-xs font-bold",
+            r.isGrandTotal
+              ? "text-primary text-sm font-black"
+              : r.type.startsWith("sales")
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-emerald-600 dark:text-emerald-400"
+          )}
+        >
+          {r.vat > 0 ? formatNpr(r.vat) : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* 1-Click Official IRD Filing Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-md">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded bg-blue-600 text-white">
-            <FileSpreadsheet className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-xs font-bold text-blue-950 dark:text-blue-200">
-              Nepal IRD Multi-Tab Statutory Tax Workbook
-            </h3>
-            <p className="text-[11px] text-muted-foreground">
-              Includes Anusuchi 8 (Purchase), Anusuchi 9 (Sales), and Anusuchi 10 (Return) formatted for Nepal Taxpayer Portal.
-            </p>
-          </div>
+      {/* Header Ribbon & Export Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/40 rounded-lg border">
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 font-mono">
+            <FileSpreadsheet className="h-4 w-4 text-primary" />
+            Statutory अनुसूची १० (Schedule 10) VAT Return &amp; Reconciliation
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+            Official monthly tax return filing format under Value Added Tax Rules 2053 (Rule 23).
+          </p>
         </div>
 
         <Button
           size="sm"
           onClick={handleExportFullIrdWorkbook}
-          className="h-8 text-xs font-semibold gap-1.5 shadow-xs"
+          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-mono"
         >
-          <Download className="h-3.5 w-3.5" /> Download 3-Tab IRD Workbook (.xlsx)
+          <Download className="h-3.5 w-3.5" />
+          Export Statutory IRD Tax Pack (Excel)
         </Button>
       </div>
 
-      {/* 3-Column Visual Reconciliation Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Output VAT Card */}
-        <div className="p-3.5 rounded-md border bg-amber-50/20 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/50">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
-              <TrendingUp className="h-3.5 w-3.5 text-amber-600" /> Output VAT (बिक्री कर)
-            </span>
-            <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800">
-              From IPCs
-            </Badge>
+      {/* High-Level Comparison KPI Banner */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Output VAT */}
+        <div className="p-3.5 rounded-xl border bg-card space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-mono">
+            <span>A. Output VAT (बिक्री कर)</span>
+            <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
           </div>
-          <p className="text-xl font-bold font-mono text-amber-800 dark:text-amber-300 mt-1">
+          <p className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
             {formatNpr(sales.outputVat)}
           </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-            On Taxable Sales: {formatNpr(sales.taxable)}
+          <p className="text-[11px] text-muted-foreground font-mono">
+            Collected on Taxable Sales: {formatNpr(sales.taxable)}
           </p>
         </div>
 
-        {/* Input VAT Card */}
-        <div className="p-3.5 rounded-md border bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/50">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
-              <TrendingDown className="h-3.5 w-3.5 text-emerald-600" /> Input VAT Credit (खरिद कर कट्टी)
-            </span>
-            <Badge variant="outline" className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-800">
-              Materials + Subs
-            </Badge>
+        {/* Input VAT */}
+        <div className="p-3.5 rounded-xl border bg-card space-y-1">
+          <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-mono">
+            <span>B. Input VAT (खरिद कर कट्टी)</span>
+            <TrendingDown className="h-3.5 w-3.5 text-emerald-500" />
           </div>
-          <p className="text-xl font-bold font-mono text-emerald-800 dark:text-emerald-300 mt-1">
+          <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
             {formatNpr(purchases.inputVat)}
           </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-            On Taxable Purchases: {formatNpr(purchases.taxable)}
+          <p className="text-[11px] text-muted-foreground font-mono">
+            Claimable on Purchases: {formatNpr(purchases.taxable)}
           </p>
         </div>
 
-        {/* Net Reconciliation Card */}
-        <div className={`p-3.5 rounded-md border ${
-          reconciliation.netVatPayable > 0
-            ? "bg-blue-50/30 border-blue-300 dark:bg-blue-950/20"
-            : "bg-emerald-50/30 border-emerald-300 dark:bg-emerald-950/20"
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
-              <Scale className="h-3.5 w-3.5 text-primary" /> Net IRD Position (अनुसूची १०)
-            </span>
-            <Badge className={reconciliation.netVatPayable > 0 ? "bg-blue-600" : "bg-emerald-600"}>
-              {reconciliation.netVatPayable > 0 ? "Payable" : "VAT Credit"}
-            </Badge>
+        {/* Net VAT Settlement Position */}
+        <div
+          className={`p-3.5 rounded-xl border space-y-1 ${
+            reconciliation.netVatPayable > 0
+              ? "bg-red-500/10 border-red-500/30"
+              : "bg-emerald-500/10 border-emerald-500/30"
+          }`}
+        >
+          <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-mono">
+            <span>Net IRD Settlement (A - B)</span>
+            <Scale className="h-3.5 w-3.5 text-primary" />
           </div>
-          <p className="text-xl font-extrabold font-mono text-foreground mt-1">
+          <p
+            className={`text-xl font-bold font-mono ${
+              reconciliation.netVatPayable > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+            }`}
+          >
             {formatNpr(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
           </p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-[11px] text-muted-foreground font-mono">
             {reconciliation.netVatPayable > 0
               ? "Net VAT payable to Inland Revenue Department (IRD)"
               : "Excess input tax credit carried forward to next month"}
@@ -247,64 +340,12 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* Official Schedule 10 Statement Table */}
-      <div className="rounded-md border bg-card p-4 shadow-xs">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-          अनुसूची-१०: मूल्य अभिवृद्धि कर विवरण (Statutory Return Format)
-        </h4>
-        <table className="w-full text-xs font-mono border-collapse tabular-nums">
-          <thead>
-            <tr className="border-b bg-muted/40 text-[11px] text-muted-foreground font-semibold">
-              <th className="p-2 text-left">विवरण (Description)</th>
-              <th className="p-2 text-right w-40">करयोग्य रकम (Taxable Amount)</th>
-              <th className="p-2 text-right w-40">कर रकम (VAT Amount)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            <tr>
-              <td className="p-2 font-medium">१. कुल करयोग्य बिक्री (Taxable Sales)</td>
-              <td className="p-2 text-right">{formatNpr(sales.taxable)}</td>
-              <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{formatNpr(sales.outputVat)}</td>
-            </tr>
-            <tr>
-              <td className="p-2 text-muted-foreground">२. कर छुट बिक्री (Exempt Sales)</td>
-              <td className="p-2 text-right text-muted-foreground">{formatNpr(sales.exempt)}</td>
-              <td className="p-2 text-right text-muted-foreground">—</td>
-            </tr>
-            <tr className="bg-muted/10 font-bold">
-              <td className="p-2 uppercase text-[11px]">जम्मा बिक्री कर (Output VAT Collected - A)</td>
-              <td className="p-2 text-right">{formatNpr(sales.taxable + sales.exempt)}</td>
-              <td className="p-2 text-right font-bold text-amber-800 dark:text-amber-300">{formatNpr(sales.outputVat)}</td>
-            </tr>
-
-            <tr>
-              <td className="p-2 font-medium pt-3">३. कुल करयोग्य खरिद (Taxable Purchases)</td>
-              <td className="p-2 text-right pt-3">{formatNpr(purchases.taxable)}</td>
-              <td className="p-2 text-right pt-3 font-bold text-emerald-700 dark:text-emerald-300">{formatNpr(purchases.inputVat)}</td>
-            </tr>
-            <tr>
-              <td className="p-2 text-muted-foreground">४. कर छुट खरिद (Exempt Purchases)</td>
-              <td className="p-2 text-right text-muted-foreground">{formatNpr(purchases.exempt)}</td>
-              <td className="p-2 text-right text-muted-foreground">—</td>
-            </tr>
-            <tr className="bg-muted/10 font-bold">
-              <td className="p-2 uppercase text-[11px]">जम्मा खरिद कर कट्टी (Input VAT Credit - B)</td>
-              <td className="p-2 text-right">{formatNpr(purchases.taxable + purchases.exempt)}</td>
-              <td className="p-2 text-right font-bold text-emerald-800 dark:text-emerald-300">{formatNpr(purchases.inputVat)}</td>
-            </tr>
-
-            <tr className="bg-primary/10 font-extrabold border-t-2 text-sm">
-              <td className="p-2.5 uppercase text-foreground">
-                ५. खुद तिर्नुपर्ने कर / कट्टी बाँकी (Net VAT Position: A - B)
-              </td>
-              <td className="p-2.5 text-right">—</td>
-              <td className="p-2.5 text-right text-primary font-black">
-                {formatNpr(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {/* ConstructionTable Schedule 10 Table */}
+      <ConstructionTable
+        data={scheduleRows}
+        columns={columns}
+        isLoading={false}
+      />
     </div>
   );
 }

@@ -9,6 +9,15 @@ import { trpc } from "@/lib/trpc-client";
 import AdminMaterialCatalogPage from "@/app/(app)/admin/material-catalog/page";
 import { CatalogRatesLibrary } from "../boq/components/catalog-rates-library";
 
+const RES_TABS = [
+  { label: "Materials & Procurement", href: "/materials" },
+  { label: "Resource & Rate Library", href: "/rate-library" },
+  { label: "Equipment & Fleet", href: "/equipment" },
+  { label: "Plant & Production", href: "/production" },
+  { label: "Subcontractors", href: "/subcontractors" },
+  { label: "HR / Staff", href: "/hr" },
+  { label: "Vendors Directory", href: "/vendors" },
+];
 
 export default function RateLibraryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -21,7 +30,7 @@ export default function RateLibraryPage({ params }: { params: Promise<{ id: stri
   return (
     <AnimatedPage className="space-y-4 pb-8">
       {/* Sub-module Navigation */}
-      <ModuleTabs projectId={id} cluster="resources" />
+      <ModuleTabs projectId={id} tabs={RES_TABS} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-[3px]">
         <TabsList className="bg-[#f8fbfe] border border-[#c7d8e8] p-1 rounded-xl h-10 flex w-fit">

@@ -1,8 +1,7 @@
 import { format } from "date-fns";
+import { formatNpr } from "@/lib/currency";
 
-export function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+export { formatNpr as fmt };
 
 export function monthLabel(m: string) {
   const [y, mo] = m.split("-");

@@ -21,7 +21,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 function getUtilizationColor(rate: number) {
   if (rate > 70) return "text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400";
@@ -57,11 +57,9 @@ export default function EquipmentUtilizationPage({
     endDate,
   });
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
-
   const chartData = useMemo(() => {
     if (!data) return [];
-    return data.report.map(e => ({
+    return data.report.map((e) => ({
       name: e.code ? `${e.code} - ${e.name}` : e.name,
       shortName: e.name.length > 15 ? e.name.slice(0, 15) + "..." : e.name,
       hours: e.totalHours,
@@ -72,120 +70,175 @@ export default function EquipmentUtilizationPage({
   const summary = useMemo(() => {
     if (!data) return null;
     const total = data.report.length;
-    const high = data.report.filter(e => e.utilizationLevel === "high").length;
-    const medium = data.report.filter(e => e.utilizationLevel === "medium").length;
-    const low = data.report.filter(e => e.utilizationLevel === "low").length;
-    const avgUtilization = total > 0
-      ? Math.round(data.report.reduce((s, e) => s + e.utilizationRate, 0) / total)
-      : 0;
+    const high = data.report.filter((e) => e.utilizationLevel === "high").length;
+    const medium = data.report.filter((e) => e.utilizationLevel === "medium").length;
+    const low = data.report.filter((e) => e.utilizationLevel === "low").length;
+    const avgUtilization =
+      total > 0
+        ? Math.round(data.report.reduce((s, e) => s + e.utilizationRate, 0) / total)
+        : 0;
     return { total, high, medium, low, avgUtilization };
   }, [data]);
+
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "name",
+      header: "Equipment",
+      render: (_, e) => (
+        <div>
+          <div className="font-medium font-sans text-foreground">{e.name}</div>
+          {e.code && <div className="text-[10px] text-muted-foreground font-mono">{e.code}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "daysUsed",
+      header: "Days Used",
+      align: "right",
+      render: (_, e) => <span className="font-mono text-xs">{e.daysUsed}</span>,
+    },
+    {
+      key: "totalHours",
+      header: "Total Hours",
+      align: "right",
+      render: (_, e) => <span className="font-mono text-xs font-semibold">{e.totalHours}</span>,
+    },
+    {
+      key: "avgHoursPerDay",
+      header: "Avg Hrs/Day",
+      align: "right",
+      render: (_, e) => <span className="font-mono text-xs text-muted-foreground">{e.avgHoursPerDay}</span>,
+    },
+    {
+      key: "totalFuel",
+      header: "Fuel Used",
+      align: "right",
+      render: (_, e) => <span className="font-mono text-xs">{e.totalFuel} L</span>,
+    },
+    {
+      key: "utilizationRate",
+      header: "Utilization",
+      align: "right",
+      render: (_, e) => (
+        <span
+          className={cn(
+            "inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold font-mono",
+            getUtilizationColor(e.utilizationRate)
+          )}
+        >
+          {e.utilizationRate}%
+        </span>
+      ),
+    },
+  ];
 
   return (
     <AnimatedPage className="space-y-4 pb-8">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href={`/projects/${id}/materials`} className="hover:text-foreground flex items-center gap-1">
-          <ChevronLeft className="h-4 w-4" /> Resources
+        <Link href={`/projects/${id}/equipment`} className="hover:text-foreground flex items-center gap-1">
+          <ChevronLeft className="h-4 w-4" /> Equipment & Fleet
         </Link>
         <span>/</span>
         <span>Equipment Utilization</span>
       </div>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          <Gauge className="h-6 w-6 text-primary" />
-          Equipment Utilization Report
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Analyze fleet utilization rates, working hours, and fuel consumption.
-        </p>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Equipment Utilization Report</h1>
+          <p className="text-xs text-muted-foreground">
+            Analysis of equipment usage, operating hours, and idle rates across the site
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-mono">
+            <span className="text-muted-foreground">From:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-mono"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 text-xs font-mono">
+            <span className="text-muted-foreground">To:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs font-mono"
+            />
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <div className="text-[10px] text-muted-foreground uppercase">Total Equipment</div>
-              <div className="text-2xl font-bold">{summary.total}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <div className="text-[10px] text-muted-foreground uppercase">Avg Utilization</div>
-              <div className={cn("text-2xl font-bold", getUtilizationColor(summary.avgUtilization).split(" ")[0])}>
-                {summary.avgUtilization}%
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <div className="text-[10px] text-muted-foreground uppercase">High (&gt;70%)</div>
-              <div className="text-2xl font-bold text-emerald-600">{summary.high}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <div className="text-[10px] text-muted-foreground uppercase">Medium (40-70%)</div>
-              <div className="text-2xl font-bold text-amber-600">{summary.medium}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <div className="text-[10px] text-muted-foreground uppercase">Low (&lt;40%)</div>
-              <div className="text-2xl font-bold text-red-600">{summary.low}</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {isLoading ? (
-        <Card>
-          <CardContent>
-            <Skeleton className="h-64" />
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </div>
       ) : !data || data.report.length === 0 ? (
-        <Card>
-          <CardContent>
-            <div className="text-center py-8 text-xs text-muted-foreground">
-              <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p>No equipment logs found for this date range.</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <Gauge className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
+          <p className="text-sm text-muted-foreground font-medium">No equipment utilization data</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Log daily equipment logs to generate utilization reports
+          </p>
+        </div>
       ) : (
         <>
+          {/* Summary KPIs */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground font-medium">Average Utilization</div>
+                <div className="text-xl font-bold mt-1 text-primary">{summary?.avgUtilization}%</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Across all active fleet</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground font-medium">Total Tracked</div>
+                <div className="text-xl font-bold mt-1">{summary?.total}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Equipment units</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground font-medium">High (&gt;70%)</div>
+                <div className="text-xl font-bold mt-1 text-emerald-600">{summary?.high}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Optimal usage</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground font-medium">Moderate (40-70%)</div>
+                <div className="text-xl font-bold mt-1 text-amber-600">{summary?.medium}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Underutilized</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground font-medium">Low (&lt;40%)</div>
+                <div className="text-xl font-bold mt-1 text-red-600">{summary?.low}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">Idle / Cost drain</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Utilization Bar Chart */}
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Utilization by Equipment
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Utilization by Equipment (%)
               </CardTitle>
               <CardDescription className="text-xs">
-                {data.dateRange.daysInRange} days in range · Sorted by utilization rate
+                Percentage of available working hours actually operated
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
@@ -222,46 +275,13 @@ export default function EquipmentUtilizationPage({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Detailed Report</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium text-muted-foreground">Equipment</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Days Used</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Total Hours</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Avg Hrs/Day</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Fuel Used</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Utilization</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.report.map(e => (
-                      <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="py-2">
-                          <div className="font-medium">{e.name}</div>
-                          {e.code && <div className="text-[10px] text-muted-foreground">{e.code}</div>}
-                        </td>
-                        <td className="py-2 text-right tabular-nums">{e.daysUsed}</td>
-                        <td className="py-2 text-right tabular-nums">{e.totalHours}</td>
-                        <td className="py-2 text-right tabular-nums">{e.avgHoursPerDay}</td>
-                        <td className="py-2 text-right tabular-nums">{e.totalFuel} L</td>
-                        <td className="py-2 text-right">
-                          <span className={cn("inline-flex items-center rounded px-2 py-0.5 text-[10px] font-semibold", getUtilizationColor(e.utilizationRate))}>
-                            {e.utilizationRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Central Table Engine */}
+          <ConstructionTable
+            data={data.report}
+            columns={columns}
+            searchPlaceholder="Search equipment by name or code..."
+            searchFilterKeys={["name", "code"]}
+          />
         </>
       )}
     </AnimatedPage>

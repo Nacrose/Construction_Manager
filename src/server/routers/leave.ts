@@ -1,26 +1,24 @@
 /**
  * tRPC router for Leave Management.
- *
- * Phase E: input-level authorization is declarative via createDomainRouter
- * (proc.member / proc.write / proc.admin). Record-level guards (approve/reject
- * by id — the record's project governs) stay in the handlers by design.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createDomainRouter, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertProjectAdmin } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 
-const { router, proc } = createDomainRouter();
+import { canTransition } from "@/server/utils/state-machine";
+import { emitDomainEvent } from "@/server/utils/domain-events";
 
 export const leaveRouter = router({
   /** List leave requests for a project, with optional status filter. */
-  list: proc.member
+  list: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       status: z.enum(["pending", "approved", "rejected"]).optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
       const where: Record<string, unknown> = { projectId: input.projectId };
       if (input.status) where.status = input.status;
 
@@ -45,14 +43,8 @@ export const leaveRouter = router({
         select: { projectId: true, staffId: true, leaveType: true, startDate: true, endDate: true, totalDays: true, reason: true, status: true, approvedById: true, createdById: true },
       });
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
-      // IDOR guard: verify the caller is a member of the project the
-      // leave belongs to. Previously this procedure returned leave data
-      // to ANY authenticated user — leaking HR-sensitive PII (staff
-      // name, leave type, dates, reason) across tenants.
       await assertProjectMember(ctx.user, leave.projectId);
 
-      // Re-fetch with includes for the response shape (now that we've
-      // verified the caller is authorized).
       const leaveWithIncludes = await db.leaveRequest.findUnique({
         where: { id: input.id },
         include: {
@@ -65,7 +57,7 @@ export const leaveRouter = router({
     }),
 
   /** Create leave request. Auto-calculate totalDays from date difference. */
-  create: proc.write
+  create: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
@@ -75,10 +67,8 @@ export const leaveRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Cross-project guard: the leave must be filed for a staff member
-      // of THIS project — without this, a caller with write access to
-      // project A could file leaves for staff in project B (leaking their
-      // names/dates via the project leave list).
+      await assertCanWrite(ctx.user, input.projectId);
+
       const staff = await db.staff.findFirst({
         where: { id: input.staffId, projectId: input.projectId },
         select: { id: true },
@@ -90,7 +80,7 @@ export const leaveRouter = router({
       const start = new Date(input.startDate);
       const end = new Date(input.endDate);
       const diffMs = end.getTime() - start.getTime();
-      const totalDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1; // inclusive of both start and end
+      const totalDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
 
       if (totalDays <= 0) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "End date must be on or after start date." });
@@ -122,21 +112,38 @@ export const leaveRouter = router({
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
       await assertProjectAdmin(ctx.user, leave.projectId);
 
-      if (leave.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending requests can be approved." });
+      const check = canTransition("leave", leave.status, "approved");
+      if (!check.allowed) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: check.reason || "Only pending requests can be approved." });
       }
 
-      const currentYear = new Date().getFullYear();
-
-      // Update leave request
+      const now = new Date();
       const updated = await db.leaveRequest.update({
         where: { id: input.id },
         data: {
           status: "approved",
           approvedById: ctx.user.id,
-          approvedAt: new Date(),
+          approvedAt: now,
         },
       });
+
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: leave.projectId,
+        actorUserId: ctx.user.id,
+        entityType: "leave",
+        entityId: input.id,
+        title: "LEAVE marked as APPROVED",
+        message: `Leave request approved.`,
+        metadata: {
+          entityId: input.id,
+          model: "leave",
+          previousState: leave.status,
+          newState: "approved",
+        },
+      });
+
+      const currentYear = new Date().getFullYear();
 
       // Update LeaveBalance: increment taken, decrement remaining
       await db.leaveBalance.upsert({
@@ -177,8 +184,9 @@ export const leaveRouter = router({
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
       await assertProjectAdmin(ctx.user, leave.projectId);
 
-      if (leave.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending requests can be rejected." });
+      const check = canTransition("leave", leave.status, "rejected");
+      if (!check.allowed) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: check.reason || "Only pending requests can be rejected." });
       }
 
       const updated = await db.leaveRequest.update({
@@ -188,17 +196,37 @@ export const leaveRouter = router({
           rejectionReason: input.rejectionReason,
         },
       });
+
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: leave.projectId,
+        actorUserId: ctx.user.id,
+        entityType: "leave",
+        entityId: input.id,
+        title: "LEAVE marked as REJECTED",
+        message: input.rejectionReason || "Leave request rejected.",
+        metadata: {
+          entityId: input.id,
+          model: "leave",
+          previousState: leave.status,
+          newState: "rejected",
+        },
+      });
+
       return { leave: updated };
     }),
 
+
+
   /** Get leave balances for a staff member (by year). */
-  getBalances: proc.member
+  getBalances: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
       year: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertProjectMember(ctx.user, input.projectId);
       const year = input.year || new Date().getFullYear();
 
       const balances = await db.leaveBalance.findMany({
@@ -213,7 +241,7 @@ export const leaveRouter = router({
     }),
 
   /** PM sets annual leave allowances (creates/updates LeaveBalance records). */
-  updateBalances: proc.admin
+  updateBalances: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
@@ -221,7 +249,9 @@ export const leaveRouter = router({
       year: z.number(),
       totalAllowed: z.number().min(0),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      await assertProjectAdmin(ctx.user, input.projectId);
+
       const existing = await db.leaveBalance.findUnique({
         where: {
           projectId_staffId_leaveType_year: {

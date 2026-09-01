@@ -600,7 +600,7 @@ export const accountingRouter = router({
         runningBalance: number;
       }> = [];
 
-      let openingBalance = 0;
+      const openingBalance = 0;
 
       if (input.accountType === "vendor") {
         // Vendor: Bills are Credits, Payments are Debits

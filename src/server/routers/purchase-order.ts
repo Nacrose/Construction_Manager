@@ -8,6 +8,9 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
+import { canTransition } from "@/server/utils/state-machine";
+import { emitDomainEvent } from "@/server/utils/domain-events";
+
 
 const PurchaseOrderItemSchema = z.object({
   materialId: z.string().min(1),
@@ -258,8 +261,13 @@ export const purchaseOrderRouter = router({
       if (po.status === input.status) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Status is already set to this value." });
       }
-      if (po.status === "received" || po.status === "cancelled") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot modify a closed or cancelled Purchase Order." });
+
+      const transitionCheck = canTransition("purchaseOrder", po.status, input.status);
+      if (!transitionCheck.allowed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: transitionCheck.reason || "Cannot modify a closed or cancelled Purchase Order.",
+        });
       }
 
       if (input.status === "issued" || input.status === "received") {
@@ -271,6 +279,7 @@ export const purchaseOrderRouter = router({
           });
         }
       }
+
 
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
@@ -326,7 +335,19 @@ export const purchaseOrderRouter = router({
         });
       });
 
+      emitDomainEvent({
+        type: "lifecycle.transitioned",
+        projectId: input.projectId,
+        actorUserId: ctx.user.id,
+        title: `Purchase Order ${input.status === "issued" ? "Issued" : input.status === "received" ? "Received" : "Status Updated"} (${po.number || "PO"})`,
+        message: `Purchase Order ${po.number} marked as ${input.status} by ${ctx.user.name || "User"}.`,
+        entityType: "purchaseOrder",
+        entityId: updated.id,
+        metadata: { model: "purchaseOrder", from: po.status, to: input.status },
+      });
+
       return { purchaseOrder: updated };
+
     }),
 
   /** Delete a draft Purchase Order. */

@@ -1,56 +1,231 @@
 "use client";
 
-/**
- * useRegister — Tier 2 pattern engine (Phase B of the engine consolidation).
- *
- * OWNS: the list-side plumbing of every "register" page (Leave Register,
- * Material Register, Day Book, ...) — the typed item pick and the refresh/
- * fetching state that every register toolbar repeats.
- *
- * Pair it with FormDialogEngine: the dialog's `invalidate` callback refreshes
- * the register after a create/update; `register.refresh()` backs the manual
- * refresh button. Filters stay in the page (they are page concerns); the
- * register engine owns only the register semantics.
- *
- * PROTOCOL NOTES
- * - Typed end-to-end: pass the concrete pieces of the tRPC useQuery result —
- *   `data` (a plain `TOutput | undefined`, so TData flows straight from the
- *   router's inferred output) and `pick` must return the exact item type.
- *   (We accept properties rather than the whole result object because tRPC's
- *   union result types resist structural inference and degrade TData to
- *   `unknown`/`never`; a concrete `.data` property keeps full fidelity with
- *   zero casts and zero version-specific type imports.)
- * - Extractive, not speculative: extracted from the leaves pilot
- *   (leaves-tab.tsx) — it exists because every register page repeats
- *   `const items = data?.items || []` plus loading/refetch plumbing.
- */
+import { useCallback, useMemo, useState, useTransition } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
-import * as React from "react";
-
-export interface RegisterHandle<TItem> {
-  items: TItem[];
-  isLoading: boolean;
-  isFetching: boolean;
-  /** Manual refresh (backs the toolbar RefreshCw button). */
-  refresh: () => unknown;
+export interface UseRegisterOptions {
+  defaultStatus?: string;
+  defaultTab?: string;
+  defaultPageSize?: number;
+  syncToUrl?: boolean;
 }
 
-export function useRegister<TData, TItem>(opts: {
-  /** The data of a tRPC `useQuery(...)` result, e.g. `listQuery.data` — typed straight from the router. */
-  data: TData | undefined;
-  isLoading: boolean;
-  isFetching: boolean;
-  /** Backing refetch for the manual refresh button, e.g. `listQuery.refetch`. */
-  refresh: () => unknown;
-  /** Typed pick from the router payload to the item array, e.g. `(d) => d?.leaves ?? []`. */
-  pick: (data: TData | undefined) => TItem[];
-}): RegisterHandle<TItem> {
-  const { data, isLoading, isFetching, refresh, pick } = opts;
+export interface RegisterDialogState<T = any> {
+  type: "create" | "edit" | "delete" | "view" | "review" | "custom" | null;
+  item: T | null;
+  open: boolean;
+  metadata?: Record<string, any>;
+}
 
-  const items = pick(data);
+/**
+ * Canonical Register & Ledger Hook for Construction Manager
+ *
+ * Provides URL-synchronized filtering, search, pagination, row selection,
+ * and standard modal dialog state management for tabular views.
+ */
+export function useRegister<T = any>(options: UseRegisterOptions = {}) {
+  const {
+    defaultStatus = "all",
+    defaultTab = "all",
+    defaultPageSize = 25,
+    syncToUrl = true,
+  } = options;
 
-  return React.useMemo(
-    () => ({ items, isLoading, isFetching, refresh }),
-    [items, isLoading, isFetching, refresh],
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  // Dialog state
+  const [dialog, setDialog] = useState<RegisterDialogState<T>>({
+    type: null,
+    item: null,
+    open: false,
+  });
+
+  // Selected row IDs
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // URL-driven query state
+  const search = searchParams?.get("q") ?? "";
+  const status = searchParams?.get("status") ?? defaultStatus;
+  const tab = searchParams?.get("tab") ?? defaultTab;
+  const page = parseInt(searchParams?.get("page") ?? "1", 10) || 1;
+  const pageSize = parseInt(searchParams?.get("limit") ?? String(defaultPageSize), 10) || defaultPageSize;
+
+  /** Update URL query params with shallow navigation */
+  const setQueryParams = useCallback(
+    (updates: Record<string, string | number | null | undefined>) => {
+      if (!syncToUrl || !searchParams || !pathname) return;
+
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === undefined || value === "" || value === "all") {
+          params.delete(key);
+        } else {
+          params.set(key, String(value));
+        }
+      }
+
+      // If updating search or filter, reset page to 1
+      if ("q" in updates || "status" in updates || "tab" in updates) {
+        if (!("page" in updates)) {
+          params.delete("page");
+        }
+      }
+
+      const queryString = params.toString();
+      const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+      startTransition(() => {
+        router.replace(targetUrl, { scroll: false });
+      });
+    },
+    [router, pathname, searchParams, syncToUrl]
+  );
+
+  const setSearch = useCallback(
+    (q: string) => setQueryParams({ q }),
+    [setQueryParams]
+  );
+
+  const setStatus = useCallback(
+    (newStatus: string) => setQueryParams({ status: newStatus }),
+    [setQueryParams]
+  );
+
+  const setTab = useCallback(
+    (newTab: string) => setQueryParams({ tab: newTab }),
+    [setQueryParams]
+  );
+
+  const setPage = useCallback(
+    (newPage: number) => setQueryParams({ page: newPage > 1 ? newPage : null }),
+    [setQueryParams]
+  );
+
+  const setPageSize = useCallback(
+    (newSize: number) => setQueryParams({ limit: newSize !== defaultPageSize ? newSize : null }),
+    [setQueryParams, defaultPageSize]
+  );
+
+  const setFilter = useCallback(
+    (key: string, val: string | number | null | undefined) =>
+      setQueryParams({ [key]: val }),
+    [setQueryParams]
+  );
+
+  const resetFilters = useCallback(() => {
+    if (!syncToUrl || !pathname) return;
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
+  }, [router, pathname, syncToUrl]);
+
+  // Dialog helpers
+  const openCreate = useCallback((metadata?: Record<string, any>) => {
+    setDialog({ type: "create", item: null, open: true, metadata });
+  }, []);
+
+  const openEdit = useCallback((item: T, metadata?: Record<string, any>) => {
+    setDialog({ type: "edit", item, open: true, metadata });
+  }, []);
+
+  const openDelete = useCallback((item: T, metadata?: Record<string, any>) => {
+    setDialog({ type: "delete", item, open: true, metadata });
+  }, []);
+
+  const openView = useCallback((item: T, metadata?: Record<string, any>) => {
+    setDialog({ type: "view", item, open: true, metadata });
+  }, []);
+
+  const openReview = useCallback((item: T, metadata?: Record<string, any>) => {
+    setDialog({ type: "review", item, open: true, metadata });
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setDialog((prev) => ({ ...prev, open: false, item: null, type: null }));
+  }, []);
+
+  // Selection helpers
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((ids: string[]) => {
+    setSelectedIds((prev) => {
+      const allSelected = ids.every((id) => prev.has(id));
+      if (allSelected) return new Set();
+      return new Set(ids);
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  return useMemo(
+    () => ({
+      // Search & Filters
+      search,
+      setSearch,
+      status,
+      setStatus,
+      tab,
+      setTab,
+      page,
+      setPage,
+      pageSize,
+      setPageSize,
+      setFilter,
+      resetFilters,
+      isPending,
+
+      // Dialogs
+      dialog,
+      openCreate,
+      openEdit,
+      openDelete,
+      openView,
+      openReview,
+      closeDialog,
+
+      // Selection
+      selectedIds,
+      toggleSelect,
+      toggleSelectAll,
+      clearSelection,
+    }),
+    [
+      search,
+      setSearch,
+      status,
+      setStatus,
+      tab,
+      setTab,
+      page,
+      setPage,
+      pageSize,
+      setPageSize,
+      setFilter,
+      resetFilters,
+      isPending,
+      dialog,
+      openCreate,
+      openEdit,
+      openDelete,
+      openView,
+      openReview,
+      closeDialog,
+      selectedIds,
+      toggleSelect,
+      toggleSelectAll,
+      clearSelection,
+    ]
   );
 }

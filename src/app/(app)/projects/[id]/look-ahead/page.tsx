@@ -20,7 +20,14 @@ import { format, addDays, startOfWeek } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ModuleTabs } from "@/components/module-tabs";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
+
+const PLANNING_TABS = [
+  { label: "BOQ", href: "/boq" },
+  { label: "Look-Ahead", href: "/look-ahead" },
+];
 
 export default function LookAheadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -33,7 +40,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
 
   return (
     <>
-      <ModuleTabs projectId={id} cluster="planning" />
+      <ModuleTabs projectId={id} tabs={PLANNING_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Unified Action & Controls Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
@@ -176,68 +183,89 @@ function MaterialsTab({ projectId, startDate, endDate }: { projectId: string; st
     );
   }
 
+  const materialColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "materialName",
+      header: "Material",
+      render: (_, m) => <span className="font-medium text-xs font-sans text-foreground">{m.materialName}</span>,
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      render: (_, m) => <span className="text-xs text-muted-foreground font-mono">{m.unit}</span>,
+    },
+    {
+      key: "totalQty",
+      header: "Total Qty",
+      align: "right",
+      render: (_, m) => (
+        <span className="font-mono text-xs font-semibold text-foreground">
+          {m.totalQty.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    {
+      key: "rate",
+      header: "Rate",
+      align: "right",
+      render: (_, m) => <span className="font-mono text-xs text-muted-foreground">{formatNpr(m.rate)}</span>,
+    },
+    {
+      key: "totalCost",
+      header: "Total Cost",
+      align: "right",
+      render: (_, m) => (
+        <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
+          {formatNpr(m.totalCost)}
+        </span>
+      ),
+    },
+    {
+      key: "tasks",
+      header: "Tasks",
+      align: "center",
+      render: (_, m) => <Badge variant="outline" className="text-xs font-mono">{m.tasks.length}</Badge>,
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        <Card className="p-3 text-center">
-          <div className="text-lg font-bold text-amber-600">{data.materials.length}</div>
-          <div className="text-[9px] text-muted-foreground uppercase">Material Types</div>
+        <Card className="p-3 text-center bg-card">
+          <div className="text-lg font-bold font-mono text-amber-600 dark:text-amber-400">{data.materials.length}</div>
+          <div className="text-[9px] text-muted-foreground uppercase font-mono">Material Types</div>
         </Card>
-        <Card className="p-3 text-center">
-          <div className="text-lg font-bold text-blue-600">
-            NPR {data.totals.totalCost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+        <Card className="p-3 text-center bg-card">
+          <div className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400">
+            {formatNpr(data.totals.totalCost)}
           </div>
-          <div className="text-[9px] text-muted-foreground uppercase">Total Cost</div>
+          <div className="text-[9px] text-muted-foreground uppercase font-mono">Total Cost</div>
         </Card>
-        <Card className="p-3 text-center">
-          <div className="text-lg font-bold text-slate-600">
+        <Card className="p-3 text-center bg-card">
+          <div className="text-lg font-bold font-mono text-foreground">
             {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days
           </div>
-          <div className="text-[9px] text-muted-foreground uppercase">Look-Ahead Period</div>
+          <div className="text-[9px] text-muted-foreground uppercase font-mono">Look-Ahead Period</div>
         </Card>
       </div>
 
       {/* Material requirements table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Material Requirements</CardTitle>
+      <Card className="p-4 space-y-3">
+        <CardHeader className="p-0">
+          <CardTitle className="text-sm font-bold">Material Requirements</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Total Qty</TableHead>
-                <TableHead className="text-right">Rate</TableHead>
-                <TableHead className="text-right">Total Cost</TableHead>
-                <TableHead className="text-center">Tasks</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.materials.map((m, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{m.materialName}</TableCell>
-                  <TableCell className="text-xs">{m.unit}</TableCell>
-                  <TableCell className="text-right font-mono font-semibold">
-                    {m.totalQty.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs">
-                    NPR {m.rate.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold text-amber-600">
-                    NPR {m.totalCost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className="text-xs">{m.tasks.length}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="p-0">
+          <ConstructionTable
+            data={data.materials}
+            columns={materialColumns}
+            isLoading={false}
+            searchPlaceholder="Search look-ahead materials..."
+            searchFilterKeys={["materialName", "unit"]}
+          />
         </CardContent>
       </Card>
+
 
       {/* Daily cost chart */}
       {data.byDate.length > 0 && (

@@ -8,21 +8,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
-/**
- * Linear punch-item state machine: open → in_progress → resolved →
- * verified → closed. Mirrors the flow the punch-list UI drives
- * (punch-status-actions.tsx); "closed" is terminal. Without this guard the
- * API accepted ANY status from ANY status — closed defects could be
- * reopened and re-resolving an item re-stamped resolvedBy/resolvedDate,
- * destroying the original resolution record.
- */
-const PUNCH_STATUS_TRANSITIONS: Record<string, string[]> = {
-  open: ["in_progress"],
-  in_progress: ["resolved"],
-  resolved: ["verified"],
-  verified: ["closed"],
-  closed: [],
-};
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const punchListRouter = router({
   list: protectedProcedure
@@ -92,25 +78,18 @@ export const punchListRouter = router({
     .mutation(async ({ ctx, input }) => {
       const item = await db.punchItem.findUnique({ where: { id: input.id } });
       if (!item) throw new TRPCError({ code: "NOT_FOUND" });
-      const allowed = PUNCH_STATUS_TRANSITIONS[item.status] ?? [];
-      if (!allowed.includes(input.status)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Invalid status transition: ${item.status} → ${input.status}.`,
-        });
-      }
       await assertCanWrite(ctx.user, item.projectId);
-      const updated = await db.punchItem.update({
-        where: { id: input.id },
-        data: {
-          status: input.status,
-          resolvedNotes: input.resolvedNotes || item.resolvedNotes,
-          resolvedDate: input.status === "resolved" ? new Date() : item.resolvedDate,
-          resolvedBy: input.status === "resolved" ? (input.resolvedBy || ctx.user.name) : item.resolvedBy,
-          verifiedDate: input.status === "verified" ? new Date() : item.verifiedDate,
-          verifiedBy: input.status === "verified" ? (input.verifiedBy || ctx.user.name) : item.verifiedBy,
-        },
+
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "punchItem",
+        id: input.id,
+        targetState: input.status,
+        userId: ctx.user.id,
+        userName: input.resolvedBy || input.verifiedBy || ctx.user.name,
+        notes: input.resolvedNotes,
+        projectId: item.projectId,
       });
+
       await audit({
         userId: ctx.user.id,
         projectId: item.projectId,
@@ -121,6 +100,7 @@ export const punchListRouter = router({
       });
       return { item: updated };
     }),
+
 
   delete: protectedProcedure
     .input(z.object({ id: z.string(), projectId: z.string() }))

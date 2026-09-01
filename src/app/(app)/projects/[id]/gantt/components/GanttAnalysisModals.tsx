@@ -2,6 +2,8 @@
 
 import { format } from "date-fns";
 import { Check, Loader2 } from "lucide-react";
+import { formatNpr } from "@/lib/currency";
+
 
 function safeFormat(dateVal: any, formatStr: string, fallback = "—"): string {
   if (!dateVal) return fallback;
@@ -102,90 +104,91 @@ export function GanttAnalysisModals({
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-[10px] text-muted-foreground uppercase">VAC (Forecast)</p>
                 <p
-                  className={`text-2xl font-bold ${evmData.vac >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                  className={`text-2xl font-bold font-mono ${evmData.vac >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
                 >
-                  NPR {Math.abs(evmData.vac).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                  {formatNpr(Math.abs(evmData.vac))}
                 </p>
-                <p className="text-[9px] text-muted-foreground">
+                <p className="text-[9px] text-muted-foreground font-mono">
                   {evmData.vac >= 0 ? "Projected savings" : "Projected overrun"}
                 </p>
               </div>
             </div>
 
             {/* Cost breakdown */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 font-mono">
               <div className="rounded-lg border bg-card p-3 space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">BAC (Total Budget)</span>
+                  <span className="text-muted-foreground font-sans">BAC (Total Budget)</span>
                   <span className="font-mono font-medium">
-                    NPR {evmData.bac.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.bac)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">PV (Planned Value)</span>
+                  <span className="text-muted-foreground font-sans">PV (Planned Value)</span>
                   <span className="font-mono font-medium">
-                    NPR {evmData.pv.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.pv)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">EV (Earned Value)</span>
-                  <span className="font-mono font-medium text-emerald-600">
-                    NPR {evmData.ev.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                  <span className="text-muted-foreground font-sans">EV (Earned Value)</span>
+                  <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                    {formatNpr(evmData.ev)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">AC (Actual Cost)</span>
-                  <span className="font-mono font-medium text-red-600">
-                    NPR {evmData.ac.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                  <span className="text-muted-foreground font-sans">AC (Actual Cost)</span>
+                  <span className="font-mono font-medium text-red-600 dark:text-red-400">
+                    {formatNpr(evmData.ac)}
                   </span>
                 </div>
                 <div className="border-t pt-1.5 flex justify-between text-xs">
-                  <span className="text-muted-foreground">EAC (Est. at Completion)</span>
+                  <span className="text-muted-foreground font-sans font-semibold">EAC (Est. at Completion)</span>
                   <span className="font-mono font-bold">
-                    NPR {evmData.eac.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.eac)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">ETC (Est. to Complete)</span>
+                  <span className="text-muted-foreground font-sans">ETC (Est. to Complete)</span>
                   <span className="font-mono font-medium">
-                    NPR {evmData.etc.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.etc)}
                   </span>
                 </div>
               </div>
               <div className="rounded-lg border bg-card p-3 space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">% Complete (EV/BAC)</span>
+                  <span className="text-muted-foreground font-sans">% Complete (EV/BAC)</span>
                   <span className="font-mono font-medium">{evmData.percentComplete.toFixed(1)}%</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">% Spent (AC/BAC)</span>
+                  <span className="text-muted-foreground font-sans">% Spent (AC/BAC)</span>
                   <span className="font-mono font-medium">{evmData.percentSpent.toFixed(1)}%</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">% Scheduled (PV/BAC)</span>
+                  <span className="text-muted-foreground font-sans">% Scheduled (PV/BAC)</span>
                   <span className="font-mono font-medium">
                     {evmData.percentScheduled.toFixed(1)}%
                   </span>
                 </div>
                 <div className="border-t pt-1.5 flex justify-between text-xs">
-                  <span className="text-muted-foreground">CV (Cost Variance)</span>
+                  <span className="text-muted-foreground font-sans">CV (Cost Variance)</span>
                   <span
-                    className={`font-mono font-medium ${evmData.cv >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                    className={`font-mono font-medium ${evmData.cv >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
                   >
-                    NPR {evmData.cv.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.cv)}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">SV (Schedule Variance)</span>
+                  <span className="text-muted-foreground font-sans">SV (Schedule Variance)</span>
                   <span
-                    className={`font-mono font-medium ${evmData.sv >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                    className={`font-mono font-medium ${evmData.sv >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
                   >
-                    NPR {evmData.sv.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                    {formatNpr(evmData.sv)}
                   </span>
                 </div>
               </div>
             </div>
           </div>
+
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
             <p className="text-sm font-medium">No EVM data</p>

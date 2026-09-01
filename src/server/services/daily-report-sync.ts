@@ -497,7 +497,7 @@ async function tabulateBacklog(
 
   if (!program) return;
 
-  let nextProgram = await db.dailyProgram.findUnique({
+  const nextProgram = await db.dailyProgram.findUnique({
     where: { projectId_programDate: { projectId, programDate: nextDay } },
   });
 
@@ -798,7 +798,7 @@ async function captureReportCosts(
         const otHours = Number(w.otHours) || 0;
         totalHeadcount += headcount;
 
-        let dailyWage = getLaborWage(
+        const dailyWage = getLaborWage(
           w.staffId ? staffMap.get(w.staffId)?.dailyWage : null,
           w.skill,
           staffMap.get(w.staffId)?.category ?? undefined,
@@ -849,7 +849,7 @@ async function captureReportCosts(
         const workingHours = Number(e.workingHours) || 0;
         const fuel = Number(e.fuel) || 0;
 
-        let hourlyRate = getEquipmentRate(e.ownership, projectRates);
+        const hourlyRate = getEquipmentRate(e.ownership, projectRates);
         if (fuel > 0) {
           totalFuelCost += fuel * FUEL_PRICE_PER_LITER;
         }

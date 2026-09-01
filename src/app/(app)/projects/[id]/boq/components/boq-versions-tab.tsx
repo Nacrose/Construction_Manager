@@ -1,29 +1,29 @@
 "use client";
 
-import {useState, Fragment} from "react";
-import {Card} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import {
-  Plus,
-  Loader2,
-  Inbox,
-  Check,
-  X,
-} from "lucide-react";
-import { toast } from "sonner";
-
+import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, Check, X, Loader2, Inbox } from "lucide-react";
+import { toast } from "sonner";
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
-
-export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; canWrite: boolean }) {
-  const utils = trpc.useUtils();
+export function BoqVersionsTab({
+  projectId,
+  canWrite = false,
+}: {
+  projectId: string;
+  canWrite?: boolean;
+}) {
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
-  const [notes, setNotes] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
   const [diffVersion, setDiffVersion] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [notes, setNotes] = useState("");
 
+  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.boqVersion.list.useQuery({ projectId });
 
   const { data: versionDetail } = trpc.boqVersion.get.useQuery(
@@ -32,15 +32,22 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
   );
 
   const { data: diffData } = trpc.boqVersion.diff.useQuery(
-    { projectId, versionId: selectedVersion!, vsVersionId: diffVersion ?? undefined },
+    {
+      projectId,
+      versionId: selectedVersion!,
+      vsVersionId: diffVersion ?? undefined,
+    },
     { enabled: !!selectedVersion }
   );
 
+
   const createVersion = trpc.boqVersion.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.boqVersion.list.invalidate({ projectId });
-      toast.success("Version created");
-      setShowCreate(false); setNotes("");
+      setShowCreate(false);
+      setNotes("");
+      setSelectedVersion(res.version.id);
+      toast.success(`Created BOQ snapshot V${res.version.versionNumber}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -54,14 +61,157 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
     onError: (e) => toast.error(e.message),
   });
 
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const versionColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "code",
+      header: "Code",
+      render: (_, item) => <span className="font-mono text-xs font-bold text-primary">{item.code}</span>,
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (_, item) => (
+        <span className="font-mono text-xs text-foreground truncate max-w-xs block">{item.description}</span>
+      ),
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      render: (_, item) => <span className="text-muted-foreground font-mono text-xs">{item.unit}</span>,
+    },
+    {
+      key: "quantity",
+      header: "Qty",
+      align: "right",
+      render: (_, item) => <span className="font-mono text-xs font-medium text-foreground">{item.quantity}</span>,
+    },
+    {
+      key: "rate",
+      header: "Rate",
+      align: "right",
+      render: (_, item) => <span className="font-mono text-xs font-medium text-foreground">{formatNpr(item.rate)}</span>,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (_, item) => (
+        <span className="font-mono text-xs font-bold text-foreground">{formatNpr(item.amount)}</span>
+      ),
+    },
+    ...(versionDetail?.status === "draft"
+      ? [
+          {
+            key: "diff",
+            header: "Diff (vs V1)",
+            align: "right" as const,
+            render: (_: any, item: any) =>
+              item.baselineQty !== null && item.baselineRate !== null ? (
+                <div className="font-mono text-xs">
+                  {item.quantity !== item.baselineQty && (
+                    <span className={item.quantity > item.baselineQty ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
+                      qty: {item.quantity > item.baselineQty ? "+" : ""}{(item.quantity - item.baselineQty).toFixed(3)}
+                    </span>
+                  )}
+                  {item.rate !== item.baselineRate && (
+                    <span className={`ml-2 font-bold ${item.rate > item.baselineRate ? "text-emerald-500" : "text-red-500"}`}>
+                      rate: {item.rate > item.baselineRate ? "+" : ""}{formatNpr(item.rate - item.baselineRate)}
+                    </span>
+                  )}
+                  {item.quantity === item.baselineQty && item.rate === item.baselineRate && (
+                    <span className="text-muted-foreground italic text-[10px]">unchanged</span>
+                  )}
+                </div>
+              ) : null,
+          },
+        ]
+      : []),
+  ];
+
+  const diffFilteredRows = diffData?.diffRows.filter(
+    (r) => r.qtyDiff !== 0 || r.rateDiff !== 0 || r.amountDiff !== 0
+  ) ?? [];
+
+  const diffColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "code",
+      header: "Code",
+      render: (_, r) => <span className="font-mono text-xs font-bold text-primary">{r.code}</span>,
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (_, r) => (
+        <span className="font-mono text-xs text-foreground truncate max-w-[200px] block">{r.description}</span>
+      ),
+    },
+    {
+      key: "unit",
+      header: "Unit",
+      render: (_, r) => <span className="text-muted-foreground font-mono text-xs">{r.unit}</span>,
+    },
+    {
+      key: "leftQty",
+      header: `${diffData?.leftLabel ?? "Left"} Qty`,
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{r.leftQty.toFixed(3)}</span>,
+    },
+    {
+      key: "rightQty",
+      header: `${diffData?.rightLabel ?? "Right"} Qty`,
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{r.rightQty.toFixed(3)}</span>,
+    },
+    {
+      key: "qtyDiff",
+      header: "Qty \u0394",
+      align: "right",
+      render: (_, r) => (
+        <span className={`font-mono text-xs ${r.qtyDiff > 0 ? "text-emerald-600 font-bold" : r.qtyDiff < 0 ? "text-red-600 font-bold" : ""}`}>
+          {r.qtyDiff > 0 ? "+" : ""}{r.qtyDiff.toFixed(3) || "\u2014"}
+        </span>
+      ),
+    },
+    {
+      key: "leftRate",
+      header: `${diffData?.leftLabel ?? "Left"} Rate`,
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{formatNpr(r.leftRate)}</span>,
+    },
+    {
+      key: "rightRate",
+      header: `${diffData?.rightLabel ?? "Right"} Rate`,
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{formatNpr(r.rightRate)}</span>,
+    },
+    {
+      key: "rateDiff",
+      header: "Rate \u0394",
+      align: "right",
+      render: (_, r) => (
+        <span className={`font-mono text-xs ${r.rateDiff > 0 ? "text-emerald-600 font-bold" : r.rateDiff < 0 ? "text-red-600 font-bold" : ""}`}>
+          {r.rateDiff > 0 ? "+" : ""}{r.rateDiff ? formatNpr(r.rateDiff) : "\u2014"}
+        </span>
+      ),
+    },
+    {
+      key: "amountDiff",
+      header: "Amount \u0394",
+      align: "right",
+      render: (_, r) => (
+        <span className={`font-mono text-xs font-bold ${r.amountDiff > 0 ? "text-emerald-600" : r.amountDiff < 0 ? "text-red-600" : ""}`}>
+          {r.amountDiff > 0 ? "+" : ""}{r.amountDiff ? formatNpr(r.amountDiff) : "\u2014"}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold">BOQ Snapshots</h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground font-mono">
             Snapshots of the BOQ at different points in time. V1 = original contract. New versions are created when
             Variation Orders are processed or on demand.
           </p>
@@ -69,7 +219,7 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
         {canWrite && (
           <div className="flex items-center gap-2">
             {!showCreate ? (
-              <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+              <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1 font-mono text-xs">
                 <Plus className="h-3.5 w-3.5" /> Create Snapshot
               </Button>
             ) : (
@@ -78,7 +228,7 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Notes for this version..."
-                  className="h-8 w-56 rounded border bg-background px-2 text-xs"
+                  className="h-8 w-56 rounded border bg-background px-2 text-xs font-mono"
                   onKeyDown={(e) => { if (e.key === "Enter") createVersion.mutate({ projectId, notes: notes || undefined }); }}
                 />
                 <Button size="sm" disabled={createVersion.isPending} onClick={() => createVersion.mutate({ projectId, notes: notes || undefined })}>
@@ -103,13 +253,13 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
               variant={selectedVersion === v.id ? "default" : "outline"}
               size="sm"
               onClick={() => { setSelectedVersion(v.id); setDiffVersion(null); }}
-              className="gap-1"
+              className="gap-1 font-mono text-xs"
             >
               V{v.versionNumber}
               <Badge variant={v.status === "approved" ? "default" : "secondary"} className="text-[9px]">
                 {v.status}
               </Badge>
-              <span className="text-[10px] text-muted-foreground">({v._count.items})</span>
+              <span className="text-[10px] text-muted-foreground font-mono">({v._count.items})</span>
             </Button>
           ))}
         </div>
@@ -117,103 +267,63 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <Inbox className="h-12 w-12 text-muted-foreground" />
           <p className="font-medium">No versions yet</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground font-mono">
             Create a snapshot to save the current state of the BOQ.
           </p>
         </Card>
       )}
 
       {versionDetail && (
-        <Card>
-          <div className="flex items-center justify-between border-b px-4 py-2">
-            <div className="text-sm font-semibold">
+        <Card className="space-y-4 p-4">
+          <div className="flex flex-wrap items-center justify-between border-b pb-2 gap-2">
+            <div className="text-sm font-semibold font-mono">
               V{versionDetail.versionNumber}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {versionDetail.notes && `— ${versionDetail.notes}`}
+              <span className="ml-2 text-xs font-normal text-muted-foreground font-mono">
+                {versionDetail.notes && `\u2014 ${versionDetail.notes}`}
               </span>
             </div>
             <div className="flex items-center gap-2">
               {versionDetail.status === "draft" && canWrite && (
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { if (confirm("Approve this version?")) approveVersion.mutate({ projectId, versionId: versionDetail.id }); }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 font-mono"
+                  onClick={() => {
+                    if (confirm("Approve this version?")) {
+                      approveVersion.mutate({ projectId, versionId: versionDetail.id });
+                    }
+                  }}
+                >
                   <Check className="mr-1 h-3 w-3" /> Approve
                 </Button>
               )}
-              <span className="text-[10px] text-muted-foreground">
-                {new Date(versionDetail.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {new Date(versionDetail.createdAt).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono tabular-nums">
-              <thead className="sticky top-0 z-10 bg-muted/90 text-primary border-b border-border/80 font-mono">
-                <tr className="border-b border-border/40 text-[11px] font-mono font-bold uppercase tracking-wider text-primary">
-                  <th className="px-3 py-2 text-left">Code</th>
-                  <th className="px-3 py-2 text-left">Description</th>
-                  <th className="px-3 py-2 text-left">Unit</th>
-                  <th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Rate</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
-                  {versionDetail.status === "draft" && (
-                    <th className="px-3 py-2 text-right text-sky-400">Diff (vs V1)</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40 font-mono text-xs">
-                {versionDetail.items.map((item: any) => (
-                  <tr key={item.id} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
-                    <td className="px-3 py-1.5 font-bold text-primary">{item.code}</td>
-                    <td className="px-3 py-1.5 truncate max-w-xs text-foreground">{item.description}</td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{item.unit}</td>
-                    <td className="px-3 py-1.5 text-right font-medium text-foreground">{item.quantity}</td>
-                    <td className="px-3 py-1.5 text-right font-medium text-foreground">{fmt(item.rate)}</td>
-                    <td className="px-3 py-1.5 text-right font-bold text-foreground">{fmt(item.amount)}</td>
-                    {versionDetail.status === "draft" && (
-                      <td className="px-3 py-1.5 text-right text-xs">
-                        {item.baselineQty !== null && item.baselineRate !== null && (
-                          <>
-                            {item.quantity !== item.baselineQty && (
-                              <span className={item.quantity > item.baselineQty ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
-                                qty: {item.quantity > item.baselineQty ? "+" : ""}{(item.quantity - item.baselineQty).toFixed(3)}
-                              </span>
-                            )}
-                            {item.rate !== item.baselineRate && (
-                              <span className={`ml-2 font-bold ${item.rate > item.baselineRate ? "text-emerald-400" : "text-red-400"}`}>
-                                rate: {item.rate > item.baselineRate ? "+" : ""}{fmt(item.rate - item.baselineRate)}
-                              </span>
-                            )}
-                            {item.quantity === item.baselineQty && item.rate === item.baselineRate && (
-                              <span className="text-muted-foreground italic text-[10px]">unchanged</span>
-                            )}
-                          </>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-              {versionDetail.items.length > 0 && (
-                <tfoot>
-                  <tr className="border-t-2 border-border/60 bg-muted/30 font-bold font-mono text-xs">
-                    <td colSpan={3} className="px-3 py-2 text-right text-muted-foreground">Total:</td>
-                    <td className="px-3 py-2 text-right text-foreground">{versionDetail.items.reduce((s: number, i: any) => s + i.quantity, 0)}</td>
-                    <td></td>
-                    <td className="px-3 py-2 text-right text-primary font-bold">{fmt(versionDetail.items.reduce((s: number, i: any) => s + i.amount, 0))}</td>
-                    {versionDetail.status === "draft" && <td></td>}
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
+
+          <ConstructionTable
+            data={versionDetail.items}
+            columns={versionColumns}
+            isLoading={false}
+            searchPlaceholder="Search version items..."
+            searchFilterKeys={["code", "description"]}
+          />
 
           {diffData && selectedVersion && (
-            <div className="border-t">
-              <div className="flex items-center gap-2 bg-muted/40 px-4 py-2 text-xs font-mono">
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2 bg-muted/40 p-2.5 rounded-lg text-xs font-mono">
                 <span className="font-bold text-primary">Compare {diffData.leftLabel} vs {diffData.rightLabel}:</span>
                 {data && data.versions.length > 1 && (
                   <select
                     value={diffVersion ?? ""}
                     onChange={(e) => setDiffVersion(e.target.value || null)}
-                    className="h-6 rounded border bg-background px-1 text-xs font-mono"
+                    className="h-7 rounded border bg-background px-2 text-xs font-mono"
                   >
                     <option value="">vs Current BOQ</option>
                     {data.versions.filter((v) => v.id !== selectedVersion).map((v) => (
@@ -222,51 +332,14 @@ export function BoqVersionsTab({ projectId, canWrite }: { projectId: string; can
                   </select>
                 )}
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs font-mono tabular-nums">
-                  <thead className="sticky top-0 z-10 bg-muted/90 text-primary border-b border-border/80 font-mono">
-                    <tr className="border-b border-border/40 text-[11px] font-mono font-bold uppercase tracking-wider text-primary">
-                      <th className="px-3 py-2 text-left">Code</th>
-                      <th className="px-3 py-2 text-left">Description</th>
-                      <th className="px-3 py-2 text-left">Unit</th>
-                      <th className="px-3 py-2 text-right">{diffData.leftLabel} Qty</th>
-                      <th className="px-3 py-2 text-right">{diffData.rightLabel} Qty</th>
-                      <th className="px-3 py-2 text-right">Qty Δ</th>
-                      <th className="px-3 py-2 text-right">{diffData.leftLabel} Rate</th>
-                      <th className="px-3 py-2 text-right">{diffData.rightLabel} Rate</th>
-                      <th className="px-3 py-2 text-right">Rate Δ</th>
-                      <th className="px-3 py-2 text-right">Amount Δ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40 font-mono text-xs">
-                    {diffData.diffRows
-                      .filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0 || r.amountDiff !== 0)
-                      .map((r) => (
-                        <tr key={r.code} className="border-b hover:bg-muted/10">
-                          <td className="p-2 font-mono text-[10px]">{r.code}</td>
-                          <td className="p-2 truncate max-w-[200px]">{r.description}</td>
-                          <td className="p-2 text-muted-foreground">{r.unit}</td>
-                          <td className="p-2 text-right">{r.leftQty.toFixed(3)}</td>
-                          <td className="p-2 text-right">{r.rightQty.toFixed(3)}</td>
-                          <td className={`p-2 text-right ${r.qtyDiff > 0 ? "text-emerald-600" : r.qtyDiff < 0 ? "text-red-600" : ""}`}>
-                            {r.qtyDiff > 0 ? "+" : ""}{r.qtyDiff.toFixed(3) || "—"}
-                          </td>
-                          <td className="p-2 text-right">{fmt(r.leftRate)}</td>
-                          <td className="p-2 text-right">{fmt(r.rightRate)}</td>
-                          <td className={`p-2 text-right ${r.rateDiff > 0 ? "text-emerald-600" : r.rateDiff < 0 ? "text-red-600" : ""}`}>
-                            {r.rateDiff > 0 ? "+" : ""}{r.rateDiff ? fmt(r.rateDiff) : "—"}
-                          </td>
-                          <td className={`p-2 text-right font-medium ${r.amountDiff > 0 ? "text-emerald-600" : r.amountDiff < 0 ? "text-red-600" : ""}`}>
-                            {r.amountDiff > 0 ? "+" : ""}{r.amountDiff ? fmt(r.amountDiff) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    {diffData.diffRows.filter((r) => r.qtyDiff !== 0 || r.rateDiff !== 0 || r.amountDiff !== 0).length === 0 && (
-                      <tr><td colSpan={10} className="p-4 text-center text-muted-foreground">No changes between these versions.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+
+              <ConstructionTable
+                data={diffFilteredRows}
+                columns={diffColumns}
+                isLoading={false}
+                searchPlaceholder="Search version diffs..."
+                searchFilterKeys={["code", "description"]}
+              />
             </div>
           )}
         </Card>

@@ -24,6 +24,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function MissingScansTab({
   projectId,
@@ -98,41 +99,192 @@ export function MissingScansTab({
       targetType: activeUpload.targetType,
       targetId: activeUpload.targetId,
       scannedBillUrl: fileData,
-      scannedBillName: fileName,
     });
   };
 
+  const purchaseColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (_, r) => (
+        <span className="text-muted-foreground whitespace-nowrap font-mono text-xs">
+          {format(new Date(r.date), "dd MMM yyyy")}
+        </span>
+      ),
+    },
+    {
+      key: "invoiceNo",
+      header: "Invoice #",
+      render: (_, r) => <span className="font-bold text-foreground font-mono text-xs">{r.invoiceNo}</span>,
+    },
+    {
+      key: "partyName",
+      header: "Supplier / Vendor",
+      render: (_, r) => (
+        <div className="font-sans text-xs truncate max-w-[220px]">
+          <span className="font-semibold text-foreground">{r.partyName}</span>
+          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
+        </div>
+      ),
+    },
+    {
+      key: "taxableLocal",
+      header: "Taxable",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{formatNpr(r.taxableLocal)}</span>,
+    },
+    {
+      key: "vatAmount",
+      header: "VAT (13%)",
+      align: "right",
+      render: (_, r) => (
+        <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+          {formatNpr(r.vatAmount)}
+        </span>
+      ),
+    },
+    {
+      key: "totalAmount",
+      header: "Total",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs font-bold text-foreground">{formatNpr(r.totalAmount)}</span>,
+    },
+    {
+      key: "action",
+      header: "Action",
+      align: "center",
+      render: (_, r) =>
+        canWrite ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setActiveUpload({
+                targetType: r.source,
+                targetId: r.sourceRefId,
+                invoiceNo: r.invoiceNo,
+                partyName: r.partyName,
+              })
+            }
+            className="h-6 text-[10px] gap-1 font-mono"
+          >
+            <Upload className="h-2.5 w-2.5" /> Attach Scan
+          </Button>
+        ) : null,
+    },
+  ];
+
+  const salesColumns: ConstructionTableColumn<any>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (_, r) => (
+        <span className="text-muted-foreground whitespace-nowrap font-mono text-xs">
+          {format(new Date(r.date), "dd MMM yyyy")}
+        </span>
+      ),
+    },
+    {
+      key: "invoiceNo",
+      header: "IPC / Invoice #",
+      render: (_, r) => <span className="font-bold text-foreground font-mono text-xs">{r.invoiceNo}</span>,
+    },
+    {
+      key: "clientName",
+      header: "Client / Employer",
+      render: (_, r) => (
+        <div className="font-sans text-xs truncate max-w-[220px]">
+          <span className="font-semibold text-foreground">{r.clientName}</span>
+          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
+        </div>
+      ),
+    },
+    {
+      key: "taxableSales",
+      header: "Taxable",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{formatNpr(r.taxableSales)}</span>,
+    },
+    {
+      key: "vatAmount",
+      header: "Output VAT (13%)",
+      align: "right",
+      render: (_, r) => (
+        <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
+          {formatNpr(r.vatAmount)}
+        </span>
+      ),
+    },
+    {
+      key: "totalAmount",
+      header: "Total",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs font-bold text-foreground">{formatNpr(r.totalAmount)}</span>,
+    },
+    {
+      key: "action",
+      header: "Action",
+      align: "center",
+      render: (_, r) =>
+        canWrite ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setActiveUpload({
+                targetType: r.source,
+                targetId: r.sourceRefId,
+                invoiceNo: r.invoiceNo,
+                partyName: r.clientName,
+              })
+            }
+            className="h-6 text-[10px] gap-1 font-mono"
+          >
+            <Upload className="h-2.5 w-2.5" /> Attach Scan
+          </Button>
+        ) : null,
+    },
+  ];
+
   return (
-    <div className="space-y-4 font-sans">
-      {/* Alert Header */}
-      <div className="flex items-center justify-between p-3 rounded-md border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900 text-xs">
+    <div className="space-y-4">
+      {/* Alert Header Strip */}
+      <div
+        className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${
+          totalMissing > 0
+            ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
+            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
+        }`}
+      >
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+          {totalMissing > 0 ? (
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+          )}
           <div>
-            <span className="font-bold text-amber-950 dark:text-amber-200">
-              Tax Compliance Audit: {totalMissing} Missing Scanned Invoice(s)
-            </span>
-            <p className="text-muted-foreground text-[11px]">
-              Nepali tax regulations require soft copies of physical VAT bills to be archived for 6 years. Attach them below.
+            <h3 className="text-xs font-bold font-sans">
+              {totalMissing > 0
+                ? `${totalMissing} Invoices Missing Digital Bill Scans (IRD Audit Risk)`
+                : "100% Tax Compliant: All Invoices Have Scanned Bills Attached"}
+            </h3>
+            <p className="text-[11px] opacity-80 font-mono">
+              IRD Nepal requires physical or digital VAT invoices to be preserved alongside tax registers for audit defense.
             </p>
           </div>
         </div>
-
-        <Badge variant="outline" className="border-amber-400 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 text-[10px]">
-          {totalMissing === 0 ? "100% Tax Audit Ready" : `${totalMissing} Unattached Bills`}
-        </Badge>
       </div>
 
       {totalMissing === 0 ? (
-        <div className="p-12 text-center border rounded-md bg-card">
-          <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
-          <h3 className="text-sm font-semibold text-foreground">All Invoices Have Attached Scans</h3>
+        <div className="p-12 text-center rounded-xl border bg-card">
+          <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
+          <h4 className="text-sm font-semibold text-foreground">Zero Scan Deficits</h4>
           <p className="text-xs text-muted-foreground mt-1">
             Both your Purchase Register (Schedule 8) and Sales Register (Schedule 9) have complete digital paper trails.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Missing Purchases */}
           {missingPurchases.length > 0 && (
             <div className="space-y-2">
@@ -140,58 +292,13 @@ export function MissingScansTab({
                 <Package className="h-3.5 w-3.5 text-blue-600" />
                 Missing Purchase / Inward Scans ({missingPurchases.length})
               </h4>
-
-              <div className="rounded-md border overflow-x-auto bg-card">
-                <table className="w-full text-xs font-mono border-collapse tabular-nums">
-                  <thead>
-                    <tr className="bg-muted/70 border-b text-[11px] text-muted-foreground text-left">
-                      <th className="p-2 w-24">Date</th>
-                      <th className="p-2 w-28">Invoice #</th>
-                      <th className="p-2">Supplier / Vendor</th>
-                      <th className="p-2 w-24 text-right">Taxable</th>
-                      <th className="p-2 w-24 text-right font-bold text-emerald-700 dark:text-emerald-300">VAT (13%)</th>
-                      <th className="p-2 w-24 text-right font-bold">Total</th>
-                      <th className="p-2 w-24 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {missingPurchases.map((r) => (
-                      <tr key={r.id} className="hover:bg-muted/10">
-                        <td className="p-2 text-muted-foreground whitespace-nowrap">
-                          {format(new Date(r.date), "dd MMM yyyy")}
-                        </td>
-                        <td className="p-2 font-bold text-foreground">{r.invoiceNo}</td>
-                        <td className="p-2 font-sans truncate max-w-[220px]">
-                          <span className="font-semibold text-foreground">{r.partyName}</span>
-                          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
-                        </td>
-                        <td className="p-2 text-right">{formatNpr(r.taxableLocal)}</td>
-                        <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">{formatNpr(r.vatAmount)}</td>
-                        <td className="p-2 text-right font-bold">{formatNpr(r.totalAmount)}</td>
-                        <td className="p-2 text-center">
-                          {canWrite && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setActiveUpload({
-                                  targetType: r.source,
-                                  targetId: r.sourceRefId,
-                                  invoiceNo: r.invoiceNo,
-                                  partyName: r.partyName,
-                                })
-                              }
-                              className="h-6 text-[10px] gap-1 font-mono"
-                            >
-                              <Upload className="h-2.5 w-2.5" /> Attach Scan
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ConstructionTable
+                data={missingPurchases}
+                columns={purchaseColumns}
+                isLoading={false}
+                searchPlaceholder="Search missing purchase scans..."
+                searchFilterKeys={["invoiceNo", "partyName", "description"]}
+              />
             </div>
           )}
 
@@ -202,114 +309,85 @@ export function MissingScansTab({
                 <FileCheck className="h-3.5 w-3.5 text-blue-600" />
                 Missing Client IPC / Sales Invoices ({missingSales.length})
               </h4>
-
-              <div className="rounded-md border overflow-x-auto bg-card">
-                <table className="w-full text-xs font-mono border-collapse tabular-nums">
-                  <thead>
-                    <tr className="bg-muted/70 border-b text-[11px] text-muted-foreground text-left">
-                      <th className="p-2 w-24">Date</th>
-                      <th className="p-2 w-28">IPC / Invoice #</th>
-                      <th className="p-2">Client / Employer</th>
-                      <th className="p-2 w-24 text-right">Taxable</th>
-                      <th className="p-2 w-24 text-right font-bold text-amber-700 dark:text-amber-300">Output VAT (13%)</th>
-                      <th className="p-2 w-24 text-right font-bold">Total</th>
-                      <th className="p-2 w-24 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {missingSales.map((r) => (
-                      <tr key={r.id} className="hover:bg-muted/10">
-                        <td className="p-2 text-muted-foreground whitespace-nowrap">
-                          {format(new Date(r.date), "dd MMM yyyy")}
-                        </td>
-                        <td className="p-2 font-bold text-foreground">{r.invoiceNo}</td>
-                        <td className="p-2 font-sans truncate max-w-[220px]">
-                          <span className="font-semibold text-foreground">{r.clientName}</span>
-                          <span className="block text-[10px] text-muted-foreground truncate font-mono">{r.description}</span>
-                        </td>
-                        <td className="p-2 text-right">{formatNpr(r.taxableSales)}</td>
-                        <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-300">{formatNpr(r.vatAmount)}</td>
-                        <td className="p-2 text-right font-bold">{formatNpr(r.totalAmount)}</td>
-                        <td className="p-2 text-center">
-                          {canWrite && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setActiveUpload({
-                                  targetType: r.source,
-                                  targetId: r.sourceRefId,
-                                  invoiceNo: r.invoiceNo,
-                                  partyName: r.clientName,
-                                })
-                              }
-                              className="h-6 text-[10px] gap-1 font-mono"
-                            >
-                              <Upload className="h-2.5 w-2.5" /> Attach Scan
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ConstructionTable
+                data={missingSales}
+                columns={salesColumns}
+                isLoading={false}
+                searchPlaceholder="Search missing sales scans..."
+                searchFilterKeys={["invoiceNo", "clientName", "description"]}
+              />
             </div>
           )}
         </div>
       )}
 
-      {/* Quick Upload Modal with Dark Glass Backdrop Blur */}
-      <Dialog open={!!activeUpload} onOpenChange={() => setActiveUpload(null)}>
-        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-white">
-              <Upload className="h-4 w-4 text-emerald-400" />
-              Attach Scanned Bill: {activeUpload?.invoiceNo}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Upload Scanned Bill Dialog */}
+      {activeUpload && (
+        <Dialog open={Boolean(activeUpload)} onOpenChange={(open) => !open && setActiveUpload(null)}>
+          <DialogContent className="sm:max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
+                <Paperclip className="h-4 w-4 text-primary" />
+                Attach Scanned VAT Invoice
+              </DialogTitle>
+            </DialogHeader>
 
-          <form onSubmit={handleUploadSubmit} className="space-y-3.5 py-2">
-            <div className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-xs font-mono">
-              <span className="text-muted-foreground">Party / Supplier: </span>
-              <span className="font-bold text-white">{activeUpload?.partyName}</span>
-            </div>
+            <form onSubmit={handleUploadSubmit} className="space-y-3 pt-2 text-xs">
+              <div className="p-2.5 bg-white/5 rounded-lg border border-white/10 space-y-1 font-mono text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-white/60">Invoice No:</span>
+                  <span className="font-bold text-white">{activeUpload.invoiceNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/60">Party:</span>
+                  <span className="font-semibold text-white">{activeUpload.partyName}</span>
+                </div>
+              </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Select Scanned Invoice (PDF or Image, Max 10MB) *</Label>
-              <Input
-                type="file"
-                accept="application/pdf,image/*"
-                onChange={handleFileChange}
-                className="h-9 text-xs file:text-xs bg-white/5 border-white/10 text-white"
-                required
-              />
-              {fileName && (
-                <p className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                  <Paperclip className="h-3 w-3" /> {fileName}
-                </p>
-              )}
-            </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-white">Select File (PDF, PNG, JPG - max 10MB)</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleFileChange}
+                  className="text-xs bg-white/5 border-white/20 text-white"
+                  required
+                />
+                {fileName && <p className="text-[10px] text-emerald-400 font-mono">Selected: {fileName}</p>}
+              </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveUpload(null)}
-                disabled={attachMut.isPending}
-                className="h-8 text-xs font-mono"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={attachMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
-                {attachMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Upload &amp; Verify Bill
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveUpload(null)}
+                  disabled={attachMut.isPending}
+                  className="font-mono text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={attachMut.isPending || !fileData}
+                  className="bg-primary text-primary-foreground font-mono text-xs"
+                >
+                  {attachMut.isPending ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-3 w-3 mr-1" /> Upload &amp; Link
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -16,8 +16,8 @@ import {
 import { Lock, Unlock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-function npr(n: number) { return "NPR " + n.toLocaleString("en-IN", { maximumFractionDigits: 0 }); }
+import { formatNpr } from "@/lib/currency";
+import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function RetentionTab({ projectId }: { projectId: string }) {
   const utils = trpc.useUtils();
@@ -37,134 +37,152 @@ export function RetentionTab({ projectId }: { projectId: string }) {
     onError: (e) => toast.error(e.message),
   });
 
-  if (isLoading) return <Skeleton className="h-64" />;
-
   const rows = data?.rows ?? [];
   const totals = data?.totals;
 
-  if (rows.length === 0) {
-    return (
-      <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        <Lock className="h-12 w-12 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">No subcontractors with retention data.</p>
-        <p className="text-xs text-muted-foreground mt-1">Retention is automatically tracked when IPCs are created for subcontractors.</p>
-      </CardContent></Card>
-    );
-  }
+  const columns: ConstructionTableColumn<any>[] = [
+    {
+      key: "subcontractorName",
+      header: "Subcontractor",
+      render: (_, r) => <span className="font-medium text-xs font-sans text-foreground">{r.subcontractorName}</span>,
+    },
+    {
+      key: "contractValue",
+      header: "Contract Value",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs">{formatNpr(r.contractValue)}</span>,
+    },
+    {
+      key: "ipcRetention",
+      header: "IPC Retention",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">{formatNpr(r.ipcRetention)}</span>,
+    },
+    {
+      key: "released",
+      header: "Released",
+      align: "right",
+      render: (_, r) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(r.released)}</span>,
+    },
+    {
+      key: "held",
+      header: "Held",
+      align: "right",
+      render: (_, r) => (
+        <span className={cn("font-mono text-xs font-bold", r.held > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+          {formatNpr(r.held)}
+        </span>
+      ),
+    },
+    {
+      key: "action",
+      header: "Action",
+      align: "center",
+      render: (_, r) =>
+        r.held > 0 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-[10px] gap-1 font-mono"
+            onClick={() => {
+              setReleaseFor(r.subcontractorId);
+              setReleaseAmount(r.held.toString());
+            }}
+          >
+            <Unlock className="h-3 w-3 text-amber-500" /> Release
+          </Button>
+        ) : (
+          <span className="text-[10px] text-muted-foreground font-mono">Fully released</span>
+        ),
+    },
+  ];
 
   return (
-    <>
+    <div className="space-y-4">
       {totals && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-amber-600">{npr(totals.totalHeld)}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Currently Held</div>
+          <Card className="p-3 text-center bg-card">
+            <div className="text-lg font-bold font-mono text-amber-600 dark:text-amber-400">{formatNpr(totals.totalHeld)}</div>
+            <div className="text-[9px] text-muted-foreground uppercase font-mono">Currently Held</div>
           </Card>
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-emerald-600">{npr(totals.totalReleased)}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Released to Date</div>
+          <Card className="p-3 text-center bg-card">
+            <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatNpr(totals.totalReleased)}</div>
+            <div className="text-[9px] text-muted-foreground uppercase font-mono">Released to Date</div>
           </Card>
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-blue-600">{npr(totals.totalIpcRetention)}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Total IPC Retention</div>
+          <Card className="p-3 text-center bg-card">
+            <div className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400">{formatNpr(totals.totalIpcRetention)}</div>
+            <div className="text-[9px] text-muted-foreground uppercase font-mono">Total IPC Retention</div>
           </Card>
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-slate-600">{totals.subcontractorCount}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Subcontractors</div>
+          <Card className="p-3 text-center bg-card">
+            <div className="text-lg font-bold font-mono text-foreground">{totals.subcontractorCount}</div>
+            <div className="text-[9px] text-muted-foreground uppercase font-mono">Subcontractors</div>
           </Card>
         </div>
       )}
 
-      <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/30">
-            <tr>
-              <th className="p-2 text-left font-medium text-muted-foreground">Subcontractor</th>
-              <th className="p-2 text-right font-medium text-muted-foreground">Contract Value</th>
-              <th className="p-2 text-right font-medium text-muted-foreground">IPC Retention</th>
-              <th className="p-2 text-right font-medium text-muted-foreground">Released</th>
-              <th className="p-2 text-right font-medium text-muted-foreground">Held</th>
-              <th className="p-2 text-center font-medium text-muted-foreground">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.subcontractorId} className="border-t hover:bg-muted/20">
-                <td className="p-2 font-medium">{r.subcontractorName}</td>
-                <td className="p-2 text-right tabular-nums">{npr(r.contractValue)}</td>
-                <td className="p-2 text-right tabular-nums text-blue-600">{npr(r.ipcRetention)}</td>
-                <td className="p-2 text-right tabular-nums text-emerald-600">{npr(r.released)}</td>
-                <td className={cn("p-2 text-right tabular-nums font-bold", r.held > 0 ? "text-amber-600" : "text-muted-foreground")}>
-                  {npr(r.held)}
-                </td>
-                <td className="p-2 text-center">
-                  {r.held > 0 ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 text-[10px]"
-                      onClick={() => { setReleaseFor(r.subcontractorId); setReleaseAmount(r.held.toFixed(2)); }}
-                    >
-                      <Unlock className="h-3 w-3 mr-1" /> Release
-                    </Button>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ConstructionTable
+        data={rows}
+        columns={columns}
+        isLoading={isLoading}
+        searchPlaceholder="Search subcontractor..."
+        searchFilterKeys={["subcontractorName"]}
+      />
 
-      <Dialog open={!!releaseFor} onOpenChange={(o) => !o && setReleaseFor(null)}>
-        <DialogContent className="sm:max-w-md">
+      {/* Release Dialog */}
+      <Dialog open={!!releaseFor} onOpenChange={(open) => !open && setReleaseFor(null)}>
+        <DialogContent className="sm:max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
           <DialogHeader>
-            <DialogTitle>Release Retention</DialogTitle>
-            <DialogDescription>Record a payment that releases held retention back to the subcontractor.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Unlock className="h-5 w-5 text-amber-500" />
+              Release Retention Money
+            </DialogTitle>
+            <DialogDescription className="text-white/60">
+              Release held retention back to subcontractor. This creates a payment ledger entry.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+
+          <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Amount to Release (NPR)</Label>
+              <Label className="text-xs">Release Amount (NPR) *</Label>
               <Input
                 type="number"
                 value={releaseAmount}
                 onChange={(e) => setReleaseAmount(e.target.value)}
-                className="h-9 text-sm"
+                className="h-8 text-xs font-mono"
+                placeholder="0.00"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Payment Mode</Label>
-              <Select defaultValue="bank_transfer">
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="mobile_pay">Mobile Pay</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReleaseFor(null)}>Cancel</Button>
+
+          <DialogFooter className="gap-2">
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReleaseFor(null)}
+              disabled={releaseMut.isPending}
+              className="font-mono text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs"
               onClick={() => {
                 if (!releaseFor || !releaseAmount) return;
                 releaseMut.mutate({
                   projectId,
                   subcontractorId: releaseFor,
-                  amount: parseFloat(releaseAmount) || 0,
+                  amount: parseFloat(releaseAmount),
                 });
               }}
               disabled={releaseMut.isPending || !releaseAmount}
             >
-              {releaseMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-              Release Retention
+              {releaseMut.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+              Confirm Release
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
