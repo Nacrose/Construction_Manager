@@ -1,19 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -33,8 +24,25 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
+import { FormDateField, FormSelectField, FormTextField } from "@/components/engine/form-fields";
+import { useRegister } from "@/hooks/use-register";
 
 const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity"];
+
+/** Client-side validation for the Apply Leave dialog (server re-validates). */
+const applyLeaveSchema = z
+  .object({
+    staffId: z.string().min(1, "Please select a worker"),
+    leaveType: z.string(),
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().min(1, "End date is required"),
+    reason: z.string(),
+  })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "End date must be on or after start date",
+    path: ["endDate"],
+  });
 
 export function LeavesTab({
   projectId,
@@ -49,13 +57,6 @@ export function LeavesTab({
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
-
-  // Form states
-  const [staffId, setStaffId] = useState("");
-  const [leaveType, setLeaveType] = useState("casual");
-  const [startDate, setStartDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [reason, setReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<{
     open: boolean;
     type: "approve" | "reject";
@@ -66,25 +67,21 @@ export function LeavesTab({
 
   const utils = trpc.useUtils();
 
-  const { data, isLoading, refetch, isFetching } = trpc.leave.list.useQuery({
-    projectId,
-    status: statusFilter !== "all" ? (statusFilter as any) : undefined,
+  // List side: register engine (typed data + pick + refresh).
+  const status = statusFilter === "pending" || statusFilter === "approved" || statusFilter === "rejected" ? statusFilter : undefined;
+  const listQuery = trpc.leave.list.useQuery({ projectId, status });
+  const register = useRegister({
+    data: listQuery.data,
+    isLoading: listQuery.isLoading,
+    isFetching: listQuery.isFetching,
+    refresh: listQuery.refetch,
+    pick: (d) => d?.leaves ?? [],
   });
+  const { items: leaves } = register;
 
-  const leaves = data?.leaves || [];
   const pendingCount = leaves.filter((l) => l.status === "pending").length;
   const approvedCount = leaves.filter((l) => l.status === "approved").length;
   const rejectedCount = leaves.filter((l) => l.status === "rejected").length;
-
-  const createMut = trpc.leave.create.useMutation({
-    onSuccess: () => {
-      toast.success("Leave request submitted");
-      utils.leave.list.invalidate({ projectId });
-      setAddOpen(false);
-      setReason("");
-    },
-    onError: (e) => toast.error(e.message),
-  });
 
   const approveMut = trpc.leave.approve.useMutation({
     onSuccess: () => {
@@ -103,22 +100,6 @@ export function LeavesTab({
     },
     onError: (e) => toast.error(e.message),
   });
-
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!staffId) {
-      toast.error("Please select a worker");
-      return;
-    }
-    createMut.mutate({
-      projectId,
-      staffId,
-      leaveType,
-      startDate,
-      endDate,
-      reason: reason || undefined,
-    });
-  };
 
   return (
     <div className="space-y-2.5">
@@ -142,11 +123,11 @@ export function LeavesTab({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => refetch()}
-            disabled={isFetching}
+            onClick={() => register.refresh()}
+            disabled={register.isFetching}
             className="h-7 text-xs gap-1 px-2 font-mono"
           >
-            <RefreshCw className={cn("h-3 w-3", isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-3 w-3", register.isFetching && "animate-spin")} />
           </Button>
 
           {canWrite && (
@@ -202,7 +183,7 @@ export function LeavesTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-border/40">
-            {isLoading ? (
+            {register.isLoading ? (
               <tr>
                 <td colSpan={7} className="p-8 text-center text-muted-foreground">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1.5 text-primary" />
@@ -312,105 +293,62 @@ export function LeavesTab({
         </table>
       </div>
 
-      {/* Leave Application Dialog with Backdrop Blur */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-[#c7d8e8] text-slate-900">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-slate-900">
-              <Calendar className="h-5 w-5 text-[#0284c7]" />
-              Apply for Leave
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground font-mono">
-              Submit a site leave request for Project Manager review and attendance linking.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreate} className="space-y-3.5 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Select Worker *</Label>
-              <Select value={staffId} onValueChange={setStaffId} required>
-                <SelectTrigger className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
-                  <SelectValue placeholder="Choose personnel..." />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
-                  {staffList.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.designation || s.category || "Staff"})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Leave Type</Label>
-              <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger className="h-8 text-xs capitalize bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
-                  {LEAVE_TYPES.map((lt) => (
-                    <SelectItem key={lt} value={lt} className="capitalize">
-                      {lt} Leave
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Start Date *</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-8 text-xs font-mono bg-white/5 border-[#c7d8e8] text-slate-900"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">End Date *</Label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="h-8 text-xs font-mono bg-white/5 border-[#c7d8e8] text-slate-900"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Reason / Handover Notes</Label>
-              <Input
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. Medical emergency, Family wedding"
-                className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900"
-              />
-            </div>
-
-            <DialogFooter className="border-t border-[#c7d8e8] pt-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setAddOpen(false)}
-                disabled={createMut.isPending}
-                className="h-8 text-xs font-mono"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-slate-900 font-semibold">
-                {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Submit Leave
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Apply Leave — FormDialogEngine (Tier 2): owns framing, state, validation,
+          toast, invalidation, close/reset. No per-field useState, no Dialog wiring. */}
+      {canWrite && (
+        <FormDialogEngine
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          title="Apply for Leave"
+          description="Submit a site leave request for Project Manager review and attendance linking."
+          icon={Calendar}
+          size="md"
+          initialValues={{
+            staffId: "",
+            leaveType: "casual",
+            startDate: format(new Date(), "yyyy-MM-dd"),
+            endDate: format(new Date(), "yyyy-MM-dd"),
+            reason: "",
+          }}
+          schema={applyLeaveSchema}
+          mutation={trpc.leave.create}
+          buildInput={(v) => ({
+            projectId,
+            staffId: v.staffId,
+            leaveType: v.leaveType,
+            startDate: v.startDate,
+            endDate: v.endDate,
+            reason: v.reason || undefined,
+          })}
+          invalidate={(u) => u.leave.list.invalidate({ projectId })}
+          successMessage="Leave request submitted"
+          submitLabel="Submit Leave"
+        >
+          <FormSelectField
+            name="staffId"
+            label="Select Worker"
+            required
+            placeholder="Choose personnel..."
+            options={staffList.map((s) => ({
+              value: s.id,
+              label: `${s.name} (${s.designation || s.category || "Staff"})`,
+            }))}
+          />
+          <FormSelectField
+            name="leaveType"
+            label="Leave Type"
+            options={LEAVE_TYPES.map((lt) => ({ value: lt, label: `${lt.charAt(0).toUpperCase()}${lt.slice(1)} Leave` }))}
+          />
+          <FormDateField name="startDate" label="Start Date" required />
+          <FormDateField name="endDate" label="End Date" required />
+          <FormTextField
+            name="reason"
+            label="Reason / Handover Notes"
+            placeholder="e.g. Medical emergency, Family wedding"
+            colSpan="full"
+          />
+        </FormDialogEngine>
+      )}
 
       {/* Confirmation Dialog for Leave Approval / Rejection */}
       {confirmAction && (

@@ -163,7 +163,7 @@ export default function OrganizationFinancePage() {
         {/* Tab 4: Parties & Payables */}
         <TabsContent value="payments" className="outline-none m-0">
           {projects.length > 0 && projectSpecificId ? (
-            <PaymentsPage params={Promise.resolve({ id: projectSpecificId })} />
+            <PaymentsPage params={Promise.resolve({ id: projectSpecificId })} embedded />
           ) : (
             <div className="p-8 text-center bg-white rounded-xl border border-border text-xs text-muted-foreground">
               Select an active project site from the dropdown to view party ledgers and payables.
@@ -185,7 +185,7 @@ export default function OrganizationFinancePage() {
         {/* Tab 6: Reports & Compliance */}
         <TabsContent value="tax-summary" className="outline-none m-0">
           {projects.length > 0 && projectSpecificId ? (
-            <TaxSummaryPage params={Promise.resolve({ id: projectSpecificId })} />
+            <TaxSummaryPage params={Promise.resolve({ id: projectSpecificId })} embedded />
           ) : (
             <div className="p-8 text-center bg-white rounded-xl border border-border text-xs text-muted-foreground">
               Select an active project site from the dropdown to view VAT and TDS tax reports.
