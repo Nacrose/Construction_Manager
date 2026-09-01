@@ -29,12 +29,6 @@ import { EditDrawingDialog } from "./dialogs/edit-drawing-dialog";
 import { CreateSetDialog } from "./dialogs/create-set-dialog";
 import { toast } from "sonner";
 
-const DOCS_TABS = [
-  { label: "Drawings", href: "/drawings" },
-  { label: "Photo Progress", href: "/drawings/progress" },
-  { label: "Submittals", href: "/submittals" },
-  { label: "Doc Center", href: "/document-center" },
-];
 
 export default function DrawingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -72,7 +66,7 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={DOCS_TABS} />
+      <ModuleTabs projectId={id} cluster="documents" />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action & Filter Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">

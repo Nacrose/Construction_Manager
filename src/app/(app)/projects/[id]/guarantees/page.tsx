@@ -34,14 +34,6 @@ import { GuaranteeFormDialog } from "./dialogs/guarantee-form-dialog";
 import { ExtendGuaranteeDialog } from "./dialogs/extend-guarantee-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-const CONTRACT_TABS = [
-  { label: "BOQ & Rates", href: "/boq" },
-  { label: "Bank Guarantees & Insurance", href: "/guarantees" },
-  { label: "IPC Certificates", href: "/ipc" },
-  { label: "Variation Orders", href: "/variations" },
-  { label: "RFI / Workflow", href: "/workflow/rfi" },
-  { label: "Submittals", href: "/submittals" },
-];
 
 function fmt(n: number) {
   return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -147,7 +139,7 @@ export default function BankGuaranteesPage({
 
   return (
     <>
-      <ModuleTabs projectId={projectId} tabs={CONTRACT_TABS} />
+      <ModuleTabs projectId={projectId} cluster="contracts" />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action & Filter Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">

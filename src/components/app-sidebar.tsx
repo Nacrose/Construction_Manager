@@ -5,46 +5,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  HardHat, LayoutDashboard, FolderKanban, ClipboardList, ReceiptText,
-  Users, ChevronLeft, Compass, FileSignature, ListChecks, LogOut,
-  Settings, Database, Mail, ShieldAlert, BookOpen, Boxes, ChevronRight,
+  HardHat, ChevronLeft, LogOut, Settings, ShieldAlert, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth, clearAuth, getToken } from "@/lib/client-auth";
+import {
+  GLOBAL_NAV,
+  PROJECT_MODULE_NAV,
+  type SidebarNavItem as NavItem,
+} from "@/lib/nav-registry";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-};
-
-const GLOBAL_NAV: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Inventory Hub", href: "/inventory", icon: Boxes },
-  { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
-  { label: "Drawings Vault", href: "/drawings", icon: Compass },
-  { label: "Correspondence", href: "/correspondence", icon: Mail },
-  { label: "Team & Workspace", href: "/team", icon: Users },
-  { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
-];
-
-const PROJECT_MODULES: NavItem[] = [
-  { label: "Project Overview", href: "", icon: LayoutDashboard },
-  { label: "BoQ & Planning", href: "/boq", icon: ClipboardList },
-  { label: "Workflow & RFIs", href: "/workflow/rfi", icon: ListChecks },
-  { label: "Site Materials", href: "/materials", icon: Boxes },
-  { label: "Site Accounting", href: "/accounting", icon: ReceiptText },
-  { label: "Quality & Safety", href: "/quality", icon: HardHat },
-  { label: "Variation Orders", href: "/variations", icon: FileSignature },
-  { label: "Rate Library", href: "/rate-library", icon: BookOpen },
-];
+// Nav data (GLOBAL_NAV / PROJECT_MODULE_NAV) lives in the nav registry —
+// single source of truth shared with ModuleTabs. This component owns only
+// the rendering.
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -146,7 +124,7 @@ export function AppSidebar() {
               <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-600">
                 Project Modules
               </span>
-              {PROJECT_MODULES.map((item) => {
+              {PROJECT_MODULE_NAV.map((item) => {
                 const Icon = item.icon;
                 const active = isProjectModuleActive(item);
                 const targetUrl = `/projects/${projectId}${item.href}`;

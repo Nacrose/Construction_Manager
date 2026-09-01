@@ -21,10 +21,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ModuleTabs } from "@/components/module-tabs";
 
-const PLANNING_TABS = [
-  { label: "BOQ", href: "/boq" },
-  { label: "Look-Ahead", href: "/look-ahead" },
-];
 
 export default function LookAheadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -37,7 +33,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={PLANNING_TABS} />
+      <ModuleTabs projectId={id} cluster="planning" />
       <div className="space-y-4 pb-8">
         {/* Single-Row Unified Action & Controls Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">

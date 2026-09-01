@@ -19,15 +19,6 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 
-const RES_TABS = [
-  { label: "Materials & Procurement", href: "/materials" },
-  { label: "Resource & Rate Library", href: "/rate-library" },
-  { label: "Equipment & Fleet", href: "/equipment" },
-  { label: "Plant & Production", href: "/production" },
-  { label: "Subcontractors", href: "/subcontractors" },
-  { label: "HR / Staff", href: "/hr" },
-  { label: "Vendors Directory", href: "/vendors" },
-];
 
 function getOverallColor(overall: number) {
   if (overall >= 80) return "text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400";

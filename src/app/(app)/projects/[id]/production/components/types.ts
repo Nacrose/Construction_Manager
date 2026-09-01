@@ -1,14 +1,5 @@
 import { Factory, Flame, Layers, Sliders } from "lucide-react";
 
-export const RES_TABS = [
-  { label: "Materials & Procurement", href: "/materials" },
-  { label: "Resource & Rate Library", href: "/rate-library" },
-  { label: "Equipment & Fleet", href: "/equipment" },
-  { label: "Plant & Production", href: "/production" },
-  { label: "Subcontractors", href: "/subcontractors" },
-  { label: "HR / Staff", href: "/hr" },
-  { label: "Vendors Directory", href: "/vendors" },
-];
 
 export const TICKET_STATUS_STYLES: Record<string, string> = {
   dispatched: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",

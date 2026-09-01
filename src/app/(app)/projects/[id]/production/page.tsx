@@ -9,7 +9,6 @@ import { ModuleTabs } from "@/components/module-tabs";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RES_TABS } from "./components/types";
 import { ProductionDashboardTab } from "./components/ProductionDashboardTab";
 import { DispatchTicketsTab } from "./components/DispatchTicketsTab";
 import { MixDesignsTab } from "./components/MixDesignsTab";
@@ -124,7 +123,7 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
 
   return (
     <AnimatedPage className="space-y-4 pb-12">
-      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <ModuleTabs projectId={id} cluster="resources" />
 
       {/* Single-Row Action & Tab Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
@@ -167,7 +166,7 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* Module navigation tabs */}
-      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <ModuleTabs projectId={id} cluster="resources" />
 
       {/* Main Tabs */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">

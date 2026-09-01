@@ -15,14 +15,6 @@ import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
 import { formatNpr } from "@/lib/currency";
 
-const FIN_TABS = [
-  { label: "Payments", href: "/payments" },
-  { label: "Accounting & Day Book", href: "/accounting" },
-  { label: "IPC Certificates", href: "/ipc" },
-  { label: "Tax Summary", href: "/tax-summary" },
-  { label: "Cash Flow", href: "/cash-flow" },
-  { label: "Budget vs Actual", href: "/budget-variance" },
-];
 
 export default function BudgetVariancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -41,7 +33,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={FIN_TABS} />
+      <ModuleTabs projectId={id} cluster="finance" />
       <AnimatedPage className="space-y-4 pb-8">
 
       {isLoading ? (

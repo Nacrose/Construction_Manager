@@ -28,15 +28,6 @@ import { InterSiteTransfersTab } from "./components/inter-site-transfers-tab";
 import { InterSiteTransferDialog } from "@/components/inventory/inter-site-transfer-dialog";
 import { QuickBuyDialog } from "@/components/inventory/quick-buy-dialog";
 
-const RES_TABS = [
-  { label: "Materials & Procurement", href: "/materials" },
-  { label: "Resource & Rate Library", href: "/rate-library" },
-  { label: "Equipment & Fleet", href: "/equipment" },
-  { label: "Plant & Production", href: "/production" },
-  { label: "Subcontractors", href: "/subcontractors" },
-  { label: "HR / Staff", href: "/hr" },
-  { label: "Vendors Directory", href: "/vendors" },
-];
 
 export default function MaterialsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -171,7 +162,7 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={RES_TABS} />
+      <ModuleTabs projectId={id} cluster="resources" />
       <AnimatedPage>
         <div className="space-y-2.5 pb-12">
           {/* Top Tabs Bar */}
