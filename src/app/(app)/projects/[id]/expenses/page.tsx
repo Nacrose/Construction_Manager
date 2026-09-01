@@ -2,24 +2,30 @@
 
 import { trpc } from "@/lib/trpc-client";
 import { use, useState, useMemo } from "react";
+import { z } from "zod";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Check, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, Check, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { formatNpr } from "@/lib/currency";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { FormDialogEngine } from "@/components/engine/form-dialog-engine";
+import {
+  FormDateField,
+  FormNumberField,
+  FormSelectField,
+  FormTextField,
+} from "@/components/engine/form-fields";
+import { useAction } from "@/hooks/use-action";
 
 const CATEGORIES = ["material", "transport", "labor", "food", "accommodation", "utility", "office", "travel", "other"];
 const PAYMENT_MODES = ["cash", "bank_transfer", "cheque", "mobile"];
@@ -52,6 +58,40 @@ type Stats = {
   totalCount: number;
 };
 
+/** Client-side validation for the New Site Expense dialog (server re-validates). */
+const newExpenseSchema = z.object({
+  category: z.string(),
+  date: z.string(),
+  description: z.string().min(1, "Description is required"),
+  amount: z.number({ message: "Amount is required" }).min(0),
+  vatAmount: z.number().min(0).optional(),
+  paymentMode: z.string(),
+  vendorName: z.string(),
+  referenceNo: z.string(),
+});
+
+type NewExpenseValues = {
+  category: string;
+  date: string;
+  description: string;
+  amount?: number;
+  vatAmount?: number;
+  paymentMode: string;
+  vendorName: string;
+  referenceNo: string;
+};
+
+const emptyExpense: NewExpenseValues = {
+  category: "material",
+  date: "",
+  description: "",
+  amount: undefined,
+  vatAmount: undefined,
+  paymentMode: "cash",
+  vendorName: "",
+  referenceNo: "",
+};
+
 export default function ExpensesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -59,7 +99,7 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const utils = trpc.useUtils();
+  const [receiptFile, setReceiptFile] = useState<{ data: string; name: string } | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const isPM = projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
@@ -85,31 +125,29 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
     }));
   }, [stats]);
 
-  const approveMutation = trpc.siteExpense.approve.useMutation({
-    onSuccess: () => {
-      utils.siteExpense.list.invalidate({ projectId: id });
-      utils.siteExpense.stats.invalidate({ projectId: id });
-      toast.success("Expense approved");
+  // Transition/maintenance actions: useAction owns toast + invalidate + error protocol.
+  const approveMutation = useAction(trpc.siteExpense.approve, {
+    successMessage: "Expense approved",
+    invalidate: (u) => {
+      u.siteExpense.list.invalidate({ projectId: id });
+      u.siteExpense.stats.invalidate({ projectId: id });
     },
-    onError: (e) => toast.error(e.message),
   });
 
-  const rejectMutation = trpc.siteExpense.reject.useMutation({
-    onSuccess: () => {
-      utils.siteExpense.list.invalidate({ projectId: id });
-      utils.siteExpense.stats.invalidate({ projectId: id });
-      toast.success("Expense rejected");
+  const rejectMutation = useAction(trpc.siteExpense.reject, {
+    successMessage: "Expense rejected",
+    invalidate: (u) => {
+      u.siteExpense.list.invalidate({ projectId: id });
+      u.siteExpense.stats.invalidate({ projectId: id });
     },
-    onError: (e) => toast.error(e.message),
   });
 
-  const deleteMutation = trpc.siteExpense.delete.useMutation({
-    onSuccess: () => {
-      utils.siteExpense.list.invalidate({ projectId: id });
-      utils.siteExpense.stats.invalidate({ projectId: id });
-      toast.success("Expense deleted");
+  const deleteMutation = useAction(trpc.siteExpense.delete, {
+    successMessage: "Expense deleted",
+    invalidate: (u) => {
+      u.siteExpense.list.invalidate({ projectId: id });
+      u.siteExpense.stats.invalidate({ projectId: id });
     },
-    onError: (e) => toast.error(e.message),
   });
 
   const columns: ColumnDef<Expense>[] = [
@@ -307,12 +345,9 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
           <Label className="text-xs font-mono">To</Label>
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36 h-8 text-xs font-mono" />
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="h-8 text-xs gap-1.5 font-mono"><Plus className="h-3.5 w-3.5" />New Expense</Button>
-          </DialogTrigger>
-          <NewExpenseDialog projectId={id} onDone={() => setAddOpen(false)} />
-        </Dialog>
+        <Button size="sm" onClick={() => setAddOpen(true)} className="h-8 text-xs gap-1.5 font-mono">
+          <Plus className="h-3.5 w-3.5" />New Expense
+        </Button>
       </div>
 
       {/* Table */}
@@ -321,127 +356,117 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
       ) : (
         <DataTable tableId="expenses-table" columns={columns} data={expenses} searchPlaceholder="Search expenses..." searchColumn="description" />
       )}
+
+      {/* New Site Expense — FormDialogEngine (Tier 2): framing, state, validation,
+          toast, invalidation, close/reset owned by the engine. Receipt file input and
+          the live total readout are page-specific slots via the render-prop children
+          (escape hatch without fork); the receipt blob itself lives in page state
+          because it is a file, not a form field. */}
+      <NewExpenseEngineDialog
+        projectId={id}
+        open={addOpen}
+        onOpenChange={(o) => {
+          setAddOpen(o);
+          if (!o) setReceiptFile(null);
+        }}
+        receiptFile={receiptFile}
+        onReceiptFile={setReceiptFile}
+      />
     </AnimatedPage>
   );
 }
 
-function NewExpenseDialog({ projectId, onDone }: { projectId: string; onDone: () => void }) {
-  const utils = trpc.useUtils();
-  const [category, setCategory] = useState("general");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [vatAmount, setVatAmount] = useState("0");
-  const [paymentMode, setPaymentMode] = useState("cash");
-  const [vendorName, setVendorName] = useState("");
-  const [referenceNo, setReferenceNo] = useState("");
-  const [date, setDate] = useState("");
-  const [receiptFile, setReceiptFile] = useState<{ data: string; name: string } | null>(null);
-
-  const mutation = trpc.siteExpense.create.useMutation({
-    onSuccess: () => {
-      utils.siteExpense.list.invalidate({ projectId });
-      utils.siteExpense.stats.invalidate({ projectId });
-      toast.success("Expense created");
-      onDone();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
+function NewExpenseEngineDialog({
+  projectId,
+  open,
+  onOpenChange,
+  receiptFile,
+  onReceiptFile,
+}: {
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  receiptFile: { data: string; name: string } | null;
+  onReceiptFile: (f: { data: string; name: string } | null) => void;
+}) {
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setReceiptFile({ data: reader.result as string, name: file.name });
+      onReceiptFile({ data: reader.result as string, name: file.name });
     };
     reader.readAsDataURL(file);
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    mutation.mutate({
-      projectId,
-      category,
-      description,
-      amount: parseFloat(amount) || 0,
-      vatAmount: parseFloat(vatAmount) || 0,
-      paymentMode,
-      vendorName: vendorName || undefined,
-      referenceNo: referenceNo || undefined,
-      date: date || undefined,
-      receiptData: receiptFile?.data,
-      receiptName: receiptFile?.name,
-    });
-  };
-
   return (
-    <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
-      <DialogHeader><DialogTitle className="text-white">New Site Expense</DialogTitle></DialogHeader>
-      <form onSubmit={onSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Category *</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
+    <FormDialogEngine
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New Site Expense"
+      description="Log a site purchase or payment. Approved vouchers feed the day book and payables."
+      size="md"
+      initialValues={emptyExpense}
+      schema={newExpenseSchema}
+      mutation={trpc.siteExpense.create}
+      buildInput={(v) => ({
+        projectId,
+        category: v.category,
+        description: v.description,
+        amount: v.amount ?? 0,
+        vatAmount: v.vatAmount ?? 0,
+        paymentMode: v.paymentMode,
+        date: v.date || undefined,
+        vendorName: v.vendorName || undefined,
+        referenceNo: v.referenceNo || undefined,
+        receiptData: receiptFile?.data,
+        receiptName: receiptFile?.name,
+      })}
+      invalidate={(u) => {
+        u.siteExpense.list.invalidate({ projectId });
+        u.siteExpense.stats.invalidate({ projectId });
+      }}
+      successMessage="Expense created"
+      submitLabel="Create Expense"
+    >
+      {(ctx) => (
+        <>
+          <FormSelectField
+            name="category"
+            label="Category"
+            required
+            options={CATEGORIES.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))}
+          />
+          <FormDateField name="date" label="Date" />
+          <FormTextField
+            name="description"
+            label="Description"
+            required
+            placeholder="What was this expense for?"
+            colSpan="full"
+          />
+          <FormNumberField name="amount" label="Amount (NPR)" required min={0} step="0.01" />
+          <FormNumberField name="vatAmount" label="VAT (NPR)" min={0} step="0.01" />
+          <div className="col-span-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#f8fbfe] border border-[#e2edf7] text-xs font-mono">
+            <span className="text-slate-500">Total (incl. VAT)</span>
+            <span className="font-bold text-[#0284c7]">
+              {formatNpr((ctx.values.amount || 0) + (ctx.values.vatAmount || 0))}
+            </span>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
+          <FormSelectField
+            name="paymentMode"
+            label="Payment Mode"
+            options={PAYMENT_MODES.map((m) => ({ value: m, label: m.replace("_", " ") }))}
+          />
+          <FormTextField name="vendorName" label="Vendor / Payee" placeholder="Optional" />
+          <FormTextField name="referenceNo" label="Reference No." placeholder="Optional" />
+          <div className="col-span-full space-y-1.5">
+            <Label className="text-[11px] font-semibold text-slate-700">Receipt Photo</Label>
+            <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs" />
+            {receiptFile && <p className="text-[10px] text-emerald-700 font-mono">{receiptFile.name}</p>}
           </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Description *</Label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="What was this expense for?" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Amount (NPR) *</Label>
-            <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">VAT (NPR)</Label>
-            <Input type="number" value={vatAmount} onChange={(e) => setVatAmount(e.target.value)} min="0" step="0.01" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Total</Label>
-            <Input value={formatNpr((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0))} readOnly className="h-8 text-xs bg-white/10 border-white/10 text-emerald-400 font-mono font-bold" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Payment Mode</Label>
-            <Select value={paymentMode} onValueChange={setPaymentMode}>
-              <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PAYMENT_MODES.map((m) => <SelectItem key={m} value={m} className="capitalize">{m.replace("_", " ")}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Vendor / Payee</Label>
-            <Input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white" />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Reference No.</Label>
-          <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} placeholder="Optional" className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Receipt Photo</Label>
-          <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs bg-white/5 border-white/10 text-white file:text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md file:mr-2" />
-          {receiptFile && <p className="text-xs text-emerald-400 font-mono">{receiptFile.name}</p>}
-        </div>
-        <DialogFooter>
-          <Button type="submit" disabled={mutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
-            {mutation.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-            Create Expense
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
+        </>
+      )}
+    </FormDialogEngine>
   );
 }
