@@ -9,6 +9,10 @@ import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createNotification, notifyProject } from "@/server/utils/notify";
+import {
+  canTransition,
+  transitionEntityState,
+} from "@/server/utils/state-machine";
 import { escapeHtml } from "@/server/utils/email";
 import { deleteFile } from "@/lib/storage";
 import { withOrgContext } from "@/lib/rls";
@@ -339,17 +343,21 @@ const dailyReportCoreRouter = router({
       }
 
       let didApprove = false;
+      let statusChange = false;
+      let targetStatus: string | undefined;
+      const transitionStamps: Record<string, any> = {};
       if (data.status !== undefined && data.status !== report.status) {
         const isAdmin = role === "project_manager" || role === "coordinator";
         const transition = `${report.status}→${data.status}`;
-        const allowed: Record<string, boolean> = {
-          "draft→submitted": isAdmin,
-          "submitted→draft": isAdmin,
-          "submitted→approved": isAdmin,
-          "approved→archived": isAdmin,
-          "approved→submitted": isAdmin,
-        };
-        if (!allowed[transition]) {
+        // Declarative graph check (state-machine.ts) — draft → submitted,
+        // submitted → draft/approved, approved → archived/submitted.
+        if (!canTransition("dailyReport", report.status, data.status).allowed) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Invalid status transition ${transition}.`,
+          });
+        }
+        if (!isAdmin) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `Status transition ${transition} is not permitted for your role.`,
@@ -365,27 +373,43 @@ const dailyReportCoreRouter = router({
         if (data.status === "submitted" || data.status === "approved") {
           await assertNotLocked(ctx.user.organizationId);
         }
-        updateData.status = data.status;
+        statusChange = true;
+        targetStatus = data.status;
         if (data.status === "submitted") {
-          updateData.preparedAt = new Date();
-          updateData.submittedAt = new Date();
-          updateData.submittedById = ctx.user.id;
+          // submittedAt/submittedById are stamped by the engine
+          transitionStamps.preparedAt = new Date();
         }
         if (data.status === "approved") {
-          updateData.approvedAt = new Date();
-          updateData.clientApprovedAt = new Date();
-          updateData.clientApprovedById = ctx.user.id;
+          // approvedAt/approvedById are stamped by the engine
+          transitionStamps.clientApprovedAt = new Date();
+          transitionStamps.clientApprovedById = ctx.user.id;
           didApprove = true;
         }
         if (data.status === "archived") {
-          updateData.archivedAt = new Date();
+          transitionStamps.archivedAt = new Date();
         }
       }
 
-      const updated = await db.dailyReport.update({
-        where: { id: reportId },
-        data: updateData,
-      });
+      const updated = statusChange
+        ? (
+            // Engine transition: CAS on the status we just validated — a
+            // concurrent approval can no longer double-run the material
+            // deduction block below (the loser CONFLICTs and rolls back).
+            await transitionEntityState(db, {
+              model: "dailyReport",
+              id: reportId,
+              projectId: report.projectId,
+              targetState: targetStatus!,
+              additionalData: { ...updateData, ...transitionStamps },
+              userId: ctx.user.id,
+              userName: ctx.user.name,
+              skipEventEmit: true, // explicit notifications below
+            })
+          ).entity
+        : await db.dailyReport.update({
+            where: { id: reportId },
+            data: updateData,
+          });
 
       if (didApprove) {
         const fullReport = await db.dailyReport.findUnique({

@@ -9,6 +9,7 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext, withTenantTx } from "@/lib/rls";
 import { notifyProjectMembers } from "@/server/utils/notify";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 /**
  * IDOR guard: throws FORBIDDEN if `version.projectId !== projectId`.
@@ -301,20 +302,39 @@ export const ganttVersionsRouter = router({
 
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
+
+        // Serialize concurrent approvals of DIFFERENT versions: claim the
+        // currently-active version with a compare-and-swap first. Two PMs
+        // approving two versions at once would otherwise BOTH archive the
+        // old active version and BOTH activate themselves — leaving two
+        // active versions and breaking the one-active-per-project
+        // invariant. The CAS makes the second approval CONFLICT and retry
+        // against the new state of the world.
         if (currentActive) {
-          await tx.ganttVersion.update({
-            where: { id: currentActive.id },
+          const archived = await tx.ganttVersion.updateMany({
+            where: { id: currentActive.id, isActive: true, status: "APPROVED" },
             data: { isActive: false, status: "ARCHIVED" },
           });
+          if (archived.count === 0) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "The active version just changed — reload and retry.",
+            });
+          }
         }
-        await tx.ganttVersion.update({
-          where: { id: input.versionId },
-          data: {
-            status: "APPROVED",
-            isActive: true,
-            approvedAt: new Date(),
-            approvedById: ctx.user.id,
-          },
+
+        // Engine transition: CAS on the DRAFT status kills double-approval
+        // of the same version (approvedAt/approvedById stamped by the
+        // engine; isActive rides additionalData).
+        await transitionEntityState(tx, {
+          model: "ganttVersion",
+          id: input.versionId,
+          projectId: input.projectId,
+          targetState: "APPROVED",
+          additionalData: { isActive: true },
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          skipEventEmit: true, // approval notifies via audit + UI polling
         });
       });
 
@@ -569,21 +589,37 @@ export const ganttVersionsRouter = router({
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
         if (version.revisionOfId) {
-          await tx.ganttVersion.update({
-            where: { id: version.revisionOfId },
+          // Claim-serialize the superseded active version (same rationale
+          // as approveVersion: two concurrent revision approvals must not
+          // both end up active).
+          const archived = await tx.ganttVersion.updateMany({
+            where: { id: version.revisionOfId, isActive: true },
             data: { isActive: false, status: "ARCHIVED", revisionStatus: "ARCHIVED" },
           });
+          if (archived.count === 0) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "The active version just changed — reload and retry.",
+            });
+          }
         }
-        await tx.ganttVersion.update({
-          where: { id: input.versionId },
-          data: {
-            status: "APPROVED",
+
+        // Engine transition (CAS on the DRAFT status) — revisionStatus and
+        // the approval note ride additionalData; approvedAt/approvedById
+        // are stamped by the engine.
+        await transitionEntityState(tx, {
+          model: "ganttVersion",
+          id: input.versionId,
+          projectId: input.projectId,
+          targetState: "APPROVED",
+          additionalData: {
             isActive: true,
             revisionStatus: "APPROVED",
-            approvedAt: new Date(),
-            approvedById: ctx.user.id,
             approvalNote: input.approvalNote,
           },
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          skipEventEmit: true, // notifyProjectMembers below covers comms
         });
       });
 

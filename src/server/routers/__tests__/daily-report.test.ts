@@ -80,6 +80,14 @@ function report(overrides: Record<string, unknown> = {}) {
     createdById: "eng-1",
     reportDate: new Date("2026-01-15T12:00:00.000Z"),
     dayOfWeek: "Thursday",
+    preparedAt: null,
+    submittedAt: null,
+    submittedById: null,
+    approvedAt: null,
+    approvedById: null,
+    clientApprovedAt: null,
+    clientApprovedById: null,
+    archivedAt: null,
     ...overrides,
   };
 }
@@ -330,11 +338,14 @@ describe("dailyReport.updateReport (fields & status machine)", () => {
     const caller = createCaller(dailyReportRouter, PM);
 
     await caller.updateReport({ reportId: "r-1", status: "submitted" });
-    const data = anyDb.dailyReport.update.mock.calls[0][0].data;
+    // Engine CAS contract: updateMany claims the draft status
+    const call = anyDb.dailyReport.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "r-1", status: "draft" });
+    const data = call.data;
     expect(data.status).toBe("submitted");
-    expect(data.submittedAt).toBeInstanceOf(Date);
+    expect(data.submittedAt).toBeInstanceOf(Date); // stamped by the engine
     expect(data.preparedAt).toBeInstanceOf(Date);
-    expect(data.submittedById).toBe("pm-1");
+    expect(data.submittedById).toBe("pm-1"); // stamped by the engine
     // processReportSubmission ran (its report fetch includes workProgress).
     const subCall = anyDb.dailyReport.findUnique.mock.calls.find(
       (c: any[]) => c[0]?.include?.workProgress,
@@ -352,6 +363,7 @@ describe("dailyReport.updateReport (fields & status machine)", () => {
       "BAD_REQUEST",
     );
     expect(anyDb.dailyReport.update).not.toHaveBeenCalled();
+    expect(anyDb.dailyReport.updateMany).not.toHaveBeenCalled();
   });
 
   it("allows the PM to revert approved→submitted (rework loop)", async () => {
@@ -364,7 +376,9 @@ describe("dailyReport.updateReport (fields & status machine)", () => {
     const caller = createCaller(dailyReportRouter, PM);
 
     await caller.updateReport({ reportId: "r-1", status: "submitted" });
-    expect(anyDb.dailyReport.update.mock.calls[0][0].data.status).toBe("submitted");
+    const call = anyDb.dailyReport.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "r-1", status: "approved" });
+    expect(call.data.status).toBe("submitted");
   });
 
   it("approved→archived stamps archivedAt", async () => {
@@ -377,7 +391,9 @@ describe("dailyReport.updateReport (fields & status machine)", () => {
     const caller = createCaller(dailyReportRouter, PM);
 
     await caller.updateReport({ reportId: "r-1", status: "archived" });
-    expect(anyDb.dailyReport.update.mock.calls[0][0].data.archivedAt).toBeInstanceOf(Date);
+    const call = anyDb.dailyReport.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "r-1", status: "approved" });
+    expect(call.data.archivedAt).toBeInstanceOf(Date);
   });
 
   it("FORBIDDENs updates on a report from a foreign project (IDOR)", async () => {
@@ -441,11 +457,13 @@ describe("dailyReport.updateReport (approval inventory deduction)", () => {
 
     await caller.updateReport({ reportId: "r-1", status: "approved" });
 
-    const updateData = anyDb.dailyReport.update.mock.calls[0][0].data;
-    expect(updateData.status).toBe("approved");
-    expect(updateData.approvedAt).toBeInstanceOf(Date);
-    expect(updateData.clientApprovedAt).toBeInstanceOf(Date);
-    expect(updateData.clientApprovedById).toBe("pm-1");
+    // Engine CAS contract: updateMany claims the pre-approve (submitted) status
+    const updateCall = anyDb.dailyReport.updateMany.mock.calls[0][0];
+    expect(updateCall.where).toEqual({ id: "r-1", status: "submitted" });
+    expect(updateCall.data.status).toBe("approved");
+    expect(updateCall.data.approvedAt).toBeInstanceOf(Date); // stamped by the engine
+    expect(updateCall.data.clientApprovedAt).toBeInstanceOf(Date);
+    expect(updateCall.data.clientApprovedById).toBe("pm-1");
 
     const txn = anyDb.materialTransaction.create.mock.calls[0][0].data;
     expect(txn).toEqual(
@@ -492,6 +510,21 @@ describe("dailyReport.updateReport (approval inventory deduction)", () => {
     const caller = createCaller(dailyReportRouter, PM);
 
     await caller.updateReport({ reportId: "r-1", status: "approved" });
+    expect(anyDb.materialTransaction.create).not.toHaveBeenCalled();
+    expect(anyDb.material.update).not.toHaveBeenCalled();
+  });
+
+  it("CONFLICTs when a concurrent approval wins the race — no double deduction (CAS regression)", async () => {
+    approveSetup();
+    // engine CAS matches 0 rows → another approver already transitioned the
+    // report; the material deduction block below must never run.
+    anyDb.dailyReport.updateMany.mockResolvedValue({ count: 0 });
+    const caller = createCaller(dailyReportRouter, PM);
+
+    await expectTRPCError(
+      caller.updateReport({ reportId: "r-1", status: "approved" }),
+      "CONFLICT",
+    );
     expect(anyDb.materialTransaction.create).not.toHaveBeenCalled();
     expect(anyDb.material.update).not.toHaveBeenCalled();
   });

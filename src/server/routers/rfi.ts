@@ -8,6 +8,10 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { createNotification, notifyProject } from "@/server/utils/notify";
+import {
+  canTransition,
+  transitionEntityState,
+} from "@/server/utils/state-machine";
 import { uploadFile, deleteFile } from "@/lib/storage";
 import { withOrgContext } from "@/lib/rls";
 import {
@@ -339,28 +343,46 @@ export const rfiRouter = router({
 
       if (data.status !== undefined && data.status !== rfi.status) {
         const transition = `${rfi.status}→${data.status}`;
-        const allowed: Record<string, boolean> = {
-          "draft→submitted": isWriter,
-          "submitted→approved": isAdmin,
-          "submitted→rejected": isAdmin,
-          "submitted→closed": isAdmin,
-          "approved→closed": isAdmin,
-          "rejected→closed": isAdmin,
-        };
-        if (!allowed[transition]) {
+        // Declarative graph check (state-machine.ts) + role gate: writers
+        // may submit a draft; only admins may decide/close.
+        if (!canTransition("rfi", rfi.status, data.status).allowed) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Invalid status transition ${transition}.`,
+          });
+        }
+        const needsAdmin = data.status !== "submitted";
+        if (needsAdmin ? !isAdmin : !isWriter) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `Status transition ${transition} is not permitted for your role.`,
           });
         }
-        updateData.status = data.status;
         if (data.status === "submitted") updateData.submittedAt = new Date();
         if (["approved", "rejected", "closed"].includes(data.status)) {
           updateData.respondedAt = new Date();
         }
       }
 
-      const updated = await db.rfi.update({ where: { id }, data: updateData });
+      const statusChange =
+        data.status !== undefined && data.status !== rfi.status;
+      const fieldUpdateData = { ...updateData };
+      if (statusChange) delete fieldUpdateData.status; // engine owns the status column (CAS)
+
+      const updated = statusChange
+        ? (
+            await transitionEntityState(db, {
+              model: "rfi",
+              id,
+              projectId: rfi.projectId,
+              targetState: data.status!,
+              additionalData: fieldUpdateData,
+              userId: ctx.user.id,
+              userName: ctx.user.name,
+              skipEventEmit: true, // explicit notifications below
+            })
+          ).entity
+        : await db.rfi.update({ where: { id }, data: updateData });
 
       // Notify on submit — PMs and coordinators need to review (internal + channel)
       if (data.status === "submitted" && rfi.status !== "submitted") {
@@ -570,13 +592,34 @@ export const rfiRouter = router({
             decision: input.decision,
           },
         });
-        await tx.rfi.update({
-          where: { id: input.id },
-          data: {
-            status: input.decision === "approved" ? "approved" : input.decision === "rejected" ? "rejected" : "submitted",
-            respondedAt: new Date(),
-          },
-        });
+        if (input.decision === "approved" || input.decision === "rejected") {
+          // Engine transition: CAS on the submitted status — a concurrent
+          // decision can no longer double-write or double-notify.
+          await transitionEntityState(tx, {
+            model: "rfi",
+            id: input.id,
+            projectId: rfi.projectId,
+            targetState: input.decision,
+            additionalData: { respondedAt: new Date() },
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            skipEventEmit: true, // explicit creator notification below
+          });
+        } else {
+          // Info / clarifications_requested: RFI stays submitted (no graph
+          // transition) — record the response with a CAS guard so a
+          // concurrent decision can't be silently overwritten.
+          const claimed = await tx.rfi.updateMany({
+            where: { id: input.id, status: "submitted" },
+            data: { respondedAt: new Date() },
+          });
+          if (claimed.count === 0) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "RFI status just changed — reload and retry.",
+            });
+          }
+        }
         return [created] as const;
       });
 

@@ -97,18 +97,17 @@ describe("ipc.update status machine", () => {
       caller.update({ ipcId: "ipc-1", status: "paid" }),
       "BAD_REQUEST",
     );
-    expect(anyDb.ipc.update).not.toHaveBeenCalled();
+    expect(anyDb.ipc.updateMany).not.toHaveBeenCalled();
   });
 
   it("allows draft → submitted for any writer", async () => {
     member("engineer");
     anyDb.ipc.findUnique.mockResolvedValue(ipcRow("draft"));
-    anyDb.ipc.update.mockResolvedValue({ id: "ipc-1" });
 
     const caller = createCaller(ipcRouter, ENGINEER);
     await caller.update({ ipcId: "ipc-1", status: "submitted" });
 
-    expect(anyDb.ipc.update).toHaveBeenCalled();
+    expect(anyDb.ipc.updateMany).toHaveBeenCalled();
     expect(anyDb.journalEntry.create).not.toHaveBeenCalled();
   });
 
@@ -120,14 +119,16 @@ describe("ipc.update status machine", () => {
       caller.update({ ipcId: "ipc-1", status: "certified" }),
       "FORBIDDEN",
     );
-    expect(anyDb.ipc.update).not.toHaveBeenCalled();
+    expect(anyDb.ipc.updateMany).not.toHaveBeenCalled();
   });
 
   it("PM certification posts the balanced revenue JE exactly once", async () => {
     member("project_manager");
-    anyDb.ipc.findUnique.mockResolvedValue(ipcRow("submitted"));
-    anyDb.ipc.findUnique // second call: certified IPC totals inside the tx
+    anyDb.ipc.findUnique
+      // 1st: route pre-read, 2nd: engine entity fetch, 3rd: engine re-fetch
       .mockResolvedValueOnce(ipcRow("submitted"))
+      .mockResolvedValueOnce(ipcRow("submitted"))
+      // 4th: certified IPC totals inside the tx (JE block)
       .mockResolvedValue({
         id: "ipc-1",
         number: "IPC-001",
@@ -165,6 +166,21 @@ describe("ipc.update status machine", () => {
     const caller = createCaller(ipcRouter, PM);
     await caller.update({ ipcId: "ipc-1", status: "certified" });
 
+    expect(anyDb.journalEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("CONFLICTs when a concurrent certification wins the race (CAS regression)", async () => {
+    member("project_manager");
+    anyDb.ipc.findUnique.mockResolvedValue(ipcRow("submitted"));
+    // engine CAS matches 0 rows → another user already transitioned the IPC
+    anyDb.ipc.updateMany.mockResolvedValue({ count: 0 });
+
+    const caller = createCaller(ipcRouter, PM);
+    await expectTRPCError(
+      caller.update({ ipcId: "ipc-1", status: "certified" }),
+      "CONFLICT",
+    );
+    // the losing transaction must not post the revenue JE
     expect(anyDb.journalEntry.create).not.toHaveBeenCalled();
   });
 });

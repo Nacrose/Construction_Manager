@@ -46,6 +46,8 @@ function rfi(overrides: Record<string, unknown> = {}) {
     status: "draft",
     createdById: "eng-1",
     workDate: null,
+    submittedAt: null,
+    respondedAt: null,
     ...overrides,
   };
 }
@@ -147,9 +149,11 @@ describe("rfi.update", () => {
     member("project_manager");
     const caller = createCaller(rfiRouter, PM);
     await caller.update({ id: "rfi-1", status: "approved" });
-    const data = anyDb.rfi.update.mock.calls[0][0].data;
-    expect(data.status).toBe("approved");
-    expect(data.respondedAt).toBeInstanceOf(Date);
+    // Engine CAS contract: updateMany claims the submitted status
+    const call = anyDb.rfi.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rfi-1", status: "submitted" });
+    expect(call.data.status).toBe("approved");
+    expect(call.data.respondedAt).toBeInstanceOf(Date);
   });
 
   it("allows draft→submitted for a writer and stamps submittedAt", async () => {
@@ -157,9 +161,10 @@ describe("rfi.update", () => {
     member("engineer");
     const caller = createCaller(rfiRouter, ENGINEER);
     await caller.update({ id: "rfi-1", status: "submitted" });
-    const data = anyDb.rfi.update.mock.calls[0][0].data;
-    expect(data.status).toBe("submitted");
-    expect(data.submittedAt).toBeInstanceOf(Date);
+    const call = anyDb.rfi.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rfi-1", status: "draft" });
+    expect(call.data.status).toBe("submitted");
+    expect(call.data.submittedAt).toBeInstanceOf(Date);
   });
 
   it("rejects transitions outside the whitelist (approved→submitted)", async () => {
@@ -207,7 +212,35 @@ describe("rfi.respond", () => {
     member("project_manager");
     const caller = createCaller(rfiRouter, PM);
     await caller.respond({ ...respondInput, decision: "approved" });
-    expect(anyDb.rfi.update.mock.calls[0][0].data.status).toBe("approved");
+    // Engine CAS contract: updateMany claims the submitted status
+    const call = anyDb.rfi.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rfi-1", status: "submitted" });
+    expect(call.data.status).toBe("approved");
+  });
+
+  it("CONFLICTs when a concurrent decision wins the race (CAS regression)", async () => {
+    anyDb.rfi.findUnique.mockResolvedValue(rfi({ status: "submitted" }));
+    member("project_manager");
+    // engine CAS matches 0 rows → another admin already decided this RFI
+    anyDb.rfi.updateMany.mockResolvedValue({ count: 0 });
+    const caller = createCaller(rfiRouter, PM);
+
+    await expectTRPCError(
+      caller.respond({ ...respondInput, decision: "approved" }),
+      "CONFLICT",
+    );
+  });
+
+  it("update: CONFLICTs when a concurrent decision wins the race (CAS regression)", async () => {
+    anyDb.rfi.findUnique.mockResolvedValue(rfi({ status: "submitted" }));
+    member("project_manager");
+    anyDb.rfi.updateMany.mockResolvedValue({ count: 0 });
+    const caller = createCaller(rfiRouter, PM);
+
+    await expectTRPCError(
+      caller.update({ id: "rfi-1", status: "approved" }),
+      "CONFLICT",
+    );
   });
 
   it("keeps status submitted for decision=info (documented design)", async () => {
@@ -215,7 +248,11 @@ describe("rfi.respond", () => {
     member("coordinator");
     const caller = createCaller(rfiRouter, PM);
     await caller.respond(respondInput);
-    expect(anyDb.rfi.update.mock.calls[0][0].data.status).toBe("submitted");
+    // Info decisions are NOT a graph transition — CAS-guarded respondAt write
+    const call = anyDb.rfi.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "rfi-1", status: "submitted" });
+    expect(call.data.status).toBeUndefined();
+    expect(call.data.respondedAt).toBeInstanceOf(Date);
     expect(anyDb.rfiResponse.create.mock.calls[0][0].data.decision).toBe("info");
   });
 });

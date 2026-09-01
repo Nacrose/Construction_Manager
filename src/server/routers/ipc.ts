@@ -11,6 +11,11 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry, ipcBillingEntry } from "@/lib/journal-entry";
+import {
+  canTransition,
+  getAllowedTransitions,
+  transitionEntityState,
+} from "@/server/utils/state-machine";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -193,27 +198,24 @@ export const ipcRouter = router({
       await assertNotLocked(ctx.user.organizationId, item.issueDate ?? new Date());
 
       // Status transition validation: prevent skipping certification.
-      // Valid transitions:
+      // Declarative graph (state-machine.ts):
       //   draft → submitted → certified → approved → paid
-      // (draft → paid is forbidden — must go through certification first)
-      if (data.status && data.status !== item.status) {
-        const validTransitions: Record<string, string[]> = {
-          draft: ["submitted"],
-          submitted: ["certified", "draft"],
-          certified: ["approved", "submitted"],
-          approved: ["paid", "certified"],
-          paid: [],
-        };
-        const allowed = validTransitions[item.status] || [];
-        if (!allowed.includes(data.status)) {
+      // plus revision back-edges (submitted → draft, certified → submitted,
+      // approved → certified). draft → paid is forbidden — certification
+      // must come first.
+      const nextStatus = data.status;
+      const statusChange = !!nextStatus && nextStatus !== item.status;
+      if (nextStatus && nextStatus !== item.status) {
+        if (!canTransition("ipc", item.status, nextStatus).allowed) {
+          const allowed = getAllowedTransitions("ipc", item.status);
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: `Cannot transition IPC from "${item.status}" to "${data.status}". Valid transitions: ${allowed.join(", ") || "none (terminal state)"}.`,
+            message: `Cannot transition IPC from "${item.status}" to "${nextStatus}". Valid transitions: ${allowed.join(", ") || "none (terminal state)"}.`,
           });
         }
 
         // Only project managers/coordinators can certify/approve/pay.
-        if (["certified", "approved", "paid"].includes(data.status)) {
+        if (["certified", "approved", "paid"].includes(nextStatus)) {
           const role = await assertProjectMember(ctx.user, item.projectId);
           if (role !== "project_manager" && role !== "coordinator") {
             throw new TRPCError({
@@ -243,13 +245,32 @@ export const ipcRouter = router({
         updateData.isBillAttached = true;
       }
 
+      // The engine owns the status column on transitions (CAS-guarded);
+      // everything else rides additionalData.
+      delete updateData.status;
+
       const final = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
-        const _updated = await tx.ipc.update({
-          where: { id: ipcId },
-          data: updateData,
-          include: { items: true, subcontractor: { select: { name: true } } },
-        });
+        if (statusChange) {
+          // Engine transition: CAS on the status we validated — a concurrent
+          // certify/approve can no longer double-fire the journal entry
+          // below (the loser's whole transaction rolls back).
+          await transitionEntityState(tx, {
+            model: "ipc",
+            id: ipcId,
+            projectId: item.projectId,
+            targetState: nextStatus!,
+            additionalData: updateData,
+            userId: ctx.user.id,
+            userName: ctx.user.name,
+            skipEventEmit: true, // IPC status changes are audited below
+          });
+        } else {
+          await tx.ipc.update({
+            where: { id: ipcId },
+            data: updateData,
+          });
+        }
         await recalculateIpc(tx, ipcId);
 
         // When the IPC transitions to "certified", generate the journal
