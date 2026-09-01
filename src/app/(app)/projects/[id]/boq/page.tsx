@@ -22,6 +22,7 @@ import { BoqFilterChips } from "./components/boq-filter-chips";
 import { BoqTable } from "./components/boq-table";
 import { RateAnalysisInspector } from "./components/rate-analysis-inspector";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 
 export default function BoqPage({
   params,
@@ -29,13 +30,7 @@ export default function BoqPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      }
-    >
+    <Suspense fallback={<AppLoadingScreen />}>
       <BoqPageContent params={params} />
     </Suspense>
   );

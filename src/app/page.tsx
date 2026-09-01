@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { getToken, fetchWithAuth } from "@/lib/client-auth";
+import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function RootPage() {
   const [status, setStatus] = useState<"checking" | "setting-up" | "ready" | "error">("checking");
@@ -96,40 +99,36 @@ export default function RootPage() {
   }, []);
 
   if (status === "checking") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-navy-radial">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-          <p className="mt-3 text-sm text-white/70">Loading Construction Manager…</p>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (status === "setting-up") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-navy-radial">
-        <div className="text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-          <p className="mt-3 text-sm text-white/70">{message}</p>
-          <p className="mt-1 text-xs text-white/40">This only happens once.</p>
-        </div>
-      </div>
+      <AppLoadingScreen
+        message={message}
+        submessage="This one-time initialization will complete shortly."
+      />
     );
   }
 
   if (status === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-navy-radial p-4">
-        <div className="max-w-md text-center">
-          <h1 className="text-xl font-semibold text-amber-400">Setup Error</h1>
-          <p className="mt-2 text-sm text-white/70">{message}</p>
-          <button
+      <div className="flex min-h-screen items-center justify-center bg-[#eef5fc] p-4">
+        <div className="max-w-md w-full bg-white border border-[#c7d8e8] shadow-2xl rounded-2xl p-7 text-center space-y-4">
+          <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-base font-bold text-slate-900 font-sans">Setup & Initialization Notice</h1>
+            <p className="text-xs text-slate-600 font-sans leading-relaxed">{message}</p>
+          </div>
+          <Button
             onClick={() => window.location.reload()}
-            className="mt-4 rounded-lg bg-amber-gradient px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity"
+            className="amber-cta-btn w-full gap-2"
           >
+            <RefreshCw className="h-4 w-4" />
             Try Again
-          </button>
+          </Button>
         </div>
       </div>
     );

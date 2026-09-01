@@ -6,6 +6,7 @@ import { AppDock } from "@/components/app-dock";
 import { ChatPiP } from "@/components/chat-pip";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { getToken, clearAuth, fetchWithAuth } from "@/lib/client-auth";
+import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 
 /**
  * AppGuard — client-side route protection for the (app) route group.
@@ -98,14 +99,7 @@ export function AppGuard({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (state === "loading") {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="space-y-4 text-center">
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent shadow-[0_0_12px_var(--primary-glow)]" />
-          <p className="text-xs font-mono text-primary tracking-wider">INITIALIZING CONTRACTOR OS…</p>
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   if (state === "unauthed") {

@@ -20,10 +20,11 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { setAuth } from "@/lib/client-auth";
 import { GlowOrb, MagneticButton } from "@/components/ui/motion";
+import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" /></div>}>
+    <Suspense fallback={<AppLoadingScreen />}>
       <LoginScene />
     </Suspense>
   );
