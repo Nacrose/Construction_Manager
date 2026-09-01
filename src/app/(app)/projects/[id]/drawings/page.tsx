@@ -75,15 +75,15 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={DOCS_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search drawing number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+              <Input placeholder="Search drawing number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl" />
             </div>
             <Select value={discipline} onValueChange={setDiscipline}>
-              <SelectTrigger className="h-9 w-36 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectTrigger className="h-9 w-36 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 <SelectItem value="all">All disciplines</SelectItem>
                 <SelectItem value="civil">Civil</SelectItem>
                 <SelectItem value="structural">Structural</SelectItem>
@@ -93,21 +93,21 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
               </SelectContent>
             </Select>
             <Select value={setId} onValueChange={setSetId}>
-              <SelectTrigger className="h-9 w-40 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectTrigger className="h-9 w-40 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 <SelectItem value="all">All sets</SelectItem>
                 {sets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} ({s._count.drawings})</SelectItem>)}
                 <SelectItem value="none">Unassigned</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#121820] border-white/10 text-gray-300 hover:text-white rounded-xl" onClick={() => setCreateSetOpen(true)}>
+            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-700 hover:text-slate-900 rounded-xl" onClick={() => setCreateSetOpen(true)}>
               <FolderPlus className="h-3.5 w-3.5 mr-1" /> New Set
             </Button>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
                 <Plus className="h-3.5 w-3.5" /> + Upload Drawing
               </Button>
             </DialogTrigger>

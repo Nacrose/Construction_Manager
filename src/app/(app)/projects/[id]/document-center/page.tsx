@@ -110,7 +110,7 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
             const count = allDocs.filter(d => d.type === key).length;
             const Icon = cfg.icon;
             return (
-              <Card key={key} className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl">
+              <Card key={key} className="p-3 text-center bg-white border-[#c7d8e8] rounded-xl">
                 <Icon className={cn("h-4 w-4 mx-auto mb-1", cfg.color)} />
                 <div className={cn("text-lg font-bold font-mono", cfg.color)}>{count}</div>
                 <div className="text-[9px] text-muted-foreground uppercase font-mono">{cfg.label}</div>
@@ -120,15 +120,15 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
         </div>
 
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
           <div className="flex items-center gap-2 flex-1 max-w-md">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search document number, title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+              <Input placeholder="Search document number, title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl" />
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-9 w-40 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectTrigger className="h-9 w-40 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="daily_report">Daily Reports</SelectItem>
                 <SelectItem value="rfi">RFIs</SelectItem>
@@ -140,8 +140,8 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
             </Select>
           </div>
 
-          <div className="text-xs font-mono text-gray-400">
-            <span>Total: <span className="font-bold text-white">{filtered.length}</span> Documents</span>
+          <div className="text-xs font-mono text-slate-500">
+            <span>Total: <span className="font-bold text-slate-900">{filtered.length}</span> Documents</span>
           </div>
         </div>
 

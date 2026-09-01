@@ -56,8 +56,8 @@ export function OrgDayBookTab() {
         header: "Date (Miti / AD)",
         render: (_val, row) => (
           <div>
-            <div className="font-bold text-white leading-tight">{row.miti || "—"}</div>
-            <div className="text-[10px] text-gray-400 leading-tight">
+            <div className="font-bold text-slate-900 leading-tight">{row.miti || "—"}</div>
+            <div className="text-[10px] text-slate-500 leading-tight">
               {format(new Date(row.date), "yyyy-MM-dd")}
             </div>
           </div>
@@ -67,7 +67,7 @@ export function OrgDayBookTab() {
         key: "projectCode",
         header: "Project",
         render: (val) => (
-          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-emerald-400">
+          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-[#c7d8e8] text-[#0284c7]">
             {val || "HO"}
           </Badge>
         ),
@@ -75,7 +75,7 @@ export function OrgDayBookTab() {
       {
         key: "voucherNo",
         header: "Voucher #",
-        className: "font-bold text-emerald-400",
+        className: "font-bold text-[#0284c7]",
       },
       {
         key: "voucherType",
@@ -88,9 +88,9 @@ export function OrgDayBookTab() {
         className: "font-sans",
         render: (val, row) => (
           <div>
-            <div className="font-semibold text-white truncate max-w-md text-xs">{val}</div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400 font-mono">
-              <span className="bg-[#121820] px-1.5 py-0.2 rounded text-emerald-400 border border-white/5 font-semibold">
+            <div className="font-semibold text-slate-900 truncate max-w-md text-xs">{val}</div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
+              <span className="bg-[#f8fbfe] px-1.5 py-0.2 rounded text-[#0284c7] border border-[#e2edf7] font-semibold">
                 {row.accountHead}
               </span>
               {row.partyPan && <span>PAN: {row.partyPan}</span>}
@@ -101,7 +101,7 @@ export function OrgDayBookTab() {
       {
         key: "paymentMode",
         header: "Mode",
-        render: (val) => <span className="capitalize text-gray-300">{val?.replace(/_/g, " ") || "—"}</span>,
+        render: (val) => <span className="capitalize text-slate-700">{val?.replace(/_/g, " ") || "—"}</span>,
       },
       {
         key: "debit",
@@ -116,14 +116,14 @@ export function OrgDayBookTab() {
         header: "Credit (Cr)",
         align: "right",
         summary: "sum",
-        className: "text-emerald-400 font-bold",
+        className: "text-[#0284c7] font-bold",
         render: (val) => (val > 0 ? formatNpr(val) : "—"),
       },
       {
         key: "runningBalance",
         header: "Balance",
         align: "right",
-        className: "font-bold font-mono text-white",
+        className: "font-bold font-mono text-slate-900",
         render: (val) => formatNpr(val),
       },
     ],
@@ -187,10 +187,10 @@ export function OrgDayBookTab() {
             {/* Project Selector */}
             <div className="w-44">
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="h-8 text-xs bg-[#121820] text-white rounded-lg border-white/10">
+                <SelectTrigger className="h-8 text-xs bg-[#f8fbfe] text-slate-900 rounded-lg border-[#c7d8e8]">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-white/10 text-xs text-white">
+                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
                   <SelectItem value="all">🌐 All Projects</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -204,10 +204,10 @@ export function OrgDayBookTab() {
             {/* Voucher Type Filter */}
             <div className="w-36">
               <Select value={voucherType} onValueChange={setVoucherType}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#121820] border-white/10 text-white rounded-lg">
+                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-lg">
                   <SelectValue placeholder="All Vouchers" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
+                <SelectContent className="bg-white border-emerald-500/30 text-xs text-slate-900">
                   <SelectItem value="all">All Vouchers</SelectItem>
                   <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
                   <SelectItem value="billing">Inflows / Receipts</SelectItem>

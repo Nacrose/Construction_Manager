@@ -85,20 +85,20 @@ export function AttachmentDropzone({
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      {label && <label className="text-xs text-gray-300 font-medium block">{label}</label>}
+      {label && <label className="text-xs text-slate-700 font-medium block">{label}</label>}
 
       {value ? (
-        <div className="relative flex items-center justify-between p-3 rounded-xl bg-[#121820] border border-white/10 group">
+        <div className="relative flex items-center justify-between p-3 rounded-xl bg-white border border-[#c7d8e8] group">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="h-10 w-10 shrink-0 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               {isPdf ? <FileText className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
             </div>
             <div className="truncate text-xs">
-              <div className="font-medium text-white flex items-center gap-1.5">
+              <div className="font-medium text-slate-900 flex items-center gap-1.5">
                 <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
                 <span>Attachment Attached</span>
               </div>
-              <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
                 {isPdf ? "PDF Document" : "Image File"}
               </p>
             </div>
@@ -110,7 +110,7 @@ export function AttachmentDropzone({
               size="sm"
               variant="outline"
               onClick={() => setPreviewOpen(true)}
-              className="h-8 px-2.5 text-xs gap-1 font-mono bg-transparent border-white/10 text-gray-300 hover:text-white"
+              className="h-8 px-2.5 text-xs gap-1 font-mono bg-transparent border-[#c7d8e8] text-slate-700 hover:text-slate-900"
             >
               <Eye className="h-3.5 w-3.5 text-emerald-400" />
               Preview
@@ -138,7 +138,7 @@ export function AttachmentDropzone({
           onDrop={handleDrop}
           onClick={() => !disabled && fileInputRef.current?.click()}
           className={cn(
-            "relative flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-dashed border-white/10 bg-[#0c1015] hover:border-emerald-500/40 hover:bg-white/[0.02] cursor-pointer transition-all text-center",
+            "relative flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-dashed border-[#c7d8e8] bg-white hover:border-emerald-500/40 hover:bg-white/[0.02] cursor-pointer transition-all text-center",
             isDragging && "border-emerald-500 bg-emerald-500/5",
             disabled && "opacity-50 cursor-not-allowed"
           )}
@@ -153,17 +153,17 @@ export function AttachmentDropzone({
           />
 
           {isUploading ? (
-            <div className="flex items-center gap-2 text-xs text-gray-400 font-mono py-2">
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-mono py-2">
               <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
               Uploading & Processing Attachment...
             </div>
           ) : (
             <>
-              <UploadCloud className="h-6 w-6 text-gray-400 mb-1 group-hover:text-emerald-400 transition-colors" />
-              <p className="text-xs font-semibold text-white">
+              <UploadCloud className="h-6 w-6 text-slate-500 mb-1 group-hover:text-emerald-400 transition-colors" />
+              <p className="text-xs font-semibold text-slate-900">
                 Drag &amp; drop file here, or <span className="text-emerald-400 underline">browse</span>
               </p>
-              <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5">
                 Supports PDF, JPG, PNG up to {maxSizeMb}MB
               </p>
             </>
@@ -178,19 +178,19 @@ export function AttachmentDropzone({
       {/* Preview Modal */}
       {previewOpen && value && (
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-w-3xl bg-[#0c1015] border-white/10 text-white">
+          <DialogContent className="max-w-3xl bg-white border-[#c7d8e8] text-slate-900 shadow-2xl">
             <DialogHeader>
               <DialogTitle className="text-sm font-bold">Attachment Preview</DialogTitle>
             </DialogHeader>
             <div className="mt-2 flex items-center justify-center max-h-[70vh] overflow-auto">
               {isPdf ? (
-                <iframe src={value} className="w-full h-[65vh] rounded-lg border border-white/10" />
+                <iframe src={value} className="w-full h-[65vh] rounded-lg border border-[#c7d8e8]" />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={value}
                   alt="Attachment Preview"
-                  className="max-h-[65vh] w-auto object-contain rounded-lg border border-white/10"
+                  className="max-h-[65vh] w-auto object-contain rounded-lg border border-[#c7d8e8]"
                 />
               )}
             </div>

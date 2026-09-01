@@ -36,19 +36,19 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Timeline Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
             <span>Forecast Horizon:</span>
-            <span className="font-bold text-emerald-400">{months} Months</span>
+            <span className="font-bold text-[#0284c7]">{months} Months</span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-mono">Period:</span>
             <Select value={String(months)} onValueChange={(v) => setMonths(parseInt(v))}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl font-mono">
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl font-mono">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs font-mono">
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
                 <SelectItem value="6">6 months</SelectItem>
                 <SelectItem value="12">12 months</SelectItem>
                 <SelectItem value="18">18 months</SelectItem>

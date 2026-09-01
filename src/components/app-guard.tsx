@@ -2,86 +2,55 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AppDock } from "@/components/app-dock";
+import { AppSidebar } from "@/components/app-sidebar";
 import { ChatPiP } from "@/components/chat-pip";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { getToken, clearAuth, fetchWithAuth } from "@/lib/client-auth";
 import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
-
-/**
- * AppGuard — client-side route protection for the (app) route group.
- *
- * Performance: If a token is already present in localStorage, we render
- * the app shell IMMEDIATELY and verify the token in the background.
- * If verification fails, we redirect to /login then. This eliminates
- * the "blank spinner" delay on every page navigation for authed users.
- *
- * Security notes:
- * - If no token is found (or background verification fails), the user
- *   is redirected to /login.
- * - There is NO auto-login fallback.
- * - Client-side guarding is convenience only. Server-side enforcement
- *   lives in the API routes and tRPC routers via src/lib/auth.ts and
- *   src/lib/authz.ts.
- */
 import { SiteTelemetryTicker } from "@/components/site-telemetry-ticker";
-import { CommandPalette } from "@/components/command-palette";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
-import { useUserPreferences } from "@/components/user-preferences-provider";
-import type { DockPosition } from "@/components/app-dock";
+import { CommandPalette } from "@/components/command-palette";
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { getPref } = useUserPreferences();
-  const [state, setState] = useState<"loading" | "authed" | "unauthed">(
-    () => (typeof window !== "undefined" && getToken() ? "authed" : "loading")
-  );
+  const [state, setState] = useState<"loading" | "authed" | "unauthed">(() => {
+    if (typeof window === "undefined") return "loading";
+    const token = getToken();
+    return token ? "authed" : "unauthed";
+  });
 
   useEffect(() => {
     let cancelled = false;
+    const token = getToken();
+    if (!token) {
+      setState("unauthed");
+      window.location.href = "/login";
+      return;
+    }
 
-    // Safety timeout: never stay in loading state longer than 2.5s
     const timeout = setTimeout(() => {
-      if (cancelled) return;
-      const token = getToken();
-      if (token) {
-        setState("authed");
-      } else {
+      if (!cancelled) {
+        clearAuth();
         setState("unauthed");
         window.location.href = "/login";
       }
-    }, 2500);
+    }, 10000);
 
     async function check() {
-      const token = getToken();
-
-      if (!token) {
-        if (!cancelled) {
-          clearTimeout(timeout);
-          setState("unauthed");
-          window.location.href = "/login";
-        }
-        return;
-      }
-
       try {
         const res = await fetchWithAuth("/api/auth/me");
         if (cancelled) return;
         clearTimeout(timeout);
-        if (res.ok || res.status === 503) {
+        if (res.ok) {
           setState("authed");
-        } else if (res.status === 401 || res.status === 403) {
+        } else {
           clearAuth();
           setState("unauthed");
           window.location.href = "/login";
-        } else {
-          // Other responses (e.g. 500), keep authed for offline resiliency
-          setState("authed");
         }
       } catch {
         if (cancelled) return;
         clearTimeout(timeout);
-        // If network error, still allow authed state if token exists
         if (getToken()) {
           setState("authed");
         } else {
@@ -106,37 +75,26 @@ export function AppGuard({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const dockPosition = getPref<DockPosition>("dockPosition", "bottom");
-  const dockAutoHide = getPref<boolean>("dockAutoHide", false);
-
-  // When auto-hide is off, allocate gutter so the dock never overlays main content
-  const dockPadding = dockAutoHide
-    ? "pb-24"
-    : dockPosition === "left"
-    ? "pl-20 sm:pl-24 pr-3 sm:pr-5 lg:pr-6 pb-12"
-    : dockPosition === "right"
-    ? "pr-20 sm:pr-24 pl-3 sm:pl-5 lg:pl-6 pb-12"
-    : dockPosition === "top"
-    ? "pt-20 px-3 sm:px-5 lg:px-6 pb-12"
-    : "px-3 sm:px-5 lg:px-6 pb-24";
-
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-transparent relative z-10">
-      {/* Top Telemetry & Status Ticker */}
-      <SiteTelemetryTicker />
+    <div className="h-screen flex overflow-hidden bg-[#eef5fc] relative z-10">
+      {/* Permanent Left Sidebar */}
+      <AppSidebar />
 
-      {/* Impersonation banner (shown only while a superadmin is impersonating) */}
-      <ImpersonationBanner />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top Telemetry & Status Ticker */}
+        <SiteTelemetryTicker />
 
-      {/* Floating command dock */}
-      <AppDock />
+        {/* Impersonation banner (shown only while a superadmin is impersonating) */}
+        <ImpersonationBanner />
 
-      {/* Full-screen scrollable content area */}
-      <main className="flex-1 overflow-y-auto">
-        <div className={`mx-auto w-full max-w-[1920px] py-4 ${dockPadding}`}>
-          {children}
-        </div>
-      </main>
+        {/* Full-screen scrollable main container */}
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="mx-auto w-full max-w-[1920px]">
+            {children}
+          </div>
+        </main>
+      </div>
 
       {/* Global Command Palette [Cmd+K] */}
       <CommandPalette />

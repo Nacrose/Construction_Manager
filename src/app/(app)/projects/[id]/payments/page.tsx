@@ -169,20 +169,20 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <div className="space-y-3 pb-8">
         {/* Compact Top Summary Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 rounded-xl border border-white/10 bg-[#000000] text-xs font-mono">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-[#000000] text-xs font-mono">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Total Payables:</span>
+              <span className="text-slate-500">Total Payables:</span>
               <span className="font-bold text-red-400">NPR {fmt(summary.totalDue)}</span>
             </div>
             <div className="h-3 w-[1px] bg-white/10" />
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Vendors Due:</span>
+              <span className="text-slate-500">Vendors Due:</span>
               <span className="font-bold text-amber-400">NPR {fmt(summary.totalVendorDue)}</span>
             </div>
             <div className="h-3 w-[1px] bg-white/10" />
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Subs & Staff Due:</span>
+              <span className="text-slate-500">Subs & Staff Due:</span>
               <span className="font-bold text-blue-400">NPR {fmt(summary.totalSubcontractorDue + summary.totalStaffDue)}</span>
             </div>
           </div>
@@ -195,10 +195,10 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
               size="sm"
               variant="outline"
               onClick={() => setIsCompact(!isCompact)}
-              className="h-7 px-2 text-[11px] gap-1 font-mono bg-[#121820] text-gray-300 border-white/10 hover:text-white rounded-lg"
+              className="h-7 px-2 text-[11px] gap-1 font-mono bg-[#f8fbfe] text-slate-700 border-[#c7d8e8] hover:text-slate-900 rounded-lg"
               title={isCompact ? "Switch to Comfortable View" : "Switch to Compact View"}
             >
-              <LayoutList className="h-3 w-3 text-emerald-400" />
+              <LayoutList className="h-3 w-3 text-[#0284c7]" />
               {isCompact ? "Compact" : "Comfortable"}
             </Button>
           </div>
@@ -207,18 +207,18 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
         {/* 2-Column Khatabook Split Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           {/* Left Column: Parties Directory (4 cols) */}
-          <div className="lg:col-span-4 space-y-3 rounded-2xl border border-white/10 bg-[#0c1015] p-3.5">
-            <div className="flex items-center justify-between pb-2 border-b border-white/5">
-              <span className="text-xs font-bold text-white uppercase tracking-wider">
+          <div className="lg:col-span-4 space-y-3 rounded-2xl border border-[#c7d8e8] bg-white p-3.5">
+            <div className="flex items-center justify-between pb-2 border-b border-[#e2edf7]">
+              <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                 Suppliers & Contractors ({filteredParties.length})
               </span>
             </div>
 
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
               <Input
                 placeholder="Search party by name or PAN..."
-                className="pl-8 h-9 text-xs bg-[#121820] text-white rounded-xl border-white/10 focus:border-emerald-400"
+                className="pl-8 h-9 text-xs bg-[#f8fbfe] text-slate-900 rounded-xl border-[#c7d8e8] focus:border-emerald-400"
                 value={searchParty}
                 onChange={(e) => setSearchParty(e.target.value)}
               />
@@ -226,7 +226,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
 
             <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-1 custom-scrollbar">
               {filteredParties.length === 0 ? (
-                <div className="py-12 text-center text-xs text-gray-400">
+                <div className="py-12 text-center text-xs text-slate-500">
                   No parties found matching "{searchParty}"
                 </div>
               ) : (
@@ -240,15 +240,15 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                       className={cn(
                         "w-full text-left p-3 rounded-xl border transition-all text-xs flex items-center justify-between group",
                         isSelected
-                          ? "bg-emerald-500/10 border-emerald-500/40 text-white shadow-[0_0_15px_rgba(0,255,102,0.06)]"
-                          : "border-white/5 bg-[#121820]/60 hover:bg-[#121820] text-gray-300 hover:text-white"
+                          ? "bg-emerald-500/10 border-emerald-500/40 text-slate-900 shadow-[0_0_15px_rgba(0,255,102,0.06)]"
+                          : "border-[#e2edf7] bg-[#f8fbfe]/60 hover:bg-[#f8fbfe] text-slate-700 hover:text-slate-900"
                       )}
                     >
                       <div className="space-y-1 min-w-0 pr-2">
-                        <div className="font-semibold truncate text-white flex items-center gap-1.5">
+                        <div className="font-semibold truncate text-slate-900 flex items-center gap-1.5">
                           {p.name}
                         </div>
-                        <div className="text-[10px] text-gray-400 truncate font-mono">
+                        <div className="text-[10px] text-slate-500 truncate font-mono">
                           {p.type === "vendor"
                             ? "Material Supplier"
                             : p.type === "subcontractor"
@@ -259,7 +259,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white/5 border border-white/10 text-gray-300">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white/5 border border-[#c7d8e8] text-slate-700">
                           View खाता →
                         </span>
                       </div>
@@ -271,19 +271,19 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
           </div>
 
           {/* Right Column: Statement of Account / Bahi Khata (8 cols) */}
-          <div className="lg:col-span-8 rounded-2xl border border-white/10 bg-[#0c1015] p-5 flex flex-col min-h-[620px]">
+          <div className="lg:col-span-8 rounded-2xl border border-[#c7d8e8] bg-white p-5 flex flex-col min-h-[620px]">
             {activeParty ? (
               <div className="space-y-4 flex-1 flex flex-col">
                 {/* Party Header Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border border-emerald-500/20 bg-[#121820]">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border border-emerald-500/20 bg-[#f8fbfe]">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-white tracking-tight">{activeParty.name}</h2>
-                      <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                      <h2 className="text-lg font-bold text-slate-900 tracking-tight">{activeParty.name}</h2>
+                      <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-[#0284c7] bg-emerald-500/10">
                         {activeParty.type.toUpperCase()}
                       </Badge>
                     </div>
-                    <p className="text-xs text-gray-400 font-mono">
+                    <p className="text-xs text-slate-500 font-mono">
                       {activeParty.pan ? `PAN: ${activeParty.pan}` : "Statement of Account (बही खाता)"}
                     </p>
                   </div>
@@ -293,9 +293,9 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                       size="sm"
                       variant="outline"
                       onClick={handleExportStatement}
-                      className="h-8 text-xs bg-[#0c1015] text-gray-300 border-white/10 hover:text-white rounded-lg gap-1.5"
+                      className="h-8 text-xs bg-white text-slate-700 border-[#c7d8e8] hover:text-slate-900 rounded-lg gap-1.5"
                     >
-                      <Download className="h-3 w-3 text-emerald-400" /> Export Excel
+                      <Download className="h-3 w-3 text-[#0284c7]" /> Export Excel
                     </Button>
                     <Button
                       size="sm"
@@ -312,7 +312,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                         });
                         setRecordPaymentOpen(true);
                       }}
-                      className="h-8 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.3)] transition gap-1"
+                      className="h-8 text-xs font-bold amber-cta-btn rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.3)] transition gap-1"
                     >
                       Pay Now (भुक्तानी)
                     </Button>
@@ -320,20 +320,20 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                 </div>
 
                 {/* Live Running Statement Table */}
-                <div className="flex-1 overflow-x-auto rounded-xl border border-white/10 bg-[#121820]">
+                <div className="flex-1 overflow-x-auto rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
                   {statementLoading ? (
-                    <div className="p-16 text-center text-xs text-gray-400">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-emerald-400" />
+                    <div className="p-16 text-center text-xs text-slate-500">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-[#0284c7]" />
                       Loading statement...
                     </div>
                   ) : transactions.length === 0 ? (
-                    <div className="p-16 text-center text-xs text-gray-400">
+                    <div className="p-16 text-center text-xs text-slate-500">
                       <FileText className="h-8 w-8 mx-auto text-gray-600 mb-2" />
                       No bills or payment transactions recorded yet for this party.
                     </div>
                   ) : (
                     <table className="w-full text-left text-xs font-mono">
-                      <thead className="border-b border-white/10 bg-[#0c1015] uppercase text-[10px] text-gray-400">
+                      <thead className="border-b border-[#c7d8e8] bg-white uppercase text-[10px] text-slate-500">
                         <tr>
                           <th className={cn(isCompact ? "px-3 py-1.5" : "px-3 py-3")}>Date (BS/AD)</th>
                           <th className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>Voucher #</th>
@@ -348,40 +348,40 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                         {transactions.map((t, idx) => (
                           <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                             <td className={cn(isCompact ? "px-3 py-1.5" : "px-3 py-2.5")}>
-                              <div className="font-bold text-white leading-tight">{t.miti || "—"}</div>
-                              <div className="text-[10px] text-gray-400 leading-tight">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "—"}</div>
+                              <div className="font-bold text-slate-900 leading-tight">{t.miti || "—"}</div>
+                              <div className="text-[10px] text-slate-500 leading-tight">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "—"}</div>
                             </td>
-                            <td className={cn("font-bold text-emerald-400", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2.5")}>{t.voucherNo}</td>
+                            <td className={cn("font-bold text-[#0284c7]", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2.5")}>{t.voucherNo}</td>
                             <td className={cn(isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
-                              <Badge variant="outline" className="text-[10px] bg-white/5 border-white/10 text-gray-300 font-mono py-0 px-1.5 h-5">
+                              <Badge variant="outline" className="text-[10px] bg-white/5 border-[#c7d8e8] text-slate-700 font-mono py-0 px-1.5 h-5">
                                 {t.voucherType}
                               </Badge>
                             </td>
-                            <td className={cn("font-sans font-medium text-white truncate max-w-sm", isCompact ? "px-3 py-1.5 text-xs" : "px-4 py-2.5")}>{t.particulars}</td>
-                            <td className={cn("text-right font-bold text-emerald-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
+                            <td className={cn("font-sans font-medium text-slate-900 truncate max-w-sm", isCompact ? "px-3 py-1.5 text-xs" : "px-4 py-2.5")}>{t.particulars}</td>
+                            <td className={cn("text-right font-bold text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
                               {t.debit > 0 ? fmt(t.debit) : "—"}
                             </td>
                             <td className={cn("text-right font-bold text-red-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
                               {t.credit > 0 ? fmt(t.credit) : "—"}
                             </td>
-                            <td className={cn("text-right font-bold font-mono text-white", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
+                            <td className={cn("text-right font-bold font-mono text-slate-900", isCompact ? "px-2.5 py-1.5" : "px-3 py-2.5")}>
                               {fmt(t.runningBalance)}
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot className="border-t-2 border-white/10 bg-[#0c1015] font-bold text-white">
+                      <tfoot className="border-t-2 border-[#c7d8e8] bg-white font-bold text-slate-900">
                         <tr>
                           <td colSpan={4} className={cn("text-right uppercase", isCompact ? "px-3 py-1.5 text-xs" : "px-4 py-3")}>
                             Total / Net Balance (जम्मा):
                           </td>
-                          <td className={cn("text-right text-emerald-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
+                          <td className={cn("text-right text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
                             NPR {fmt(totalDebit)}
                           </td>
                           <td className={cn("text-right text-red-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
                             NPR {fmt(totalCredit)}
                           </td>
-                          <td className={cn("text-right font-bold", closingBalance >= 0 ? "text-red-400" : "text-emerald-400", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
+                          <td className={cn("text-right font-bold", closingBalance >= 0 ? "text-red-400" : "text-[#0284c7]", isCompact ? "px-2.5 py-1.5" : "px-3 py-3")}>
                             NPR {fmt(Math.abs(closingBalance))} {closingBalance >= 0 ? "(Dr Due)" : "(Cr Adv)"}
                           </td>
                         </tr>
@@ -391,7 +391,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-xs text-gray-400">
+              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-xs text-slate-500">
                 <Users className="h-10 w-10 text-gray-600 mb-2" />
                 Select a party from the left directory to view their live statement of account.
               </div>

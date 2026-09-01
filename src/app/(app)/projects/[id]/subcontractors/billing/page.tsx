@@ -167,7 +167,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as any)} className="w-full">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <TabsList className="grid grid-cols-3 w-full sm:w-[540px] bg-[#121820] border border-white/10 p-1 rounded-xl">
+              <TabsList className="grid grid-cols-3 w-full sm:w-[540px] bg-[#f8fbfe] border border-[#c7d8e8] p-1 rounded-xl">
                 <TabsTrigger value="bills" className="text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
                   <ReceiptText className="h-3.5 w-3.5" /> Bills Register
                 </TabsTrigger>
@@ -180,7 +180,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
               </TabsList>
 
               {canWrite && (
-                <Button size="sm" onClick={() => setCreateOpen(true)} className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
+                <Button size="sm" onClick={() => setCreateOpen(true)} className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
                   <Plus className="h-3.5 w-3.5" /> + New Subcontractor Bill
                 </Button>
               )}
@@ -342,7 +342,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-6 text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
+                                  className="h-6 text-[10px] text-emerald-700 dark:text-[#0284c7] border-emerald-300 dark:border-emerald-800 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
                                   onClick={() => setVerifyBillId(bill.id)}
                                 >
                                   <ShieldCheck className="h-3 w-3" /> Verify
@@ -702,7 +702,7 @@ function BillDetailView({
         {bill.status === "draft" && canWrite && (
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-slate-900"
             onClick={() => submitMut.mutate({ projectId, billId: bill.id })}
             disabled={submitMut.isPending}
           >
@@ -713,7 +713,7 @@ function BillDetailView({
         {onVerify && (bill.status === "submitted" || bill.status === "verified") && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold"
+            className="bg-emerald-600 hover:bg-emerald-700 text-slate-900 gap-1.5 font-semibold"
             onClick={onVerify}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
@@ -723,7 +723,7 @@ function BillDetailView({
         {bill.status === "certified" && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 text-slate-900"
             onClick={() => {
               const remaining = bill.netPayable - bill.paidAmount;
               markPaidMut.mutate({ projectId, billId: bill.id, amount: remaining });
@@ -956,7 +956,7 @@ function CreateBillDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={createMut.isPending}>Cancel</Button>
-          <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white" onClick={handleSubmit} disabled={createMut.isPending}>
+          <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-slate-900" onClick={handleSubmit} disabled={createMut.isPending}>
             {createMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Plus className="h-3.5 w-3.5 mr-1.5" />}
             Create Bill
           </Button>

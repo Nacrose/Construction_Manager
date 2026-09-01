@@ -54,11 +54,11 @@ export function ConfirmDialog({
   const getButtonClass = () => {
     switch (variant) {
       case "destructive":
-        return "bg-rose-600 hover:bg-rose-700 text-white font-bold";
+        return "bg-rose-600 hover:bg-rose-700 text-slate-900 font-bold";
       case "warning":
-        return "bg-amber-600 hover:bg-amber-700 text-white font-bold";
+        return "bg-amber-600 hover:bg-amber-700 text-slate-900 font-bold";
       case "success":
-        return "bg-emerald-600 hover:bg-emerald-700 text-white font-bold";
+        return "bg-emerald-600 hover:bg-emerald-700 text-slate-900 font-bold";
       default:
         return "bg-primary hover:bg-primary/90 text-primary-foreground font-bold";
     }
@@ -66,16 +66,16 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="bg-[#0c1015] border border-white/10 text-white max-w-md p-6 backdrop-blur-md shadow-2xl">
+      <AlertDialogContent className="bg-white border border-[#c7d8e8] text-slate-900 shadow-2xl max-w-md p-6 backdrop-blur-md shadow-2xl">
         <AlertDialogHeader>
           <div className="flex items-start gap-3">
             {getIcon()}
             <div className="space-y-1 text-left">
-              <AlertDialogTitle className="text-base font-bold text-white leading-snug">
+              <AlertDialogTitle className="text-base font-bold text-slate-900 leading-snug">
                 {title}
               </AlertDialogTitle>
               {description && (
-                <AlertDialogDescription className="text-xs text-gray-300 leading-relaxed">
+                <AlertDialogDescription className="text-xs text-slate-700 leading-relaxed">
                   {description}
                 </AlertDialogDescription>
               )}
@@ -83,10 +83,10 @@ export function ConfirmDialog({
           </div>
         </AlertDialogHeader>
 
-        <AlertDialogFooter className="gap-2 pt-3 border-t border-white/10 mt-2">
+        <AlertDialogFooter className="gap-2 pt-3 border-t border-[#c7d8e8] mt-2">
           <AlertDialogCancel
             disabled={isLoading}
-            className="text-xs bg-transparent border-white/10 text-gray-300 hover:text-white hover:bg-white/5 h-8 px-3"
+            className="text-xs bg-transparent border-[#c7d8e8] text-slate-700 hover:text-slate-900 hover:bg-slate-50 h-8 px-3"
           >
             {cancelLabel}
           </AlertDialogCancel>

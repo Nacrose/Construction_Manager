@@ -67,7 +67,7 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
               <ArrowDownLeft className="h-4 w-4" />
             </span>
           ) : (
-            <span className="inline-flex items-center text-emerald-400 font-mono text-xs" title="Outgoing">
+            <span className="inline-flex items-center text-[#0284c7] font-mono text-xs" title="Outgoing">
               <ArrowUpRight className="h-4 w-4" />
             </span>
           ),
@@ -157,22 +157,22 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             <StatCard label="Total" value={statsData.total} icon={Mail} color="text-slate-400" />
             <StatCard label="Incoming" value={statsData.incoming} icon={ArrowDownLeft} color="text-blue-400" />
-            <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-emerald-400" />
+            <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-[#0284c7]" />
             <StatCard label="Actionable" value={statsData.actionable} icon={FileText} color="text-amber-400" />
             <StatCard label="Overdue" value={statsData.overdue} icon={AlertTriangle} color="text-red-400" urgent={statsData.overdue > 0} />
           </div>
         )}
 
         {/* Action Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-            <Mail className="h-4 w-4 text-emerald-400" />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+            <Mail className="h-4 w-4 text-[#0284c7]" />
             <span>Official Site Correspondence &amp; Notices</span>
           </div>
 
           <Dialog open={logOpen} onOpenChange={setLogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-mono">
+              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-mono">
                 <Plus className="h-3.5 w-3.5" /> Log Letter
               </Button>
             </DialogTrigger>

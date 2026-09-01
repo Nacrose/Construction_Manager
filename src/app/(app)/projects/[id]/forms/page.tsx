@@ -27,15 +27,15 @@ export default function FormsPage() {
 
   return (
     <AnimatedPage className="space-y-4 pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
         <Tabs defaultValue="p" className="w-full">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList className="bg-[#121820] border border-white/10 p-1 rounded-xl">
+            <TabsList className="bg-[#f8fbfe] border border-[#c7d8e8] p-1 rounded-xl">
               <TabsTrigger value="p" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><BarChart3 className="mr-1.5 h-3.5 w-3.5" /> Form P (Progress)</TabsTrigger>
               <TabsTrigger value="m" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><FileText className="mr-1.5 h-3.5 w-3.5" /> Form M (Materials)</TabsTrigger>
               <TabsTrigger value="l" className="text-xs font-semibold data-[state=active]:bg-amber-500 data-[state=active]:text-black"><Users className="mr-1.5 h-3.5 w-3.5" /> Form L (Labor)</TabsTrigger>
             </TabsList>
-            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#121820] border-white/10 text-gray-300 hover:text-white rounded-xl" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-700 hover:text-slate-900 rounded-xl" onClick={() => window.print()}>
               <Printer className="mr-1.5 h-3.5 w-3.5" /> Print Ma Le Pa
             </Button>
           </div>

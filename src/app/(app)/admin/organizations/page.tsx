@@ -72,17 +72,17 @@ export default function AdminOrganizations() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> New Organization</Button>
           </DialogTrigger>
-          <DialogContent className="!max-w-4xl sm:!max-w-4xl w-[90vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
-            <DialogHeader className="pb-3 border-b border-white/10">
+          <DialogContent className="!max-w-4xl sm:!max-w-4xl w-[90vw] border-[#c7d8e8] bg-white/98 backdrop-blur-2xl p-6 shadow-2xl text-slate-900 rounded-2xl">
+            <DialogHeader className="pb-3 border-b border-[#c7d8e8]">
               <div className="flex items-center justify-between">
                 <div>
-                  <DialogTitle className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                  <DialogTitle className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
                     Create Contractor Organization
-                    <span className="text-[10px] font-mono font-normal text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span className="text-[10px] font-mono font-normal text-[#0284c7] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                       नयाँ कम्पनी दर्ता
                     </span>
                   </DialogTitle>
-                  <DialogDescription className="text-xs text-gray-400 mt-0.5">
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
                     Provision contractor workspace and assign the primary Organization Administrator.
                   </DialogDescription>
                 </div>
@@ -113,16 +113,16 @@ export default function AdminOrganizations() {
               <TableBody>
                 {data?.orgs.map((o) => (
                   <TableRow key={o.id}>
-                    <TableCell className="font-medium text-sm text-white">{o.name}</TableCell>
+                    <TableCell className="font-medium text-sm text-slate-900">{o.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground font-mono">{o.code}</TableCell>
                     <TableCell>
                       <Badge variant={o.status === "active" ? "default" : "secondary"}>{o.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-gray-300">
+                    <TableCell className="text-xs text-slate-700">
                       {o.orgScale === "single_project_jv" ? "Single Dedicated Project" : "Multi-Project Firm"}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <span className="text-emerald-400 font-mono text-[11px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span className="text-[#0284c7] font-mono text-[11px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         {o.financeLocation === "centralized"
                           ? "HQ Imprest + Bulk Central"
                           : o.financeLocation === "site_autonomous"
@@ -165,9 +165,9 @@ export default function AdminOrganizations() {
       </Card>
 
       <Dialog open={!!editOrg} onOpenChange={(o) => !o && setEditOrg(null)}>
-        <DialogContent className="!max-w-3xl sm:!max-w-3xl w-[85vw] border-white/10 bg-[#0b0f17]/98 backdrop-blur-2xl p-6 shadow-2xl text-white rounded-2xl">
-          <DialogHeader className="pb-3 border-b border-white/10">
-            <DialogTitle className="text-lg font-bold tracking-tight text-white">Edit Organization Profile</DialogTitle>
+        <DialogContent className="!max-w-3xl sm:!max-w-3xl w-[85vw] border-[#c7d8e8] bg-white/98 backdrop-blur-2xl p-6 shadow-2xl text-slate-900 rounded-2xl">
+          <DialogHeader className="pb-3 border-b border-[#c7d8e8]">
+            <DialogTitle className="text-lg font-bold tracking-tight text-slate-900">Edit Organization Profile</DialogTitle>
           </DialogHeader>
           {editOrg && (
             <EditOrgForm org={editOrg} mut={updateMut} />
@@ -233,104 +233,104 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
       {/* 16:10 Landscape Proportional Grid (2 Balanced Columns) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         {/* Left Column: Organization Entity */}
-        <div className="space-y-3 bg-[#121820]/40 p-4 rounded-xl border border-white/5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+        <div className="space-y-3 bg-[#f8fbfe]/40 p-4 rounded-xl border border-[#e2edf7]">
+          <div className="flex items-center justify-between pb-1.5 border-b border-[#e2edf7]">
+            <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">
               1. Organization Profile
             </span>
-            <span className="text-[10px] text-emerald-400 font-mono">कम्पनी विवरण</span>
+            <span className="text-[10px] text-[#0284c7] font-mono">कम्पनी विवरण</span>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Company Name (कम्पनीको नाम) *</Label>
+            <Label className="text-xs font-semibold text-slate-800">Company Name (कम्पनीको नाम) *</Label>
             <Input
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g. Anturam Construction Pvt. Ltd."
-              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-medium focus:border-emerald-500"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-medium focus:border-emerald-500"
               autoFocus
             />
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-200">Workspace Domain *</Label>
-              <div className="flex items-center rounded-md border border-white/10 bg-[#0b0f17] px-2.5 h-9 focus-within:border-emerald-500">
+              <Label className="text-xs font-semibold text-slate-800">Workspace Domain *</Label>
+              <div className="flex items-center rounded-md border border-[#c7d8e8] bg-white px-2.5 h-9 focus-within:border-emerald-500">
                 <span className="text-gray-500 font-mono text-xs mr-0.5">@</span>
                 <input
                   value={domain}
                   onChange={(e) => setDomain(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
                   placeholder="anturam"
-                  className="w-full bg-transparent text-xs text-emerald-400 font-mono focus:outline-none"
+                  className="w-full bg-transparent text-xs text-[#0284c7] font-mono focus:outline-none"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-gray-200">Company Code</Label>
+              <Label className="text-xs font-semibold text-slate-800">Company Code</Label>
               <Input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="e.g. ACPL"
-                className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white font-mono uppercase"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono uppercase"
               />
             </div>
           </div>
-          <p className="text-[10px] text-gray-400">
-            Team members will log in using <code className="text-emerald-400 font-mono font-bold">username@{domain || "domain"}</code>
+          <p className="text-[10px] text-slate-500">
+            Team members will log in using <code className="text-[#0284c7] font-mono font-bold">username@{domain || "domain"}</code>
           </p>
         </div>
 
         {/* Right Column: Organization Administrator Account */}
-        <div className="space-y-3 bg-[#121820]/40 p-4 rounded-xl border border-white/5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
-            <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+        <div className="space-y-3 bg-[#f8fbfe]/40 p-4 rounded-xl border border-[#e2edf7]">
+          <div className="flex items-center justify-between pb-1.5 border-b border-[#e2edf7]">
+            <span className="text-[11px] font-bold text-slate-900 uppercase tracking-wider">
               2. Primary Admin Login
             </span>
             <span className="text-[10px] text-blue-400 font-mono">प्रशासक खाता</span>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Admin Full Name *</Label>
+            <Label className="text-xs font-semibold text-slate-800">Admin Full Name *</Label>
             <Input
               value={adminName}
               onChange={(e) => setAdminName(e.target.value)}
               placeholder="e.g. Aakash Dhakal"
-              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-blue-500"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Admin Login Identity *</Label>
-            <div className="flex items-center rounded-md border border-white/10 bg-[#0b0f17] px-2.5 h-9 focus-within:border-blue-500">
+            <Label className="text-xs font-semibold text-slate-800">Admin Login Identity *</Label>
+            <div className="flex items-center rounded-md border border-[#c7d8e8] bg-white px-2.5 h-9 focus-within:border-blue-500">
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
                 placeholder="admin"
-                className="w-1/2 bg-transparent text-xs text-white font-medium focus:outline-none"
+                className="w-1/2 bg-transparent text-xs text-slate-900 font-medium focus:outline-none"
               />
-              <span className="text-gray-400 font-mono text-[11px] border-l border-white/10 pl-2 ml-auto">
+              <span className="text-slate-500 font-mono text-[11px] border-l border-[#c7d8e8] pl-2 ml-auto">
                 @{domain || "domain"}
               </span>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-gray-200">Initial Password (८+ अक्षर) *</Label>
+            <Label className="text-xs font-semibold text-slate-800">Initial Password (८+ अक्षर) *</Label>
             <Input
               type="password"
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
               placeholder="Min. 8 characters"
-              className="h-9 text-xs bg-[#0b0f17] border-white/10 text-white focus:border-blue-500"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-blue-500"
             />
           </div>
         </div>
       </div>
 
-      <DialogFooter className="pt-3 border-t border-white/10 mt-3 flex items-center justify-between sm:justify-between">
-        <div className="text-[11px] text-gray-400">
-          Admin will sign in as <span className="text-emerald-400 font-mono font-bold">{fullAdminEmail}</span>
+      <DialogFooter className="pt-3 border-t border-[#c7d8e8] mt-3 flex items-center justify-between sm:justify-between">
+        <div className="text-[11px] text-slate-500">
+          Admin will sign in as <span className="text-[#0284c7] font-mono font-bold">{fullAdminEmail}</span>
         </div>
         <Button
           disabled={mut.isPending || !isFormValid}
@@ -370,20 +370,20 @@ function EditOrgForm({
     <div className="space-y-4 pt-3 font-sans text-xs">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
         <div className="md:col-span-2 space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-200">Company Name *</Label>
+          <Label className="text-xs font-semibold text-slate-800">Company Name *</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-10 text-xs bg-[#121820] border-white/10 text-white font-medium"
+            className="h-10 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 font-medium"
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-200">Status</Label>
+          <Label className="text-xs font-semibold text-slate-800">Status</Label>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="h-10 text-xs bg-[#121820] border-white/10 text-white">
+            <SelectTrigger className="h-10 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f141c] border-white/10 text-xs">
+            <SelectContent className="bg-white border-[#c7d8e8] text-xs">
               <SelectItem value="active">Active (सक्रिय)</SelectItem>
               <SelectItem value="archived">Archived (संग्रहित)</SelectItem>
             </SelectContent>
@@ -391,7 +391,7 @@ function EditOrgForm({
         </div>
       </div>
 
-      <DialogFooter className="pt-3 border-t border-white/10 mt-2">
+      <DialogFooter className="pt-3 border-t border-[#c7d8e8] mt-2">
         <Button
           disabled={mut.isPending || !name.trim()}
           onClick={() =>

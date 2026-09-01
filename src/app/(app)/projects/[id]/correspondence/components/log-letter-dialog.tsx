@@ -91,10 +91,10 @@ export function LogLetterDialog({ projectId, onDone }: { projectId?: string; onD
           <div className="space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
             <Label className="text-xs font-semibold text-blue-300">Target Project (आयोजना) *</Label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+              <SelectTrigger className="h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900">
                 <SelectValue placeholder="Select target project..." />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} ({p.code})

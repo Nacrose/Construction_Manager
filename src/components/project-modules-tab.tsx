@@ -102,14 +102,14 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white">Contractor Scale & Operational Presets</h3>
+            <h3 className="text-sm font-bold text-slate-900">Contractor Scale & Operational Presets</h3>
           </div>
           {canManage && dirty && (
             <Button
               size="sm"
               onClick={handleSave}
               disabled={updateModules.isPending}
-              className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md"
+              className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold shadow-md"
             >
               <Save className="h-3.5 w-3.5" />
               Save Configuration
@@ -130,27 +130,27 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                   "p-3.5 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between",
                   isCurrent
                     ? "border-emerald-500/60 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/40"
-                    : "border-white/10 bg-[#0c1015] hover:border-white/20 hover:bg-white/[0.02]"
+                    : "border-[#c7d8e8] bg-white hover:border-[#0284c7] hover:bg-white/[0.02]"
                 )}
               >
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">{meta.icon}</span>
-                      <span className="text-xs font-bold text-white">{meta.title}</span>
+                      <span className="text-xs font-bold text-slate-900">{meta.title}</span>
                     </div>
                     {isCurrent && (
                       <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                     )}
                   </div>
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     {meta.subtitle}
                   </p>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-400">
+                <div className="mt-3 pt-2 border-t border-[#e2edf7] flex items-center justify-between text-[10px] text-slate-500">
                   <span>{presetKey === "record_keeper" ? "11 Core + Equipment" : presetKey === "lean" ? "11 Core + Lookahead" : "All 24 Enterprise Tools"}</span>
-                  <span className={cn("font-medium", isCurrent ? "text-emerald-400 font-bold" : "text-gray-400")}>
+                  <span className={cn("font-medium", isCurrent ? "text-emerald-400 font-bold" : "text-slate-500")}>
                     {isCurrent ? "Active Preset" : "Click to Apply"}
                   </span>
                 </div>
@@ -165,7 +165,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Layers className="h-4 w-4 text-emerald-400" />
-            <span className="font-semibold text-white">Granular Feature Switchboard</span>
+            <span className="font-semibold text-slate-900">Granular Feature Switchboard</span>
             <span>— Fine-tune any individual module on or off</span>
           </div>
 
@@ -175,11 +175,11 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                 copyModules.mutate({ targetProjectId: projectId, sourceProjectId: sourceId })
               }
             >
-              <SelectTrigger className="h-8 w-[190px] text-xs bg-[#161d26] border-white/10 text-white">
-                <Copy className="h-3 w-3 mr-1.5 text-gray-400" />
+              <SelectTrigger className="h-8 w-[190px] text-xs bg-white border-[#c7d8e8] text-slate-900">
+                <Copy className="h-3 w-3 mr-1.5 text-slate-500" />
                 <SelectValue placeholder="Copy from project…" />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 {otherProjects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
@@ -194,10 +194,10 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
         <div className="space-y-4">
           {Array.from(grouped.entries()).map(([group, mods]) => (
             <div key={group} className="space-y-1.5">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 font-bold px-1">
+              <p className="text-[11px] font-mono uppercase tracking-wider text-slate-500 font-bold px-1">
                 {group}
               </p>
-              <div className="rounded-xl border border-white/10 divide-y divide-white/10 bg-[#0c1015] overflow-hidden">
+              <div className="rounded-xl border border-[#c7d8e8] divide-y divide-white/10 bg-white overflow-hidden">
                 {mods.map((mod) => {
                   const enabled = isModuleEnabled(localModules, mod.key);
                   return (
@@ -210,7 +210,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-white">
+                          <span className="text-xs font-semibold text-slate-900">
                             {mod.label}
                           </span>
                           {mod.core ? (
@@ -219,7 +219,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                               Core Pillar (Locked ON)
                             </Badge>
                           ) : enabled ? (
-                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] text-gray-300 border-white/10">
+                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] text-slate-700 border-[#c7d8e8]">
                               Active
                             </Badge>
                           ) : (
@@ -228,7 +228,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                             </Badge>
                           )}
                         </div>
-                        <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                           {mod.description}
                         </p>
                       </div>

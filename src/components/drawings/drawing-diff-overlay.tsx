@@ -85,10 +85,10 @@ export function DrawingDiffOverlay({
 
   if (!baseSrc || !compareSrc) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center text-xs text-gray-400 bg-black/40 rounded-xl border border-white/10 font-mono">
+      <div className="flex flex-col items-center justify-center p-8 text-center text-xs text-slate-500 bg-white rounded-xl border border-[#c7d8e8] font-mono">
         <AlertCircle className="h-8 w-8 text-amber-400 mb-2" />
-        <p className="font-semibold text-white">Cannot compare revisions</p>
-        <p className="text-gray-400 mt-1">
+        <p className="font-semibold text-slate-900">Cannot compare revisions</p>
+        <p className="text-slate-500 mt-1">
           Both the Base Revision (Rev {baseRevisionTag}) and Comparison Revision (Rev {compareRevisionTag}) must have previewable drawing files.
         </p>
       </div>
@@ -98,14 +98,14 @@ export function DrawingDiffOverlay({
   return (
     <div className="flex flex-col w-full h-full select-none">
       {/* Top Diff Controls Toolbar */}
-      <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-2 bg-[#0c1015]/95 border-b border-white/10 backdrop-blur-md z-20">
-        <div className="flex items-center gap-1 bg-[#161d26] p-1 rounded-xl border border-white/10">
+      <div className="shrink-0 flex items-center justify-between gap-3 px-3 py-2 bg-white/95 border-b border-[#c7d8e8] backdrop-blur-md z-20">
+        <div className="flex items-center gap-1 bg-[#f8fbfe] p-1 rounded-xl border border-[#c7d8e8]">
           <Button
             size="sm"
             variant={mode === "overlay" ? "default" : "ghost"}
             className={cn(
               "h-7 text-xs gap-1.5 font-mono",
-              mode === "overlay" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "text-gray-400"
+              mode === "overlay" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "text-slate-500"
             )}
             onClick={() => handleModeChange("overlay")}
             title="Chromatic Red/Green Bluebeam Overlay Diff"
@@ -119,12 +119,12 @@ export function DrawingDiffOverlay({
             variant={mode === "swipe" ? "default" : "ghost"}
             className={cn(
               "h-7 text-xs gap-1.5 font-mono",
-              mode === "swipe" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "text-gray-400"
+              mode === "swipe" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40" : "text-slate-500"
             )}
             onClick={() => handleModeChange("swipe")}
             title="Interactive Wipe Curtain Split Slider"
           >
-            <SplitSquareVertical className="h-3.5 w-3.5 text-cyan-400" />
+            <SplitSquareVertical className="h-3.5 w-3.5 text-[#0284c7]" />
             Wipe Curtain
           </Button>
 
@@ -133,7 +133,7 @@ export function DrawingDiffOverlay({
             variant={mode === "side_by_side" ? "default" : "ghost"}
             className={cn(
               "h-7 text-xs gap-1.5 font-mono",
-              mode === "side_by_side" ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-gray-400"
+              mode === "side_by_side" ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "text-slate-500"
             )}
             onClick={() => handleModeChange("side_by_side")}
             title="Dual Synchronized Side-by-Side View"
@@ -155,32 +155,32 @@ export function DrawingDiffOverlay({
                 <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 inline-block shadow-[0_0_8px_#22d3ee]" />
                 <span className="text-cyan-300 font-bold">Rev {compareRevisionTag} (Added / New)</span>
               </div>
-              <div className="flex items-center gap-1.5 text-gray-400">
+              <div className="flex items-center gap-1.5 text-slate-500">
                 <span className="h-2.5 w-2.5 rounded-full bg-gray-600 inline-block" />
                 <span>Unchanged (Matched)</span>
               </div>
             </div>
           ) : mode === "swipe" ? (
-            <div className="flex items-center gap-2 text-gray-300">
+            <div className="flex items-center gap-2 text-slate-700">
               <span className="text-red-400 font-bold">◄ Left: Rev {baseRevisionTag}</span>
               <span className="text-gray-500">|</span>
-              <span className="text-cyan-400 font-bold">Right: Rev {compareRevisionTag} ►</span>
+              <span className="text-[#0284c7] font-bold">Right: Rev {compareRevisionTag} ►</span>
             </div>
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-red-400 font-bold">Left Panel: Rev {baseRevisionTag}</span>
-              <span className="text-cyan-400 font-bold">Right Panel: Rev {compareRevisionTag}</span>
+              <span className="text-[#0284c7] font-bold">Right Panel: Rev {compareRevisionTag}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Main Diff Display Area */}
-      <div className="flex-1 overflow-auto bg-[#080b0f] flex items-center justify-center p-4 relative">
+      <div className="flex-1 overflow-auto bg-[#eef5fc] flex items-center justify-center p-4 relative">
         {mode === "overlay" && (
           <div
             style={{ transform: `scale(${zoom})`, transition: "transform 0.15s ease-out" }}
-            className="relative inline-block max-w-full max-h-full shadow-2xl rounded border border-white/20 bg-white"
+            className="relative inline-block max-w-full max-h-full shadow-2xl rounded border border-[#0284c7] bg-white"
           >
             {/* Base Revision (Rev A - Red filter) */}
             <img
@@ -225,7 +225,7 @@ export function DrawingDiffOverlay({
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             style={{ transform: `scale(${zoom})`, transition: "transform 0.15s ease-out" }}
-            className="relative inline-block max-w-full max-h-full shadow-2xl rounded border border-white/20 overflow-hidden cursor-ew-resize select-none bg-white"
+            className="relative inline-block max-w-full max-h-full shadow-2xl rounded border border-[#0284c7] overflow-hidden cursor-ew-resize select-none bg-white"
           >
             {/* Compare Revision (Rev B - Right Layer / Full Background) */}
             <img
@@ -247,7 +247,7 @@ export function DrawingDiffOverlay({
                 alt={`Rev ${baseRevisionTag}`}
                 className="w-full h-full object-contain"
               />
-              <div className="absolute top-2 left-2 px-2 py-1 rounded bg-red-500/80 backdrop-blur-md text-white font-mono font-bold text-[10px] shadow">
+              <div className="absolute top-2 left-2 px-2 py-1 rounded bg-red-500/80 backdrop-blur-md text-slate-900 font-mono font-bold text-[10px] shadow">
                 Rev {baseRevisionTag} (Baseline)
               </div>
             </div>
@@ -272,7 +272,7 @@ export function DrawingDiffOverlay({
           >
             {/* Panel 1: Base Revision */}
             <div className="relative rounded-xl border border-red-500/30 bg-white p-1 shadow-xl overflow-hidden">
-              <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-red-500/90 text-white font-mono font-bold text-[10px] shadow">
+              <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-red-500/90 text-slate-900 font-mono font-bold text-[10px] shadow">
                 Rev {baseRevisionTag} (Baseline)
               </div>
               <img

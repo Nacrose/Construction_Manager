@@ -212,7 +212,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
         align: "right",
         render: (_val, row) => (
           <div className="text-[11px] font-mono">
-            <p className="text-emerald-600 dark:text-emerald-400">+13% VAT: {formatNpr(row.vatAmount)}</p>
+            <p className="text-emerald-600 dark:text-[#0284c7]">+13% VAT: {formatNpr(row.vatAmount)}</p>
             <p className="text-amber-600 dark:text-amber-400">-1.5% TDS: {formatNpr(row.tdsAmount)}</p>
           </div>
         ),
@@ -230,7 +230,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
         header: "Paid Amount",
         align: "right",
         summary: "sum",
-        className: "font-mono font-semibold text-emerald-600 dark:text-emerald-400",
+        className: "font-mono font-semibold text-emerald-600 dark:text-[#0284c7]",
         render: (val) => formatNpr(val),
       },
       {
@@ -286,7 +286,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
 
         <Card className="border border-border/80 shadow-sm bg-gradient-to-br from-emerald-50/50 to-background dark:from-emerald-950/20 dark:to-card">
           <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+            <CardDescription className="text-xs font-semibold text-emerald-600 dark:text-[#0284c7] uppercase tracking-wider">
               Total Settled / Paid
             </CardDescription>
             <CardTitle className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
@@ -332,10 +332,10 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
           <div className="flex items-center gap-2">
             <div className="w-32">
               <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#121820] border-white/10 text-white rounded-lg">
+                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-lg">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
+                <SelectContent className="bg-white border-emerald-500/30 text-xs">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
                   <SelectItem value="partially_paid">Partially Paid</SelectItem>
@@ -347,7 +347,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
             <Button
               size="sm"
               onClick={() => setCreateBillOpen(true)}
-              className="h-8 px-3 text-xs font-semibold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
+              className="h-8 px-3 text-xs font-semibold amber-cta-btn rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
             >
               <Plus className="h-3 w-3" /> Register Bill
             </Button>
@@ -412,7 +412,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
                     <Scale className="h-4 w-4" />
                     <span>3-Way PO &amp; GRN Verification</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/30">
+                  <Badge variant="outline" className="text-[10px] text-[#0284c7] border-emerald-500/30">
                     Linked PO #{matchData.po.number}
                   </Badge>
                 </div>
@@ -507,7 +507,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
                   <span>Taxable Base:</span>
                   <span>{formatNpr(grossAmount)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                <div className="flex justify-between text-emerald-600 dark:text-[#0284c7]">
                   <span>+ {vatPercent}% VAT:</span>
                   <span>+{formatNpr((grossAmount * vatPercent) / 100)}</span>
                 </div>

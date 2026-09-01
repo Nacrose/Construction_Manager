@@ -184,7 +184,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
       {
         key: "number",
         header: "IPC Running Bill",
-        className: "font-bold text-white font-sans",
+        className: "font-bold text-slate-900 font-sans",
         render: (val) => `Bill No. ${val}`,
       },
       {
@@ -198,7 +198,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
         header: "Certified Gross",
         align: "right",
         summary: "sum",
-        className: "text-white",
+        className: "text-slate-900",
         render: (val) => formatNpr(val),
       },
       {
@@ -239,7 +239,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
       {
         key: "voucherNo",
         header: "Voucher No",
-        className: "font-bold text-emerald-400",
+        className: "font-bold text-[#0284c7]",
       },
       {
         key: "payoutDate",
@@ -260,7 +260,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
         header: "Gross Commission",
         align: "right",
         summary: "sum",
-        className: "text-white font-mono",
+        className: "text-slate-900 font-mono",
         render: (val) => formatNpr(val),
       },
       {
@@ -305,22 +305,22 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-6">
       {/* Header Banner & Agreement Status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#121820]/80 p-5 rounded-2xl border border-white/10 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#f8fbfe]/80 p-5 rounded-2xl border border-[#c7d8e8] shadow-sm">
         <div className="flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[#0284c7]">
             <Handshake className="h-6 w-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-slate-900">
                 {agreement ? agreement.partnerName : "No JV Partner Configured"}
               </h3>
               {agreement ? (
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                <Badge className="bg-emerald-500/20 text-[#0284c7] border-emerald-500/30 text-[10px]">
                   {agreement.commissionRate}% Commission Model
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-gray-400 text-[10px]">
+                <Badge variant="outline" className="text-slate-500 text-[10px]">
                   Sole Contractor Mode
                 </Badge>
               )}
@@ -337,7 +337,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
           <Button
             onClick={handleOpenAgreement}
             variant="outline"
-            className="text-xs font-bold border-white/20 text-white hover:bg-white/10"
+            className="text-xs font-bold border-[#0284c7] text-slate-900 hover:bg-slate-100"
           >
             {agreement ? "Edit Agreement" : "+ Setup JV Partner"}
           </Button>
@@ -361,15 +361,15 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
+            <div className="bg-[#f8fbfe]/80 p-4 rounded-2xl border border-[#c7d8e8]">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Certified Turnover (कुल बिलिङ)</span>
-              <div className="text-xl font-bold font-mono text-white mt-1">
+              <div className="text-xl font-bold font-mono text-slate-900 mt-1">
                 {formatNpr(summary.totalCertifiedTurnover, { compact: true, prefix: "Rs." })}
               </div>
               <span className="text-[11px] text-muted-foreground">{summary.ipcCount} Certified IPCs</span>
             </div>
 
-            <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
+            <div className="bg-[#f8fbfe]/80 p-4 rounded-2xl border border-[#c7d8e8]">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Accrued Commission ({summary.commissionRate}%)</span>
               <div className="text-xl font-bold font-mono text-amber-400 mt-1">
                 Rs. {formatNpr(summary.totalCommissionAccrued)}
@@ -377,7 +377,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               <span className="text-[11px] text-muted-foreground">Total partner entitlement</span>
             </div>
 
-            <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
+            <div className="bg-[#f8fbfe]/80 p-4 rounded-2xl border border-[#c7d8e8]">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Total Disbursed (TDS 1.5%)</span>
               <div className="text-xl font-bold font-mono text-blue-400 mt-1">
                 Rs. {formatNpr(summary.totalNetDisbursed)}
@@ -385,9 +385,9 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               <span className="text-[11px] text-muted-foreground">TDS: Rs. {formatNpr(summary.totalTdsDeducted)}</span>
             </div>
 
-            <div className="bg-[#121820]/80 p-4 rounded-2xl border border-white/10">
+            <div className="bg-[#f8fbfe]/80 p-4 rounded-2xl border border-[#c7d8e8]">
               <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Balance Due (बाँकी कमिसन)</span>
-              <div className={cn("text-xl font-bold font-mono mt-1", summary.balanceDue > 0 ? "text-emerald-400" : "text-gray-400")}>
+              <div className={cn("text-xl font-bold font-mono mt-1", summary.balanceDue > 0 ? "text-[#0284c7]" : "text-slate-500")}>
                 Rs. {formatNpr(summary.balanceDue)}
               </div>
               <span className="text-[11px] text-muted-foreground">Outstanding payable</span>
@@ -542,7 +542,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                 type="submit"
                 size="sm"
                 disabled={saveAgreementMut.isPending}
-                className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm"
+                className="amber-cta-btn h-8 text-xs font-bold text-slate-900 shadow-sm"
               >
                 {saveAgreementMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Save JV Agreement
@@ -711,7 +711,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                 type="submit"
                 size="sm"
                 disabled={recordPayoutMut.isPending}
-                className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm"
+                className="amber-cta-btn h-8 text-xs font-bold text-slate-900 shadow-sm"
               >
                 {recordPayoutMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Record Payout Voucher

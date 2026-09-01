@@ -153,19 +153,19 @@ export default function StockAlertsPage({
       {/* KPI Ribbon */}
       {data && (
         <div className="grid grid-cols-3 gap-3 font-mono">
-          <Card className="bg-[#0c1015] border-white/10 rounded-xl">
+          <Card className="bg-white border-[#c7d8e8] rounded-xl">
             <CardContent className="p-3 text-center">
               <div className="text-[10px] text-muted-foreground uppercase">Total Alerts</div>
               <div className="text-xl font-bold text-slate-300">{data.summary.total}</div>
             </CardContent>
           </Card>
-          <Card className="bg-[#0c1015] border-white/10 rounded-xl">
+          <Card className="bg-white border-[#c7d8e8] rounded-xl">
             <CardContent className="p-3 text-center">
               <div className="text-[10px] text-muted-foreground uppercase">Critical (Immediate Reorder)</div>
               <div className="text-xl font-bold text-red-400">{data.summary.critical}</div>
             </CardContent>
           </Card>
-          <Card className="bg-[#0c1015] border-white/10 rounded-xl">
+          <Card className="bg-white border-[#c7d8e8] rounded-xl">
             <CardContent className="p-3 text-center">
               <div className="text-[10px] text-muted-foreground uppercase">Warning (Reorder Level)</div>
               <div className="text-xl font-bold text-orange-400">{data.summary.warning}</div>

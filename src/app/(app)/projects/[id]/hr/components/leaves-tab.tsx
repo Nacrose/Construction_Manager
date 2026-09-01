@@ -173,7 +173,7 @@ export function LeavesTab({
             ⏳ Pending: {pendingCount}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+          <span className="text-emerald-600 dark:text-[#0284c7] font-semibold">
             ✓ Approved: {approvedCount}
           </span>
           {rejectedCount > 0 && (
@@ -277,7 +277,7 @@ export function LeavesTab({
                             })
                           }
                           disabled={approveMut.isPending}
-                          className="h-5 text-[9px] text-emerald-400 border-emerald-500/30 gap-1 bg-emerald-500/10 px-1.5 hover:bg-emerald-500/20"
+                          className="h-5 text-[9px] text-[#0284c7] border-emerald-500/30 gap-1 bg-emerald-500/10 px-1.5 hover:bg-emerald-500/20"
                         >
                           <CheckCircle2 className="h-2.5 w-2.5" /> Approve
                         </Button>
@@ -314,10 +314,10 @@ export function LeavesTab({
 
       {/* Leave Application Dialog with Backdrop Blur */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
+        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-[#c7d8e8] text-slate-900">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-white">
-              <Calendar className="h-5 w-5 text-emerald-400" />
+            <DialogTitle className="flex items-center gap-2 text-base text-slate-900">
+              <Calendar className="h-5 w-5 text-[#0284c7]" />
               Apply for Leave
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground font-mono">
@@ -329,10 +329,10 @@ export function LeavesTab({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Select Worker *</Label>
               <Select value={staffId} onValueChange={setStaffId} required>
-                <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                <SelectTrigger className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
                   <SelectValue placeholder="Choose personnel..." />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
                   {staffList.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.designation || s.category || "Staff"})
@@ -345,10 +345,10 @@ export function LeavesTab({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Leave Type</Label>
               <Select value={leaveType} onValueChange={setLeaveType}>
-                <SelectTrigger className="h-8 text-xs capitalize bg-white/5 border-white/10 text-white font-mono">
+                <SelectTrigger className="h-8 text-xs capitalize bg-white/5 border-[#c7d8e8] text-slate-900 font-mono">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
                   {LEAVE_TYPES.map((lt) => (
                     <SelectItem key={lt} value={lt} className="capitalize">
                       {lt} Leave
@@ -365,7 +365,7 @@ export function LeavesTab({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
+                  className="h-8 text-xs font-mono bg-white/5 border-[#c7d8e8] text-slate-900"
                   required
                 />
               </div>
@@ -376,7 +376,7 @@ export function LeavesTab({
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
+                  className="h-8 text-xs font-mono bg-white/5 border-[#c7d8e8] text-slate-900"
                   required
                 />
               </div>
@@ -388,11 +388,11 @@ export function LeavesTab({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="e.g. Medical emergency, Family wedding"
-                className="h-8 text-xs bg-white/5 border-white/10 text-white"
+                className="h-8 text-xs bg-white/5 border-[#c7d8e8] text-slate-900"
               />
             </div>
 
-            <DialogFooter className="border-t border-white/10 pt-3">
+            <DialogFooter className="border-t border-[#c7d8e8] pt-3">
               <Button
                 type="button"
                 variant="outline"
@@ -403,7 +403,7 @@ export function LeavesTab({
               >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+              <Button type="submit" size="sm" disabled={createMut.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-slate-900 font-semibold">
                 {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Submit Leave
               </Button>

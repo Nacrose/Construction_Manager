@@ -129,10 +129,10 @@ export function QuickBuyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[650px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
+      <DialogContent className="sm:max-w-[650px] bg-white border-[#c7d8e8] text-slate-900 shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-            <ShoppingBag className="h-5 w-5 text-emerald-400" />
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+            <ShoppingBag className="h-5 w-5 text-[#0284c7]" />
             Quick Direct Material Buy (सामाग्री खरिद)
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -144,23 +144,23 @@ export function QuickBuyDialog({
           {/* Supplier / Party Info */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-gray-200">Supplier / Store Name *</Label>
+              <Label className="text-xs font-semibold text-slate-800">Supplier / Store Name *</Label>
               <Input
                 value={supplierName}
                 onChange={(e) => setSupplierName(e.target.value)}
                 placeholder="e.g. Pashupati Hardware & Suppliers"
                 required
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-300">Supplier PAN / Tax ID</Label>
+              <Label className="text-xs text-slate-700">Supplier PAN / Tax ID</Label>
               <Input
                 value={supplierPan}
                 onChange={(e) => setSupplierPan(e.target.value)}
                 placeholder="e.g. 601234567"
                 maxLength={9}
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono"
               />
             </div>
           </div>
@@ -168,22 +168,22 @@ export function QuickBuyDialog({
           {/* Material Name & Category */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1">
-              <Label className="text-xs font-semibold text-gray-200">Material Name & Spec *</Label>
+              <Label className="text-xs font-semibold text-slate-800">Material Name & Spec *</Label>
               <Input
                 value={materialName}
                 onChange={(e) => setMaterialName(e.target.value)}
                 placeholder="e.g. Shivam OPC Cement 53 Grade"
                 required
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-300">Category</Label>
+              <Label className="text-xs text-slate-700">Category</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                   <SelectItem value="Cement & Concrete">Cement & Concrete</SelectItem>
                   <SelectItem value="Rebar & Steel">Rebar & Steel</SelectItem>
                   <SelectItem value="Aggregates & Sand">Aggregates & Sand</SelectItem>
@@ -201,7 +201,7 @@ export function QuickBuyDialog({
           {/* Quantity, Unit & Rate */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-gray-200">Quantity *</Label>
+              <Label className="text-xs font-semibold text-slate-800">Quantity *</Label>
               <Input
                 type="number"
                 step="any"
@@ -209,16 +209,16 @@ export function QuickBuyDialog({
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="e.g. 50"
                 required
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-gray-300">Unit</Label>
+              <Label className="text-xs text-slate-700">Unit</Label>
               <Select value={unit} onValueChange={setUnit}>
-                <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                   <SelectItem value="bag">bag (बोरा)</SelectItem>
                   <SelectItem value="kg">kg (किलो)</SelectItem>
                   <SelectItem value="MT">MT (टन)</SelectItem>
@@ -231,7 +231,7 @@ export function QuickBuyDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-gray-200">Unit Rate (NPR) *</Label>
+              <Label className="text-xs font-semibold text-slate-800">Unit Rate (NPR) *</Label>
               <Input
                 type="number"
                 step="any"
@@ -239,24 +239,24 @@ export function QuickBuyDialog({
                 onChange={(e) => setRate(e.target.value)}
                 placeholder="e.g. 750"
                 required
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900"
               />
             </div>
           </div>
 
           {/* Payment Mode & VAT Options */}
-          <div className="p-3 rounded-xl border border-white/10 bg-[#121822] space-y-3">
+          <div className="p-3 rounded-xl border border-[#c7d8e8] bg-[#f8fbfe] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs font-semibold text-white">Payment Method</span>
+                <CreditCard className="h-4 w-4 text-[#0284c7]" />
+                <span className="text-xs font-semibold text-slate-900">Payment Method</span>
               </div>
-              <div className="flex items-center gap-2 bg-[#161d26] p-1 rounded-lg border border-white/10">
+              <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-[#c7d8e8]">
                 <button
                   type="button"
                   onClick={() => setPaymentStatus("credit")}
                   className={`px-3 py-1 text-xs rounded-md font-semibold transition ${
-                    paymentStatus === "credit" ? "bg-amber-500 text-black font-bold" : "text-gray-400 hover:text-white"
+                    paymentStatus === "credit" ? "bg-amber-500 text-black font-bold" : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   On Credit (खातामा)
@@ -265,7 +265,7 @@ export function QuickBuyDialog({
                   type="button"
                   onClick={() => setPaymentStatus("paid_now")}
                   className={`px-3 py-1 text-xs rounded-md font-semibold transition ${
-                    paymentStatus === "paid_now" ? "bg-emerald-500 text-black font-bold" : "text-gray-400 hover:text-white"
+                    paymentStatus === "paid_now" ? "bg-emerald-500 text-black font-bold" : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   Paid Now (नगद/बैंक)
@@ -275,12 +275,12 @@ export function QuickBuyDialog({
 
             {paymentStatus === "paid_now" && (
               <div className="space-y-1 pt-1">
-                <Label className="text-xs text-gray-300">Paid From Bank / Cash Account *</Label>
+                <Label className="text-xs text-slate-700">Paid From Bank / Cash Account *</Label>
                 <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900">
                     <SelectValue placeholder="Select paying bank/cash account…" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                     {bankAccounts.map((b: any) => (
                       <SelectItem key={b.id} value={b.id}>
                         {b.name}
@@ -292,10 +292,10 @@ export function QuickBuyDialog({
             )}
 
             {/* VAT Toggle & Bill No */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between pt-2 border-t border-[#c7d8e8]">
               <div className="flex items-center gap-2">
-                <ReceiptText className="h-4 w-4 text-emerald-400" />
-                <Label htmlFor="vat-toggle" className="text-xs text-gray-300 cursor-pointer">
+                <ReceiptText className="h-4 w-4 text-[#0284c7]" />
+                <Label htmlFor="vat-toggle" className="text-xs text-slate-700 cursor-pointer">
                   VAT Bill (13% कर बीजक)
                 </Label>
                 <Switch id="vat-toggle" checked={isVatBill} onCheckedChange={setIsVatBill} />
@@ -307,23 +307,23 @@ export function QuickBuyDialog({
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                     placeholder="Bill / Invoice #"
-                    className="h-8 w-36 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    className="h-8 w-36 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono"
                   />
                 </div>
               )}
             </div>
 
             {/* Joint Venture PAN Entity Router */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/10">
-              <div className="flex items-center gap-1.5 text-xs text-gray-300">
-                <Building2 className="h-3.5 w-3.5 text-emerald-400" />
+            <div className="flex items-center justify-between pt-2 border-t border-[#c7d8e8]">
+              <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                <Building2 className="h-3.5 w-3.5 text-[#0284c7]" />
                 <span>Invoice Issued To:</span>
               </div>
               <Select value={billedToEntity} onValueChange={(v: any) => setBilledToEntity(v)}>
-                <SelectTrigger className="h-8 w-52 text-xs bg-[#161d26] border-white/10 text-white">
+                <SelectTrigger className="h-8 w-52 text-xs bg-white border-[#c7d8e8] text-slate-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                   <SelectItem value="primary_org">Company Primary Org</SelectItem>
                   <SelectItem value="dedicated_jv">Dedicated JV PAN</SelectItem>
                   <SelectItem value="lead_partner">Lead Partner PAN</SelectItem>
@@ -334,26 +334,26 @@ export function QuickBuyDialog({
 
           {/* Amount Summary */}
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
-            <span className="text-gray-300">Total Purchase Value:</span>
-            <span className="font-mono text-sm font-bold text-emerald-400">
+            <span className="text-slate-700">Total Purchase Value:</span>
+            <span className="font-mono text-sm font-bold text-[#0284c7]">
               {formatNpr(totalAmount)} {isVatBill && "(incl. 13% VAT)"}
             </span>
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#c7d8e8]">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="h-9 px-4 text-xs border-white/10 bg-[#161d26] text-gray-300 hover:text-white"
+              className="h-9 px-4 text-xs border-[#c7d8e8] bg-white text-slate-700 hover:text-slate-900"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={buyMutation.isPending}
-              className="h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md"
+              className="h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold text-xs shadow-md"
             >
               {buyMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               Save Material Purchase

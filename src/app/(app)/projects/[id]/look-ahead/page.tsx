@@ -40,13 +40,13 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
       <ModuleTabs projectId={id} tabs={PLANNING_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Unified Action & Controls Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-1 bg-[#121820] p-1 rounded-xl border border-white/10">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
+          <div className="flex items-center gap-1 bg-[#f8fbfe] p-1 rounded-xl border border-[#c7d8e8]">
             <button
               onClick={() => setTab("schedule")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "schedule" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+                tab === "schedule" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
               )}
             >
               <Calendar className="h-3.5 w-3.5" />
@@ -56,7 +56,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
               onClick={() => setTab("materials")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "materials" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+                tab === "materials" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
               )}
             >
               <Package className="h-3.5 w-3.5" />
@@ -66,7 +66,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
               onClick={() => setTab("conflicts")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "conflicts" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-gray-400 hover:text-white"
+                tab === "conflicts" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
               )}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -75,27 +75,27 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-[#121820] px-2 py-1 rounded-xl border border-white/10">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white" onClick={() => setStartDate(addDays(startDate, -7))}>
+            <div className="flex items-center gap-1 bg-[#f8fbfe] px-2 py-1 rounded-xl border border-[#c7d8e8]">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900" onClick={() => setStartDate(addDays(startDate, -7))}>
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="text-xs font-mono font-bold text-white px-2">
+              <span className="text-xs font-mono font-bold text-slate-900 px-2">
                 {format(startDate, "dd MMM")} — {format(endDate, "dd MMM yyyy")}
               </span>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-400 hover:text-white" onClick={() => setStartDate(addDays(startDate, 7))}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900" onClick={() => setStartDate(addDays(startDate, 7))}>
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             <Select value={String(weeks)} onValueChange={(v) => setWeeks(parseInt(v))}>
-              <SelectTrigger className="h-9 w-28 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectTrigger className="h-9 w-28 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
                 <SelectItem value="1">1 week</SelectItem>
                 <SelectItem value="2">2 weeks</SelectItem>
                 <SelectItem value="4">4 weeks</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" variant="outline" className="h-9 px-3 text-xs bg-[#121820] border-white/10 text-gray-300 hover:text-white rounded-xl" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+            <Button size="sm" variant="outline" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-700 hover:text-slate-900 rounded-xl" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
               Today
             </Button>
           </div>
