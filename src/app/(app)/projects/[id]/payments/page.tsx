@@ -44,7 +44,14 @@ function fmt(n: number) {
   return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function PaymentsPage({ params }: { params: Promise<{ id: string }> }) {
+export default function PaymentsPage({
+  params,
+  embedded = false,
+}: {
+  params: Promise<{ id: string }>;
+  /** When embedded in /finance, the host owns the tab bar — do not render ModuleTabs. */
+  embedded?: boolean;
+}) {
   const { id } = use(params);
   const [isCompact, setIsCompact] = useState(true);
   const [searchParty, setSearchParty] = useState("");
@@ -166,7 +173,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={FIN_TABS} />
+      {!embedded && <ModuleTabs projectId={id} tabs={FIN_TABS} />}
       <div className="space-y-3 pb-8">
         {/* Compact Top Summary Strip */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-[#000000] text-xs font-mono">

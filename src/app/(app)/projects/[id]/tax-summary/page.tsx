@@ -28,7 +28,14 @@ const FIN_TABS = [
   { label: "Reports & Compliance", href: "/tax-summary" },
 ];
 
-export default function TaxSummaryPage({ params }: { params: Promise<{ id: string }> }) {
+export default function TaxSummaryPage({
+  params,
+  embedded = false,
+}: {
+  params: Promise<{ id: string }>;
+  /** When embedded in /finance, the host owns the tab bar — do not render ModuleTabs. */
+  embedded?: boolean;
+}) {
   const { id } = use(params);
   const [activeTab, setActiveTab] = useState<"purchase" | "sales" | "vat_return" | "missing_scans">("purchase");
   const [logDialogOpen, setLogDialogOpen] = useState(false);
@@ -42,7 +49,7 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
 
   return (
     <AnimatedPage className="space-y-2.5 font-sans">
-      <ModuleTabs projectId={id} tabs={FIN_TABS} />
+      {!embedded && <ModuleTabs projectId={id} tabs={FIN_TABS} />}
 
       {/* Ultra-Clean Single-Line Sub-Tab Switcher & Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c7d8e8] pb-1">
