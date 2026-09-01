@@ -8,7 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
-import { canTransition } from "@/server/utils/state-machine";
+import { canTransition, transitionEntityState } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 
@@ -746,16 +746,22 @@ export const requisitionRouter = router({
         });
       }
 
-      const updated = await db.purchaseRequisition.update({
-        where: { id: input.requisitionId },
-        data: {
-          status: "approved",
-          approvedById: ctx.user.id,
-          rejectionReason: null,
-        },
+      // Engine transition (CAS): validates the submitted|pending_approval→approved
+      // graph edge and claims the row, so a concurrent approve/reject surfaces
+      // as CONFLICT. A prior rejection reason is cleared on approval.
+      const result = await transitionEntityState(db, {
+        model: "purchaseRequisition",
+        id: input.requisitionId,
+        targetState: "approved",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.projectId,
+        allowedCurrentStates: ["pending_approval", "submitted"],
+        additionalData: { rejectionReason: null },
+        skipEventEmit: true, // requisition has no event consumers on this path
       });
 
-      return { requisition: updated };
+      return { requisition: result.entity };
     }),
 
   /** Reject a purchase requisition with mandatory reason. */
@@ -782,16 +788,29 @@ export const requisitionRouter = router({
         });
       }
 
-      const updated = await db.purchaseRequisition.update({
-        where: { id: input.requisitionId },
-        data: {
-          status: "rejected",
-          approvedById: ctx.user.id,
-          rejectionReason: input.rejectionReason.trim(),
-        },
+      if (pr.status !== "pending_approval" && pr.status !== "submitted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot reject a requisition with status "${pr.status}". Must be pending approval or submitted.`,
+        });
+      }
+
+      // Engine transition (CAS): validates the submitted|pending_approval→rejected
+      // graph edge and claims the row. rejectionReason is attributed from notes;
+      // a concurrent decision surfaces as CONFLICT instead of a silent overwrite.
+      const result = await transitionEntityState(db, {
+        model: "purchaseRequisition",
+        id: input.requisitionId,
+        targetState: "rejected",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.projectId,
+        allowedCurrentStates: ["pending_approval", "submitted"],
+        notes: input.rejectionReason.trim(),
+        skipEventEmit: true, // requisition has no event consumers on this path
       });
 
-      return { requisition: updated };
+      return { requisition: result.entity };
     }),
 
   /** Get budget variance for a specific requisition's items against BOQ planned demand. */

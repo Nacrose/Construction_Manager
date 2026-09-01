@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
 import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 /**
  * IDOR guard for daily-program task operations.
@@ -542,14 +543,20 @@ export const dailyProgramRouter = router({
       if (program.projectId !== input.projectId) throw new TRPCError({ code: "FORBIDDEN", message: "Project mismatch." });
       if (program.status === "approved") return { program }; // Idempotent
 
-      const updated = await db.dailyProgram.update({
-        where: { id: input.programId },
-        data: {
-          status: "approved",
-          approvedAt: new Date(),
-          approvedById: ctx.user.id,
-        },
+      // Engine transition: validates the draft→approved edge and CAS-claims
+      // the row, so a concurrent approval fails with CONFLICT instead of
+      // double-firing the notification below.
+      const result = await transitionEntityState(db, {
+        model: "dailyProgram",
+        id: input.programId,
+        targetState: "approved",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.projectId,
+        allowedCurrentStates: ["draft"],
+        skipEventEmit: true, // dedicated notifyProject call below
       });
+      const updated = result.entity;
 
       await audit({
         userId: ctx.user.id,

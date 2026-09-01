@@ -13,7 +13,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
-import { canTransition } from "@/server/utils/state-machine";
+import { transitionEntityState } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 
@@ -487,18 +487,20 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
-      const transitionCheck = canTransition("subcontractorBill", bill.status, "submitted");
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || "Only draft bills can be submitted.",
-        });
-      }
 
-      const updated = await db.subcontractorBill.update({
-        where: { id: input.billId },
-        data: { status: "submitted" },
+      // Engine transition (CAS): validates the draft→submitted edge and claims
+      // the row, so a concurrent submit/certify surfaces as CONFLICT.
+      const result = await transitionEntityState(db, {
+        model: "subcontractorBill",
+        id: input.billId,
+        targetState: "submitted",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.projectId,
+        allowedCurrentStates: ["draft"],
+        skipEventEmit: true, // richer, bill-specific event emitted below
       });
+      const updated = result.entity;
 
       emitDomainEvent({
         type: "lifecycle.transitioned",
@@ -525,18 +527,22 @@ export const subcontractorBillRouter = router({
         include: { subcontractor: { select: { id: true, name: true } } },
       });
       if (!bill) throw new TRPCError({ code: "NOT_FOUND", message: "Bill not found." });
-      const transitionCheck = canTransition("subcontractorBill", bill.status, "certified");
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || "Only submitted bills can be certified.",
-        });
-      }
 
-      const updated = await db.subcontractorBill.update({
-        where: { id: input.billId },
-        data: { status: "certified" },
+      // Engine transition (CAS): validates the submitted|verified→certified edge
+      // and claims the row. certifiedById/At ride additionalData — the engine's
+      // attribution vocabulary covers approved/submitted/rejected/resolved/verified.
+      const result = await transitionEntityState(db, {
+        model: "subcontractorBill",
+        id: input.billId,
+        targetState: "certified",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: input.projectId,
+        allowedCurrentStates: ["submitted", "verified"],
+        additionalData: { certifiedById: ctx.user.id, certifiedAt: new Date() },
+        skipEventEmit: true, // richer, bill-specific event emitted below
       });
+      const updated = result.entity;
 
       await audit({
         userId: ctx.user.id,

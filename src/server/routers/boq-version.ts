@@ -7,6 +7,8 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+import { withOrgContext } from "@/lib/rls";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const boqVersionRouter = router({
   /** List all versions for a project. */
@@ -134,26 +136,38 @@ export const boqVersionRouter = router({
       if (!found || found.projectId !== input.projectId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Version not found." });
       }
-      if (found.status !== "draft") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft versions can be approved." });
-      }
 
-      const updated = await db.boqVersion.update({
-        where: { id: input.versionId },
-        data: { status: "approved" },
-      });
-
-      // Auto-lock the BOQ when the first version is approved
-      const project = await db.project.findUnique({
-        where: { id: input.projectId },
-        select: { boqLocked: true },
-      });
-      if (!project?.boqLocked) {
-        await db.project.update({
-          where: { id: input.projectId },
-          data: { boqLocked: true },
+      // Engine transition (CAS on the draft status) + project BOQ lock — ONE
+      // TRANSACTION. Previously the status flip and the lock were two
+      // separate writes: a crash between them left an approved version with
+      // an unlocked project BOQ (edits leaking into an approved baseline).
+      const updated = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: org-scoped tx
+        const result = await transitionEntityState(tx, {
+          model: "boqVersion",
+          id: input.versionId,
+          targetState: "approved",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: input.projectId,
+          allowedCurrentStates: ["draft"],
+          skipEventEmit: true, // boqVersion has no event consumers today
         });
-      }
+
+        // Auto-lock the BOQ when the first version is approved
+        const project = await tx.project.findUnique({
+          where: { id: input.projectId },
+          select: { boqLocked: true },
+        });
+        if (!project?.boqLocked) {
+          await tx.project.update({
+            where: { id: input.projectId },
+            data: { boqLocked: true },
+          });
+        }
+
+        return result.entity;
+      });
 
       await audit({
         userId: ctx.user.id,

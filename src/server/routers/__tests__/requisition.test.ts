@@ -236,6 +236,141 @@ describe("requisition.updateStatus", () => {
   });
 });
 
+// ─── approvePr / rejectPr — engine-backed approval flows ───────────────────
+describe("requisition.approvePr", () => {
+  function prFixture(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "pr-1",
+      projectId: "p-1",
+      status: "pending_approval",
+      approvedById: null,
+      rejectionReason: null,
+      notes: null,
+      ...overrides,
+    };
+  }
+
+  it("approves a pending_approval PR via the engine (CAS + attribution)", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture());
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue(prFixture()); // engine re-read
+    const caller = createCaller(requisitionRouter, PM);
+    await caller.approvePr({ projectId: "p-1", requisitionId: "pr-1" });
+
+    expect(anyDb.purchaseRequisition.updateMany).toHaveBeenCalledWith({
+      where: { id: "pr-1", status: "pending_approval" },
+      data: expect.objectContaining({
+        status: "approved",
+        approvedById: PM.id,
+        rejectionReason: null, // a prior rejection reason is cleared
+      }),
+    });
+  });
+
+  it("also approves a submitted PR (graph edge submitted→approved)", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture({ status: "submitted" }));
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue(prFixture({ status: "submitted" })); // engine re-read
+    const caller = createCaller(requisitionRouter, PM);
+    await caller.approvePr({ projectId: "p-1", requisitionId: "pr-1" });
+    expect(anyDb.purchaseRequisition.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "pr-1", status: "submitted" },
+      }),
+    );
+  });
+
+  it("FORBIDDENs non-admin roles", async () => {
+    member("engineer");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture());
+    const caller = createCaller(requisitionRouter, USER);
+    await expectTRPCError(
+      caller.approvePr({ projectId: "p-1", requisitionId: "pr-1" }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.purchaseRequisition.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("BAD_REQUESTs approving a draft PR", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture({ status: "draft" }));
+    const caller = createCaller(requisitionRouter, PM);
+    await expectTRPCError(
+      caller.approvePr({ projectId: "p-1", requisitionId: "pr-1" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.purchaseRequisition.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("CONFLICTs when a concurrent decision wins the race (CAS regression)", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture());
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue(prFixture()); // engine re-read
+    anyDb.purchaseRequisition.updateMany.mockResolvedValue({ count: 0 });
+    const caller = createCaller(requisitionRouter, PM);
+    await expectTRPCError(
+      caller.approvePr({ projectId: "p-1", requisitionId: "pr-1" }),
+      "CONFLICT",
+    );
+  });
+});
+
+describe("requisition.rejectPr", () => {
+  function prFixture(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "pr-1",
+      projectId: "p-1",
+      status: "submitted",
+      approvedById: null,
+      rejectionReason: null,
+      notes: null,
+      ...overrides,
+    };
+  }
+
+  it("rejects a submitted PR with the trimmed reason (engine CAS)", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture());
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue(prFixture()); // engine re-read
+    const caller = createCaller(requisitionRouter, PM);
+    await caller.rejectPr({
+      projectId: "p-1",
+      requisitionId: "pr-1",
+      rejectionReason: "  Budget exceeded  ",
+    });
+
+    expect(anyDb.purchaseRequisition.updateMany).toHaveBeenCalledWith({
+      where: { id: "pr-1", status: "submitted" },
+      data: expect.objectContaining({
+        status: "rejected",
+        rejectionReason: "Budget exceeded",
+      }),
+    });
+  });
+
+  it("BAD_REQUESTs an already-ordered PR", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture({ status: "ordered" }));
+    const caller = createCaller(requisitionRouter, PM);
+    await expectTRPCError(
+      caller.rejectPr({ projectId: "p-1", requisitionId: "pr-1", rejectionReason: "x" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.purchaseRequisition.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("BAD_REQUESTs rejecting an approved PR (graph tightening — engine edge only from submitted/pending_approval)", async () => {
+    member("project_manager");
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture({ status: "approved" }));
+    const caller = createCaller(requisitionRouter, PM);
+    await expectTRPCError(
+      caller.rejectPr({ projectId: "p-1", requisitionId: "pr-1", rejectionReason: "x" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.purchaseRequisition.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 // ─── generatePOs ────────────────────────────────────────────────────────────
 describe("requisition.generatePOs", () => {
   it("rejects ordering more than the remaining requisitioned quantity", async () => {

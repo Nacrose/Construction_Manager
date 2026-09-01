@@ -148,6 +148,11 @@ describe("payroll.createPayrollRun", () => {
 
 // ─── updateRunStatus ─────────────────────────────────────────────────────────
 describe("payroll.updateRunStatus", () => {
+  /** The router reads via findFirst; the engine re-reads via findUnique. */
+  function mockRun(run: Record<string, unknown> | null) {
+    anyDb.payrollRun.findFirst.mockResolvedValue(run);
+    anyDb.payrollRun.findUnique.mockResolvedValue(run);
+  }
   const statusInput = { projectId: "p-1", runId: "run-1", action: "disburse" as const };
 
   it("FORBIDDENs non-admin roles", async () => {
@@ -165,7 +170,7 @@ describe("payroll.updateRunStatus", () => {
 
   it("FORBIDDENs status changes on a run inside a locked fiscal year", async () => {
     member("project_manager");
-    anyDb.payrollRun.findFirst.mockResolvedValue({
+    mockRun({
       id: "run-1",
       projectId: "p-1",
       status: "approved",
@@ -180,12 +185,12 @@ describe("payroll.updateRunStatus", () => {
 
     const caller = createCaller(payrollRouter, PM);
     await expectTRPCError(caller.updateRunStatus(statusInput), "FORBIDDEN");
-    expect(anyDb.payrollRun.update).not.toHaveBeenCalled();
+    expect(anyDb.payrollRun.updateMany).not.toHaveBeenCalled();
   });
 
   it("disburse marks all staff records paid and locks disbursedAmount", async () => {
     member("project_manager");
-    anyDb.payrollRun.findFirst.mockResolvedValue({
+    mockRun({
       id: "run-1",
       projectId: "p-1",
       status: "approved",
@@ -204,14 +209,19 @@ describe("payroll.updateRunStatus", () => {
       where: { payrollRunId: "run-1" },
       data: { paymentStatus: "paid" },
     });
-    const updateData = anyDb.payrollRun.update.mock.calls[0][0].data;
-    expect(updateData.status).toBe("disbursed");
-    expect(updateData.disbursedAmount).toBe(20790);
+    // Engine CAS contract: compare-and-swap on the approved status, with the
+    // disbursed amount locked in via additionalData.
+    const updateData = anyDb.payrollRun.updateMany.mock.calls[0][0];
+    expect(updateData.where).toEqual({ id: "run-1", status: "approved" });
+    expect(updateData.data).toMatchObject({
+      status: "disbursed",
+      disbursedAmount: 20790,
+    });
   });
 
   it("approve records the approver and timestamp", async () => {
     member("project_manager");
-    anyDb.payrollRun.findFirst.mockResolvedValue({
+    mockRun({
       id: "run-1",
       projectId: "p-1",
       status: "draft",
@@ -230,10 +240,62 @@ describe("payroll.updateRunStatus", () => {
       action: "approve",
     });
 
-    const updateData = anyDb.payrollRun.update.mock.calls[0][0].data;
-    expect(updateData.status).toBe("approved");
-    expect(updateData.approvedById).toBe(PM.id);
-    expect(updateData.approvedAt).toBeInstanceOf(Date);
+    const updateData = anyDb.payrollRun.updateMany.mock.calls[0][0];
+    expect(updateData.where).toEqual({ id: "run-1", status: "draft" });
+    expect(updateData.data).toMatchObject({
+      status: "approved",
+      approvedById: PM.id,
+    });
+    expect(updateData.data.approvedAt).toBeInstanceOf(Date);
+  });
+
+  it("reopen returns an approved run to draft (engine graph edge)", async () => {
+    member("project_manager");
+    mockRun({
+      id: "run-1",
+      projectId: "p-1",
+      status: "approved",
+      totalNetPayable: 20790,
+      createdAt: new Date("2025-02-01"),
+      notes: null,
+      approvedById: "pm-1",
+      approvedAt: new Date("2025-02-02"),
+      disbursedAmount: 0,
+    });
+
+    const caller = createCaller(payrollRouter, PM);
+    await caller.updateRunStatus({
+      projectId: "p-1",
+      runId: "run-1",
+      action: "reopen",
+    });
+
+    const updateData = anyDb.payrollRun.updateMany.mock.calls[0][0];
+    expect(updateData.where).toEqual({ id: "run-1", status: "approved" });
+    expect(updateData.data).toMatchObject({ status: "draft" });
+  });
+
+  it("BAD_REQUESTs disbursing a draft run (out-of-order lifecycle move)", async () => {
+    member("project_manager");
+    mockRun({
+      id: "run-1",
+      projectId: "p-1",
+      status: "draft",
+      totalNetPayable: 20790,
+      createdAt: new Date("2025-02-01"),
+      notes: null,
+      approvedById: null,
+      approvedAt: null,
+      disbursedAmount: 0,
+    });
+
+    const caller = createCaller(payrollRouter, PM);
+    await expectTRPCError(
+      caller.updateRunStatus({ projectId: "p-1", runId: "run-1", action: "disburse" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.payrollRun.updateMany).not.toHaveBeenCalled();
+    expect(anyDb.payrollStaffRecord.updateMany).not.toHaveBeenCalled();
   });
 });
 

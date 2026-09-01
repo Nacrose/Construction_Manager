@@ -64,6 +64,11 @@ function program(overrides: Record<string, unknown> = {}) {
     programDate: new Date("2026-08-15T00:00:00.000Z"),
     status: "draft",
     tasks: [],
+    // Engine attribution fields — transitionEntityState writes these only
+    // when the entity actually carries the columns.
+    approvedById: null,
+    approvedAt: null,
+    notes: null,
     ...overrides,
   };
 }
@@ -275,19 +280,21 @@ describe("dailyProgram.approveProgram", () => {
       caller.approveProgram({ programId: "prog-1", projectId: "p-1" }),
       "FORBIDDEN",
     );
-    expect(anyDb.dailyProgram.update).not.toHaveBeenCalled();
+    expect(anyDb.dailyProgram.updateMany).not.toHaveBeenCalled();
   });
 
-  it("approves a draft program and stamps approver + time", async () => {
+  it("approves a draft program and stamps approver + time (engine CAS)", async () => {
     member("project_manager");
     anyDb.dailyProgram.findUnique.mockResolvedValue(program());
-    anyDb.dailyProgram.update.mockResolvedValue(program({ status: "approved" }));
     const caller = createCaller(dailyProgramRouter, USER);
     await caller.approveProgram({ programId: "prog-1", projectId: "p-1" });
-    const data = anyDb.dailyProgram.update.mock.calls[0][0].data;
-    expect(data.status).toBe("approved");
-    expect(data.approvedById).toBe("user-1");
-    expect(data.approvedAt).toBeInstanceOf(Date);
+    const call = anyDb.dailyProgram.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "prog-1", status: "draft" });
+    expect(call.data).toMatchObject({
+      status: "approved",
+      approvedById: "user-1",
+    });
+    expect(call.data.approvedAt).toBeInstanceOf(Date);
   });
 
   it("FORBIDDENs a program that belongs to another project (IDOR guard)", async () => {
@@ -298,7 +305,7 @@ describe("dailyProgram.approveProgram", () => {
       caller.approveProgram({ programId: "prog-1", projectId: "p-1" }),
       "FORBIDDEN",
     );
-    expect(anyDb.dailyProgram.update).not.toHaveBeenCalled();
+    expect(anyDb.dailyProgram.updateMany).not.toHaveBeenCalled();
   });
 
   it("is idempotent: an already-approved program returns without updating", async () => {
@@ -308,7 +315,7 @@ describe("dailyProgram.approveProgram", () => {
     const caller = createCaller(dailyProgramRouter, USER);
     const res = await caller.approveProgram({ programId: "prog-1", projectId: "p-1" });
     expect(res.program).toEqual(approved);
-    expect(anyDb.dailyProgram.update).not.toHaveBeenCalled();
+    expect(anyDb.dailyProgram.updateMany).not.toHaveBeenCalled();
   });
 
   it("NOT_FOUNDs a missing program", async () => {

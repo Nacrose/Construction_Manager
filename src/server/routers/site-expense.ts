@@ -14,7 +14,7 @@ import { assertDelegation } from "@/lib/delegation";
 import { addMoney } from "@/lib/money";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
-import { canTransition } from "@/server/utils/state-machine";
+import { transitionEntityState } from "@/server/utils/state-machine";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 const { router, proc } = createDomainRouter();
@@ -236,36 +236,25 @@ export const siteExpenseRouter = router({
       // back-dated expenses to locked fiscal years are rejected.
       await assertNotLocked(ctx.user.organizationId, expense.date ?? new Date());
 
-      const transitionCheck = canTransition("siteExpense", expense.status, "approved");
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || `Cannot transition site expense from ${expense.status} to approved. Only pending expenses can be approved.`,
-        });
-      }
-
-      // STATUS UPDATE + JOURNAL ENTRY — ONE TRANSACTION.
+      // STATUS UPDATE (engine CAS) + JOURNAL ENTRY — ONE TRANSACTION.
+      // transitionEntityState validates the pending→approved graph edge and
+      // claims the row via compare-and-swap on the status it just read: a
+      // concurrent approval/rejection yields CONFLICT and a second journal
+      // entry can never be posted.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
 
-        // Optimistic lock (compare-and-swap): only transition while the
-        // status still equals what we validated above. If a concurrent
-        // request already approved/rejected, 0 rows match and we fail with
-        // CONFLICT — a second journal entry can never be posted.
-        const claimed = await tx.siteExpense.updateMany({
-          where: { id: input.id, status: expense.status },
-          data: {
-            status: "approved",
-            approvedById: ctx.user.id,
-            approvedAt: new Date(),
-          },
+        await transitionEntityState(tx, {
+          model: "siteExpense",
+          id: input.id,
+          targetState: "approved",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: expense.projectId,
+          allowedCurrentStates: ["pending"],
+          skipEventEmit: true, // richer, expense-specific event emitted after commit below
         });
-        if (claimed.count === 0) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "Expense was already processed by another approver.",
-          });
-        }
+
         const exp = await tx.siteExpense.findUniqueOrThrow({ where: { id: input.id } });
 
         // Generate journal entry for the site expense:
@@ -345,28 +334,20 @@ export const siteExpenseRouter = router({
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertProjectAdmin(ctx.user, expense.projectId);
 
-      const transitionCheck = canTransition("siteExpense", expense.status, "rejected");
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || `Cannot transition site expense from ${expense.status} to rejected. Only pending expenses can be rejected.`,
-        });
-      }
-
-      // Optimistic lock: match on the status we validated so a concurrent
-      // decision (approve/reject race) yields CONFLICT instead of a silent
-      // last-write-wins overwrite.
-      const claimed = await db.siteExpense.updateMany({
-        where: { id: input.id, status: expense.status },
-        data: { status: "rejected" },
+      // Engine transition: validates the pending→rejected edge and CAS-claims
+      // the row, so an approve/reject race surfaces as CONFLICT instead of a
+      // silent last-write-wins overwrite.
+      const result = await transitionEntityState(db, {
+        model: "siteExpense",
+        id: input.id,
+        targetState: "rejected",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: expense.projectId,
+        allowedCurrentStates: ["pending"],
+        skipEventEmit: true, // richer, expense-specific event emitted below
       });
-      if (claimed.count === 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Expense was already processed by another approver.",
-        });
-      }
-      const updated = await db.siteExpense.findUniqueOrThrow({ where: { id: input.id } });
+      const updated = result.entity;
 
 
       await audit({

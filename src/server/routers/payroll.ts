@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { computePayrollLine } from "@/server/utils/payroll-calc";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const payrollRouter = router({
   /** Calculate on-the-fly preview for a given project and month (YYYY-MM). */
@@ -607,24 +608,39 @@ export const payrollRouter = router({
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found." });
       await assertNotLocked(ctx.user.organizationId, run.createdAt);
 
-      let newStatus = run.status;
-      let approvedById = run.approvedById;
-      let approvedAt = run.approvedAt;
-      let disbursedAmount = run.disbursedAmount;
-
-      if (input.action === "approve") {
-        newStatus = "approved";
-        approvedById = ctx.user.id;
-        approvedAt = new Date();
-      } else if (input.action === "disburse") {
-        newStatus = "disbursed";
-        disbursedAmount = run.totalNetPayable;
-      } else if (input.action === "reopen") {
-        newStatus = "draft";
-      }
+      // Lifecycle graph (payrollRun): draft→approved→disbursed, with reopen
+      // (approved|disbursed→draft) allowed to fix errors before re-approval.
+      // The engine rejects out-of-order moves (e.g. disburse a draft run) with
+      // BAD_REQUEST instead of silently writing them.
+      const targetState =
+        input.action === "approve" ? "approved" : input.action === "disburse" ? "disbursed" : "draft";
+      const allowedCurrentStates =
+        input.action === "approve"
+          ? ["draft"]
+          : input.action === "disburse"
+            ? ["approved"]
+            : ["approved", "disbursed"];
 
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+
+        // Transition FIRST: an invalid/out-of-order move throws before any
+        // staff-record mutation is issued (both writes share the tx anyway).
+        const result = await transitionEntityState(tx, {
+          model: "payrollRun",
+          id: input.runId,
+          targetState,
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: input.projectId,
+          allowedCurrentStates,
+          additionalData: {
+            ...(input.action === "disburse" ? { disbursedAmount: run.totalNetPayable } : {}),
+            ...(input.notes !== undefined ? { notes: input.notes } : {}),
+          },
+          skipEventEmit: true, // payrollRun has no event consumers today
+        });
+
         if (input.action === "disburse") {
           await tx.payrollStaffRecord.updateMany({
             where: { payrollRunId: input.runId },
@@ -632,16 +648,7 @@ export const payrollRouter = router({
           });
         }
 
-        return tx.payrollRun.update({
-          where: { id: input.runId },
-          data: {
-            status: newStatus,
-            approvedById,
-            approvedAt,
-            disbursedAmount,
-            notes: input.notes !== undefined ? input.notes : run.notes,
-          },
-        });
+        return result.entity;
       });
 
       return { run: updated };

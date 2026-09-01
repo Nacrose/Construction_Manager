@@ -42,6 +42,109 @@ const createInput = {
 };
 
 // ─── create ──────────────────────────────────────────────────────────────────
+describe("subcontractorBill.submit", () => {
+  function draftBill(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "bill-1",
+      number: "SUB-BILL-001",
+      status: "draft",
+      subcontractor: { id: "sub-1", name: "ABC Constructions" },
+      // Engine attribution fields — transitionEntityState writes these only
+      // when the entity actually carries the columns.
+      submittedById: null,
+      submittedAt: null,
+      ...overrides,
+    };
+  }
+
+  it("submits a draft bill via the engine (CAS on the draft status)", async () => {
+    member("engineer");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(draftBill());
+    anyDb.subcontractorBill.findUnique.mockResolvedValue(draftBill()); // engine re-read
+    const caller = createCaller(subcontractorBillRouter, ENGINEER);
+    await caller.submit({ projectId: "p-1", billId: "bill-1" });
+
+    expect(anyDb.subcontractorBill.updateMany).toHaveBeenCalledWith({
+      where: { id: "bill-1", status: "draft" },
+      data: expect.objectContaining({ status: "submitted", submittedById: ENGINEER.id }),
+    });
+  });
+
+  it("BAD_REQUESTs submitting a non-draft bill", async () => {
+    member("engineer");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(draftBill({ status: "submitted" }));
+    anyDb.subcontractorBill.findUnique.mockResolvedValue(draftBill({ status: "submitted" })); // engine re-read
+    const caller = createCaller(subcontractorBillRouter, ENGINEER);
+    await expectTRPCError(
+      caller.submit({ projectId: "p-1", billId: "bill-1" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.subcontractorBill.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("NOT_FOUNDs a bill from another project", async () => {
+    member("engineer");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(null);
+    const caller = createCaller(subcontractorBillRouter, ENGINEER);
+    await expectTRPCError(
+      caller.submit({ projectId: "p-1", billId: "bill-1" }),
+      "NOT_FOUND",
+    );
+  });
+});
+
+describe("subcontractorBill.certify", () => {
+  function submittedBill(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "bill-1",
+      number: "SUB-BILL-001",
+      status: "submitted",
+      netPayable: 100000,
+      subcontractor: { id: "sub-1", name: "ABC Constructions" },
+      ...overrides,
+    };
+  }
+
+  it("certifies a submitted bill via the engine with certifiedBy attribution", async () => {
+    member("project_manager");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(submittedBill());
+    anyDb.subcontractorBill.findUnique.mockResolvedValue(submittedBill()); // engine re-read
+    const caller = createCaller(subcontractorBillRouter, PM);
+    await caller.certify({ projectId: "p-1", billId: "bill-1" });
+
+    const call = anyDb.subcontractorBill.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: "bill-1", status: "submitted" });
+    expect(call.data).toMatchObject({
+      status: "certified",
+      certifiedById: PM.id,
+    });
+    expect(call.data.certifiedAt).toBeInstanceOf(Date);
+  });
+
+  it("FORBIDDENs non-admin roles", async () => {
+    member("engineer");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(submittedBill());
+    const caller = createCaller(subcontractorBillRouter, ENGINEER);
+    await expectTRPCError(
+      caller.certify({ projectId: "p-1", billId: "bill-1" }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.subcontractorBill.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("BAD_REQUESTs certifying a paid bill (terminal state)", async () => {
+    member("project_manager");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(submittedBill({ status: "paid" }));
+    anyDb.subcontractorBill.findUnique.mockResolvedValue(submittedBill({ status: "paid" })); // engine re-read
+    const caller = createCaller(subcontractorBillRouter, PM);
+    await expectTRPCError(
+      caller.certify({ projectId: "p-1", billId: "bill-1" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.subcontractorBill.updateMany).not.toHaveBeenCalled();
+  });
+});
+
 describe("subcontractorBill.create", () => {
   it("FORBIDDENs read-only roles", async () => {
     member("client");

@@ -11,6 +11,7 @@ import { createDomainRouter, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 const { router, proc } = createDomainRouter();
 
@@ -132,23 +133,24 @@ export const leaveRouter = router({
 
       await assertProjectAdmin(ctx.user, leave.projectId);
 
-      if (leave.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending requests can be approved." });
-      }
-
       const currentYear = new Date().getFullYear();
 
-      // STATUS UPDATE + LEAVE BALANCE UPSERT — ONE TRANSACTION
+      // STATUS UPDATE (engine CAS) + LEAVE BALANCE UPSERT — ONE TRANSACTION.
+      // transitionEntityState validates the pending→approved edge and claims
+      // the row via compare-and-swap, so a concurrent approval fails with
+      // CONFLICT instead of double-counting the balance.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
-        const req = await tx.leaveRequest.update({
-          where: { id: input.id },
-          data: {
-            status: "approved",
-            approvedById: ctx.user.id,
-            approvedAt: new Date(),
-          },
+        const result = await transitionEntityState(tx, {
+          model: "leave",
+          id: input.id,
+          targetState: "approved",
+          userId: ctx.user.id,
+          userName: ctx.user.name,
+          projectId: leave.projectId,
+          allowedCurrentStates: ["pending"],
+          skipEventEmit: true, // leave has no event consumers today
         });
 
         // Update LeaveBalance: increment taken, decrement remaining
@@ -176,7 +178,7 @@ export const leaveRouter = router({
           },
         });
 
-        return req;
+        return result.entity;
       });
 
       return { leave: updated };
@@ -193,18 +195,21 @@ export const leaveRouter = router({
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
       await assertProjectAdmin(ctx.user, leave.projectId);
 
-      if (leave.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending requests can be rejected." });
-      }
-
-      const updated = await db.leaveRequest.update({
-        where: { id: input.id },
-        data: {
-          status: "rejected",
-          rejectionReason: input.rejectionReason,
-        },
+      // Engine transition: validates the pending→rejected edge, CAS-claims the
+      // row, and attributes rejectionReason from `notes`. A concurrent
+      // approve/reject surfaces as CONFLICT instead of a silent overwrite.
+      const result = await transitionEntityState(db, {
+        model: "leave",
+        id: input.id,
+        targetState: "rejected",
+        userId: ctx.user.id,
+        userName: ctx.user.name,
+        projectId: leave.projectId,
+        allowedCurrentStates: ["pending"],
+        notes: input.rejectionReason,
+        skipEventEmit: true, // leave has no event consumers today
       });
-      return { leave: updated };
+      return { leave: result.entity };
     }),
 
   /** Get leave balances for a staff member (by year). */

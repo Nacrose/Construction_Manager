@@ -38,11 +38,17 @@ function member(role: string | null) {
 
 function pendingLeave(overrides: Record<string, unknown> = {}) {
   return {
+    id: "lv-1",
     projectId: "p-1",
     staffId: "s-1",
     leaveType: "casual",
     status: "pending",
     totalDays: 3,
+    // Engine attribution fields — transitionEntityState writes these only
+    // when the entity actually carries the columns.
+    approvedById: null,
+    approvedAt: null,
+    rejectionReason: null,
     ...overrides,
   };
 }
@@ -174,18 +180,18 @@ describe("leave.approve", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(
       pendingLeave({ leaveType: "sick", totalDays: 3 }),
     );
-    anyDb.leaveRequest.update.mockResolvedValue({ id: "lv-1", status: "approved" });
     const caller = createCaller(leaveRouter, PM);
-    const res = await caller.approve({ id: "lv-1" });
+    await caller.approve({ id: "lv-1" });
 
-    expect(res.leave.status).toBe("approved");
-    expect(anyDb.leaveRequest.update).toHaveBeenCalledWith({
-      where: { id: "lv-1" },
-      data: {
+    // Engine CAS contract: compare-and-swap on the status that was read +
+    // validated, with attribution filled by the state machine.
+    expect(anyDb.leaveRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: "lv-1", status: "pending" },
+      data: expect.objectContaining({
         status: "approved",
         approvedById: PM.id,
         approvedAt: expect.any(Date),
-      },
+      }),
     });
 
     const upsert = anyDb.leaveBalance.upsert.mock.calls[0][0];
@@ -212,7 +218,7 @@ describe("leave.approve", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave());
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(caller.approve({ id: "lv-1" }), "FORBIDDEN");
-    expect(anyDb.leaveRequest.update).not.toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).not.toHaveBeenCalled();
     expect(anyDb.leaveBalance.upsert).not.toHaveBeenCalled();
   });
 
@@ -221,7 +227,7 @@ describe("leave.approve", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave());
     const caller = createCaller(leaveRouter, ENGINEER);
     await caller.approve({ id: "lv-1" });
-    expect(anyDb.leaveRequest.update).toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).toHaveBeenCalled();
   });
 
   it("BAD_REQUESTs approving a non-pending (already approved) request", async () => {
@@ -229,7 +235,18 @@ describe("leave.approve", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave({ status: "approved" }));
     const caller = createCaller(leaveRouter, PM);
     await expectTRPCError(caller.approve({ id: "lv-1" }), "BAD_REQUEST");
-    expect(anyDb.leaveRequest.update).not.toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).not.toHaveBeenCalled();
+    expect(anyDb.leaveBalance.upsert).not.toHaveBeenCalled();
+  });
+
+  it("CONFLICTs when a concurrent approval wins the race (CAS regression)", async () => {
+    member("project_manager");
+    anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave());
+    // 0 rows matched → another approver already transitioned the request
+    anyDb.leaveRequest.updateMany.mockResolvedValue({ count: 0 });
+    const caller = createCaller(leaveRouter, PM);
+    await expectTRPCError(caller.approve({ id: "lv-1" }), "CONFLICT");
+    // the balance upsert must NOT run when the transition lost the race
     expect(anyDb.leaveBalance.upsert).not.toHaveBeenCalled();
   });
 
@@ -242,7 +259,7 @@ describe("leave.approve", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave({ projectId: "p-2" }));
     member(null);
     await expectTRPCError(caller.approve({ id: "lv-1" }), "FORBIDDEN");
-    expect(anyDb.leaveRequest.update).not.toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -254,9 +271,12 @@ describe("leave.reject", () => {
     const caller = createCaller(leaveRouter, PM);
     await caller.reject({ id: "lv-1", rejectionReason: "Peak construction season" });
 
-    expect(anyDb.leaveRequest.update).toHaveBeenCalledWith({
-      where: { id: "lv-1" },
-      data: { status: "rejected", rejectionReason: "Peak construction season" },
+    expect(anyDb.leaveRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: "lv-1", status: "pending" },
+      data: expect.objectContaining({
+        status: "rejected",
+        rejectionReason: "Peak construction season",
+      }),
     });
     expect(anyDb.leaveBalance.upsert).not.toHaveBeenCalled();
   });
@@ -266,7 +286,7 @@ describe("leave.reject", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave({ status: "rejected" }));
     const caller = createCaller(leaveRouter, PM);
     await expectTRPCError(caller.reject({ id: "lv-1" }), "BAD_REQUEST");
-    expect(anyDb.leaveRequest.update).not.toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).not.toHaveBeenCalled();
   });
 
   it("FORBIDDENs engineers", async () => {
@@ -274,7 +294,7 @@ describe("leave.reject", () => {
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave());
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(caller.reject({ id: "lv-1" }), "FORBIDDEN");
-    expect(anyDb.leaveRequest.update).not.toHaveBeenCalled();
+    expect(anyDb.leaveRequest.updateMany).not.toHaveBeenCalled();
   });
 });
 
