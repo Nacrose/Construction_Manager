@@ -164,7 +164,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         render: (val, row) => (
           <div>
             <div className="font-semibold text-foreground truncate max-w-md text-xs">{val}</div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
               <span className="bg-card px-1.5 py-0.2 rounded text-primary border border-border font-semibold">
                 {row.accountHead}
               </span>
@@ -183,7 +183,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         header: "Inflow (Dr)",
         align: "right",
         summary: "sum",
-        className: "text-emerald-400 font-bold",
+        className: "text-emerald-600 font-bold font-matrix",
         render: (val) => (val > 0 ? formatNpr(val) : "—"),
       },
       {
@@ -191,14 +191,14 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         header: "Outflow (Cr)",
         align: "right",
         summary: "sum",
-        className: "text-red-400 font-bold",
+        className: "text-rose-600 font-bold font-matrix",
         render: (val) => (val > 0 ? formatNpr(val) : "—"),
       },
       {
         key: "runningBalance",
         header: "Balance",
         align: "right",
-        className: "font-bold font-mono text-foreground",
+        className: "font-bold font-matrix text-slate-900",
         render: (val) => formatNpr(val),
       },
       {
@@ -260,20 +260,20 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   return (
     <div className="space-y-3">
       {/* Single-Line Summary Strip (Khatabook Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-border bg-card/90 text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-1.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface text-xs font-mono">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Total Inflow (Dr):</span>
-            <span className="font-bold text-emerald-400">NPR {formatNpr(summary.totalDebit)}</span>
+            <span className="text-slate-500 text-[11px]">Total Inflow (Dr):</span>
+            <span className="font-bold text-emerald-600 font-matrix">NPR {formatNpr(summary.totalDebit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-border" />
+          <div className="h-3 w-[1px] bg-slate-300" />
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Total Disbursements (Cr):</span>
-            <span className="font-bold text-red-400">NPR {formatNpr(summary.totalCredit)}</span>
+            <span className="text-slate-500 text-[11px]">Total Disbursements (Cr):</span>
+            <span className="font-bold text-rose-600 font-matrix">NPR {formatNpr(summary.totalCredit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-border" />
+          <div className="h-3 w-[1px] bg-slate-300" />
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Net Flow:</span>
+            <span className="text-slate-500 text-[11px]">Net Flow:</span>
             <span
               className={cn(
                 "font-bold",
@@ -285,7 +285,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
           </div>
         </div>
 
-        <div className="text-[11px] text-muted-foreground font-mono">
+        <div className="text-[11px] text-slate-500 font-mono">
           {entries.length} Day Book Records
         </div>
       </div>
@@ -381,13 +381,13 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             description: "Day Book entries appear automatically when you record payments, client receipts, or bills.",
           }}
           headerActions={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {/* View Mode Toggle */}
-              <div className="flex items-center bg-[#121820] border border-white/10 rounded-lg p-0.5">
+              <div className="flex items-center bg-[#f0f6fc] border border-[#c5d7e8] rounded-md p-0.5">
                 <button
                   type="button"
                   onClick={() => setViewMode("table")}
-                  className="px-2 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-400 font-bold transition-all"
+                  className="px-1.5 py-0.5 rounded text-xs font-mono transition-all bg-white text-[#0369a1] font-bold shadow-xs border border-[#0284c7]/40"
                   title="Table View"
                 >
                   <List className="h-3.5 w-3.5" />
@@ -395,23 +395,23 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 <button
                   type="button"
                   onClick={() => setViewMode("timeline")}
-                  className="px-2 py-1 rounded text-xs font-mono text-gray-400 hover:text-white transition-all"
-                  title="Khatabook Timeline View"
+                  className="px-1.5 py-0.5 rounded text-xs font-mono transition-all text-slate-500 hover:text-slate-900"
+                  title="Timeline View"
                 >
                   <Receipt className="h-3.5 w-3.5" />
                 </button>
               </div>
 
               {/* Voucher Type Filter */}
-              <div className="w-36">
+              <div className="w-32">
                 <Select value={voucherType} onValueChange={setVoucherType}>
-                  <SelectTrigger className="h-8 text-xs font-mono bg-[#121820] border-white/10 text-white rounded-lg">
-                    <SelectValue placeholder="All Transactions" />
+                  <SelectTrigger className="h-7 text-xs font-mono bg-[#f0f6fc] border-[#c5d7e8] text-slate-800 rounded-md">
+                    <SelectValue placeholder="All Vouchers" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
-                    <SelectItem value="all">All Vouchers</SelectItem>
-                    <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
-                    <SelectItem value="billing">Client Inflows (आम्दानी)</SelectItem>
+                  <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                    <SelectItem value="all">⚡ All Types</SelectItem>
+                    <SelectItem value="payment">Disbursements</SelectItem>
+                    <SelectItem value="billing">Inflows (आम्दानी)</SelectItem>
                     <SelectItem value="purchase">Vendor Bills</SelectItem>
                     <SelectItem value="work_done">Subcontractor Bills</SelectItem>
                   </SelectContent>
@@ -420,26 +420,21 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
 
               <Button
                 size="sm"
-                onClick={() => setAddClaimOpen(true)}
-                className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
-              >
-                <Plus className="h-3 w-3" /> + Bill / Claim
-              </Button>
-
-              <Button
-                size="sm"
                 onClick={() => setRecordInflowOpen(true)}
-                className="h-8 px-2.5 text-xs font-semibold bg-[#141a23] hover:bg-[#1a2330] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1 shadow-[0_0_10px_rgba(0,255,102,0.1)]"
+                className="h-7 px-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md gap-1 snappy-btn shadow-xs"
+                title="Record Money In (Client Receipt / Running Bill)"
               >
-                <Plus className="h-3 w-3" /> + Money In
+                <Plus className="h-3 w-3" /> Inflow
               </Button>
 
+              {/* Primary 3D Warm Amber / Topaz Jewel Button */}
               <Button
                 size="sm"
                 onClick={() => setRecordPaymentOpen(true)}
-                className="h-8 px-3 text-xs font-semibold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
+                className="amber-cta-btn h-7 px-2.5 text-xs font-bold text-white rounded-md gap-1 shadow-sm snappy-btn"
+                title="Record Payment Voucher"
               >
-                <Plus className="h-3 w-3" /> + Record Payment
+                <Plus className="h-3 w-3" /> Voucher
               </Button>
             </div>
           }

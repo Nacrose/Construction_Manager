@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 
 export const CreateMaterialSchema = z.object({
   projectId: z.string(),
@@ -16,6 +17,9 @@ export const CreateMaterialSchema = z.object({
   unit: z.string().min(1),
   minStock: z.number().min(0).default(0),
   currentStock: z.number().min(0).default(0),
+  openingStock: z.number().min(0).default(0),
+  openingRate: z.number().min(0).default(0),
+  openingDate: z.string().optional(),
   reorderLevel: z.number().min(0).default(0),
 });
 
@@ -124,20 +128,56 @@ export const materialCrudProcedures = {
   create: protectedProcedure
     .input(CreateMaterialSchema)
     .mutation(async ({ ctx, input }) => {
-      const { projectId, catalogMaterialId, materialCatalogId, resourceType, ...data } = input;
+      const {
+        projectId,
+        catalogMaterialId,
+        materialCatalogId,
+        resourceType,
+        openingStock,
+        openingRate,
+        openingDate,
+        currentStock,
+        ...data
+      } = input;
       const role = await assertProjectMember(ctx.user, projectId);
       if (role === "client" || role === "inspector") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Read-only role." });
       }
       const finalCatalogId = catalogMaterialId || materialCatalogId || null;
-      const item = await db.material.create({
-        data: {
-          projectId,
-          resourceType: resourceType || "material",
-          catalogMaterialId: finalCatalogId,
-          ...data,
-        },
+      const initialStockQty = (openingStock && openingStock > 0) ? openingStock : (currentStock || 0);
+
+      const item = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+        const mat = await tx.material.create({
+          data: {
+            projectId,
+            resourceType: resourceType || "material",
+            catalogMaterialId: finalCatalogId,
+            currentStock: initialStockQty,
+            ...data,
+          },
+        });
+
+        if (initialStockQty > 0) {
+          const opDate = openingDate ? new Date(openingDate) : new Date();
+          await tx.materialTransaction.create({
+            data: {
+              materialId: mat.id,
+              projectId,
+              type: "adjustment",
+              quantity: initialStockQty,
+              unit: input.unit,
+              rate: openingRate || 0,
+              reference: "OPENING-STOCK",
+              remarks: "Initial opening stock recorded on onboarding",
+              date: opDate,
+            },
+          });
+        }
+
+        return mat;
       });
+
       return { material: item };
     }),
 

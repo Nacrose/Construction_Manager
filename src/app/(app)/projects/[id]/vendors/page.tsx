@@ -25,6 +25,7 @@ import { VendorDetailFullPage } from "./components/vendor-detail-view";
 import { CreateVendorDialog } from "./components/create-vendor-dialog";
 import { EditVendorDialog } from "./components/edit-vendor-dialog";
 import { formatNpr } from "@/lib/currency";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -50,6 +51,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
   );
   const [editPartner, setEditPartner] = useState<any | null>(null);
   const [detailPartner, setDetailPartner] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.partner.listPartners.useQuery({
@@ -68,6 +70,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
     onSuccess: () => {
       toast.success("Vendor deleted successfully");
       utils.partner.listPartners.invalidate({ projectId: id });
+      setDeleteTarget(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -227,11 +230,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-red-400 focus:text-red-400 focus:bg-red-950/50"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to delete this vendor?")) {
-                      deleteMutation.mutate({ partnerId: partner.id });
-                    }
-                  }}
+                  onClick={() => setDeleteTarget({ id: partner.id, name: partner.name })}
                 >
                   Delete
                 </DropdownMenuItem>
@@ -356,6 +355,24 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
             onDone={() => {
               setEditPartner(null);
               utils.partner.listPartners.invalidate({ projectId: id });
+            }}
+          />
+        )}
+
+        {/* Confirmation Modal for Deleting Vendor */}
+        {deleteTarget && (
+          <ConfirmDialog
+            open={Boolean(deleteTarget)}
+            onOpenChange={(open) => {
+              if (!open) setDeleteTarget(null);
+            }}
+            title="Delete Vendor Record?"
+            description={`Are you sure you want to delete vendor "${deleteTarget.name}"? This action cannot be undone.`}
+            variant="destructive"
+            confirmLabel="Delete Vendor"
+            isLoading={deleteMutation.isPending}
+            onConfirm={async () => {
+              await deleteMutation.mutateAsync({ partnerId: deleteTarget.id });
             }}
           />
         )}

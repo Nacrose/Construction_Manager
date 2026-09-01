@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import {UserPlus, Trash2, Crown, Loader2} from "lucide-react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type _Member = {
   id: string;
@@ -53,6 +54,7 @@ export function TeamManager({
 }) {
   const utils = trpc.useUtils();
   const [addOpen, setAddOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = trpc.project.listMembers.useQuery(
     { projectId },
@@ -64,6 +66,7 @@ export function TeamManager({
       utils.project.listMembers.invalidate({ projectId });
       utils.project.get.invalidate({ id: projectId });
       toast.success("Member removed");
+      setRemoveTarget(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -149,7 +152,7 @@ export function TeamManager({
                 )}
                 {canManage && (
                   <button
-                    onClick={() => removeMutation.mutate({ projectId, memberId: m.id })}
+                    onClick={() => setRemoveTarget({ id: m.id, name: m.user.name })}
                     className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     aria-label="Remove member"
                   >
@@ -160,6 +163,24 @@ export function TeamManager({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Confirmation Modal for Removing Team Member */}
+      {removeTarget && (
+        <ConfirmDialog
+          open={Boolean(removeTarget)}
+          onOpenChange={(open) => {
+            if (!open) setRemoveTarget(null);
+          }}
+          title="Remove Team Member?"
+          description={`Are you sure you want to remove ${removeTarget.name} from this project? They will lose access to project documents and records.`}
+          variant="destructive"
+          confirmLabel="Remove Member"
+          isLoading={removeMutation.isPending}
+          onConfirm={async () => {
+            await removeMutation.mutateAsync({ projectId, memberId: removeTarget.id });
+          }}
+        />
       )}
     </div>
   );

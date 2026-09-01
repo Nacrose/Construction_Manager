@@ -22,6 +22,7 @@ import { BoqTabHeader } from "./components/boq-tab-header";
 import { BoqFilterChips } from "./components/boq-filter-chips";
 import { BoqTable } from "./components/boq-table";
 import { RateAnalysisInspector } from "./components/rate-analysis-inspector";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function BoqPage({
   params,
@@ -64,6 +65,7 @@ function BoqPageContent({
   // Rate Analysis Inspector state
   const [inspectedItemId, setInspectedItemId] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [confirmLockOpen, setConfirmLockOpen] = useState(false);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.boq.list.useQuery({ projectId: id });
@@ -98,12 +100,15 @@ function BoqPageContent({
       }
       return { prevProject };
     },
-    onSuccess: (data) => {
-      toast.success(data.project.boqLocked ? "BOQ locked." : "BOQ unlocked.");
+    onError: (err, _vars, context) => {
+      if (context?.prevProject) {
+        utils.project.get.setData({ id }, context.prevProject);
+      }
+      toast.error("Failed to update BOQ lock state");
     },
-    onError: (e, _vars, ctx) => {
-      if (ctx?.prevProject) utils.project.get.setData({ id }, ctx.prevProject as any);
-      toast.error(e.message);
+    onSuccess: () => {
+      toast.success(isLocked ? "BOQ unlocked for editing" : "BOQ locked as Master Baseline");
+      setConfirmLockOpen(false);
     },
     onSettled: () => {
       utils.project.get.invalidate({ id });
@@ -383,7 +388,13 @@ function BoqPageContent({
             { icon: <Printer className="h-4 w-4" />, label: "Print", onClick: () => window.print(), disabled: !data?.items.length },
             { icon: <Download className="h-4 w-4" />, label: "Export to Excel", onClick: () => exportBoq(data?.items ?? [], id), disabled: !data?.items.length },
             { icon: <Upload className="h-4 w-4" />, label: "Import from Excel", onClick: () => importInputRef.current?.click(), disabled: !canWrite },
-            { icon: lockBoqMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />, label: isLocked ? "Unlock BOQ" : "Lock BOQ", onClick: () => { if (confirm(isLocked ? "Unlock the BOQ? Items will be editable again." : "Lock the BOQ? Items will become read-only.")) { lockBoqMutation.mutate({ projectId: id, locked: !isLocked }); } }, disabled: !isAdmin || !data?.items?.length, destructive: !isLocked },
+            {
+              icon: lockBoqMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />,
+              label: isLocked ? "Unlock BOQ" : "Lock BOQ",
+              onClick: () => setConfirmLockOpen(true),
+              disabled: !isAdmin || !data?.items?.length,
+              destructive: !isLocked,
+            },
           ]}
         />
       )}
@@ -422,6 +433,24 @@ function BoqPageContent({
         entityType="boq"
         entityId={id}
         defaultSignedBy={projectInfo?.project?.client ?? undefined}
+      />
+
+      {/* Confirmation Modal for Lock/Unlock BOQ */}
+      <ConfirmDialog
+        open={confirmLockOpen}
+        onOpenChange={setConfirmLockOpen}
+        title={isLocked ? "Unlock Master BOQ?" : "Lock Master BOQ Baseline?"}
+        description={
+          isLocked
+            ? "Unlocking the BOQ will allow editing quantities, units, and rates across all Bill of Quantities items."
+            : "Locking the BOQ sets it as the official Master Baseline and freezes item quantities and rates to prevent accidental modifications."
+        }
+        variant={isLocked ? "warning" : "default"}
+        confirmLabel={isLocked ? "Unlock BOQ" : "Lock BOQ"}
+        isLoading={lockBoqMutation.isPending}
+        onConfirm={async () => {
+          await lockBoqMutation.mutateAsync({ projectId: id, locked: !isLocked });
+        }}
       />
     </AnimatedPage>
   );

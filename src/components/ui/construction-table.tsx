@@ -151,105 +151,128 @@ export function ConstructionTable<T extends Record<string, any>>({
         return val !== undefined && val !== null && String(val).toLowerCase().includes(query);
       });
     });
-  }, [data, search, columns, searchFilterKeys]);
+  }, [data, search, searchFilterKeys, columns]);
 
-  // 2. WBS Tree Hierarchy Computation
+  // 2. Hierarchical WBS Tree Processing
+  type TreeNode = {
+    row: T;
+    depth: number;
+    hasChildren: boolean;
+    children: TreeNode[];
+  };
+
   const treeNodes = useMemo(() => {
-    if (!isWbsTree) return filteredData.map((row) => ({ row, depth: 0, hasChildren: false, isVisible: true }));
+    if (!isWbsTree) {
+      return filteredData.map((row) => ({
+        row,
+        depth: 0,
+        hasChildren: false,
+        children: [],
+      }));
+    }
 
-    const byParent = new Map<string | null, T[]>();
+    const nodeMap = new Map<string, TreeNode>();
+    const roots: TreeNode[] = [];
+
     filteredData.forEach((row) => {
-      const pId = row[parentIdKey] ?? null;
-      const arr = byParent.get(pId) ?? [];
-      arr.push(row);
-      byParent.set(pId, arr);
+      const id = rowKey(row);
+      nodeMap.set(id, { row, depth: 0, hasChildren: false, children: [] });
     });
 
-    const result: Array<{ row: T; depth: number; hasChildren: boolean; isVisible: boolean }> = [];
+    filteredData.forEach((row) => {
+      const id = rowKey(row);
+      const parentId = row[parentIdKey];
+      const node = nodeMap.get(id)!;
 
-    function traverse(parentId: string | null, depth: number, parentVisible: boolean) {
-      const children = byParent.get(parentId) ?? [];
-      children.forEach((child) => {
-        const id = rowKey(child);
-        const hasKids = (byParent.get(id)?.length ?? 0) > 0;
-        const isExpanded = expandedNodes[id] ?? true; // default expanded
+      if (parentId && nodeMap.has(parentId)) {
+        const parentNode = nodeMap.get(parentId)!;
+        parentNode.hasChildren = true;
+        node.depth = parentNode.depth + 1;
+        parentNode.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
 
-        result.push({
-          row: child,
-          depth,
-          hasChildren: hasKids,
-          isVisible: parentVisible,
-        });
+    return roots;
+  }, [filteredData, isWbsTree, parentIdKey, rowKey]);
 
-        if (hasKids) {
-          traverse(id, depth + 1, parentVisible && isExpanded);
+  // 3. Flatten tree based on expanded states
+  const visibleRows = useMemo(() => {
+    if (!isWbsTree) return treeNodes;
+
+    const flat: TreeNode[] = [];
+    function traverse(nodes: TreeNode[]) {
+      nodes.forEach((n) => {
+        flat.push(n);
+        const id = rowKey(n.row);
+        const isExpanded = expandedNodes[id] ?? true;
+        if (isExpanded && n.children.length > 0) {
+          traverse(n.children);
         }
       });
     }
+    traverse(treeNodes);
+    return flat;
+  }, [treeNodes, isWbsTree, expandedNodes, rowKey]);
 
-    traverse(null, 0, true);
-    return result;
-  }, [filteredData, isWbsTree, parentIdKey, rowKey, expandedNodes]);
-
-  const visibleRows = isWbsTree ? treeNodes.filter((n) => n.isVisible) : treeNodes;
-
-  // 3. Selection Handlers
+  // 4. Selection Handlers
   const selectedRowsList = useMemo(() => {
-    return data.filter((r) => selectedIds[rowKey(r)]);
-  }, [data, selectedIds, rowKey]);
-
-  const allSelected = data.length > 0 && selectedRowsList.length === data.length;
+    return filteredData.filter((r) => selectedIds[rowKey(r)]);
+  }, [filteredData, selectedIds, rowKey]);
 
   const toggleSelectAll = () => {
-    if (allSelected) {
+    if (Object.keys(selectedIds).length === filteredData.length) {
       setSelectedIds({});
     } else {
-      const next: Record<string, boolean> = {};
-      data.forEach((r) => {
-        next[rowKey(r)] = true;
+      const all: Record<string, boolean> = {};
+      filteredData.forEach((r) => {
+        all[rowKey(r)] = true;
       });
-      setSelectedIds(next);
+      setSelectedIds(all);
     }
   };
 
-  const toggleRowSelect = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  // 4. Toggle Node Expansion
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
+  const toggleRowSelect = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    startTransition(() => {
-      setExpandedNodes((prev) => ({
-        ...prev,
-        [id]: !(prev[id] ?? true),
-      }));
+    setSelectedIds((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      return next;
     });
   };
 
-  // 5. Excel Export Handler
+  const toggleExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedNodes((prev) => ({
+      ...prev,
+      [id]: !(prev[id] ?? true),
+    }));
+  };
+
+  const allSelected = filteredData.length > 0 && Object.keys(selectedIds).length === filteredData.length;
+
+  // 5. Excel Export
   const handleExportExcel = () => {
-    if (data.length === 0) return;
     try {
-      const sanitizeCell = (val: any) => {
-        if (typeof val === "string" && /^[=\+\-\@\t\r]/.test(val)) {
-          return `'${val}`;
+      const sanitizeCell = (val: any): string => {
+        if (val === null || val === undefined) return "";
+        const s = String(val).trim();
+        if (s.startsWith("=") || s.startsWith("+") || s.startsWith("-") || s.startsWith("@")) {
+          return "'" + s;
         }
-        return val;
+        return s;
       };
 
       const headers = columns.map((c) => sanitizeCell(c.header));
-      const rows = filteredData.map((row, idx) => {
+      const rows = filteredData.map((row) => {
         return columns.map((col) => {
-          if (col.key === "sn" || col.key === "index") return idx + 1;
-          const rawVal = col.accessor ? col.accessor(row) : row[col.key];
-          if (col.format === "currency") return typeof rawVal === "number" ? rawVal : parseFloat(rawVal) || 0;
-          return sanitizeCell(rawVal ?? "");
+          const val = col.accessor ? col.accessor(row) : row[col.key];
+          return sanitizeCell(val);
         });
       });
 
-      // Calculate Total Summary Row if any columns have summary
       const hasSummary = columns.some((c) => c.summary);
       let summaryRow: any[] = [];
       if (hasSummary) {
@@ -299,37 +322,37 @@ export function ConstructionTable<T extends Record<string, any>>({
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-12 w-full rounded-xl bg-white/5" />
-        <Skeleton className="h-64 w-full rounded-xl bg-white/5" />
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full rounded-lg bg-white/40" />
+        <Skeleton className="h-64 w-full rounded-lg bg-white/40" />
       </div>
     );
   }
 
   return (
-    <div className={cn("space-y-2.5", className)}>
-      {/* Table Toolbar Strip */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 rounded-xl border border-white/10 bg-[#0c1015]">
+    <div className={cn("space-y-2", className)}>
+      {/* Table Toolbar Strip (Single Action Bar) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface shadow-xs">
         <div className="flex flex-wrap items-center gap-2 flex-1">
-          {/* Search Box */}
+          {/* Recessed Inset Search Box */}
           <div className="relative min-w-[200px] max-w-sm flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
               placeholder={searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-xs bg-[#121820] text-white rounded-lg border-white/10 focus:border-emerald-400 placeholder:text-gray-500 font-mono"
+              className="pl-8 h-7 text-xs bg-[#f0f6fc] text-slate-900 rounded-md border-[#c5d7e8] focus:border-[#0284c7] placeholder:text-slate-400 font-mono shadow-inner"
             />
           </div>
 
           {subtitle && (
-            <span className="text-[11px] text-gray-400 font-mono hidden sm:inline">
+            <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
               {filteredData.length} records
             </span>
           )}
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls (Pure Icon-First & 3D Jewels) */}
         <div className="flex items-center gap-1.5">
           {headerActions}
 
@@ -337,57 +360,61 @@ export function ConstructionTable<T extends Record<string, any>>({
             size="sm"
             variant="outline"
             onClick={() => setIsCompact(!isCompact)}
-            className="h-8 px-2.5 text-xs gap-1.5 font-mono bg-[#121820] text-gray-300 border-white/10 hover:text-white rounded-lg"
+            className="h-7 px-2.5 text-xs gap-1.5 font-semibold bg-[#f0f6fc] text-slate-700 border-[#c5d7e8] hover:text-slate-950 rounded-md snappy-btn"
             title={isCompact ? "Switch to Comfortable Row Density" : "Switch to Compact Density"}
           >
-            <LayoutList className="h-3.5 w-3.5 text-emerald-400" />
+            <LayoutList className="h-3.5 w-3.5 text-[#0284c7]" />
             <span className="hidden sm:inline">{isCompact ? "Compact" : "Comfortable"}</span>
           </Button>
 
           {exportExcel && (
             <Button
               size="sm"
-              variant="outline"
               onClick={handleExportExcel}
-              className="h-8 px-2.5 text-xs gap-1.5 font-mono bg-[#121820] text-gray-300 border-white/10 hover:text-white rounded-lg"
+              className="h-7 px-2.5 text-xs gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md shadow-xs snappy-btn border border-emerald-700"
+              title="Export to Excel"
             >
-              <Download className="h-3.5 w-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Export Excel</span>
+              <svg className="aero-icon-sm h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="18" rx="2" fill="#15803d" stroke="#14532d" strokeWidth="1"/>
+                <path d="M7 8l4 8M11 8l-4 8" stroke="#ffffff" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M15 8h4v8h-4" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span className="hidden sm:inline">Excel</span>
             </Button>
           )}
         </div>
       </div>
 
-      {/* Main Table Body */}
+      {/* Main Table Body (Ultra-Compact 26px Density with Matrix Typography) */}
       {filteredData.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 p-12 text-center bg-[#0c1015]">
+        <div className="rounded-lg border border-dashed border-[#c7d8e8] p-8 text-center bg-white">
           {emptyState?.icon ? (
-            <emptyState.icon className="mx-auto h-8 w-8 text-gray-500 mb-2" />
+            <emptyState.icon className="mx-auto h-7 w-7 text-slate-400 mb-1.5" />
           ) : (
-            <Sparkles className="mx-auto h-8 w-8 text-gray-500 mb-2" />
+            <Sparkles className="mx-auto h-7 w-7 text-slate-400 mb-1.5" />
           )}
-          <p className="text-sm font-semibold text-white">
+          <p className="text-xs font-semibold text-slate-800">
             {emptyState?.title || "No Records Found"}
           </p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-[11px] text-slate-500 mt-0.5">
             {emptyState?.description || "No records match your active search or filter criteria."}
           </p>
-          {emptyState?.action && <div className="mt-4">{emptyState.action}</div>}
+          {emptyState?.action && <div className="mt-3">{emptyState.action}</div>}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10 bg-[#0c1015]">
+        <div className="overflow-x-auto rounded-lg border border-[#c7d8e8] bg-white shadow-xs">
           <table className="w-full text-left text-xs font-mono">
-            <thead className="border-b border-white/10 bg-[#121820] uppercase text-[10px] text-gray-400 sticky top-0 z-10 select-none">
+            <thead className="border-b border-[#c7d8e8] bg-[#edf4fa] uppercase text-[10px] text-slate-600 font-bold sticky top-0 z-10 select-none">
               <tr>
                 {selectable && (
-                  <th className="w-8 px-3 py-2 text-center">
+                  <th className="w-8 px-2.5 py-1.5 text-center">
                     <button
                       type="button"
                       onClick={toggleSelectAll}
-                      className="text-gray-400 hover:text-white transition-colors"
+                      className="text-slate-400 hover:text-slate-800 transition-colors"
                     >
                       {allSelected ? (
-                        <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
+                        <CheckSquare className="h-3.5 w-3.5 text-[#0284c7]" />
                       ) : (
                         <Square className="h-3.5 w-3.5" />
                       )}
@@ -399,8 +426,8 @@ export function ConstructionTable<T extends Record<string, any>>({
                     key={col.key}
                     style={{ width: col.width }}
                     className={cn(
-                      "font-bold tracking-wider",
-                      isCompact ? "px-3 py-2" : "px-4 py-3",
+                      "font-extrabold tracking-wide text-slate-700",
+                      isCompact ? "px-2.5 py-1.5" : "px-3 py-2",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
                       col.className
@@ -411,11 +438,11 @@ export function ConstructionTable<T extends Record<string, any>>({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#edf4fa]">
               {visibleRows.map((node, rIdx) => {
                 const row = node.row;
                 const id = rowKey(row);
-                const isSelected = !!selectedIds[id];
+                const isSelected = !selectedIds[id];
                 const isExpanded = expandedNodes[id] ?? true;
 
                 return (
@@ -431,15 +458,15 @@ export function ConstructionTable<T extends Record<string, any>>({
                     }}
                     className={cn(
                       "transition-colors group",
-                      (onRowClick || renderRowPreview) && "cursor-pointer hover:bg-white/[0.03]",
-                      isSelected ? "bg-emerald-500/10" : "hover:bg-white/[0.015]"
+                      (onRowClick || renderRowPreview) && "cursor-pointer hover:bg-[#f0f7ff]",
+                      isSelected ? "bg-[#e0f2fe]" : "hover:bg-[#f0f7ff]"
                     )}
                   >
                     {selectable && (
-                      <td className="px-3 py-2 text-center" onClick={(e) => toggleRowSelect(id, e)}>
-                        <button type="button" className="text-gray-400 hover:text-white">
+                      <td className="px-2.5 py-1 text-center" onClick={(e) => toggleRowSelect(id, e)}>
+                        <button type="button" className="text-slate-400 hover:text-slate-800">
                           {isSelected ? (
-                            <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
+                            <CheckSquare className="h-3.5 w-3.5 text-[#0284c7]" />
                           ) : (
                             <Square className="h-3.5 w-3.5" />
                           )}
@@ -454,8 +481,8 @@ export function ConstructionTable<T extends Record<string, any>>({
                         <td
                           key={col.key}
                           className={cn(
-                            isCompact ? "px-3 py-1.5" : "px-4 py-2.5",
-                            col.align === "right" && "text-right",
+                            isCompact ? "px-2.5 py-1 text-xs" : "px-3 py-2 text-xs",
+                            col.align === "right" && "text-right font-matrix",
                             col.align === "center" && "text-center",
                             col.className
                           )}
@@ -470,12 +497,12 @@ export function ConstructionTable<T extends Record<string, any>>({
                                 <button
                                   type="button"
                                   onClick={(e) => toggleExpand(id, e)}
-                                  className="p-0.5 text-gray-400 hover:text-white rounded hover:bg-white/10"
+                                  className="p-0.5 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
                                 >
                                   {isExpanded ? (
-                                    <ChevronDown className="h-3.5 w-3.5 text-emerald-400" />
+                                    <ChevronDown className="h-3.5 w-3.5 text-[#0284c7]" />
                                   ) : (
-                                    <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+                                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                                   )}
                                 </button>
                               ) : (
@@ -483,7 +510,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                               )}
 
                               {row[wbsKey] && (
-                                <span className="font-bold text-[10px] text-emerald-400 bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/20">
+                                <span className="font-bold text-[10px] text-[#0369a1] bg-sky-100 px-1 py-0.2 rounded border border-sky-200">
                                   {row[wbsKey]}
                                 </span>
                               )}
@@ -509,13 +536,13 @@ export function ConstructionTable<T extends Record<string, any>>({
 
             {/* Summary Footer Row */}
             {hasAnySummary && (
-              <tfoot className="border-t-2 border-white/10 bg-[#121820] font-bold text-white">
+              <tfoot className="border-t-2 border-[#c7d8e8] bg-[#edf4fa] font-bold text-slate-900">
                 <tr>
                   {selectable && <td />}
                   {columns.map((col, idx) => {
                     if (idx === 0) {
                       return (
-                        <td key={col.key} className={cn("uppercase tracking-wider", isCompact ? "px-3 py-2" : "px-4 py-3")}>
+                        <td key={col.key} className={cn("uppercase tracking-wider", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-xs")}>
                           {summaryFooterLabel} ({filteredData.length})
                         </td>
                       );
@@ -527,8 +554,8 @@ export function ConstructionTable<T extends Record<string, any>>({
                         <td
                           key={col.key}
                           className={cn(
-                            "text-right text-emerald-400 font-bold",
-                            isCompact ? "px-3 py-2" : "px-4 py-3"
+                            "text-right text-[#0369a1] font-bold font-matrix",
+                            isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-xs"
                           )}
                         >
                           {col.format === "currency" ? formatNpr(total, { prefix: "NPR" }) : total.toLocaleString()}
@@ -538,13 +565,13 @@ export function ConstructionTable<T extends Record<string, any>>({
 
                     if (col.summary === "count") {
                       return (
-                        <td key={col.key} className={cn("text-center", isCompact ? "px-3 py-2" : "px-4 py-3")}>
+                        <td key={col.key} className={cn("text-center font-matrix", isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-xs")}>
                           {summaryTotals[col.key]}
                         </td>
                       );
                     }
 
-                    return <td key={col.key} className={isCompact ? "px-3 py-2" : "px-4 py-3"} />;
+                    return <td key={col.key} className={isCompact ? "px-2.5 py-1.5" : "px-3 py-2"} />;
                   })}
                 </tr>
               </tfoot>
@@ -555,11 +582,11 @@ export function ConstructionTable<T extends Record<string, any>>({
 
       {/* Floating Bulk Action Drawer */}
       {selectedRowsList.length > 0 && bulkActions && bulkActions.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/20 bg-[#0f141c]/90 backdrop-blur-xl shadow-2xl text-xs font-mono text-white animate-in fade-in slide-in-from-bottom-4">
-          <span className="font-bold text-emerald-400">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-white/95 backdrop-blur-xl shadow-xl text-xs font-mono text-slate-900 animate-in fade-in slide-in-from-bottom-4">
+          <span className="font-bold text-[#0284c7]">
             {selectedRowsList.length} row{selectedRowsList.length > 1 ? "s" : ""} selected
           </span>
-          <div className="h-4 w-[1px] bg-white/20" />
+          <div className="h-4 w-[1px] bg-slate-200" />
           <div className="flex items-center gap-2">
             {bulkActions.map((action, idx) => (
               <Button
@@ -567,7 +594,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                 size="sm"
                 variant={action.variant || "default"}
                 onClick={() => action.onAction(selectedRowsList)}
-                className="h-7 text-xs gap-1.5 font-semibold shadow-sm"
+                className="h-7 text-xs gap-1.5 font-semibold shadow-xs snappy-btn"
               >
                 {action.icon && <action.icon className="h-3 w-3" />}
                 {action.label}
@@ -577,7 +604,7 @@ export function ConstructionTable<T extends Record<string, any>>({
               size="sm"
               variant="ghost"
               onClick={() => setSelectedIds({})}
-              className="h-7 text-xs text-gray-400 hover:text-white"
+              className="h-7 text-xs text-slate-500 hover:text-slate-900"
             >
               Clear
             </Button>
@@ -587,10 +614,10 @@ export function ConstructionTable<T extends Record<string, any>>({
 
       {/* Row Preview Slide-Out Drawer (Sheet) */}
       {renderRowPreview && (
-        <Sheet open={!!previewRow} onOpenChange={(open) => !open && setPreviewRow(null)}>
-          <SheetContent className="w-full sm:max-w-xl bg-[#0c1015]/95 border-l border-white/10 text-white backdrop-blur-2xl p-6 overflow-y-auto z-50">
-            <SheetHeader className="mb-4 pb-3 border-b border-white/10">
-              <SheetTitle className="text-base font-bold font-mono text-white">
+        <Sheet open={!previewRow} onOpenChange={(open) => !open && setPreviewRow(null)}>
+          <SheetContent className="w-full sm:max-w-xl bg-white border-l border-[#c7d8e8] text-slate-900 backdrop-blur-2xl p-6 overflow-y-auto z-50">
+            <SheetHeader className="mb-4 pb-3 border-b border-[#c7d8e8]">
+              <SheetTitle className="text-base font-bold font-mono text-slate-900">
                 {previewRow && rowPreviewTitle ? rowPreviewTitle(previewRow) : "Record Overview"}
               </SheetTitle>
             </SheetHeader>
@@ -622,7 +649,7 @@ function renderFormattedValue(value: any, colFormat?: ColumnFormat): React.React
       }
     case "badge":
       return (
-        <Badge variant="outline" className="text-[10px] uppercase font-mono bg-white/5 border-white/10 text-gray-300">
+        <Badge variant="outline" className="text-[10px] uppercase font-mono bg-sky-50 border-sky-200 text-[#0369a1] font-semibold">
           {String(value)}
         </Badge>
       );
@@ -632,7 +659,7 @@ function renderFormattedValue(value: any, colFormat?: ColumnFormat): React.React
 }
 
 /**
- * Standard Dark-Glass Delete Confirmation Hook & Dialog
+ * Standard Dark-Glass / Modal Delete Confirmation Hook & Dialog
  */
 export function useConfirmDelete() {
   const [isOpen, setIsOpen] = useState(false);
@@ -661,13 +688,13 @@ export function useConfirmDelete() {
 
   const dialog = (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-md bg-[#0c1015] border border-white/10 text-white backdrop-blur-xl">
+      <DialogContent className="max-w-md bg-white border border-[#c7d8e8] text-slate-900 shadow-2xl backdrop-blur-xl">
         <DialogHeader>
-          <div className="flex items-center gap-2.5 text-red-400">
+          <div className="flex items-center gap-2.5 text-rose-600">
             <AlertTriangle className="h-5 w-5" />
             <DialogTitle className="text-base font-bold font-mono">{config.title}</DialogTitle>
           </div>
-          <DialogDescription className="text-xs text-gray-400 mt-2 font-mono">
+          <DialogDescription className="text-xs text-slate-600 mt-2 font-mono">
             {config.description}
           </DialogDescription>
         </DialogHeader>
@@ -676,7 +703,7 @@ export function useConfirmDelete() {
             size="sm"
             variant="outline"
             onClick={() => setIsOpen(false)}
-            className="h-8 text-xs font-mono bg-[#121820] text-gray-300 border-white/10"
+            className="h-8 text-xs font-mono bg-[#f0f6fc] text-slate-700 border-[#c5d7e8]"
           >
             Cancel
           </Button>
@@ -687,7 +714,7 @@ export function useConfirmDelete() {
               await config.onConfirm();
               setIsOpen(false);
             }}
-            className="h-8 text-xs font-mono gap-1.5"
+            className="h-8 text-xs font-mono gap-1.5 bg-rose-600 hover:bg-rose-500"
           >
             <Trash2 className="h-3.5 w-3.5" /> Confirm Delete
           </Button>

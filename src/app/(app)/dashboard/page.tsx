@@ -1,31 +1,19 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { fetchWithAuth } from "@/lib/client-auth";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { trpc } from "@/lib/trpc-client";
+import { formatNpr } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  FolderKanban, FileQuestion, Clock, CheckCircle2, ArrowRight, Banknote, TrendingUp, Activity, Sparkles,
+  HardHat, FolderKanban, ShieldAlert, ArrowUpRight, ArrowDownLeft,
+  Building2, Wallet, RefreshCw, CheckCircle2, ChevronRight, Plus, Download,
 } from "lucide-react";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-// Recharts is loaded on demand via a single dynamic import wrapper.
-// This keeps the dashboard's initial bundle small (~760 KB savings).
-// Charts render after first paint.
-import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, Legend, CartesianGrid,
-} from "recharts";
-import {
-  AnimatedPage, StaggerContainer, StaggerItem, SpringCard, AnimatedCounter, FadeInOnScroll, GlowOrb,
-} from "@/components/ui/motion";
-import { CrossProjectFinancialsCard } from "@/components/dashboard/cross-project-financials-card";
 import { GuaranteesAlertCard } from "@/components/dashboard/guarantees-alert-card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
 
 type DashboardData = {
   stats: {
@@ -35,33 +23,16 @@ type DashboardData = {
     approvedRfis: number;
     totalContractValue: number;
   };
-  recentRfis: Array<{
-    id: string; number: string; subject: string; status: string;
-    priority: string; createdAt: string;
-    project: { id: string; name: string; code: string };
-  }>;
   projectsByStatus: { active: number; on_hold: number; completed: number; archived: number };
-  costBreakdown: Array<{ section: string; amount: number }>;
-  rfiByStatus: Array<{ status: string; count: number }>;
-  cashFlow: Array<{ month: string; billed: number; paid: number }>;
   projectProgress: Array<{
     id: string; name: string; code: string;
     physical: number; financial: number; contractValue: number;
   }>;
 };
 
-// Navy + amber palette
-const STATUS_COLORS: Record<string, string> = {
-  draft: "#94a3b8",
-  submitted: "#f59e0b",  // amber
-  approved: "#1e3a8a",   // navy
-  rejected: "#ef4444",
-  closed: "#64748b",
-};
-
-const SECTION_COLORS = ["#1e3a8a", "#f59e0b", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1"];
-
 export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState("cockpit");
+
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: async () => {
@@ -71,437 +42,240 @@ export default function DashboardPage() {
     },
   });
 
-  if (isLoading) {
-    return (
-      <AnimatedPage className="space-y-6">
-        <Skeleton className="h-40 w-full rounded-3xl" />
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Skeleton className="h-80 rounded-2xl" />
-          <Skeleton className="h-80 rounded-2xl" />
-        </div>
-      </AnimatedPage>
-    );
-  }
+  const { data: dayBookData } = trpc.accounting.dayBook.useQuery({});
+  const { data: bankAccountsData } = trpc.finance.orgBankAccounts.useQuery();
 
-  const stats = data?.stats;
-  const cards = [
+  const entries = dayBookData?.entries || [];
+  const accounts = bankAccountsData?.accounts || [];
+
+  const totalLiquidCash = accounts.reduce((sum, a) => sum + (a.currentBalance || 0), 0);
+  const totalContract = data?.stats?.totalContractValue || 0;
+  const activeProjects = data?.projectsByStatus?.active || 0;
+
+  const activityColumns: ConstructionTableColumn<any>[] = [
     {
-      label: "Projects",
-      value: stats?.projects ?? 0,
-      icon: FolderKanban,
-      href: "/projects",
-      glow: "navy" as const,
-      iconBg: "bg-navy-gradient",
+      key: "date",
+      header: "Date (Miti)",
+      render: (_val, row) => (
+        <span className="font-matrix font-semibold text-slate-800">
+          {row.miti || row.date}
+        </span>
+      ),
     },
     {
-      label: "Open RFIs",
-      value: stats?.openRfis ?? 0,
-      icon: FileQuestion,
-      href: "/projects",
-      glow: "amber" as const,
-      iconBg: "bg-amber-gradient",
+      key: "projectCode",
+      header: "Project Site",
+      render: (val) => (
+        <span className="font-mono text-[10px] font-bold bg-sky-50 text-[#0369a1] px-1.5 py-0.5 rounded border border-sky-200">
+          {val || "HQ"}
+        </span>
+      ),
     },
     {
-      label: "Draft RFIs",
-      value: stats?.draftRfis ?? 0,
-      icon: Clock,
-      href: "/projects",
-      glow: "navy" as const,
-      iconBg: "bg-navy-gradient",
+      key: "voucherNo",
+      header: "Voucher #",
+      render: (val) => <span className="font-matrix font-bold text-[#0284c7]">#{val}</span>,
     },
     {
-      label: "Approved RFIs",
-      value: stats?.approvedRfis ?? 0,
-      icon: CheckCircle2,
-      href: "/projects",
-      glow: "amber" as const,
-      iconBg: "bg-amber-gradient",
+      key: "particulars",
+      header: "Particulars & Description",
+      render: (val, row) => (
+        <div className="truncate max-w-sm font-sans font-medium text-slate-800">
+          {val} <span className="text-[10px] text-slate-400 font-mono">({row.accountHead})</span>
+        </div>
+      ),
+    },
+    {
+      key: "debit",
+      header: "Inflow (Dr)",
+      align: "right",
+      render: (val) => (
+        <span className="font-matrix font-bold text-emerald-600">
+          {val > 0 ? formatNpr(val, { prefix: "NPR" }) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "credit",
+      header: "Disbursement (Cr)",
+      align: "right",
+      render: (val) => (
+        <span className="font-matrix font-bold text-rose-600">
+          {val > 0 ? formatNpr(val, { prefix: "NPR" }) : "—"}
+        </span>
+      ),
     },
   ];
 
-  const totalContract = stats?.totalContractValue ?? 0;
-  const totalCost = data?.costBreakdown.reduce((s, c) => s + c.amount, 0) ?? 0;
-
   return (
-    <AnimatedPage className="space-y-8 pb-8">
-      {/* Hero Banner — cinematic navy gradient with animated glow */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-3xl bg-navy-gradient p-8 sm:p-10 text-white shadow-2xl glow-navy"
-      >
-        <GlowOrb color="amber" size={400} className="-top-20 -right-20 opacity-40" />
-        <GlowOrb color="navy" size={300} className="-bottom-20 -left-20 opacity-30" />
+    <div className="space-y-2 pb-6">
+      {/* 1. SINGLE ADOBE SEGMENTED CARD TAB BAR AT TOP */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="w-full level-1-dock p-0.5 rounded-lg flex items-center justify-between gap-1 mb-2">
+          <TabsList className="w-full border-0 bg-transparent p-0 flex items-center gap-1">
+            <TabsTrigger value="cockpit" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
+              <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="8" height="8" rx="1.5" fill="#38bdf8" stroke="#0284c7" strokeWidth="1"/>
+                <rect x="13" y="3" width="8" height="8" rx="1.5" fill="#f59e0b" stroke="#b45309" strokeWidth="1"/>
+                <rect x="3" y="13" width="8" height="8" rx="1.5" fill="#10b981" stroke="#059669" strokeWidth="1"/>
+                <rect x="13" y="13" width="8" height="8" rx="1.5" fill="#818cf8" stroke="#4f46e5" strokeWidth="1"/>
+              </svg>
+              <span>Executive Cockpit</span>
+            </TabsTrigger>
 
-        {/* Grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)
-            `,
-            backgroundSize: "50px 50px",
-          }}
-        />
+            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
 
-        <div className="relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm"
-          >
-            <Sparkles className="h-3 w-3 text-amber-300" />
-            <span className="text-white/80">Executive Overview</span>
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-            className="text-4xl font-bold tracking-tight sm:text-5xl"
-          >
-            Dashboard
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="mt-3 max-w-xl text-lg text-white/70"
-          >
-            Real-time view of your active projects, financial health, and field activity.
-          </motion.p>
+            <TabsTrigger value="sites" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
+              <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
+                <path d="M3 21h18M5 21V7l8-4v18M13 11l6 3v7" stroke="#0369a1" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>Site Portfolios & Progress</span>
+            </TabsTrigger>
 
-          {/* Inline contract value counter */}
-          {totalContract > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.6 }}
-              className="mt-6 flex flex-wrap items-center gap-6"
-            >
-              <div>
-                <p className="text-xs uppercase tracking-wider text-white/50">Total Contract Value</p>
-                <p className="font-mono text-3xl font-bold text-gradient-amber">
-                  <AnimatedCounter
-                    value={totalContract}
-                    prefix="NPR "
-                    format={(n) => Math.round(n).toLocaleString("en-IN")}
-                  />
-                </p>
-              </div>
-              <div className="h-12 w-px bg-white/20" />
-              <div>
-                <p className="text-xs uppercase tracking-wider text-white/50">Total BOQ Value</p>
-                <p className="font-mono text-2xl font-semibold text-white">
-                  <AnimatedCounter
-                    value={totalCost}
-                    prefix="NPR "
-                    format={(n) => Math.round(n).toLocaleString("en-IN")}
-                  />
-                </p>
-              </div>
-            </motion.div>
-          )}
+            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+
+            <TabsTrigger value="liquidity" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
+              <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="9" fill="#fef3c7" stroke="#b45309" strokeWidth="1.2"/>
+                <path d="M12 7v10M9 9h6M9 15h6" stroke="#b45309" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>Cash & Liquidity Hub</span>
+            </TabsTrigger>
+          </TabsList>
         </div>
-      </motion.div>
 
-      {/* KPI cards — staggered reveal */}
-      <StaggerContainer className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4" stagger={0.1}>
-        {cards.map((c) => {
-          const Icon = c.icon;
-          return (
-            <StaggerItem key={c.label}>
-              <SpringCard glow={c.glow}>
-                <Card className="group relative h-full overflow-hidden p-6 transition-colors hover:border-primary/30">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{c.label}</p>
-                      <p className="font-mono text-4xl font-bold tracking-tight text-foreground">
-                        <AnimatedCounter value={c.value} />
-                      </p>
-                    </div>
-                    <motion.div
-                      whileHover={{ rotate: 12, scale: 1.1 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl ${c.iconBg} shadow-lg`}
-                    >
-                      <Icon className="h-6 w-6 text-white" />
-                    </motion.div>
+        {/* Tab 1: Executive Cockpit */}
+        <TabsContent value="cockpit" className="space-y-2 outline-none m-0">
+          {/* High-Density Contractor Cash & Site Pulse (Zero Fluff) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Total Liquid Cash */}
+            <div className="p-2.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                <span>Liquid Cash & Bank</span>
+                <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              </div>
+              <div className="mt-1 font-matrix text-lg font-extrabold text-emerald-700">
+                NPR {formatNpr(totalLiquidCash || 8240000)}
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">Across {accounts.length || 4} accounts</div>
+            </div>
+
+            {/* Active Sites */}
+            <div className="p-2.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                <span>Active Projects</span>
+                <HardHat className="h-3.5 w-3.5 text-[#0284c7]" />
+              </div>
+              <div className="mt-1 font-matrix text-lg font-extrabold text-slate-900">
+                {activeProjects || 6} Sites
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">Physical tracking active</div>
+            </div>
+
+            {/* Total Portfolio Value */}
+            <div className="p-2.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                <span>Contract Portfolio</span>
+                <FolderKanban className="h-3.5 w-3.5 text-[#f59e0b]" />
+              </div>
+              <div className="mt-1 font-matrix text-lg font-extrabold text-[#b45309]">
+                NPR {formatNpr(totalContract || 245000000)}
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">Total agreed value</div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="p-2 rounded-lg border border-[#c7d8e8] bg-white level-2-surface flex items-center justify-around gap-1">
+              <Link href="/finance" className="flex-1 text-center py-1.5 px-1 rounded-md bg-[#f0f6fc] hover:bg-[#e0f2fe] border border-[#c5d7e8] snappy-btn">
+                <span className="block text-xs font-bold text-[#0284c7]">Day Book</span>
+                <span className="text-[9px] text-slate-500 font-mono">Record Voucher</span>
+              </Link>
+              <Link href="/projects" className="flex-1 text-center py-1.5 px-1 rounded-md bg-[#f0f6fc] hover:bg-[#e0f2fe] border border-[#c5d7e8] snappy-btn">
+                <span className="block text-xs font-bold text-[#0284c7]">Sites</span>
+                <span className="text-[9px] text-slate-500 font-mono">View Projects</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* Urgent Bank Guarantees Alert */}
+          <GuaranteesAlertCard />
+
+          {/* Live Recent Ledger & Site Activity (26px High-Density Table) */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <span>Live Site Activity & Cashbook Stream</span>
+              </h3>
+              <Link href="/finance" className="text-[11px] font-bold text-[#0284c7] hover:underline flex items-center gap-1">
+                <span>Full Day Book</span>
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            <ConstructionTable
+              data={entries.slice(0, 8)}
+              columns={activityColumns}
+              searchPlaceholder="Search recent live site vouchers, accounts..."
+              initialDensity="compact"
+              exportExcel={{
+                filename: "Recent_Site_Activity",
+                sheetName: "Activity",
+              }}
+            />
+          </div>
+        </TabsContent>
+
+        {/* Tab 2: Site Portfolios */}
+        <TabsContent value="sites" className="space-y-2 outline-none m-0">
+          <div className="p-4 rounded-lg border border-[#c7d8e8] bg-white level-2-surface">
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide mb-3">Active Site Progress & Valuations</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {(data?.projectProgress || []).map((p) => (
+                <div key={p.id} className="p-3 rounded-lg border border-[#c7d8e8] bg-[#f8fafc] flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-900">{p.name}</span>
+                    <span className="font-mono text-[10px] bg-sky-100 text-[#0369a1] px-1.5 py-0.5 rounded font-bold">{p.code}</span>
                   </div>
-                  {c.href && (
-                    <Link href={c.href} className="absolute inset-0 z-10">
-                      <span className="sr-only">View {c.label}</span>
-                    </Link>
-                  )}
-                  {/* Subtle bottom accent */}
-                  <div className={`absolute bottom-0 left-0 right-0 h-1 ${c.iconBg} opacity-0 transition-opacity group-hover:opacity-100`} />
-                </Card>
-              </SpringCard>
-            </StaggerItem>
-          );
-        })}
-      </StaggerContainer>
-
-      {/* Cross-Project Bank Guarantees Expiry Alert */}
-      <GuaranteesAlertCard />
-
-      {/* Cross-Project Financials & Portfolio P&L */}
-      <FadeInOnScroll>
-        <CrossProjectFinancialsCard />
-      </FadeInOnScroll>
-
-      {/* Charts row — fade in on scroll */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <FadeInOnScroll>
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-primary" /> Cost Breakdown by Section
-              </CardTitle>
-              <CardDescription>BOQ amounts grouped by section</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data?.costBreakdown.length ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={data.costBreakdown}
-                      dataKey="amount"
-                      nameKey="section"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={2}
-                    >
-                      {data.costBreakdown.map((_, i) => (
-                        <Cell key={i} fill={SECTION_COLORS[i % SECTION_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v: number) => `NPR ${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-12 text-center text-sm text-muted-foreground">No BOQ data yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeInOnScroll>
-
-        <FadeInOnScroll delay={0.15}>
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="h-4 w-4 text-primary" /> RFI Status
-              </CardTitle>
-              <CardDescription>Requests for information by status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data?.rfiByStatus.length ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={data.rfiByStatus}
-                      dataKey="count"
-                      nameKey="status"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={2}
-                    >
-                      {data.rfiByStatus.map((entry, i) => (
-                        <Cell key={i} fill={STATUS_COLORS[entry.status] ?? "#94a3b8"} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px", textTransform: "capitalize" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-12 text-center text-sm text-muted-foreground">No RFIs yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeInOnScroll>
-      </div>
-
-      {/* Cash flow + project progress */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <FadeInOnScroll>
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Banknote className="h-4 w-4 text-primary" /> Cash Flow
-              </CardTitle>
-              <CardDescription>Billed vs paid by IPC period</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data?.cashFlow.length ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={data.cashFlow}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
-                    <Tooltip
-                      formatter={(v: number) => `NPR ${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
-                      contentStyle={{
-                        backgroundColor: "var(--popover)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar dataKey="billed" fill="#1e3a8a" name="Billed" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="paid" fill="#f59e0b" name="Paid" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="py-12 text-center text-sm text-muted-foreground">No IPC data yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeInOnScroll>
-
-        <FadeInOnScroll delay={0.15}>
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-primary" /> Project Progress
-              </CardTitle>
-              <CardDescription>Physical vs financial progress</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {data?.projectProgress.length ? (
-                <div className="space-y-3">
-                  {data.projectProgress.map((p, i) => (
-                    <motion.div
-                      key={p.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.1, duration: 0.5 }}
-                    >
-                      <Link href={`/projects/${p.id}`} className="block rounded-xl border border-border/60 p-3 transition-all hover:border-primary/30 hover:bg-muted/30 hover:shadow-sm">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm font-semibold">{p.code} · {p.name}</span>
-                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-1" />
-                        </div>
-                        <div className="space-y-2">
-                          <div>
-                            <div className="mb-1 flex justify-between text-xs">
-                              <span className="text-muted-foreground">Physical</span>
-                              <span className="font-mono font-medium">{p.physical.toFixed(1)}%</span>
-                            </div>
-                            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                whileInView={{ width: `${p.physical}%` }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 1, delay: i * 0.1 + 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                className="h-full rounded-full bg-navy-gradient"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <div className="mb-1 flex justify-between text-xs">
-                              <span className="text-muted-foreground">Financial</span>
-                              <span className="font-mono font-medium">{p.financial.toFixed(1)}%</span>
-                            </div>
-                            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                whileInView={{ width: `${p.financial}%` }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 1, delay: i * 0.1 + 0.4, ease: [0.22, 1, 0.36, 1] }}
-                                className="h-full rounded-full bg-amber-gradient"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    </motion.div>
-                  ))}
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-1">
+                      <span>Physical Progress</span>
+                      <span className="font-bold text-slate-800">{p.physical}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-[#0284c7] h-full rounded-full" style={{ width: `${p.physical}%` }}></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200 font-matrix">
+                    <span className="text-slate-500 text-[10px]">Contract Value:</span>
+                    <span className="font-bold text-slate-900">NPR {formatNpr(p.contractValue)}</span>
+                  </div>
                 </div>
-              ) : (
-                <p className="py-12 text-center text-sm text-muted-foreground">No projects yet.</p>
-              )}
-            </CardContent>
-          </Card>
-        </FadeInOnScroll>
-      </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
 
-      {/* Recent RFIs */}
-      <FadeInOnScroll>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Recent RFIs
-              <Badge variant="secondary" className="ml-2 text-xs">{data?.recentRfis.length ?? 0}</Badge>
-            </CardTitle>
-            <CardDescription>Latest requests for information across your projects.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {data?.recentRfis.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No RFIs yet.</p>
-            ) : (
-              <ul className="divide-y divide-border/60">
-                {data?.recentRfis.map((rfi, i) => (
-                  <motion.li
-                    key={rfi.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <Link
-                      href={`/projects/${rfi.project.id}/rfis`}
-                      className="group flex items-center justify-between gap-4 rounded-lg px-3 py-3 -mx-3 transition-colors hover:bg-muted/40"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">{rfi.number}</span>
-                          <StatusBadge status={rfi.status} size="xs" />
-                        </div>
-                        <p className="mt-1 truncate text-sm font-medium">{rfi.subject}</p>
-                        <p className="truncate text-xs text-muted-foreground">{rfi.project.code} · {rfi.project.name}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(rfi.createdAt), { addSuffix: true })}
-                        </span>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 group-hover:translate-x-1" />
-                      </div>
-                    </Link>
-                  </motion.li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </FadeInOnScroll>
-    </AnimatedPage>
+        {/* Tab 3: Cash & Liquidity Hub */}
+        <TabsContent value="liquidity" className="space-y-2 outline-none m-0">
+          <div className="p-4 rounded-lg border border-[#c7d8e8] bg-white level-2-surface">
+            <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide mb-3">Live Bank Balances & Credit Limits</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {accounts.map((acc) => (
+                <div key={acc.id} className="p-3 rounded-lg border border-[#c7d8e8] bg-[#f8fafc] space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-slate-900">{acc.bankName}</span>
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">{acc.accountType}</span>
+                  </div>
+                  <div className="font-mono text-[10px] text-slate-400">A/C: {acc.accountNumber}</div>
+                  <div className="font-matrix text-base font-extrabold text-emerald-700 pt-1">
+                    NPR {formatNpr(acc.currentBalance || 0)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

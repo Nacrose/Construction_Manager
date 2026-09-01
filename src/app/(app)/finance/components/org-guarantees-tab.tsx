@@ -28,6 +28,7 @@ import {
   Loader2,
   FileText,
   Eye,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
@@ -39,7 +40,9 @@ import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { AttachmentDropzone } from "@/components/ui/attachment-dropzone";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { sanitizeUrl } from "@/lib/safe-url";
+import { GuaranteeFormDialog } from "@/app/(app)/projects/[id]/guarantees/dialogs/guarantee-form-dialog";
 
 const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: string }> = {
   bid_bond: {
@@ -77,30 +80,19 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
 export function OrgGuaranteesTab() {
   const utils = trpc.useUtils();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingGuarantee, setEditingGuarantee] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "extended" | "released" | "expired">("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  // Create Form State
-  const [type, setType] = useState<"bid_bond" | "performance_bond" | "advance_payment" | "retention_bond" | "car_insurance" | "other">("bid_bond");
-  const [guaranteeNumber, setGuaranteeNumber] = useState("");
-  const [issuingBank, setIssuingBank] = useState("");
-  const [branch, setBranch] = useState("");
-  const [beneficiary, setBeneficiary] = useState("");
-  const [amount, setAmount] = useState("");
-  const [marginAmount, setMarginAmount] = useState("");
-  const [commissionPaid, setCommissionPaid] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [issueDate, setIssueDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [issueMiti, setIssueMiti] = useState(() => {
-    try { return adToBs(new Date()).formatted; } catch { return ""; }
-  });
-  const [expiryDate, setExpiryDate] = useState("");
-  const [expiryMiti, setExpiryMiti] = useState("");
-  const [claimPeriodDays, setClaimPeriodDays] = useState("30");
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("none");
-  const [documentUrl, setDocumentUrl] = useState("");
-  const [documentName, setDocumentName] = useState("");
-  const [notes, setNotes] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    type: "release" | "delete";
+    id: string;
+    title: string;
+    description: string;
+    variant: "destructive" | "warning";
+    confirmLabel: string;
+  } | null>(null);
 
   const { data: projectList } = trpc.project.list.useQuery();
   const projects = projectList?.projects || [];
@@ -110,20 +102,11 @@ export function OrgGuaranteesTab() {
     type: typeFilter !== "all" ? typeFilter : undefined,
   });
 
-  const createMutation = trpc.bankGuarantee.create.useMutation({
-    onSuccess: () => {
-      toast.success("Bank guarantee / bid bond registered successfully");
-      utils.bankGuarantee.list.invalidate();
-      setCreateDialogOpen(false);
-      resetForm();
-    },
-    onError: (err) => toastError("Bank guarantee could not be registered. Please try again.", err.message),
-  });
-
   const releaseMutation = trpc.bankGuarantee.release.useMutation({
     onSuccess: () => {
       toast.success("Guarantee marked as released & margin unblocked");
       utils.bankGuarantee.list.invalidate();
+      setConfirmModal(null);
     },
     onError: (err) => toastError("Guarantee could not be marked as released. Please try again.", err.message),
   });
@@ -132,58 +115,12 @@ export function OrgGuaranteesTab() {
     onSuccess: () => {
       toast.success("Guarantee record deleted");
       utils.bankGuarantee.list.invalidate();
+      utils.finance.orgMasterDayBook.invalidate();
+      utils.finance.orgBankAccounts.invalidate();
+      setConfirmModal(null);
     },
     onError: (err) => toastError("Guarantee record could not be deleted. Please try again.", err.message),
   });
-
-  const resetForm = () => {
-    setGuaranteeNumber("");
-    setIssuingBank("");
-    setBranch("");
-    setBeneficiary("");
-    setAmount("");
-    setMarginAmount("");
-    setCommissionPaid("");
-    setPurpose("");
-    setExpiryDate("");
-    setExpiryMiti("");
-    setSelectedProjectId("none");
-    setDocumentUrl("");
-    setDocumentName("");
-    setNotes("");
-  };
-
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsedAmount = parseFloat(amount);
-    if (!guaranteeNumber.trim() || !issuingBank.trim() || !beneficiary.trim() || !expiryDate || isNaN(parsedAmount) || parsedAmount <= 0) {
-      toast.error("Please fill all required fields with a valid amount");
-      return;
-    }
-
-    const finalIssuedDate = issueDate || format(new Date(), "yyyy-MM-dd");
-
-    createMutation.mutate({
-      type,
-      guaranteeNumber: guaranteeNumber.trim(),
-      issuingBank: issuingBank.trim(),
-      branch: branch.trim() || undefined,
-      beneficiary: beneficiary.trim(),
-      amount: parsedAmount,
-      marginAmount: parseFloat(marginAmount) || 0,
-      commissionPaid: parseFloat(commissionPaid) || 0,
-      purpose: purpose.trim() || undefined,
-      issuedDate: finalIssuedDate,
-      issuedMiti: issueMiti?.trim() || undefined,
-      expiryDate,
-      expiryMiti: expiryMiti?.trim() || undefined,
-      claimPeriodDays: parseInt(claimPeriodDays) || 30,
-      projectId: selectedProjectId !== "none" ? selectedProjectId : undefined,
-      documentUrl: documentUrl?.trim() || undefined,
-      documentName: documentName?.trim() || undefined,
-      notes: notes?.trim() || undefined,
-    });
-  };
 
   const kpis = data?.kpis || {
     totalActiveExposure: 0,
@@ -314,7 +251,17 @@ export function OrgGuaranteesTab() {
           <div className="flex items-center justify-end gap-1.5 font-sans">
             {g.status !== "released" && (
               <Button
-                onClick={() => releaseMutation.mutate({ id: idVal })}
+                onClick={() =>
+                  setConfirmModal({
+                    open: true,
+                    type: "release",
+                    id: idVal,
+                    title: "Release Bank Guarantee?",
+                    description: `Mark guarantee #${g.guaranteeNumber} (${g.issuingBank}) as officially released/returned by the employer? This will unblock Rs. ${formatNpr(g.marginAmount)} in margin funds.`,
+                    variant: "warning",
+                    confirmLabel: "Confirm Release",
+                  })
+                }
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
@@ -323,11 +270,26 @@ export function OrgGuaranteesTab() {
               </Button>
             )}
             <Button
-              onClick={() => {
-                if (confirm("Delete this guarantee record?")) {
-                  deleteMutation.mutate({ id: idVal });
-                }
-              }}
+              onClick={() => setEditingGuarantee(g)}
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-white hover:bg-white/10"
+              title="Edit Guarantee & Ledger"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              onClick={() =>
+                setConfirmModal({
+                  open: true,
+                  type: "delete",
+                  id: idVal,
+                  title: "Delete Guarantee Record?",
+                  description: `Permanently remove guarantee #${g.guaranteeNumber}? This will also remove any auto-posted Day Book commission entry. This action cannot be undone.`,
+                  variant: "destructive",
+                  confirmLabel: "Delete Record",
+                })
+              }
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10"
@@ -433,227 +395,47 @@ export function OrgGuaranteesTab() {
       />
 
       {/* Register BG / Bid Bond Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="max-w-4xl lg:max-w-5xl bg-[#0c1015] border-white/10 text-white backdrop-blur-md p-6">
-          <DialogHeader className="pb-2 border-b border-white/10">
-            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-              <ShieldCheck className="h-5 w-5 text-emerald-400" /> Register Bank Guarantee / Bid Bond
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Register commercial bank guarantee, tender bid bond, or contractor insurance policy.
-            </DialogDescription>
-          </DialogHeader>
+      {createDialogOpen && (
+        <GuaranteeFormDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          onDone={() => setCreateDialogOpen(false)}
+        />
+      )}
 
-          <form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column: Core Guarantee Information */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Guarantee Type *</Label>
-                    <Select value={type} onValueChange={(v: any) => setType(v)}>
-                      <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
-                        <SelectItem value="bid_bond">Bid Bond (बोलपत्र जमानत)</SelectItem>
-                        <SelectItem value="performance_bond">Performance Bond (कार्यसम्पादन)</SelectItem>
-                        <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
-                        <SelectItem value="retention_bond">Retention Bond (धरौटी जमानत)</SelectItem>
-                        <SelectItem value="car_insurance">CAR Insurance (जोखिम बीमा)</SelectItem>
-                        <SelectItem value="other">Other Guarantee</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+      {/* Edit Guarantee Dialog */}
+      {editingGuarantee && (
+        <GuaranteeFormDialog
+          open={Boolean(editingGuarantee)}
+          onOpenChange={(open) => {
+            if (!open) setEditingGuarantee(null);
+          }}
+          initialData={editingGuarantee}
+          onDone={() => setEditingGuarantee(null)}
+        />
+      )}
 
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Guarantee / Policy No *</Label>
-                    <Input
-                      required
-                      placeholder="e.g. BG-NBL-2081-9921"
-                      value={guaranteeNumber}
-                      onChange={(e) => setGuaranteeNumber(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
-                    <Input
-                      required
-                      placeholder="e.g. Nabil Bank Ltd."
-                      value={issuingBank}
-                      onChange={(e) => setIssuingBank(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Branch Name</Label>
-                    <Input
-                      placeholder="e.g. Putalisadak Branch"
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Beneficiary (Employer / Client) *</Label>
-                  <Input
-                    required
-                    placeholder="e.g. Department of Roads, Bridge Division"
-                    value={beneficiary}
-                    onChange={(e) => setBeneficiary(e.target.value)}
-                    className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Amount (NPR) *</Label>
-                    <Input
-                      required
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono font-bold"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Margin Amount</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={marginAmount}
-                      onChange={(e) => setMarginAmount(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Commission Paid</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={commissionPaid}
-                      onChange={(e) => setCommissionPaid(e.target.value)}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Issue Date (AD)</Label>
-                      {issueMiti && <span className="text-[10px] text-emerald-400 font-mono">{issueMiti}</span>}
-                    </div>
-                    <Input
-                      type="date"
-                      value={issueDate}
-                      onChange={(e) => {
-                        setIssueDate(e.target.value);
-                        try { setIssueMiti(adToBs(e.target.value).formatted); } catch {}
-                      }}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Expiry Date (AD) *</Label>
-                      {expiryMiti && <span className="text-[10px] text-amber-400 font-mono">{expiryMiti}</span>}
-                    </div>
-                    <Input
-                      required
-                      type="date"
-                      value={expiryDate}
-                      onChange={(e) => {
-                        setExpiryDate(e.target.value);
-                        try { setExpiryMiti(adToBs(e.target.value).formatted); } catch {}
-                      }}
-                      className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono text-amber-400"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Project Linking, PDF Attachment Dropzone, Remarks */}
-              <div className="space-y-3 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Link to Project (Optional)</Label>
-                    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                      <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
-                        <SelectValue placeholder="Select Project" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
-                        <SelectItem value="none">None (Pre-Award Tender Bid Bond)</SelectItem>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.code} - {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Attachment Upload / Dropzone */}
-                  <AttachmentDropzone
-                    value={documentUrl}
-                    onChange={(url, file) => {
-                      setDocumentUrl(url || "");
-                      if (file) setDocumentName(file.name);
-                    }}
-                    label="Guarantee Scanned PDF / Document (फाइल / कागजात छान्नुहोस्)"
-                    accept=".pdf,image/*,application/pdf"
-                    maxSizeMb={10}
-                  />
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold">Remarks / Notes</Label>
-                    <Textarea
-                      rows={2}
-                      placeholder="Any special terms, collateral pledged, or extension conditions..."
-                      className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setCreateDialogOpen(false)}
-                className="text-xs text-muted-foreground hover:text-white"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5"
-              >
-                {createMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                Save Guarantee
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Confirmation Dialog for Release / Delete */}
+      {confirmModal && (
+        <ConfirmDialog
+          open={confirmModal.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmModal(null);
+          }}
+          title={confirmModal.title}
+          description={confirmModal.description}
+          variant={confirmModal.variant}
+          confirmLabel={confirmModal.confirmLabel}
+          isLoading={releaseMutation.isPending || deleteMutation.isPending}
+          onConfirm={async () => {
+            if (confirmModal.type === "release") {
+              await releaseMutation.mutateAsync({ id: confirmModal.id });
+            } else if (confirmModal.type === "delete") {
+              await deleteMutation.mutateAsync({ id: confirmModal.id });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -171,7 +171,7 @@ export function LogTransactionDialog({
               <option value="receive">Receive (GRN / Inward)</option>
               <option value="issue">Issue (Out)</option>
               <option value="transfer">Transfer (Out)</option>
-              <option value="adjustment">Adjustment (In/Out)</option>
+              <option value="adjustment">Stock Adjustment / Opening Stock (मौज्दात मिलान / सुरुवाती)</option>
             </select>
           </div>
           <div className="space-y-1.5">

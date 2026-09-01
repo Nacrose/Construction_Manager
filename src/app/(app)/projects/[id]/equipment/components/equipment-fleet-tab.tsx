@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Equipment, STATUS_STYLES } from "./types";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function EquipmentFleetTab({
   id,
@@ -38,6 +39,7 @@ export function EquipmentFleetTab({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "maintenance" | "breakdown" | "idle"
   >("all");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const filteredEquipment = allEquipment.filter((e) => {
     if (statusFilter === "all") return true;
@@ -225,11 +227,7 @@ export function EquipmentFleetTab({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete machine "${e.name}"?`)) {
-                      deleteMutation.mutate({ itemId: e.id });
-                    }
-                  }}
+                  onClick={() => setDeleteTarget({ id: e.id, name: e.name })}
                   className="text-xs cursor-pointer text-red-600 font-medium focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-950/30"
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1.5 text-red-600" />
@@ -464,11 +462,7 @@ export function EquipmentFleetTab({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete machine "${e.name}"?`)) {
-                              deleteMutation.mutate({ itemId: e.id });
-                            }
-                          }}
+                          onClick={() => setDeleteTarget({ id: e.id, name: e.name })}
                           className="text-xs text-red-600 font-medium cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5 mr-1.5 text-red-600" />
@@ -482,6 +476,25 @@ export function EquipmentFleetTab({
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Confirmation Modal for Deleting Equipment */}
+      {deleteTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          title="Delete Equipment Machine?"
+          description={`Are you sure you want to permanently delete equipment "${deleteTarget.name}"? This action cannot be undone.`}
+          variant="destructive"
+          confirmLabel="Delete Machine"
+          isLoading={deleteMutation.isPending}
+          onConfirm={async () => {
+            await deleteMutation.mutateAsync({ itemId: deleteTarget.id });
+            setDeleteTarget(null);
+          }}
+        />
       )}
     </div>
   );

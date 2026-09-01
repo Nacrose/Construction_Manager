@@ -341,4 +341,129 @@ describe("bankGuarantee release/update/delete", () => {
     await expectTRPCError(caller.delete({ id: "bg-1" }), "FORBIDDEN");
     expect(anyDb.bankGuarantee.delete).not.toHaveBeenCalled();
   });
+
+  it("create posts to HeadOfficeExpense and decrements CompanyBankAccount when postToDayBook is true", async () => {
+    member("project_manager");
+    anyDb.bankGuarantee.create.mockResolvedValue({ id: "bg-1", guaranteeNumber: "BG-2082-001" });
+    anyDb.headOfficeExpense.create.mockResolvedValue({ id: "exp-1" });
+    anyDb.companyBankAccount.update.mockResolvedValue({ id: "bank-1" });
+
+    const caller = createCaller(bankGuaranteeRouter, PM);
+    await caller.create({
+      type: "performance_bond" as const,
+      guaranteeNumber: "BG-2082-001",
+      issuingBank: "Nabil Bank",
+      beneficiary: "Department of Roads",
+      amount: 500000,
+      issuedDate: "2026-08-01T00:00:00.000Z",
+      expiryDate: "2027-08-01T00:00:00.000Z",
+      commissionPaid: 7500,
+      postToDayBook: true,
+      bankAccountId: "bank-1",
+      projectId: "p-1",
+    });
+
+    expect(anyDb.headOfficeExpense.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          category: "Bank Charges & Guarantee Fees",
+          amount: 7500,
+          bankAccountId: "bank-1",
+          voucherNo: "BG-COMM-BG-2082-001",
+        }),
+      })
+    );
+    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "bank-1" },
+        data: { currentBalance: { decrement: 7500 } },
+      })
+    );
+  });
+
+  it("update synchronizes linked Day Book voucher and adjusts bank balances", async () => {
+    member("project_manager");
+    anyDb.bankGuarantee.findUniqueOrThrow.mockResolvedValue({
+      id: "bg-1",
+      guaranteeNumber: "BG-2082-001",
+      issuingBank: "Nabil Bank",
+      beneficiary: "DoR",
+      commissionPaid: 7500,
+      issuedDate: new Date("2026-08-01"),
+      expiryDate: new Date("2027-08-01"),
+      projectId: "p-1",
+      organizationId: "org-1",
+    });
+    anyDb.headOfficeExpense.findFirst.mockResolvedValue({
+      id: "exp-1",
+      amount: 7500,
+      bankAccountId: "bank-1",
+      date: new Date("2026-08-01"),
+      miti: "2083-04-16",
+    });
+    anyDb.bankGuarantee.update.mockResolvedValue({ id: "bg-1", guaranteeNumber: "BG-2082-001" });
+    anyDb.headOfficeExpense.update.mockResolvedValue({ id: "exp-1" });
+    anyDb.companyBankAccount.update.mockResolvedValue({ id: "bank-1" });
+
+    const caller = createCaller(bankGuaranteeRouter, PM);
+    await caller.update({
+      id: "bg-1",
+      commissionPaid: 9000,
+      bankAccountId: "bank-2",
+      postToDayBook: true,
+    });
+
+    // Restores old bank account
+    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
+      where: { id: "bank-1" },
+      data: { currentBalance: { increment: 7500 } },
+    });
+    // Updates expense
+    expect(anyDb.headOfficeExpense.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "exp-1" },
+        data: expect.objectContaining({
+          amount: 9000,
+          bankAccountId: "bank-2",
+        }),
+      })
+    );
+    // Decrements new bank account
+    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
+      where: { id: "bank-2" },
+      data: { currentBalance: { decrement: 9000 } },
+    });
+  });
+
+  it("delete removes linked Day Book voucher and restores bank balance", async () => {
+    member("project_manager");
+    anyDb.bankGuarantee.findUniqueOrThrow.mockResolvedValue({
+      id: "bg-1",
+      guaranteeNumber: "BG-2082-001",
+      projectId: "p-1",
+      organizationId: "org-1",
+    });
+    anyDb.headOfficeExpense.findFirst.mockResolvedValue({
+      id: "exp-1",
+      amount: 7500,
+      bankAccountId: "bank-1",
+    });
+    anyDb.bankGuarantee.delete.mockResolvedValue({ id: "bg-1" });
+    anyDb.headOfficeExpense.delete.mockResolvedValue({ id: "exp-1" });
+    anyDb.companyBankAccount.update.mockResolvedValue({ id: "bank-1" });
+
+    const caller = createCaller(bankGuaranteeRouter, PM);
+    await caller.delete({ id: "bg-1" });
+
+    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
+      where: { id: "bank-1" },
+      data: { currentBalance: { increment: 7500 } },
+    });
+    expect(anyDb.headOfficeExpense.delete).toHaveBeenCalledWith({
+      where: { id: "exp-1" },
+    });
+    expect(anyDb.bankGuarantee.delete).toHaveBeenCalledWith({
+      where: { id: "bg-1" },
+    });
+  });
 });

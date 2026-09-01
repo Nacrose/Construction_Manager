@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { formatNpr } from "@/lib/construction-finance";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function PayrollManagementTab({
   projectId,
@@ -40,6 +41,7 @@ export function PayrollManagementTab({
     return format(new Date(), "yyyy-MM");
   });
   const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"approve" | "disburse" | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -70,6 +72,7 @@ export function PayrollManagementTab({
           : "Payroll reopened"
       );
       utils.payroll.calculate.invalidate({ projectId, month: selectedMonth });
+      setConfirmAction(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -248,7 +251,7 @@ export function PayrollManagementTab({
           {existingRun?.status === "draft" && isAdmin && (
             <Button
               size="sm"
-              onClick={() => updateStatusMut.mutate({ projectId, runId: existingRun.id, action: "approve" })}
+              onClick={() => setConfirmAction("approve")}
               disabled={updateStatusMut.isPending}
               className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1 px-2.5"
             >
@@ -259,7 +262,7 @@ export function PayrollManagementTab({
           {existingRun?.status === "approved" && isAdmin && (
             <Button
               size="sm"
-              onClick={() => updateStatusMut.mutate({ projectId, runId: existingRun.id, action: "disburse" })}
+              onClick={() => setConfirmAction("disburse")}
               disabled={updateStatusMut.isPending}
               className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 px-2.5"
             >
@@ -384,6 +387,38 @@ export function PayrollManagementTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Payroll Approval / Disbursement */}
+      {confirmAction && (
+        <ConfirmDialog
+          open={Boolean(confirmAction)}
+          onOpenChange={(open) => {
+            if (!open) setConfirmAction(null);
+          }}
+          title={
+            confirmAction === "approve"
+              ? "Approve Payroll Batch?"
+              : "Mark Payroll as Disbursed?"
+          }
+          description={
+            confirmAction === "approve"
+              ? `Are you sure you want to approve payroll for period ${selectedMonth}? Total Net Payable: NPR ${formatNpr(summary?.grandTotal ?? 0)} across ${payrollItems.length} staff members.`
+              : `Marking payroll as disbursed will finalize salary payouts of NPR ${formatNpr(summary?.grandTotal ?? 0)} for period ${selectedMonth}.`
+          }
+          variant={confirmAction === "approve" ? "warning" : "success"}
+          confirmLabel={confirmAction === "approve" ? "Approve Payroll" : "Confirm Disbursement"}
+          isLoading={updateStatusMut.isPending}
+          onConfirm={async () => {
+            if (existingRun) {
+              await updateStatusMut.mutateAsync({
+                projectId,
+                runId: existingRun.id,
+                action: confirmAction,
+              });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

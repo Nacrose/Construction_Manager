@@ -177,6 +177,38 @@ describe("materialCrud.create", () => {
     );
     expect(anyDb.material.create).not.toHaveBeenCalled();
   });
+
+  it("creates initial stock MaterialTransaction when openingStock is provided", async () => {
+    memberOf({ "p-1": "engineer" });
+    anyDb.material.create.mockResolvedValue({ id: "mat-1", name: "Bitumen VG-30" });
+    anyDb.materialTransaction.create.mockResolvedValue({ id: "txn-1" });
+
+    const caller = createCaller(materialCrudRouter, USER);
+    await caller.create({
+      projectId: "p-1",
+      name: "Bitumen VG-30",
+      unit: "drums",
+      openingStock: 50,
+      openingRate: 12000,
+      minStock: 10,
+    });
+
+    expect(anyDb.material.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        currentStock: 50,
+      }),
+    });
+    expect(anyDb.materialTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        materialId: "mat-1",
+        projectId: "p-1",
+        type: "adjustment",
+        quantity: 50,
+        rate: 12000,
+        reference: "OPENING-STOCK",
+      }),
+    });
+  });
 });
 
 // ─── update ─────────────────────────────────────────────────────────────────

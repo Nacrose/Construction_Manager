@@ -7,16 +7,12 @@ import { cn } from "@/lib/utils";
 import {
   HardHat, LayoutDashboard, FolderKanban, ClipboardList, Truck, ReceiptText,
   Users, ChevronLeft, History, Compass, FileSignature, ListChecks, LogOut,
-  Sun, Moon, Monitor, Terminal, Sparkles, Anchor, Scan, Gauge, MessageSquare,
-  RefreshCw, ShieldCheck, ShieldAlert, Building2, Database, Calendar, Mail,
-  AlignLeft, AlignRight, Settings, EyeOff, BookOpen, Boxes, CloudRain, Zap, Wind, Droplets,
+  Settings, Database, Mail, RefreshCw, ShieldAlert, BookOpen, Boxes,
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { fetchWithAuth, clearAuth, getToken } from "@/lib/client-auth";
 import { useUserPreferences } from "@/components/user-preferences-provider";
-import { useFXStore } from "@/lib/fx-store";
-import { AtmosphericControllerDialog } from "@/components/fx/atmospheric-controller-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -50,11 +46,11 @@ const TOP_NAV: NavItem[] = [
 
 const PROJECT_MODULES: NavItem[] = [
   { label: "Overview", href: "", icon: LayoutDashboard },
-  { label: "Planning", href: "/boq", icon: Gauge },
+  { label: "Planning", href: "/boq", icon: ClipboardList },
   { label: "Workflow", href: "/workflow/rfi", icon: ListChecks },
-  { label: "Communication", href: "/communication", icon: MessageSquare },
+  { label: "Communication", href: "/communication", icon: Mail },
   { label: "Documents", href: "/drawings", icon: Compass },
-  { label: "Quality & Safety", href: "/quality", icon: ShieldCheck },
+  { label: "Quality & Safety", href: "/quality", icon: HardHat },
   { label: "Variation Orders", href: "/variations", icon: FileSignature },
   { label: "Resources", href: "/materials", icon: Boxes },
 ];
@@ -92,8 +88,8 @@ function DockIcon({
     setCenter(isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2);
   });
 
-  const MAX_DIST = 90;
-  const MAX_SCALE = 1.7;
+  const MAX_DIST = 80;
+  const MAX_SCALE = 1.35;
   const scale = mousePos !== null && Math.abs(mousePos - center) < MAX_DIST
     ? 1 + (MAX_SCALE - 1) * (1 - Math.abs(mousePos - center) / MAX_DIST)
     : 1;
@@ -104,24 +100,26 @@ function DockIcon({
     position === "left" ? "center left" : "center right";
 
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
             ref={setRef}
-            style={{ scale, transformOrigin, transition: "scale 0.15s cubic-bezier(0.34,1.56,0.64,1)" }}
+            style={{ scale, transformOrigin, transition: "scale 0.15s cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
             <Link
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "relative flex h-11 w-11 items-center justify-center rounded transition-all duration-150 group",
-                active ? "bg-primary/20 text-primary border border-primary/60 shadow-[0_0_12px_rgba(0,255,102,0.25)]" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground hover:border hover:border-border/60"
+                "snappy-btn relative flex h-9 w-9 items-center justify-center rounded-lg select-none cursor-pointer group",
+                active 
+                  ? "rail-btn-active bg-white text-[#0369a1] border border-[#0284c7] shadow-sm font-bold" 
+                  : "text-slate-600 hover:bg-white/80 hover:text-slate-950 hover:shadow-xs"
               )}
             >
-              <Icon className={cn("h-5 w-5 transition-transform", active ? "text-primary scale-110" : "group-hover:text-primary group-hover:scale-105")} />
+              <Icon className={cn("h-4 w-4 transition-transform", active ? "text-[#0284c7] scale-110" : "group-hover:text-[#0284c7] group-hover:scale-105")} />
               {active && (
-                <span className={cn("absolute flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_#00ff66]",
+                <span className={cn("absolute flex h-1.5 w-1.5 rounded-full bg-[#0284c7] shadow-[0_0_4px_#0284c7]",
                   position === "bottom" && "bottom-0.5 left-1/2 -translate-x-1/2",
                   position === "top" && "top-0.5 left-1/2 -translate-x-1/2",
                   position === "left" && "left-0.5 top-1/2 -translate-y-1/2",
@@ -131,7 +129,7 @@ function DockIcon({
             </Link>
           </div>
         </TooltipTrigger>
-        <TooltipContent side={tooltipSide} className="text-xs font-mono font-bold bg-card border border-border text-primary shadow-[0_0_10px_rgba(0,255,102,0.15)]">{item.label}</TooltipContent>
+        <TooltipContent side={tooltipSide} className="text-xs font-mono font-bold bg-white border border-[#c7d8e8] text-slate-900 shadow-md">{item.label}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
@@ -139,18 +137,16 @@ function DockIcon({
 
 function DockDivider({ position }: { position: DockPosition }) {
   const isHorizontal = position === "top" || position === "bottom";
-  return <div className={cn("shrink-0 bg-white/20 rounded-full", isHorizontal ? "h-8 w-px mx-0.5" : "w-8 h-px my-0.5")} />;
+  return <div className={cn("shrink-0 bg-slate-300/80 rounded-full", isHorizontal ? "h-6 w-[1px] mx-0.5" : "w-6 h-[1px] my-0.5")} />;
 }
 
 export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { getPref, setPref } = useUserPreferences();
+  const { getPref } = useUserPreferences();
   const projectId = useProjectIdFromPath();
   const qc = useQueryClient();
-  const fx = useFXStore();
-  const [fxDialogOpen, setFxDialogOpen] = useState(false);
 
-  const position = getPref<DockPosition>("dockPosition", "bottom");
+  const position = getPref<DockPosition>("dockPosition", "left");
   const autoHide = getPref<boolean>("dockAutoHide", false);
   const [visible, setVisible] = useState(true);
   const [mousePos, setMousePos] = useState<number | null>(null);
@@ -163,11 +159,11 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
   }>({
     queryKey: ["me"],
     queryFn: async () => { const res = await fetchWithAuth("/api/auth/me"); if (!res.ok) throw new Error("not authed"); return res.json(); },
-    enabled: !!getToken(),
+    enabled: !getToken(),
   });
 
   const user = meData?.user;
-  const initials = user ? user.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() : "?";
+  const initials = user ? user.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() : "CM";
 
   // Auto-hide logic
   useEffect(() => {
@@ -223,17 +219,14 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
     : [];
 
   function isActive(item: NavItem) {
-    if (projectId && item.href.startsWith("/projects/")) {
-      const suffix = item.href.replace(`/projects/${projectId}`, "");
-      if (suffix === "") return pathname === `/projects/${projectId}`;
-      if (item.label === "Workflow") return pathname.startsWith(`/projects/${projectId}/workflow/`);
-      return pathname.startsWith(item.href);
-    }
-    return pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+    if (item.href === "/dashboard" && pathname === "/dashboard") return true;
+    if (item.href !== "/dashboard" && pathname?.startsWith(item.href)) return true;
+    return false;
   }
 
-  const tooltipSide: "top" | "bottom" | "left" | "right" =
-    position === "bottom" ? "top" : position === "top" ? "bottom" :
+  const tooltipSide =
+    position === "bottom" ? "top" :
+    position === "top" ? "bottom" :
     position === "left" ? "right" : "left";
 
   const slideClass =
@@ -242,26 +235,26 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
     position === "left" ? "-translate-x-[calc(100%+24px)]" : "translate-x-[calc(100%+24px)]";
 
   const positionClass =
-    position === "bottom" ? "bottom-5 left-1/2 -translate-x-1/2" :
-    position === "top" ? "top-5 left-1/2 -translate-x-1/2" :
-    position === "left" ? "left-5 top-1/2 -translate-y-1/2" : "right-5 top-1/2 -translate-y-1/2";
+    position === "bottom" ? "bottom-3 left-1/2 -translate-x-1/2" :
+    position === "top" ? "top-3 left-1/2 -translate-x-1/2" :
+    position === "left" ? "left-3 top-1/2 -translate-y-1/2" : "right-3 top-1/2 -translate-y-1/2";
 
   return (
     <>
       {projectId && (
-        <TooltipProvider delayDuration={300}>
+        <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Link href="/projects" className={cn(
-                "fixed z-50 flex h-8 w-8 items-center justify-center rounded",
-                "bg-card border border-border text-primary shadow-[0_0_12px_rgba(0,255,102,0.15)]",
-                "hover:bg-primary/15 hover:border-primary transition-all",
-                position === "bottom" && "bottom-24 left-4",
-                position === "top" && "top-24 left-4",
-                position === "left" && "left-24 top-4",
-                position === "right" && "right-24 top-4"
+                "fixed z-50 flex h-7 w-7 items-center justify-center rounded-md",
+                "bg-white border border-[#bdd1e5] text-[#0284c7] shadow-sm",
+                "hover:bg-[#e0f2fe] hover:border-[#0284c7] transition-all",
+                position === "bottom" && "bottom-20 left-3",
+                position === "top" && "top-20 left-3",
+                position === "left" && "left-20 top-3",
+                position === "right" && "right-20 top-3"
               )}>
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Link>
             </TooltipTrigger>
             <TooltipContent side="right" className="font-mono text-xs">All Projects</TooltipContent>
@@ -274,19 +267,17 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         className={cn(
-          "fixed z-50 flex items-center gap-1 p-1.5",
-          "bg-card border border-border",
-          "shadow-[0_0_24px_rgba(0,255,102,0.18)]",
-          "transition-all duration-300 ease-out",
-          isHorizontal ? "flex-row rounded" : "flex-col rounded",
+          "fixed z-50 flex items-center gap-1 p-1 sculpted-sidebar rounded-xl border border-[#bdd1e5] shadow-lg",
+          "transition-all duration-200 ease-out",
+          isHorizontal ? "flex-row" : "flex-col",
           positionClass,
           autoHide && !visible && slideClass,
           autoHide && !visible && "opacity-0 pointer-events-none"
         )}
       >
-        {/* Logo */}
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-primary/20 text-primary border border-primary shadow-[0_0_14px_#00ff66]">
-          <HardHat className="h-5 w-5 text-primary" />
+        {/* 3D Helmet Logo */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white shadow-xs border border-amber-600">
+          <HardHat className="h-4 w-4 text-white" />
         </div>
 
         <DockDivider position={position} />
@@ -339,42 +330,37 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
         {/* User avatar */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex h-12 w-12 items-center justify-center rounded-2xl hover:bg-white/10 transition-colors" title={user?.name}>
-              <Avatar className="h-8 w-8 ring-2 ring-white/20">
-                <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-700 text-white text-xs font-bold">
+            <button className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/80 transition-colors" title={user?.name}>
+              <Avatar className="h-7 w-7 ring-1 ring-[#0284c7]/40">
+                <AvatarFallback className="bg-gradient-to-br from-[#0284c7] to-[#0369a1] text-white text-[10px] font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side={tooltipSide} align="center" className="w-56">
+          <DropdownMenuContent side={tooltipSide} align="center" className="w-56 bg-white border border-[#c7d8e8] text-slate-900 shadow-xl">
             <DropdownMenuLabel className="flex flex-col">
-              <span className="font-semibold">{user?.name}</span>
-              <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
+              <span className="font-semibold">{user?.name || "Contractor User"}</span>
+              <span className="text-xs font-normal text-muted-foreground">{user?.email || "contractor@os.com"}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {(user?.isSuperAdmin || (user as any)?.sessionKind === "admin") && (
               <>
                 <DropdownMenuSeparator />
                 <Link href="/admin">
-                  <DropdownMenuItem className="gap-2 text-amber-400 focus:text-amber-300 font-semibold cursor-pointer">
+                  <DropdownMenuItem className="gap-2 text-amber-600 focus:text-amber-700 font-semibold cursor-pointer">
                     <ShieldAlert className="h-4 w-4" /> Platform Admin Console
                   </DropdownMenuItem>
                 </Link>
               </>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive cursor-pointer" onClick={logout}>
+            <DropdownMenuItem className="gap-2 text-rose-600 focus:text-rose-700 cursor-pointer" onClick={logout}>
               <LogOut className="h-4 w-4" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      <AtmosphericControllerDialog
-        open={fxDialogOpen}
-        onOpenChange={setFxDialogOpen}
-      />
     </>
   );
 }

@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const ROLE_LABELS: Record<string, string> = {
   project_manager: "Project Manager",
@@ -109,10 +110,13 @@ export default function TeamPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+
   const removeMut = trpc.project.removeOrgUser.useMutation({
     onSuccess: () => {
       utils.project.listOrgUsers.invalidate();
       toast.success("User removed");
+      setRemoveTarget(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -279,11 +283,7 @@ export default function TeamPage() {
                                 </button>
                                 {u.orgRole !== "org_admin" && (
                                   <button
-                                    onClick={() => {
-                                      if (confirm(`Remove ${u.name}? They will lose access immediately.`)) {
-                                        removeMut.mutate({ userId: u.id });
-                                      }
-                                    }}
+                                    onClick={() => setRemoveTarget({ id: u.id, name: u.name })}
                                     className="rounded p-1 text-muted-foreground hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950"
                                     title="Remove user"
                                   >
@@ -485,6 +485,24 @@ export default function TeamPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Modal for Removing Organization User */}
+      {removeTarget && (
+        <ConfirmDialog
+          open={Boolean(removeTarget)}
+          onOpenChange={(open) => {
+            if (!open) setRemoveTarget(null);
+          }}
+          title="Remove Organization Member?"
+          description={`Are you sure you want to remove ${removeTarget.name}? They will immediately lose access to all projects, financial records, and workspace tools.`}
+          variant="destructive"
+          confirmLabel="Remove Member"
+          isLoading={removeMut.isPending}
+          onConfirm={async () => {
+            await removeMut.mutateAsync({ userId: removeTarget.id });
+          }}
+        />
+      )}
     </div>
   );
 }

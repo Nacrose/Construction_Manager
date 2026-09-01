@@ -24,13 +24,15 @@ import {
   Check,
   Eye,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { toastError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
-import { AddGuaranteeDialog } from "./dialogs/add-guarantee-dialog";
+import { GuaranteeFormDialog } from "./dialogs/guarantee-form-dialog";
 import { ExtendGuaranteeDialog } from "./dialogs/extend-guarantee-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const CONTRACT_TABS = [
   { label: "BOQ & Rates", href: "/boq" },
@@ -93,6 +95,7 @@ export default function BankGuaranteesPage({
   const utils = trpc.useUtils();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any | null>(null);
   const [extendItem, setExtendItem] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "extended" | "released" | "expired">("all");
 
@@ -101,11 +104,22 @@ export default function BankGuaranteesPage({
     status: statusFilter,
   });
 
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    type: "release" | "delete";
+    id: string;
+    title: string;
+    description: string;
+    variant: "destructive" | "warning";
+    confirmLabel: string;
+  } | null>(null);
+
   const releaseMutation = trpc.bankGuarantee.release.useMutation({
     onSuccess: () => {
       utils.bankGuarantee.list.invalidate({ projectId });
       utils.bankGuarantee.portfolioAlerts.invalidate();
       toast.success("Guarantee marked as Released.");
+      setConfirmModal(null);
     },
     onError: (e) => toastError("Guarantee could not be marked as released. Please try again.", e.message),
   });
@@ -115,6 +129,7 @@ export default function BankGuaranteesPage({
       utils.bankGuarantee.list.invalidate({ projectId });
       utils.bankGuarantee.portfolioAlerts.invalidate();
       toast.success("Guarantee deleted.");
+      setConfirmModal(null);
     },
     onError: (e) => toastError("Guarantee record could not be deleted. Please try again.", e.message),
   });
@@ -399,13 +414,19 @@ export default function BankGuaranteesPage({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-600"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-400"
                                 title="Mark as Released / Returned"
-                                onClick={() => {
-                                  if (confirm(`Mark guarantee #${g.guaranteeNumber} as released/returned by client?`)) {
-                                    releaseMutation.mutate({ id: g.id });
-                                  }
-                                }}
+                                onClick={() =>
+                                  setConfirmModal({
+                                    open: true,
+                                    type: "release",
+                                    id: g.id,
+                                    title: "Release Bank Guarantee?",
+                                    description: `Mark guarantee #${g.guaranteeNumber} (${g.issuingBank}) as officially released/returned by the employer? This will unblock Rs. ${fmt(g.marginAmount)} in margin funds.`,
+                                    variant: "warning",
+                                    confirmLabel: "Confirm Release",
+                                  })
+                                }
                               >
                                 <Check className="h-3.5 w-3.5" />
                               </Button>
@@ -415,12 +436,28 @@ export default function BankGuaranteesPage({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                            onClick={() => {
-                              if (confirm(`Delete record #${g.guaranteeNumber}?`)) {
-                                deleteMutation.mutate({ id: g.id });
-                              }
-                            }}
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-white"
+                            title="Edit Guarantee & Ledger"
+                            onClick={() => setEditItem(g)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-rose-400"
+                            onClick={() =>
+                              setConfirmModal({
+                                open: true,
+                                type: "delete",
+                                id: g.id,
+                                title: "Delete Guarantee Record?",
+                                description: `Permanently delete guarantee #${g.guaranteeNumber}? This will also clean up any auto-posted Day Book commission entry. This action cannot be undone.`,
+                                variant: "destructive",
+                                confirmLabel: "Delete Record",
+                              })
+                            }
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -436,9 +473,27 @@ export default function BankGuaranteesPage({
       </div>
 
       {/* Add Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        {addOpen && <AddGuaranteeDialog projectId={projectId} onDone={() => setAddOpen(false)} />}
-      </Dialog>
+      {addOpen && (
+        <GuaranteeFormDialog
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          projectId={projectId}
+          onDone={() => setAddOpen(false)}
+        />
+      )}
+
+      {/* Edit Dialog */}
+      {editItem && (
+        <GuaranteeFormDialog
+          open={Boolean(editItem)}
+          onOpenChange={(open) => {
+            if (!open) setEditItem(null);
+          }}
+          projectId={projectId}
+          initialData={editItem}
+          onDone={() => setEditItem(null)}
+        />
+      )}
 
       {/* Extend Dialog */}
       <Dialog open={Boolean(extendItem)} onOpenChange={(open) => !open && setExtendItem(null)}>
@@ -449,6 +504,28 @@ export default function BankGuaranteesPage({
           />
         )}
       </Dialog>
+
+      {/* Confirmation Dialog for Release / Delete */}
+      {confirmModal && (
+        <ConfirmDialog
+          open={confirmModal.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmModal(null);
+          }}
+          title={confirmModal.title}
+          description={confirmModal.description}
+          variant={confirmModal.variant}
+          confirmLabel={confirmModal.confirmLabel}
+          isLoading={releaseMutation.isPending || deleteMutation.isPending}
+          onConfirm={async () => {
+            if (confirmModal.type === "release") {
+              await releaseMutation.mutateAsync({ id: confirmModal.id });
+            } else if (confirmModal.type === "delete") {
+              await deleteMutation.mutateAsync({ id: confirmModal.id });
+            }
+          }}
+        />
+      )}
     </>
   );
 }

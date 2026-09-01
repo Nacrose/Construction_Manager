@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity"];
 
@@ -55,12 +56,19 @@ export function LeavesTab({
   const [startDate, setStartDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [reason, setReason] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{
+    open: boolean;
+    type: "approve" | "reject";
+    id: string;
+    employeeName: string;
+    dates: string;
+  } | null>(null);
 
   const utils = trpc.useUtils();
 
   const { data, isLoading, refetch, isFetching } = trpc.leave.list.useQuery({
     projectId,
-    status: statusFilter === "all" ? undefined : (statusFilter as any),
+    status: statusFilter !== "all" ? (statusFilter as any) : undefined,
   });
 
   const leaves = data?.leaves || [];
@@ -82,6 +90,7 @@ export function LeavesTab({
     onSuccess: () => {
       toast.success("Leave approved");
       utils.leave.list.invalidate({ projectId });
+      setConfirmAction(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -90,6 +99,7 @@ export function LeavesTab({
     onSuccess: () => {
       toast.success("Leave rejected");
       utils.leave.list.invalidate({ projectId });
+      setConfirmAction(null);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -257,18 +267,34 @@ export function LeavesTab({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => approveMut.mutate({ id: leave.id })}
+                          onClick={() =>
+                            setConfirmAction({
+                              open: true,
+                              type: "approve",
+                              id: leave.id,
+                              employeeName: leave.staff.name,
+                              dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
+                            })
+                          }
                           disabled={approveMut.isPending}
-                          className="h-5 text-[9px] text-emerald-700 border-emerald-300 gap-1 bg-emerald-50/50 px-1.5"
+                          className="h-5 text-[9px] text-emerald-400 border-emerald-500/30 gap-1 bg-emerald-500/10 px-1.5 hover:bg-emerald-500/20"
                         >
                           <CheckCircle2 className="h-2.5 w-2.5" /> Approve
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => rejectMut.mutate({ id: leave.id, rejectionReason: "Rejected by PM" })}
+                          onClick={() =>
+                            setConfirmAction({
+                              open: true,
+                              type: "reject",
+                              id: leave.id,
+                              employeeName: leave.staff.name,
+                              dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
+                            })
+                          }
                           disabled={rejectMut.isPending}
-                          className="h-5 text-[9px] text-red-600 border-red-200 px-1.5"
+                          className="h-5 text-[9px] text-rose-400 border-rose-500/30 px-1.5 hover:bg-rose-500/20"
                         >
                           <XCircle className="h-2.5 w-2.5" /> Reject
                         </Button>
@@ -385,6 +411,32 @@ export function LeavesTab({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Leave Approval / Rejection */}
+      {confirmAction && (
+        <ConfirmDialog
+          open={confirmAction.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmAction(null);
+          }}
+          title={confirmAction.type === "approve" ? "Approve Leave Request?" : "Reject Leave Request?"}
+          description={
+            confirmAction.type === "approve"
+              ? `Approve leave request (${confirmAction.dates}) for ${confirmAction.employeeName}?`
+              : `Reject leave request (${confirmAction.dates}) for ${confirmAction.employeeName}?`
+          }
+          variant={confirmAction.type === "approve" ? "success" : "destructive"}
+          confirmLabel={confirmAction.type === "approve" ? "Approve Leave" : "Reject Leave"}
+          isLoading={approveMut.isPending || rejectMut.isPending}
+          onConfirm={async () => {
+            if (confirmAction.type === "approve") {
+              await approveMut.mutateAsync({ id: confirmAction.id });
+            } else {
+              await rejectMut.mutateAsync({ id: confirmAction.id, rejectionReason: "Rejected by PM" });
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

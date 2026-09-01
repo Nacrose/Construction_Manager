@@ -273,6 +273,10 @@ export const bankGuaranteeRouter = router({
         documentUrl: optionalSafeUrlSchema,
         documentName: z.string().nullish().transform((v) => v || undefined),
         notes: z.string().nullish().transform((v) => v || undefined),
+        postToDayBook: z.boolean().optional(),
+        bankAccountId: z.string().optional(),
+        voucherDate: z.string().optional(),
+        voucherMiti: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -337,7 +341,7 @@ export const bankGuaranteeRouter = router({
       try {
         guarantee = await db.$transaction(async (tx) => {
           await withOrgContext(tx, orgId, !!ctx.user.isSuperAdmin);
-          return tx.bankGuarantee.create({
+          const bg = await tx.bankGuarantee.create({
             data: {
               organizationId: orgId,
               projectId: input.projectId || null,
@@ -363,6 +367,39 @@ export const bankGuaranteeRouter = router({
               notes: input.notes?.trim() || null,
             },
           });
+
+          // Post to Day Book & Debit Company Bank Account if requested
+          if (input.postToDayBook && input.bankAccountId && input.commissionPaid > 0) {
+            const vDate = input.voucherDate ? new Date(input.voucherDate) : issuedD;
+            let vMiti = input.voucherMiti;
+            if (!vMiti) {
+              try {
+                vMiti = adToBs(vDate).formatted;
+              } catch {}
+            }
+
+            await tx.headOfficeExpense.create({
+              data: {
+                organizationId: orgId,
+                date: vDate,
+                miti: vMiti || issuedMiti || null,
+                category: "Bank Charges & Guarantee Fees",
+                particulars: `Bank Guarantee Commission: #${input.guaranteeNumber.trim()} (${input.issuingBank.trim()}) - ${input.beneficiary.trim()}`,
+                amount: input.commissionPaid,
+                paymentMode: "bank_transfer",
+                bankAccountId: input.bankAccountId,
+                voucherNo: `BG-COMM-${input.guaranteeNumber.trim()}`,
+                notes: `Auto-posted from Bank Guarantee register (BG_ID: ${bg.id})`,
+              },
+            });
+
+            await tx.companyBankAccount.update({
+              where: { id: input.bankAccountId },
+              data: { currentBalance: { decrement: input.commissionPaid } },
+            });
+          }
+
+          return bg;
         });
       } catch (err: any) {
         console.error("[bankGuarantee.create] Transaction error details:", {
@@ -520,17 +557,35 @@ export const bankGuaranteeRouter = router({
     .input(
       z.object({
         id: z.string(),
-        guaranteeNumber: z.string().optional(),
-        issuingBank: z.string().optional(),
+        type: z.enum([
+          "performance_bond",
+          "advance_payment",
+          "car_insurance",
+          "retention_bond",
+          "bid_bond",
+          "other",
+        ]).optional(),
+        guaranteeNumber: z.string().min(1).optional(),
+        issuingBank: z.string().min(1).optional(),
         branch: z.string().optional(),
-        beneficiary: z.string().optional(),
+        beneficiary: z.string().min(1).optional(),
         amount: z.number().positive().optional(),
+        issuedDate: z.string().optional(),
+        issuedMiti: z.string().optional(),
+        expiryDate: z.string().optional(),
+        expiryMiti: z.string().optional(),
+        claimPeriodDays: z.number().optional(),
+        purpose: z.string().optional(),
         marginAmount: z.number().nonnegative().optional(),
         commissionRate: z.number().min(0).max(100).optional(),
         commissionPaid: z.number().nonnegative().optional(),
         documentUrl: optionalSafeUrlSchema,
         documentName: z.string().nullish().transform((v) => v || undefined),
         notes: z.string().nullish().transform((v) => v || undefined),
+        postToDayBook: z.boolean().optional(),
+        bankAccountId: z.string().optional(),
+        voucherDate: z.string().optional(),
+        voucherMiti: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -539,14 +594,136 @@ export const bankGuaranteeRouter = router({
       });
       await assertGuaranteeAccess(ctx.user, existing);
 
-      const { id, ...data } = input;
       const targetOrg = existing.organizationId || ctx.user.organizationId;
+      if (!targetOrg) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Valid organization required." });
+      }
+
+      const issuedD = input.issuedDate ? new Date(input.issuedDate) : existing.issuedDate;
+      const expiryD = input.expiryDate ? new Date(input.expiryDate) : existing.expiryDate;
+      const claimDays = input.claimPeriodDays ?? existing.claimPeriodDays ?? 30;
+      const claimExpiryDate = new Date(expiryD.getTime() + claimDays * 24 * 60 * 60 * 1000);
+
+      let issuedMiti = input.issuedMiti ?? existing.issuedMiti;
+      if (input.issuedDate && !input.issuedMiti) {
+        try {
+          issuedMiti = adToBs(issuedD).formatted;
+        } catch {}
+      }
+
+      let expiryMiti = input.expiryMiti ?? existing.expiryMiti;
+      if (input.expiryDate && !input.expiryMiti) {
+        try {
+          expiryMiti = adToBs(expiryD).formatted;
+        } catch {}
+      }
+
+      const { id, postToDayBook, bankAccountId, voucherDate, voucherMiti, ...updateFields } = input;
+
       const guarantee = await db.$transaction(async (tx) => {
         await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
-        return tx.bankGuarantee.update({
+
+        const updatedBg = await tx.bankGuarantee.update({
           where: { id },
-          data,
+          data: {
+            ...updateFields,
+            issuedDate: issuedD,
+            issuedMiti,
+            expiryDate: expiryD,
+            expiryMiti,
+            claimPeriodDays: claimDays,
+            claimExpiryDate,
+          },
         });
+
+        // Find any existing linked Day Book expense
+        const linkedExpense = await tx.headOfficeExpense.findFirst({
+          where: {
+            organizationId: targetOrg,
+            OR: [
+              { notes: { contains: `BG_ID: ${id}` } },
+              { voucherNo: `BG-COMM-${existing.guaranteeNumber}` },
+            ],
+          },
+        });
+
+        const newCommission = input.commissionPaid !== undefined ? input.commissionPaid : Number(existing.commissionPaid);
+        const newGuarNumber = (input.guaranteeNumber || existing.guaranteeNumber).trim();
+        const newBankName = (input.issuingBank || existing.issuingBank).trim();
+        const newBeneficiary = (input.beneficiary || existing.beneficiary).trim();
+
+        if (linkedExpense) {
+          // Restore prior bank account balance
+          if (linkedExpense.bankAccountId && Number(linkedExpense.amount) > 0) {
+            await tx.companyBankAccount.update({
+              where: { id: linkedExpense.bankAccountId },
+              data: { currentBalance: { increment: Number(linkedExpense.amount) } },
+            });
+          }
+
+          if (newCommission > 0 && (bankAccountId || linkedExpense.bankAccountId) && postToDayBook !== false) {
+            const targetBankAccountId = bankAccountId || linkedExpense.bankAccountId!;
+            const vDate = voucherDate ? new Date(voucherDate) : (input.issuedDate ? new Date(input.issuedDate) : linkedExpense.date);
+            let vMiti = voucherMiti;
+            if (!vMiti) {
+              try {
+                vMiti = adToBs(vDate).formatted;
+              } catch {}
+            }
+
+            await tx.headOfficeExpense.update({
+              where: { id: linkedExpense.id },
+              data: {
+                bankAccountId: targetBankAccountId,
+                amount: newCommission,
+                date: vDate,
+                miti: vMiti || linkedExpense.miti || null,
+                particulars: `Bank Guarantee Commission: #${newGuarNumber} (${newBankName}) - ${newBeneficiary}`,
+                voucherNo: `BG-COMM-${newGuarNumber}`,
+                notes: `Auto-posted from Bank Guarantee register (BG_ID: ${id})`,
+              },
+            });
+
+            await tx.companyBankAccount.update({
+              where: { id: targetBankAccountId },
+              data: { currentBalance: { decrement: newCommission } },
+            });
+          } else {
+            // Commission removed or set to 0
+            await tx.headOfficeExpense.delete({ where: { id: linkedExpense.id } });
+          }
+        } else if (postToDayBook && bankAccountId && newCommission > 0) {
+          // Create new linked expense
+          const vDate = voucherDate ? new Date(voucherDate) : issuedD;
+          let vMiti = voucherMiti;
+          if (!vMiti) {
+            try {
+              vMiti = adToBs(vDate).formatted;
+            } catch {}
+          }
+
+          await tx.headOfficeExpense.create({
+            data: {
+              organizationId: targetOrg,
+              date: vDate,
+              miti: vMiti || issuedMiti || null,
+              category: "Bank Charges & Guarantee Fees",
+              particulars: `Bank Guarantee Commission: #${newGuarNumber} (${newBankName}) - ${newBeneficiary}`,
+              amount: newCommission,
+              paymentMode: "bank_transfer",
+              bankAccountId,
+              voucherNo: `BG-COMM-${newGuarNumber}`,
+              notes: `Auto-posted from Bank Guarantee register (BG_ID: ${id})`,
+            },
+          });
+
+          await tx.companyBankAccount.update({
+            where: { id: bankAccountId },
+            data: { currentBalance: { decrement: newCommission } },
+          });
+        }
+
+        return updatedBg;
       });
 
       await audit({
@@ -575,6 +752,30 @@ export const bankGuaranteeRouter = router({
       const targetOrg = existing.organizationId || ctx.user.organizationId;
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
+
+        // Find and clean up any linked Day Book expense
+        if (targetOrg) {
+          const linkedExpense = await tx.headOfficeExpense.findFirst({
+            where: {
+              organizationId: targetOrg,
+              OR: [
+                { notes: { contains: `BG_ID: ${input.id}` } },
+                { voucherNo: `BG-COMM-${existing.guaranteeNumber}` },
+              ],
+            },
+          });
+
+          if (linkedExpense) {
+            if (linkedExpense.bankAccountId && Number(linkedExpense.amount) > 0) {
+              await tx.companyBankAccount.update({
+                where: { id: linkedExpense.bankAccountId },
+                data: { currentBalance: { increment: Number(linkedExpense.amount) } },
+              });
+            }
+            await tx.headOfficeExpense.delete({ where: { id: linkedExpense.id } });
+          }
+        }
+
         await tx.bankGuarantee.delete({ where: { id: input.id } });
       });
 

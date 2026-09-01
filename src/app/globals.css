@@ -67,11 +67,123 @@ input[type="number"] {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Sleek Cyber Matrix Scrollbars (Firefox, Chrome, Safari, Edge)
+   Light Ice-Blue Aero Design System — Tokens (Default Root)
+   ────────────────────────────────────────────────────────────── */
+
+:root,
+.light,
+html {
+  --radius: 0.5rem;
+  --panel-alpha: 0.85;
+
+  /* Baseline Ice-Blue Canvas */
+  --background: #e5eef7;
+  --foreground: #0f233a;
+
+  /* Surfaces & Floating Cards */
+  --card: #ffffff;
+  --card-foreground: #0f233a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f233a;
+
+  /* Primary: Vibrant Azure / Sky Blue */
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --primary-glow: rgba(2, 132, 199, 0.25);
+
+  /* Secondary: Sculpted Ice */
+  --secondary: #d8e5f2;
+  --secondary-foreground: #0f233a;
+
+  /* Muted: Soft Ice Wells */
+  --muted: #edf4fa;
+  --muted-foreground: #475569;
+
+  /* Accent: Sky Tint */
+  --accent: #e0f2fe;
+  --accent-foreground: #0284c7;
+
+  /* Semantic Signals & Borders */
+  --destructive: #e11d48;
+  --border: #c7d8e8;
+  --border-accent: #0284c7;
+  --input: #e2edf7;
+  --ring: #0284c7;
+
+  /* Charts */
+  --chart-1: #0284c7;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #6366f1;
+  --chart-5: #e11d48;
+
+  /* Sidebar (Sculpted Metallic Ice) */
+  --sidebar: #e4edf7;
+  --sidebar-foreground: #0f233a;
+  --sidebar-primary: #0284c7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #0284c7;
+  --sidebar-border: #bdd1e5;
+  --sidebar-ring: #0284c7;
+
+  /* Complementary Action Signals */
+  --amber-cta: #f59e0b;
+  --amber-cta-dark: #d97706;
+  --emerald-excel: #10b981;
+  --emerald-excel-dark: #059669;
+  --rose-debit: #e11d48;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Dark / Night Aero Variant
+   ────────────────────────────────────────────────────────────── */
+.dark {
+  --background: #0b1523;
+  --foreground: #f1f5f9;
+
+  --card: #131e30;
+  --card-foreground: #f1f5f9;
+
+  --popover: #131e30;
+  --popover-foreground: #f1f5f9;
+
+  --primary: #38bdf8;
+  --primary-foreground: #0b1523;
+  --primary-glow: rgba(56, 189, 248, 0.35);
+
+  --secondary: #1a2942;
+  --secondary-foreground: #f1f5f9;
+
+  --muted: #16243b;
+  --muted-foreground: #94a3b8;
+
+  --accent: #1e3a5f;
+  --accent-foreground: #38bdf8;
+
+  --destructive: #f43f5e;
+  --border: #1e3352;
+  --border-accent: #38bdf8;
+  --input: #1a2b44;
+  --ring: #38bdf8;
+
+  --sidebar: #0f1c2e;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #38bdf8;
+  --sidebar-primary-foreground: #0b1523;
+  --sidebar-accent: #1e3a5f;
+  --sidebar-accent-foreground: #38bdf8;
+  --sidebar-border: #1e3352;
+  --sidebar-ring: #38bdf8;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Sleek Precision Scrollbars
    ────────────────────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(52, 211, 153, 0.4) #050806;
+  scrollbar-color: #94a3b8 rgba(0, 0, 0, 0.05);
 }
 
 ::-webkit-scrollbar {
@@ -79,43 +191,14 @@ input[type="number"] {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #050806;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(52, 211, 153, 0.35);
+  background: #94a3b8;
   border-radius: 4px;
-  border: 1px solid rgba(52, 211, 153, 0.15);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #34d399;
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
-}
-::-webkit-scrollbar-corner {
-  background: #050806;
-}
-
-.matrix-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(52, 211, 153, 0.45) #050806;
-}
-.matrix-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.matrix-scrollbar::-webkit-scrollbar-track {
-  background: #050806;
-}
-.matrix-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(52, 211, 153, 0.4);
-  border-radius: 4px;
-  border: 1px solid rgba(52, 211, 153, 0.2);
-}
-.matrix-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #34d399;
-  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
-}
-.matrix-scrollbar::-webkit-scrollbar-corner {
-  background: #050806;
+  background: #64748b;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -124,206 +207,6 @@ input[type="number"] {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-/* ──────────────────────────────────────────────────────────────
-   Modular Matrix Technical OS — Design System Tokens
-   ────────────────────────────────────────────────────────────── */
-
-:root,
-.dark {
-  --radius: 0.375rem;
-  --panel-alpha: 0.65;
-
-  /* Dark Matrix OS (Default) */
-  --background: #050806;
-  --foreground: #e4f5eb;
-
-  --card: rgba(8, 14, 10, var(--panel-alpha));
-  --card-foreground: #e4f5eb;
-
-  --popover: rgba(8, 14, 10, 0.90);
-  --popover-foreground: #e4f5eb;
-
-  /* Primary: Crisp Luminous Mint Emerald */
-  --primary: #34d399;
-  --primary-foreground: #050806;
-  --primary-glow: rgba(52, 211, 153, 0.35);
-
-  /* Secondary: Slate Carbon */
-  --secondary: #111a14;
-  --secondary-foreground: #c2f5d7;
-
-  /* Muted: Crisp Deep Carbon Glass & Technical Slate */
-  --muted: rgba(13, 22, 17, var(--panel-alpha));
-  --muted-foreground: #709181;
-
-  /* Accent: Dark Emerald Tint */
-  --accent: #132219;
-  --accent-foreground: #34d399;
-
-  /* Semantic Signals */
-  --destructive: #ef4444;
-  --border: rgba(52, 211, 153, 0.28);
-  --border-accent: rgba(52, 211, 153, 0.65);
-  --input: rgba(52, 211, 153, 0.22);
-  --ring: #34d399;
-
-  /* Charts */
-  --chart-1: #34d399;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #06b6d4;
-  --chart-5: #6366f1;
-
-  /* Sidebar */
-  --sidebar: #040605;
-  --sidebar-foreground: #e4f5eb;
-  --sidebar-primary: #34d399;
-  --sidebar-primary-foreground: #050806;
-  --sidebar-accent: #111a14;
-  --sidebar-accent-foreground: #34d399;
-  --sidebar-border: rgba(52, 211, 153, 0.22);
-  --sidebar-ring: #34d399;
-
-  /* Brand Accents */
-  --amber-signal: #f59e0b;
-  --cyan-signal: #06b6d4;
-  --red-signal: #ef4444;
-}
-
-/* ──────────────────────────────────────────────────────────────
-   Black & White / Obsidian Monochrome Theme Variant (Deep System)
-   ────────────────────────────────────────────────────────────── */
-[data-theme="black_and_white"],
-[data-theme="obsidian"],
-.theme-obsidian {
-  --background: #000000;
-  --foreground: #ffffff;
-
-  --card: rgba(12, 12, 12, 0.88);
-  --card-foreground: #ffffff;
-
-  --popover: rgba(14, 14, 14, 0.96);
-  --popover-foreground: #ffffff;
-
-  /* Primary: Crisp High-Contrast White with Black Text */
-  --primary: #ffffff;
-  --primary-foreground: #000000;
-  --primary-glow: rgba(255, 255, 255, 0.25);
-
-  /* Secondary: Deep Carbon Zinc */
-  --secondary: #18181b;
-  --secondary-foreground: #f4f4f5;
-
-  /* Muted: Refined Glass Zinc & Cool Slate */
-  --muted: rgba(24, 24, 27, var(--panel-alpha));
-  --muted-foreground: #a1a1aa;
-
-  /* Accent: Subtle Silver Zinc */
-  --accent: #27272a;
-  --accent-foreground: #ffffff;
-
-  /* Semantic Signals */
-  --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.12);
-  --border-accent: rgba(255, 255, 255, 0.35);
-  --input: rgba(255, 255, 255, 0.10);
-  --ring: rgba(255, 255, 255, 0.60);
-
-  /* Charts */
-  --chart-1: #ffffff;
-  --chart-2: #a1a1aa;
-  --chart-3: #71717a;
-  --chart-4: #52525b;
-  --chart-5: #3f3f46;
-
-  /* Sidebar */
-  --sidebar: #050505;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #18181b;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.10);
-  --sidebar-ring: #ffffff;
-
-  /* Brand Accents */
-  --amber-signal: #fbbf24;
-  --cyan-signal: #38bdf8;
-  --red-signal: #f87171;
-}
-
-[data-theme="black_and_white"] body,
-[data-theme="obsidian"] body,
-.theme-obsidian body {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
-
-[data-theme="black_and_white"] * {
-  scrollbar-color: rgba(255, 255, 255, 0.25) #000000;
-}
-[data-theme="black_and_white"] ::-webkit-scrollbar-track {
-  background: #000000;
-}
-[data-theme="black_and_white"] ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-[data-theme="black_and_white"] ::-webkit-scrollbar-thumb:hover {
-  background: #ffffff;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
-}
-
-[data-theme="black_and_white"] .hud-panel {
-  background-color: rgba(12, 12, 12, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 16px -3px rgba(255, 255, 255, 0.05), inset 0 0 12px rgba(255, 255, 255, 0.02);
-}
-[data-theme="black_and_white"] .hud-panel:hover {
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 20px -2px rgba(255, 255, 255, 0.12), inset 0 0 16px rgba(255, 255, 255, 0.04);
-}
-
-/* Clean Technical Blueprint (Light Mode Variant) */
-.light {
-  --background: #f4f7f5;
-  --foreground: #0c1410;
-
-  --card: #ffffff;
-  --card-foreground: #0c1410;
-
-  --popover: #ffffff;
-  --popover-foreground: #0c1410;
-
-  --primary: #059669;
-  --primary-foreground: #ffffff;
-  --primary-glow: rgba(5, 150, 105, 0.30);
-
-  --secondary: #e8f0ec;
-  --secondary-foreground: #0c1410;
-
-  --muted: #edf4f0;
-  --muted-foreground: #4b6357;
-
-  --accent: #e2ede7;
-  --accent-foreground: #059669;
-
-  --destructive: #dc2626;
-  --border: rgba(5, 150, 105, 0.30);
-  --border-accent: rgba(5, 150, 105, 0.60);
-  --input: rgba(5, 150, 105, 0.28);
-  --ring: #059669;
-
-  --sidebar: #f0f5f2;
-  --sidebar-foreground: #0c1410;
-  --sidebar-primary: #059669;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e2ede7;
-  --sidebar-accent-foreground: #059669;
-  --sidebar-border: rgba(5, 150, 105, 0.25);
-  --sidebar-ring: #059669;
 }
 
 @layer base {
@@ -336,8 +219,6 @@ input[type="number"] {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background-image: radial-gradient(rgba(0, 255, 102, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
   }
 
   /* Monospace figures for tabular data alignment */
@@ -346,127 +227,139 @@ input[type="number"] {
   input[type="number"] {
     font-variant-numeric: tabular-nums;
   }
-
-  /* Universal Matrix Terminal Headings */
-  h1, h2, h3, h4 {
-    font-family: var(--font-mono), monospace;
-    letter-spacing: -0.01em;
-    font-weight: 700;
-  }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Technical Matrix Utilities — HUD Panels, LEDs, Telemetry Glow
+   Aero 3D & Micro-Animation Utilities
    ────────────────────────────────────────────────────────────── */
 
 @layer utilities {
-  /* HUD Technical Panel */
-  .hud-panel {
-    background-color: rgba(8, 14, 10, 0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border);
-    position: relative;
-    border-radius: var(--radius);
-    box-shadow: 0 0 16px -3px rgba(0, 255, 102, 0.14), inset 0 0 12px rgba(0, 255, 102, 0.02);
-    transition: all 0.2s ease-in-out;
-  }
-
-  .hud-panel:hover {
-    border-color: var(--border-accent);
-    box-shadow: 0 0 20px -2px rgba(0, 255, 102, 0.25), inset 0 0 16px rgba(0, 255, 102, 0.04);
-  }
-
-  /* Glowing LED Status Indicators */
-  .matrix-dot-green {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 9999px;
-    background-color: #00ff66;
-    box-shadow: 0 0 8px #00ff66, 0 0 14px rgba(0, 255, 102, 0.8);
-  }
-
-  .matrix-dot-amber {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 9999px;
-    background-color: #f59e0b;
-    box-shadow: 0 0 8px #f59e0b, 0 0 14px rgba(245, 158, 11, 0.8);
-  }
-
-  .matrix-dot-red {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 9999px;
-    background-color: #ef4444;
-    box-shadow: 0 0 8px #ef4444, 0 0 14px rgba(239, 68, 68, 0.8);
-  }
-
-  /* Telemetry Glow */
-  .glow-green {
-    box-shadow: 0 0 24px rgba(0, 255, 102, 0.35);
-  }
-
-  .glow-amber {
-    box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
-  }
-
-  .text-glow-green {
-    text-shadow: 0 0 10px rgba(0, 255, 102, 0.65);
-  }
-
-  /* Technical Monospace Header */
-  .terminal-header {
+  /* Matrix Font for Amounts, Codes, and Dates */
+  .font-matrix {
     font-family: var(--font-mono), monospace;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--primary);
+    letter-spacing: -0.02em;
   }
 
-  /* Smooth scrolling */
-  html {
-    scroll-behavior: smooth;
+  /* Hyper-Responsive Spring Micro-Animation (Apple / Linear Spec) */
+  .snappy-btn {
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .snappy-btn:hover {
+    transform: translateY(-1.5px) scale(1.03);
+    filter: drop-shadow(0 3px 6px rgba(2, 132, 199, 0.22));
+  }
+  .snappy-btn:active {
+    transform: translateY(0.5px) scale(0.97);
   }
 
-  /* Matrix Precision Scrollbar */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #050806;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(0, 255, 102, 0.35);
-    border-radius: 4px;
-    box-shadow: 0 0 6px rgba(0, 255, 102, 0.4);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 255, 102, 0.7);
+  /* Sculpted Metallic Ice Sidebar Rail (52px) */
+  .sculpted-sidebar {
+    background: linear-gradient(180deg, #e4edf7 0%, #d8e5f2 100%);
+    border: 1px solid #bdd1e5;
+    box-shadow: 
+      inset 1px 1px 0 rgba(255,255,255,0.95),
+      inset -1px 0 2px rgba(15,35,58,0.06),
+      0 4px 16px rgba(15,35,58,0.06);
   }
 
-  /* Focus ring polish */
-  *:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-    box-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
+  /* Adobe Segmented Tab Dock Container */
+  .level-1-dock {
+    background: #d8e5f2;
+    border: 1px solid #b8cde2;
+    box-shadow: inset 0 1.5px 3px rgba(15,35,58,0.06);
   }
 
-  /* Selection */
-  ::selection {
-    background: rgba(0, 255, 102, 0.35);
-    color: #ffffff;
+  /* Active Tab Card (Elevated Pure White with Azure Trim) */
+  .tab-card-active {
+    background: #ffffff;
+    color: #0369a1;
+    font-weight: 800;
+    box-shadow: 
+      0 3px 10px rgba(2, 132, 199, 0.16),
+      0 1px 2px rgba(0,0,0,0.04),
+      inset 0 1px 0 rgba(255,255,255,1);
+    border: 1.5px solid #0284c7;
+  }
+
+  /* Active Sidebar Rail Button (Elevated Pure White with Azure Ring) */
+  .rail-btn-active {
+    background: #ffffff;
+    box-shadow: 
+      0 3px 10px rgba(2, 132, 199, 0.2),
+      0 1px 3px rgba(15,35,58,0.08),
+      inset 0 1px 0 rgba(255,255,255,1);
+    border: 1.5px solid #0284c7;
+  }
+
+  /* Action Bar Floating Card Surface */
+  .level-2-surface {
+    background: #ffffff;
+    box-shadow: 
+      0 4px 16px -2px rgba(15, 35, 58, 0.07),
+      0 1px 3px rgba(0,0,0,0.03);
+    border: 1px solid #c7d8e8;
+  }
+
+  /* Inset Control Wells for Search & Filter Dropdowns */
+  .recessed-control {
+    background: #f0f6fc;
+    border: 1px solid #c5d7e8;
+    box-shadow: inset 0 1px 2px rgba(15,35,58,0.04);
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .recessed-control:hover, .recessed-control:focus {
+    background: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.15);
+    transform: translateY(-1px);
+  }
+
+  /* Primary CTA: 3D Glossy Warm Amber / Tangerine Jewel Button */
+  .amber-cta-btn {
+    background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 
+      0 2.5px 9px rgba(217, 119, 6, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    border: 1px solid #b45309;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+  }
+  .amber-cta-btn:hover {
+    background: linear-gradient(180deg, #fbbf24 0%, #b45309 100%);
+    transform: translateY(-1.5px) scale(1.03);
+    box-shadow: 0 4px 14px rgba(217, 119, 6, 0.6);
+  }
+  .amber-cta-btn:active {
+    transform: translateY(0.5px) scale(0.97);
+  }
+
+  /* 3D Aero Icons Specular Filter */
+  .aero-icon {
+    filter: drop-shadow(0 1.5px 2.5px rgba(15,35,58,0.18));
+    width: 19px !important;
+    height: 19px !important;
+    max-width: 19px !important;
+    max-height: 19px !important;
+    min-width: 19px !important;
+    min-height: 19px !important;
+    flex-shrink: 0;
+  }
+
+  .aero-icon-sm {
+    filter: drop-shadow(0 1px 1.5px rgba(15,35,58,0.14));
+    width: 15px !important;
+    height: 15px !important;
+    max-width: 15px !important;
+    max-height: 15px !important;
+    min-width: 15px !important;
+    min-height: 15px !important;
+    flex-shrink: 0;
   }
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Print styles
+   Print Styles
    ────────────────────────────────────────────────────────────── */
-
 @media print {
   body * {
     visibility: hidden;
@@ -502,16 +395,3 @@ input[type="number"] {
     page-break-inside: avoid;
   }
 }
-
-/* ──────────────────────────────────────────────────────────────
-   Mobile Touch Target Optimization
-   ────────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  button:not(.inline-icon-btn),
-  [role="button"]:not(.inline-icon-btn),
-  input:not([type="checkbox"]):not([type="radio"]),
-  select {
-    min-height: 38px;
-  }
-}
-

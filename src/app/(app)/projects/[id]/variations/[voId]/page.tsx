@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function VariationOrderDetailsPage() {
   const params = useParams();
@@ -46,6 +47,8 @@ export default function VariationOrderDetailsPage() {
 
   const { data: vo, isLoading, refetch } = trpc.variationOrder.get.useQuery({ id: voId, projectId });
   const { data: boqData } = trpc.boq.list.useQuery({ projectId });
+  const [confirmApproveOpen, setConfirmApproveOpen] = useState(false);
+
   const utils = trpc.useUtils();
 
   const updateMutation = trpc.variationOrder.update.useMutation({
@@ -58,10 +61,11 @@ export default function VariationOrderDetailsPage() {
 
   const statusMutation = trpc.variationOrder.updateStatus.useMutation({
     onSuccess: () => {
-      toast.success("Status updated");
+      toast.success("Variation Order approved & Master BOQ updated");
       refetch();
       utils.variationOrder.list.invalidate({ projectId });
       utils.boq.list.invalidate({ projectId }); // refresh BOQ!
+      setConfirmApproveOpen(false);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -197,11 +201,7 @@ export default function VariationOrderDetailsPage() {
             <Button
               variant="default"
               className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => {
-                if (confirm("Are you sure? Approving this VO will permanently alter the Master BOQ quantities and rates.")) {
-                  statusMutation.mutate({ id: vo.id, projectId, status: "approved" });
-                }
-              }}
+              onClick={() => setConfirmApproveOpen(true)}
               disabled={statusMutation.isPending || vo.items.length === 0}
             >
               <CheckCircle className="h-4 w-4" /> Approve & Merge to BOQ
@@ -399,6 +399,20 @@ export default function VariationOrderDetailsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Modal for Approving VO */}
+      <ConfirmDialog
+        open={confirmApproveOpen}
+        onOpenChange={setConfirmApproveOpen}
+        title="Approve Variation Order & Merge to BOQ?"
+        description="Approving this Variation Order will permanently alter the project's Master BOQ quantities and rates. This action updates contract baseline calculations."
+        variant="warning"
+        confirmLabel="Approve & Merge"
+        isLoading={statusMutation.isPending}
+        onConfirm={async () => {
+          await statusMutation.mutateAsync({ id: vo.id, projectId, status: "approved" });
+        }}
+      />
     </AnimatedPage>
   );
 }

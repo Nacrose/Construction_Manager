@@ -35,6 +35,7 @@ import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui
 import { RecordPaymentDialog } from "./record-payment-dialog";
 import { CategoryManagerDialog } from "./category-manager-dialog";
 import { BulkImportDialog } from "./bulk-import-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function PaymentsTab({
   projectId,
@@ -69,6 +70,7 @@ export function PaymentsTab({
   const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [viewScanUrl, setViewScanUrl] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; amount: number; payeeName: string } | null>(null);
 
   // Filters
   const [filterCategory, setFilterCategory] = useState<string>("all");
@@ -95,6 +97,7 @@ export function PaymentsTab({
       utils.projectOps.payment.list.invalidate({ projectId });
       utils.projectOps.payment.stats.invalidate({ projectId });
       utils.projectOps.payment.categorySummary.invalidate({ projectId });
+      setDeleteTarget(null);
     },
     onError: (err) => {
       toast.error(err.message || "Failed to delete payment");
@@ -247,11 +250,7 @@ export function PaymentsTab({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    if (confirm(`Delete payment of NPR ${formatNpr(row.amount)} to ${row.payeeName}?`)) {
-                      deleteMut.mutate({ id: idVal, projectId });
-                    }
-                  }}
+                  onClick={() => setDeleteTarget({ id: idVal, amount: row.amount, payeeName: row.payeeName })}
                   className="h-6 w-6 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -436,6 +435,24 @@ export function PaymentsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Modal for Payment Voucher Deletion */}
+      {deleteTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          title="Delete Payment Voucher?"
+          description={`Are you sure you want to permanently delete the payment of NPR ${formatNpr(deleteTarget.amount)} to ${deleteTarget.payeeName}? This action cannot be undone.`}
+          variant="destructive"
+          confirmLabel="Delete Payment"
+          isLoading={deleteMut.isPending}
+          onConfirm={async () => {
+            await deleteMut.mutateAsync({ id: deleteTarget.id, projectId });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -41,6 +41,8 @@ export function AddMaterialDialog({
   const [unit, setUnit] = useState(initialType === "labor" ? "day" : initialType === "equipment" ? "hr" : "cum");
   const [minStock, setMinStock] = useState("");
   const [reorderLevel, setReorderLevel] = useState("");
+  const [openingStock, setOpeningStock] = useState("");
+  const [openingRate, setOpeningRate] = useState("");
 
   // Fetch Master Catalog items filtered by resourceType
   const { data: catalogData } = trpc.catalogV2.listMaterials.useQuery({
@@ -110,6 +112,8 @@ export function AddMaterialDialog({
       unit: unit.trim(),
       minStock: resourceType === "material" ? parseFloat(minStock) || 0 : 0,
       currentStock: 0,
+      openingStock: resourceType === "material" ? parseFloat(openingStock) || 0 : 0,
+      openingRate: resourceType === "material" ? parseFloat(openingRate) || 0 : 0,
       reorderLevel: resourceType === "material" ? parseFloat(reorderLevel) || 0 : 0,
     });
   };
@@ -333,6 +337,44 @@ export function AddMaterialDialog({
             </>
           )}
         </div>
+
+        {/* Opening Stock & Valuation (Only for Materials) */}
+        {resourceType === "material" && (
+          <div className="p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-950/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-emerald-400">
+                Opening Stock Onboarding (सुरुवाती मौज्दात)
+              </span>
+              <span className="text-[9px] text-muted-foreground">
+                Zero bank debit; sets starting warehouse count
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-gray-300">Opening Stock Qty ({unit || "units"})</Label>
+                <Input
+                  value={openingStock}
+                  onChange={(e) => setOpeningStock(e.target.value)}
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  className="h-8 text-xs bg-background/50 font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-gray-300">Unit Valuation Rate (NPR/{unit || "unit"})</Label>
+                <Input
+                  value={openingRate}
+                  onChange={(e) => setOpeningRate(e.target.value)}
+                  type="number"
+                  step="any"
+                  placeholder="0.00"
+                  className="h-8 text-xs bg-background/50 font-mono"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="pt-2">
           <Button size="sm" type="submit" disabled={mutation.isPending || !name || !unit} className="bg-blue-600 hover:bg-blue-700 text-white">
