@@ -83,7 +83,8 @@
     "VendorPayment"
   ],
   "excluded": {
-    "User": "queried pre-auth (login/signup/first-user check) before org context exists — app-level filtering only"
+    "User": "queried pre-auth (login/signup/first-user check) before org context exists — app-level filtering only",
+    "OutboxEvent": "infra table (transactional outbox) — written by the app with explicit organizationId values, read only by the server-side worker and admin diagnostics; no client surface, no tenant-scoped queries"
   },
   "planned": {
     "phase1_org_money": [],

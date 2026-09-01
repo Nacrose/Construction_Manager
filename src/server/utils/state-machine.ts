@@ -8,7 +8,7 @@
  */
 import { TRPCError } from "@trpc/server";
 import type { DbTxClient } from "@/lib/db";
-import { emitDomainEvent } from "./domain-events";
+import { enqueueOutboxEvent } from "./outbox";
 
 export type SupportedLifecycleModel =
   | "siteExpense"
@@ -528,9 +528,16 @@ export async function transitionEntityState(
     where: { id: input.id },
   });
 
-  // 5. Emit Domain Event
+  // 5. Enqueue the lifecycle event onto the transactional outbox — the
+  // row commits ATOMICALLY with the transition (this call rides the same
+  // db/tx handle), so a crash between the state change and the
+  // notification fan-out can no longer lose the event. The outbox worker
+  // delivers it to the notification pipeline with retries + dead-letter
+  // (see outbox.ts). skipEventEmit suppresses the event entirely — used
+  // by flows that audit/notify through their own dedicated channel.
   if (!input.skipEventEmit && input.projectId) {
-    emitDomainEvent(
+    await enqueueOutboxEvent(
+      db,
       buildTransitionEvent({
         model: input.model,
         entityId: input.id,

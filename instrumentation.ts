@@ -27,6 +27,16 @@ export async function register() {
         return event;
       },
     });
+
+    // Background worker: transactional-outbox dispatch + maintenance
+    // sweeps (bank-guarantee expiry, session cleanup). Idempotent per
+    // process; every job failure is caught and logged, never thrown into
+    // the server boot path. Delayed 5s so boot (and the DB pool) settle
+    // before the first tick.
+    if (process.env.DISABLE_BACKGROUND_WORKER !== "1") {
+      const { startBackgroundJobs } = await import("@/server/utils/background-jobs");
+      startBackgroundJobs({ initialDelayMs: 5_000 });
+    }
   }
 }
 

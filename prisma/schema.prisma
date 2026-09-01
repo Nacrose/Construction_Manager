@@ -4089,3 +4089,33 @@ model EquipmentTransfer {
   @@index([status])
 }
 
+
+/// Transactional outbox — durable event log written in the SAME database
+/// transaction as the state change that produced it. The background worker
+/// (src/server/utils/outbox.ts) claims pending rows, delivers them to
+/// registered processors (notification fan-out, webhooks, email), and marks
+/// them done — with bounded retries and a dead-letter status. A crash
+/// between a lifecycle transition and its side effects can no longer lose
+/// the event: the row commits atomically with the transition itself.
+///
+/// Infra table — intentionally NOT under tenant RLS: it is written by the
+/// application with explicit organizationId values, and read only by the
+/// server-side worker and admin diagnostics. No client surface exists.
+model OutboxEvent {
+  id             String    @id @default(cuid())
+  organizationId String?
+  projectId      String?
+  type           String
+  entityType     String
+  entityId       String
+  payload        Json
+  status         String    @default("pending") // pending | processing | done | failed
+  attempts       Int       @default(0)
+  lastError      String?
+  availableAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+
+  @@index([status, availableAt])
+  @@index([type, status])
+}

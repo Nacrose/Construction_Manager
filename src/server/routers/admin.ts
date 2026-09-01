@@ -564,4 +564,68 @@ export const adminRouter = router({
       });
       return { removed: deleted.count };
     }),
+
+  /** Outbox + background-job diagnostics for the ops console. */
+  outboxDiagnostics: superAdminProcedure
+    .output(
+      z.object({
+        counts: z.record(z.string(), z.number()),
+        recentFailed: z.array(
+          z.object({
+            id: z.string(),
+            type: z.string(),
+            entityType: z.string(),
+            entityId: z.string(),
+            attempts: z.number(),
+            lastError: z.string().nullable(),
+            createdAt: z.date(),
+          }),
+        ),
+        jobs: z.array(
+          z.object({
+            name: z.string(),
+            description: z.string(),
+            intervalMs: z.number(),
+            runCount: z.number(),
+            errorCount: z.number(),
+            lastError: z.string().optional(),
+          }),
+        ),
+      }),
+    )
+    .query(async () => {
+      const rows = await db.outboxEvent.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      });
+      const counts: Record<string, number> = { pending: 0, processing: 0, done: 0, failed: 0 };
+      for (const r of rows) counts[r.status] = r._count._all;
+
+      const recentFailed = await db.outboxEvent.findMany({
+        where: { status: "failed" },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          type: true,
+          entityType: true,
+          entityId: true,
+          attempts: true,
+          lastError: true,
+          createdAt: true,
+        },
+      });
+
+      const { jobStatuses } = await import("@/server/utils/background-jobs");
+      const jobs = jobStatuses().map((j) => ({
+        name: j.name,
+        description: j.description,
+        intervalMs: j.intervalMs,
+        runCount: j.status.runCount,
+        errorCount: j.status.errorCount,
+        ...(j.status.lastError ? { lastError: j.status.lastError } : {}),
+      }));
+
+      return { counts, recentFailed, jobs };
+    }),
 });
