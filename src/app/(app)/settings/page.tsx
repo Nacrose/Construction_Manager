@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import { useUserPreferences } from "@/components/user-preferences-provider";
-import { useFXStore } from "@/lib/fx-store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,11 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Settings,
   Calendar,
-  Sparkles,
-  Terminal,
-  CloudRain,
-  Wind,
-  Zap,
   Sliders,
   PanelBottom,
   PanelTop,
@@ -23,12 +16,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DockPosition } from "@/components/app-dock";
-import { AtmosphericControllerDialog } from "@/components/fx/atmospheric-controller-dialog";
 
 export default function SettingsPage() {
   const { getPref, setPref } = useUserPreferences();
-  const fx = useFXStore();
-  const [fxDialogOpen, setFxDialogOpen] = useState(false);
 
   const dockPosition = getPref<DockPosition>("dockPosition", "bottom");
   const calendarType = getPref<string>("calendarType", "BS");
@@ -41,7 +31,7 @@ export default function SettingsPage() {
           <Settings className="h-6 w-6 text-primary" /> Application Settings &amp; Preferences
         </h1>
         <p className="text-sm text-muted-foreground">
-          Customize your navigation dock layout, Nepali Bikram Sambat calendar, and atmospheric effects.
+          Customize your navigation dock layout and Nepali Bikram Sambat calendar.
         </p>
       </div>
 
@@ -156,98 +146,7 @@ export default function SettingsPage() {
             ))}
           </CardContent>
         </Card>
-
-        {/* 3. Atmospheric Visual Effects (Matrix OS) */}
-        <Card className="bg-card border-border shadow-sm md:col-span-2">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-400" /> Atmospheric Matrix FX &amp; Glass Visuals
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Real-time particle shaders, glass raindrops, soundscapes, and lightning simulator.
-              </CardDescription>
-            </div>
-            <Button
-              onClick={() => setFxDialogOpen(true)}
-              variant="outline"
-              className="border-primary/40 text-primary text-xs font-bold gap-1.5"
-            >
-              <Sliders className="h-3.5 w-3.5" /> Open Sliders &amp; Audio Studio
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                {
-                  id: "matrixRain",
-                  label: "Matrix Stream",
-                  icon: Terminal,
-                  active: fx.matrixRainEnabled,
-                  toggle: () => fx.setMatrixRain(!fx.matrixRainEnabled),
-                },
-                {
-                  id: "waterDroplets",
-                  label: "Glass Droplets",
-                  icon: CloudRain,
-                  active: fx.waterDropletsEnabled,
-                  toggle: () => fx.setWaterDroplets(!fx.waterDropletsEnabled),
-                },
-                {
-                  id: "stormWind",
-                  label: "Storm Wind",
-                  icon: Wind,
-                  active: fx.stormWindEnabled,
-                  toggle: () => fx.setStormWind(!fx.stormWindEnabled),
-                },
-                {
-                  id: "lightning",
-                  label: "Lightning Storm",
-                  icon: Zap,
-                  active: fx.lightningEnabled,
-                  toggle: () => fx.setLightning(!fx.lightningEnabled),
-                },
-              ].map(({ id, label, icon: Icon, active, toggle }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={toggle}
-                  className={cn(
-                    "flex flex-col items-center justify-center p-4 rounded-xl border text-xs font-medium transition-all gap-2",
-                    active
-                      ? "border-primary bg-primary/10 text-primary font-bold shadow-[0_0_14px_rgba(0,255,102,0.18)]"
-                      : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60"
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span>{label}</span>
-                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded font-mono font-bold", active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                    {active ? "ON" : "OFF"}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="pt-3 border-t border-border/50 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <Label className="font-semibold">Glass Backdrop Transparency</Label>
-                <span className="font-mono text-primary font-bold">{Math.round(fx.panelOpacity * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min="30"
-                max="100"
-                step="1"
-                value={Math.round(fx.panelOpacity * 100)}
-                onChange={(e) => fx.setPanelOpacity(Number(e.target.value) / 100)}
-                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-            </div>
-          </CardContent>
-        </Card>
       </div>
-
-      <AtmosphericControllerDialog open={fxDialogOpen} onOpenChange={setFxDialogOpen} />
     </div>
   );
 }

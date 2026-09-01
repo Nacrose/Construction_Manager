@@ -115,27 +115,27 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Left Pane: Ledger Accounts Directory */}
-      <div className="rounded-xl border border-white/10 bg-[#0c1015] p-3 space-y-3">
+      <div className="rounded-xl border border-[#c7d8e8] bg-white shadow-xs p-3 space-y-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Search party or account..."
-            className="pl-8 h-8 text-xs bg-[#121820] text-white border-white/10 font-mono"
+            className="pl-8 h-8 text-xs bg-white text-slate-900 border-[#c7d8e8] font-mono"
             value={searchAccount}
             onChange={(e) => setSearchAccount(e.target.value)}
           />
         </div>
 
         {/* Category Pill Filters */}
-        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-white/5 text-[11px] font-medium font-mono">
+        <div className="flex flex-wrap items-center gap-1 pb-1 border-b border-[#e2edf7] text-[11px] font-medium font-mono">
           <button
             type="button"
             onClick={() => setCategoryFilter("all")}
             className={cn(
               "px-2.5 py-0.5 rounded-md transition",
               categoryFilter === "all"
-                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-                : "text-gray-400 hover:text-white"
+                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             All Ledgers
@@ -144,10 +144,10 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
             type="button"
             onClick={() => setCategoryFilter("suppliers")}
             className={cn(
-              "px-2 py-0.5 rounded-md transition",
+              "px-2.5 py-0.5 rounded-md transition",
               categoryFilter === "suppliers"
-                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-                : "text-gray-400 hover:text-white"
+                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             Suppliers
@@ -156,10 +156,10 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
             type="button"
             onClick={() => setCategoryFilter("subcontractors")}
             className={cn(
-              "px-2 py-0.5 rounded-md transition",
+              "px-2.5 py-0.5 rounded-md transition",
               categoryFilter === "subcontractors"
-                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-                : "text-gray-400 hover:text-white"
+                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             Subs
@@ -168,10 +168,10 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
             type="button"
             onClick={() => setCategoryFilter("staff")}
             className={cn(
-              "px-2 py-0.5 rounded-md transition",
+              "px-2.5 py-0.5 rounded-md transition",
               categoryFilter === "staff"
-                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-                : "text-gray-400 hover:text-white"
+                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             Staff
@@ -180,10 +180,10 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
             type="button"
             onClick={() => setCategoryFilter("bank_cash")}
             className={cn(
-              "px-2 py-0.5 rounded-md transition",
+              "px-2.5 py-0.5 rounded-md transition",
               categoryFilter === "bank_cash"
-                ? "bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30"
-                : "text-gray-400 hover:text-white"
+                ? "bg-sky-50 text-[#0284c7] font-bold border border-[#bae6fd]"
+                : "text-slate-600 hover:text-slate-900"
             )}
           >
             Bank/Cash
@@ -200,13 +200,13 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                 className={cn(
                   "w-full text-left p-2.5 rounded-lg border transition-all text-xs flex items-center justify-between",
                   isSelected
-                    ? "bg-primary/10 border-primary text-primary font-bold shadow-sm"
-                    : "border-transparent hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                    ? "bg-sky-50 border-[#0284c7] text-[#0284c7] font-bold shadow-xs"
+                    : "border-transparent hover:bg-slate-50 text-slate-700 hover:text-slate-900"
                 )}
               >
                 <div className="space-y-0.5 overflow-hidden pr-2">
-                  <div className="font-semibold text-foreground truncate">{acc.name}</div>
-                  <div className="text-[10px] text-muted-foreground truncate font-mono">{acc.group}</div>
+                  <div className="font-semibold text-slate-900 truncate">{acc.name}</div>
+                  <div className="text-[10px] text-slate-500 truncate font-mono">{acc.group}</div>
                 </div>
                 {acc.type === "vendor" ? (
                   <Building2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />

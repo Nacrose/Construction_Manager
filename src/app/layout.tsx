@@ -3,7 +3,6 @@ import { Geist, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { PWARegister } from "@/components/pwa-register";
-import { AtmosphericCanvas } from "@/components/fx/atmospheric-canvas";
 import { GestureGuard } from "@/components/gesture-guard";
 
 const geist = Geist({
@@ -49,7 +48,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#00ff66",
+  themeColor: "#0284c7",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -66,7 +65,6 @@ export default function RootLayout({
         <Providers>
           <GestureGuard />
           <PWARegister />
-          <AtmosphericCanvas />
           {children}
         </Providers>
       </body>

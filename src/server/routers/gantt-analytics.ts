@@ -10,7 +10,6 @@ import { audit } from "@/lib/audit";
 import { withOrgContext, withTenantTx } from "@/lib/rls";
 import { cloneDependencies, cloneResourceAssignments } from "./gantt-versions";
 import {
-  recalculateProjectSchedule,
   recalculateProjectScheduleForUser,
 } from "@/server/utils/gantt-cpm-engine";
 
@@ -319,8 +318,6 @@ export const ganttAnalyticsRouter = router({
 
         const plannedStart = plan ? new Date(plan.startDate) : new Date(task.startDate);
         const plannedEnd = plan ? new Date(plan.endDate) : new Date(task.endDate);
-        const plannedDuration = plan ? plan.duration : task.duration;
-        const plannedProgress = plan ? plan.progress : 0;
         const actualStart = task.actualStartDate
           ? new Date(task.actualStartDate)
           : null;

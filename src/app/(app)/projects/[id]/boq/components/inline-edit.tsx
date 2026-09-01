@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
-import { cyberAudio } from "@/lib/cyber-audio";
-import { useFXStore } from "@/lib/fx-store";
 
 /**
  * InlineEdit — click-to-edit text/number input.
@@ -37,8 +35,6 @@ export function InlineEdit({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
-  const soundEnabled = useFXStore((s) => s.soundEnabled);
-  const keyClicksEnabled = useFXStore((s) => s.keyClicksEnabled);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -47,9 +43,6 @@ export function InlineEdit({
   function save() {
     setEditing(false);
     if (draft !== value) {
-      if (soundEnabled && keyClicksEnabled) {
-        cyberAudio.playCellSave(0.3);
-      }
       onSave(draft);
     }
   }

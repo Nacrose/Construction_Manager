@@ -261,41 +261,43 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
         {/* KPI Header */}
         {stats && (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono">
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-slate-400">{stats.total}</div><div className="text-[10px] text-muted-foreground uppercase">Total</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-amber-400">{stats.pending}</div><div className="text-[10px] text-muted-foreground uppercase">Pending</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-emerald-400">{stats.passed}</div><div className="text-[10px] text-muted-foreground uppercase">Passed</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-red-400">{stats.failed}</div><div className="text-[10px] text-muted-foreground uppercase">Failed</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-orange-400">{stats.ncr}</div><div className="text-[10px] text-muted-foreground uppercase">NCR</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold text-blue-400">{stats.completed}</div><div className="text-[10px] text-muted-foreground uppercase">Completed</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-slate-700">{stats.total}</div><div className="text-[10px] text-slate-500 uppercase">Total</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-amber-700">{stats.pending}</div><div className="text-[10px] text-slate-500 uppercase">Pending</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-emerald-700">{stats.passed}</div><div className="text-[10px] text-slate-500 uppercase">Passed</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-rose-700">{stats.failed}</div><div className="text-[10px] text-slate-500 uppercase">Failed</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-orange-700">{stats.ncr}</div><div className="text-[10px] text-slate-500 uppercase">NCR</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-[#0284c7]">{stats.completed}</div><div className="text-[10px] text-slate-500 uppercase">Completed</div></Card>
           </div>
         )}
 
         {/* Action Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            <span>Quality Inspection &amp; Non-Conformance Register</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-700">
+            <ShieldCheck className="h-4 w-4 text-[#0284c7]" />
+            <span className="font-bold">Quality Inspection &amp; Non-Conformance Register</span>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-mono">
-                <Plus className="h-3.5 w-3.5" /> Request Inspection
+              <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 shrink-0 font-mono">
+                <Plus className="h-3.5 w-3.5" /> Request Inspection (जाँच अनुरोध)
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md bg-[#0c1015] border-white/10 text-white backdrop-blur-md bg-black/85">
-              <DialogHeader><DialogTitle className="text-base font-bold text-white">Request Inspection</DialogTitle></DialogHeader>
-              <div className="space-y-3 py-2 text-xs">
+            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+                <DialogTitle className="text-base font-bold text-slate-900">Request Inspection (गुणस्तर जाँच अनुरोध)</DialogTitle>
+              </div>
+              <div className="p-6 space-y-3.5 text-xs bg-white">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">QI Number *</Label>
-                    <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-xs font-mono bg-[#121820] border-white/10 text-white" />
+                    <Label className="text-[11px] font-semibold text-slate-700">QI Number *</Label>
+                    <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Inspection Type</Label>
+                    <Label className="text-[11px] font-semibold text-slate-700">Inspection Type</Label>
                     <Select value={inspectionType} onValueChange={setInspectionType}>
-                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white font-mono"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs font-mono">
+                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
                         <SelectItem value="work_inspection">Work Inspection</SelectItem>
                         <SelectItem value="material_test">Material Test</SelectItem>
                         <SelectItem value="ncr">Non-Conformance (NCR)</SelectItem>
@@ -305,20 +307,21 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Title / Work Scope *</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-xs bg-[#121820] border-white/10 text-white" />
+                  <Label className="text-[11px] font-semibold text-slate-700">Title / Work Scope *</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Site Location (Optional)</Label>
-                  <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Block B, 2nd Floor" className="h-9 text-xs bg-[#121820] border-white/10 text-white" />
+                  <Label className="text-[11px] font-semibold text-slate-700">Site Location (Optional)</Label>
+                  <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Block B, 2nd Floor" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100 font-mono">Cancel</Button>
+                  <Button size="sm" onClick={() => createMut.mutate({ projectId: id, number, title, inspectionType: inspectionType as any, location: location || undefined })} disabled={createMut.isPending || !number || !title} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm font-mono">
+                    {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create Request (अनुरोध सुरक्षित)
+                  </Button>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="text-xs text-gray-400 font-mono">Cancel</Button>
-                <Button size="sm" onClick={() => createMut.mutate({ projectId: id, number, title, inspectionType: inspectionType as any, location: location || undefined })} disabled={createMut.isPending || !number || !title} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold font-mono">
-                  {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create Request
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -343,27 +346,21 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
         {/* Complete Dialog with Checklist Builder */}
         {completeId && (
           <Dialog open={true} onOpenChange={(o) => { if (!o) { setCompleteId(null); setShowChecklistBuilder(false); } }}>
-            <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto backdrop-blur-md bg-black/85 border-white/10 text-white">
-              <DialogHeader><DialogTitle className="text-white">Complete Quality Inspection</DialogTitle></DialogHeader>
-              <div className="space-y-4 py-2">
+            <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+                <DialogTitle className="text-base font-bold text-slate-900">Complete Quality Inspection</DialogTitle>
+              </div>
+              <div className="p-6 space-y-4 text-xs bg-white max-h-[80vh] overflow-y-auto">
                 {showChecklistBuilder && checklist.length > 0 && (
-                  <div className="space-y-2 border border-white/10 rounded-xl p-3 bg-white/5 font-mono">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold uppercase text-muted-foreground">
-                        Inspection Checklist
-                      </Label>
-                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={addChecklistItem}>
-                        <Plus className="h-3 w-3 mr-1" /> Add Item
-                      </Button>
-                    </div>
+                  <div className="space-y-2 border border-[#c7d8e8] rounded-xl p-3 bg-slate-50 font-mono">
                     <div className="space-y-1.5">
                       {checklist.map((c, i) => (
-                        <div key={i} className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
+                        <div key={i} className="flex items-start gap-2 rounded-lg border border-[#c7d8e8] bg-white p-2">
                           <div className="flex gap-1 shrink-0 pt-0.5">
                             <button
                               type="button"
                               onClick={() => updateChecklistItem(i, "passed", true)}
-                              className={cn("rounded p-1 transition", c.passed === true ? "bg-emerald-500 text-white" : "bg-white/10 hover:bg-emerald-500/30 text-white/70")}
+                              className={cn("rounded p-1 transition", c.passed === true ? "bg-emerald-600 text-white" : "bg-slate-100 hover:bg-emerald-500/20 text-slate-600")}
                               title="Pass"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -371,7 +368,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                             <button
                               type="button"
                               onClick={() => updateChecklistItem(i, "passed", false)}
-                              className={cn("rounded p-1 transition", c.passed === false ? "bg-red-500 text-white" : "bg-white/10 hover:bg-red-500/30 text-white/70")}
+                              className={cn("rounded p-1 transition", c.passed === false ? "bg-red-600 text-white" : "bg-slate-100 hover:bg-red-500/20 text-slate-600")}
                               title="Fail"
                             >
                               <XCircle className="h-3.5 w-3.5" />
@@ -381,18 +378,18 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                             value={c.item}
                             onChange={(e) => updateChecklistItem(i, "item", e.target.value)}
                             placeholder="Checklist item description"
-                            className="h-7 text-xs flex-1 bg-white/5 border-white/10 text-white"
+                            className="h-7 text-xs flex-1 bg-white border-[#c7d8e8]"
                           />
                           <Input
                             value={c.notes}
                             onChange={(e) => updateChecklistItem(i, "notes", e.target.value)}
                             placeholder="Notes (optional)"
-                            className="h-7 text-xs flex-1 bg-white/5 border-white/10 text-white"
+                            className="h-7 text-xs flex-1 bg-white border-[#c7d8e8]"
                           />
                           <button
                             type="button"
                             onClick={() => removeChecklistItem(i)}
-                            className="rounded p-1 text-muted-foreground hover:bg-red-500/20 hover:text-red-400 shrink-0"
+                            className="rounded p-1 text-slate-400 hover:bg-red-500/10 hover:text-red-600 shrink-0"
                             title="Remove"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -400,7 +397,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-slate-500">
                       Auto-suggested Result: {computeResult() === "pass" ? "✓ Pass" : computeResult() === "fail" ? "✕ Fail" : "⚠ Conditional"}
                     </p>
                   </div>
@@ -408,10 +405,10 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Final Result</Label>
+                    <Label className="text-[11px] font-semibold text-slate-700">Final Result</Label>
                     <Select value={result} onValueChange={setResult}>
-                      <SelectTrigger className="h-9 text-xs bg-white/5 border-white/10 text-white font-mono"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
                         <SelectItem value="pass">✓ Pass</SelectItem>
                         <SelectItem value="fail">✕ Fail (NCR)</SelectItem>
                         <SelectItem value="conditional_pass">⚠ Conditional Pass</SelectItem>
@@ -419,41 +416,42 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Inspected By</Label>
-                    <Input value={inspectedBy} onChange={(e) => setInspectedBy(e.target.value)} placeholder="Engineer Name" className="h-9 text-xs bg-white/5 border-white/10 text-white font-mono" />
+                    <Label className="text-[11px] font-semibold text-slate-700">Inspected By</Label>
+                    <Input value={inspectedBy} onChange={(e) => setInspectedBy(e.target.value)} placeholder="Engineer Name" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]" />
                   </div>
                 </div>
                 {result === "fail" && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">NCR Number</Label>
-                    <Input value={ncrNumber} onChange={(e) => setNcrNumber(e.target.value)} placeholder="NCR-001" className="h-9 text-xs font-mono bg-white/5 border-white/10 text-white" />
+                    <Label className="text-[11px] font-semibold text-slate-700">NCR Number</Label>
+                    <Input value={ncrNumber} onChange={(e) => setNcrNumber(e.target.value)} placeholder="NCR-001" className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Remarks</Label>
-                  <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className="text-xs bg-white/5 border-white/10 text-white" />
+                  <Label className="text-[11px] font-semibold text-slate-700">Remarks</Label>
+                  <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className="text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+                  <Button variant="outline" onClick={() => { setCompleteId(null); setShowChecklistBuilder(false); }} className="h-8 text-xs font-mono border-[#c7d8e8] text-slate-600 hover:bg-slate-100">Cancel</Button>
+                  <Button
+                    onClick={() => {
+                      const finalResult = (result as any) || computeResult();
+                      completeMut.mutate({
+                        id: completeId,
+                        result: finalResult,
+                        remarks: remarks || undefined,
+                        inspectedBy: inspectedBy || undefined,
+                        ncrNumber: ncrNumber || undefined,
+                        checklist: checklist.length > 0 ? JSON.stringify(checklist) : undefined,
+                      });
+                    }}
+                    disabled={completeMut.isPending}
+                    className="amber-cta-btn h-8 text-xs font-mono font-bold text-white shadow-sm"
+                  >
+                    {completeMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Complete Inspection (सम्पन्न)
+                  </Button>
                 </div>
               </div>
-              <DialogFooter className="border-t border-white/10 pt-2">
-                <Button variant="outline" onClick={() => { setCompleteId(null); setShowChecklistBuilder(false); }} className="h-8 text-xs font-mono">Cancel</Button>
-                <Button
-                  onClick={() => {
-                    const finalResult = (result as any) || computeResult();
-                    completeMut.mutate({
-                      id: completeId,
-                      result: finalResult,
-                      remarks: remarks || undefined,
-                      inspectedBy: inspectedBy || undefined,
-                      ncrNumber: ncrNumber || undefined,
-                      checklist: checklist.length > 0 ? JSON.stringify(checklist) : undefined,
-                    });
-                  }}
-                  disabled={completeMut.isPending}
-                  className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                >
-                  {completeMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Complete Inspection
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
@@ -466,17 +464,19 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
           try { items = JSON.parse(qi.checklist); } catch {}
           return (
             <Dialog open={true} onOpenChange={(o) => { if (!o) setViewChecklist(null); }}>
-              <DialogContent className="sm:max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
-                <DialogHeader><DialogTitle className="text-white font-mono">Checklist — {qi.number}</DialogTitle></DialogHeader>
-                <div className="space-y-1.5 py-2">
+              <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+                <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+                  <DialogTitle className="text-base font-bold text-slate-900 font-mono">Checklist — {qi.number}</DialogTitle>
+                </div>
+                <div className="p-6 space-y-2 text-xs font-mono bg-white">
                   {items.map((c, i) => (
-                    <div key={i} className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 p-2 text-xs font-mono">
-                      {c.passed === true ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> :
-                       c.passed === false ? <XCircle className="h-4 w-4 text-red-400 shrink-0" /> :
-                       <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <div key={i} className="flex items-start gap-2 rounded-lg border border-[#c7d8e8] bg-slate-50 p-2.5 text-xs font-mono">
+                      {c.passed === true ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> :
+                       c.passed === false ? <XCircle className="h-4 w-4 text-rose-600 shrink-0" /> :
+                       <AlertCircle className="h-4 w-4 text-slate-400 shrink-0" />}
                       <div className="flex-1">
-                        <p className="font-medium text-white">{c.item}</p>
-                        {c.notes && <p className="text-muted-foreground mt-0.5">{c.notes}</p>}
+                        <p className="font-semibold text-slate-900">{c.item}</p>
+                        {c.notes && <p className="text-slate-500 mt-0.5">{c.notes}</p>}
                       </div>
                     </div>
                   ))}

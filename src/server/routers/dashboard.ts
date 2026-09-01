@@ -356,7 +356,6 @@ export const dashboardRouter = router({
         const planned = t.plannedQty || 0;
         const actual = t.actualQty || 0;
         const remaining = Math.max(0, planned - actual);
-        const delayDays = t.delayReason ? 1 : 0; // simplified
         return {
           id: t.id,
           taskName: t.taskName,

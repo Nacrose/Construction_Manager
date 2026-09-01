@@ -217,19 +217,21 @@ function CreateProjectDialog({
   }
 
   return (
-    <DialogContent className="sm:max-w-[650px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-          <FolderKanban className="h-5 w-5 text-emerald-400" /> Create New Contractor Project Site
-        </DialogTitle>
-        <DialogDescription className="text-xs text-muted-foreground">
-          Initialize a contractual workspace for BOQ, site deliveries, Day Book vouchers, and client IPC billing.
-        </DialogDescription>
-      </DialogHeader>
-      <form onSubmit={submit} className="space-y-4 pt-2">
+    <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+      <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+        <div>
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+            <FolderKanban className="h-5 w-5 text-[#0284c7]" /> Create New Contractor Project Site
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500 mt-0.5">
+            Initialize a contractual workspace for BOQ, site deliveries, Day Book vouchers, and client IPC billing.
+          </DialogDescription>
+        </div>
+      </div>
+      <form onSubmit={submit} className="p-6 space-y-4 text-xs bg-white">
         {/* Preset Selector */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-gray-200">Contractor Scale & Operational Mode *</Label>
+          <Label className="text-[11px] font-semibold text-slate-700">Contractor Scale &amp; Operational Mode *</Label>
           <div className="grid grid-cols-3 gap-2">
             {[
               { key: "record_keeper" as const, icon: "📒", title: "Record-Keeper", sub: "Actuals only: Day Book, materials & labor." },
@@ -241,15 +243,15 @@ function CreateProjectDialog({
                 onClick={() => setOperationalPreset(p.key)}
                 className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
                   operationalPreset === p.key
-                    ? "border-emerald-500 bg-emerald-950/30 text-white ring-1 ring-emerald-500/40"
-                    : "border-white/10 bg-[#161d26] text-gray-400 hover:border-white/20 hover:text-white"
+                    ? "border-[#0284c7] bg-sky-50 text-slate-900 ring-1 ring-[#0284c7] shadow-xs"
+                    : "border-[#c7d8e8] bg-slate-50 text-slate-600 hover:border-[#0284c7] hover:text-slate-900"
                 }`}
               >
-                <div className="flex items-center gap-1.5 font-bold text-xs text-white">
+                <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
                   <span>{p.icon}</span>
                   <span>{p.title}</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1 leading-tight">{p.sub}</p>
+                <p className="text-[10px] text-slate-500 mt-1 leading-tight">{p.sub}</p>
               </div>
             ))}
           </div>
@@ -257,18 +259,18 @@ function CreateProjectDialog({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="p-name" className="text-xs font-semibold">Project Name *</Label>
+            <Label htmlFor="p-name" className="text-[11px] font-semibold text-slate-700">Project Name *</Label>
             <Input
               id="p-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Kathmandu-Terai Fast Track PKG-02"
               required
-              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="p-code" className="text-xs font-semibold">Project Code *</Label>
+            <Label htmlFor="p-code" className="text-[11px] font-semibold text-slate-700">Project Code *</Label>
             <Input
               id="p-code"
               value={code}
@@ -276,54 +278,54 @@ function CreateProjectDialog({
               placeholder="e.g. KTFT-02"
               required
               pattern="[A-Z0-9-]+"
-              className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+              className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label htmlFor="p-client" className="text-xs font-semibold">Client / Employer Office</Label>
+            <Label htmlFor="p-client" className="text-[11px] font-semibold text-slate-700">Client / Employer Office</Label>
             <Input
               id="p-client"
               value={client}
               onChange={(e) => setClient(e.target.value)}
               placeholder="e.g. Division Road Office, Hetauda / DUDBC"
-              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="p-loc" className="text-xs font-semibold">Site Location / District</Label>
+            <Label htmlFor="p-loc" className="text-[11px] font-semibold text-slate-700">Site Location / District</Label>
             <Input
               id="p-loc"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. Makwanpur / Chitwan"
-              className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
             />
           </div>
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="p-desc" className="text-xs">Contract Scope / Description (Optional)</Label>
+          <Label htmlFor="p-desc" className="text-[11px] font-semibold text-slate-700">Contract Scope / Description (Optional)</Label>
           <Textarea
             id="p-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
             placeholder="e.g. 4-lane asphalt road upgradation with 3 RCC bridges and slope protection."
-            className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
+            className="text-xs bg-white border-[#c7d8e8] text-slate-900 resize-none focus:border-[#0284c7]"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
           <Button
             type="submit"
             disabled={loading}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5 shadow-[0_0_12px_rgba(0,255,102,0.2)]"
+            className="amber-cta-btn font-bold text-xs h-8 px-5 text-white shadow-sm"
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Project Workspace
+            Create Project Workspace (आयोजना निर्माण)
           </Button>
         </div>
       </form>

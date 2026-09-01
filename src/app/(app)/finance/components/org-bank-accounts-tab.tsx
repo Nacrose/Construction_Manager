@@ -198,27 +198,29 @@ export function OrgBankAccountsTab() {
         </div>
       )}
 
-      {/* Add Bank Account Dialog with 16:10 Widescreen & Dark Glass Blur */}
+      {/* Add Bank Account Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[650px] w-full bg-[#0c1015] border-white/10 text-white backdrop-blur-md bg-black/85 p-5">
-          <DialogHeader className="pb-2 border-b border-white/10">
-            <DialogTitle className="flex items-center gap-2 text-sm font-bold text-white">
-              <Building2 className="h-4 w-4 text-[#38bdf8]" /> Add Bank Account / Digital Wallet
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400 font-mono">
-              Register commercial bank accounts, overdraft facilities, or wallets for central payments.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <Building2 className="h-4 w-4 text-[#0284c7]" /> Add Bank Account / Digital Wallet
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 font-mono mt-0.5">
+                Register commercial bank accounts, overdraft facilities, or wallets for central payments.
+              </DialogDescription>
+            </div>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3 pt-2">
+          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-white">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-200">Account Category *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Account Category *</Label>
                 <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-[#161d26] border-white/15 text-white font-mono">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-white/20 text-white text-xs font-mono">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
                     <SelectItem value="current">Current Account (चालु खाता)</SelectItem>
                     <SelectItem value="overdraft">Overdraft Facility (OD Loan)</SelectItem>
                     <SelectItem value="saving">Savings Account (बचत खाता)</SelectItem>
@@ -228,61 +230,61 @@ export function OrgBankAccountsTab() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-200">Bank / Provider *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Bank / Provider *</Label>
                 <Input
                   required
                   placeholder="e.g. Nabil Bank, eSewa, ConnectIPS"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  className="h-8 text-xs bg-[#161d26] border-white/15 text-white font-mono placeholder:text-slate-500"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-slate-200">Account Holder Name *</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Account Holder Name *</Label>
               <Input
                 required
                 placeholder="e.g. Nacrose Construction Pvt. Ltd."
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
-                className="h-8 text-xs bg-[#161d26] border-white/15 text-white placeholder:text-slate-500"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-200">Account Number / Wallet ID *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Account Number / Wallet ID *</Label>
                 <Input
                   required
                   placeholder="e.g. 01201017500123 / 9801234567"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  className="h-8 text-xs font-mono bg-[#161d26] border-white/15 text-white placeholder:text-slate-500"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-slate-200">Branch Name (Optional)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Branch Name (Optional)</Label>
                 <Input
                   placeholder="e.g. New Road / Hetauda Branch"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
-                  className="h-8 text-xs bg-[#161d26] border-white/15 text-white font-mono placeholder:text-slate-500"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 items-end">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-200">Opening Balance (NPR)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Opening Balance (NPR)</Label>
                 <Input
                   type="number"
                   step="any"
                   placeholder="0.00"
                   value={openingBalance}
                   onChange={(e) => setOpeningBalance(e.target.value)}
-                  className="h-8 text-xs font-mono font-bold bg-[#161d26] border-white/15 text-white placeholder:text-slate-500"
+                  className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 />
               </div>
 
@@ -292,29 +294,31 @@ export function OrgBankAccountsTab() {
                   id="isDefault"
                   checked={isDefault}
                   onChange={(e) => setIsDefault(e.target.checked)}
-                  className="rounded border-white/20 bg-muted accent-amber-500 h-4 w-4"
+                  className="rounded border-[#c7d8e8] accent-amber-500 h-4 w-4"
                 />
-                <Label htmlFor="isDefault" className="text-xs cursor-pointer font-mono text-slate-300">
+                <Label htmlFor="isDefault" className="text-xs cursor-pointer font-mono text-slate-700">
                   Default primary account
                 </Label>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                size="sm"
                 onClick={() => setCreateDialogOpen(false)}
-                className="text-xs text-slate-400 font-mono hover:text-white"
+                className="text-xs h-8 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
+                size="sm"
                 disabled={createMutation.isPending}
-                className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-4 shadow-sm"
+                className="amber-cta-btn text-white font-bold text-xs h-8 px-4 shadow-sm"
               >
-                {createMutation.isPending ? "Saving..." : "Save Account"}
+                {createMutation.isPending ? "Saving..." : "Save Account (खाता सुरक्षित)"}
               </Button>
             </div>
           </form>

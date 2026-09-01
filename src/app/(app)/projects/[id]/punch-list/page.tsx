@@ -56,41 +56,41 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
         {stats && (
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {[
-              { label: "Total", value: stats.total, color: "text-slate-400" },
-              { label: "Open", value: stats.open, color: "text-red-400" },
-              { label: "In Progress", value: stats.inProgress, color: "text-amber-400" },
-              { label: "Resolved", value: stats.resolved, color: "text-emerald-400" },
-              { label: "Verified", value: stats.verified, color: "text-blue-400" },
+              { label: "Total", value: stats.total, color: "text-slate-700" },
+              { label: "Open", value: stats.open, color: "text-rose-700" },
+              { label: "In Progress", value: stats.inProgress, color: "text-amber-700" },
+              { label: "Resolved", value: stats.resolved, color: "text-emerald-700" },
+              { label: "Verified", value: stats.verified, color: "text-[#0284c7]" },
             ].map(s => (
-              <Card key={s.label} className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl">
+              <Card key={s.label} className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl">
                 <div className={cn("text-lg font-bold font-mono", s.color)}>{s.value}</div>
-                <div className="text-[10px] text-muted-foreground uppercase font-mono">{s.label}</div>
+                <div className="text-[10px] text-slate-500 uppercase font-mono">{s.label}</div>
               </Card>
             ))}
           </div>
         )}
 
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search snag/punch item..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#121820] border-white/10 text-white rounded-xl" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input placeholder="Search snag/punch item..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-lg focus:border-[#0284c7]" />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Status</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In Progress</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="verified">Verified</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent>
+              <SelectTrigger className="h-8 w-32 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-lg focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl"><SelectItem value="all">All Status</SelectItem><SelectItem value="open">Open</SelectItem><SelectItem value="in_progress">In Progress</SelectItem><SelectItem value="resolved">Resolved</SelectItem><SelectItem value="verified">Verified</SelectItem><SelectItem value="closed">Closed</SelectItem></SelectContent>
             </Select>
             <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#121820] border-white/10 text-white rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="all">All Severity</SelectItem><SelectItem value="critical">Critical</SelectItem><SelectItem value="major">Major</SelectItem><SelectItem value="minor">Minor</SelectItem></SelectContent>
+              <SelectTrigger className="h-8 w-32 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-lg focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl"><SelectItem value="all">All Severity</SelectItem><SelectItem value="critical">Critical</SelectItem><SelectItem value="major">Major</SelectItem><SelectItem value="minor">Minor</SelectItem></SelectContent>
             </Select>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
-                <Plus className="h-3.5 w-3.5" /> + Add Item
+              <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 shrink-0">
+                <Plus className="h-3.5 w-3.5" /> + Add Item (टिप्पणी थप्नुहोस्)
               </Button>
             </DialogTrigger>
             <CreatePunchDialog projectId={id} onDone={() => { setAddOpen(false); utils.punchList.list.invalidate({ projectId: id }); utils.punchList.stats.invalidate({ projectId: id }); }} />
@@ -98,36 +98,36 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
         </div>
 
       {/* List */}
-      {isLoading ? <Skeleton className="h-64" /> : items.length === 0 ? (
-        <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <Inbox className="h-12 w-12 text-muted-foreground/40 mb-3" />
-          <p className="text-sm font-medium text-muted-foreground">No punch items</p>
+      {isLoading ? <Skeleton className="h-64 rounded-xl bg-slate-100" /> : items.length === 0 ? (
+        <Card className="bg-white border-[#c7d8e8] shadow-xs rounded-xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <Inbox className="h-12 w-12 text-slate-400 mb-3" />
+          <p className="text-sm font-medium text-slate-600">No punch items</p>
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
           {items.map(item => {
             const sev = SEVERITY_CONFIG[item.severity] ?? SEVERITY_CONFIG.minor;
             return (
-              <Card key={item.id} className="hover:shadow-sm transition-shadow">
+              <Card key={item.id} className="bg-white border-[#c7d8e8] shadow-xs hover:border-[#0284c7] transition-all rounded-xl">
                 <CardContent className="p-3 flex items-start gap-3">
                   <div className={cn("shrink-0 h-8 w-8 rounded-full flex items-center justify-center", sev.bg)}>
                     {item.severity === "critical" ? <AlertTriangle className={cn("h-4 w-4", sev.color)} /> : item.status === "resolved" || item.status === "verified" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Wrench className={cn("h-4 w-4", sev.color)} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-medium">{item.number}</span>
-                      <span className="text-sm font-medium truncate">{item.title}</span>
-                      <span className={cn("rounded px-1 text-[9px] font-medium uppercase", sev.bg, sev.color)}>{item.severity}</span>
-                      <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium",
-                        item.status === "open" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" :
-                        item.status === "in_progress" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" :
-                        item.status === "resolved" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" :
-                        item.status === "verified" ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400" :
-                        "bg-slate-100 text-slate-500 dark:bg-slate-800"
+                      <span className="font-mono text-xs font-medium text-slate-500">{item.number}</span>
+                      <span className="text-sm font-semibold text-slate-900 truncate">{item.title}</span>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", sev.bg, sev.color)}>{item.severity}</span>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold",
+                        item.status === "open" ? "bg-red-50 text-red-700 border border-red-200" :
+                        item.status === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                        item.status === "resolved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                        item.status === "verified" ? "bg-sky-50 text-sky-700 border border-sky-200" :
+                        "bg-slate-100 text-slate-600 border border-slate-200"
                       )}>{STATUS_FLOW[item.status] ?? item.status}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
-                    <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                    <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{item.description}</p>
+                    <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                       {item.location && <span>📍 {item.location}</span>}
                       {item.assignedTo && <span>👤 {item.assignedTo}</span>}
                       {item.dueDate && <span>📅 {format(new Date(item.dueDate), "dd MMM")}</span>}

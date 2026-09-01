@@ -6,7 +6,7 @@
  */
 
 function sanitizeCell(val: any): any {
-  if (typeof val === "string" && /^[=\+\-\@\t\r]/.test(val)) {
+  if (typeof val === "string" && /^[=+\-@\t\r]/.test(val)) {
     return `'${val}`;
   }
   return val;

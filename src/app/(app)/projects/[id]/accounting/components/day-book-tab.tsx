@@ -454,18 +454,24 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               Chronological Ledger Feed (खाताबही टाइमलाइन)
             </span>
             <div className="flex items-center gap-2">
-              <div className="flex items-center bg-[#121820] border border-white/10 rounded-lg p-0.5">
+              <div className="flex items-center bg-[#e5eef7] border border-[#c7d8e8] rounded-lg p-0.5">
                 <button
                   type="button"
                   onClick={() => setViewMode("table")}
-                  className="px-2 py-1 rounded text-xs font-mono text-gray-400 hover:text-white"
+                  className={cn(
+                    "px-2 py-1 rounded text-xs font-mono transition",
+                    (viewMode as string) === "table" ? "bg-white text-slate-900 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                  )}
                 >
                   <List className="h-3.5 w-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode("timeline")}
-                  className="px-2 py-1 rounded text-xs font-mono bg-emerald-500/20 text-emerald-400 font-bold"
+                  className={cn(
+                    "px-2 py-1 rounded text-xs font-mono transition",
+                    (viewMode as string) === "timeline" ? "bg-white text-[#0284c7] shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
+                  )}
                 >
                   <Receipt className="h-3.5 w-3.5" />
                 </button>
@@ -473,14 +479,14 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               <Button
                 size="sm"
                 onClick={() => setRecordInflowOpen(true)}
-                className="h-7 text-xs font-semibold bg-[#141a23] text-emerald-400 border border-emerald-500/30 rounded-lg gap-1"
+                className="h-7 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md gap-1 shadow-xs"
               >
                 <Plus className="h-3 w-3" /> Money In
               </Button>
               <Button
                 size="sm"
                 onClick={() => setRecordPaymentOpen(true)}
-                className="h-7 text-xs font-semibold bg-[#00ff66] text-black rounded-lg"
+                className="amber-cta-btn h-7 text-xs font-bold text-white rounded-md gap-1 shadow-xs"
               >
                 <Plus className="h-3 w-3" /> Payment
               </Button>
@@ -488,9 +494,9 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
           </div>
 
           {entriesWithRunning.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl border border-white/10 bg-[#0c1015] text-gray-400 text-xs font-mono">
-              <BookOpen className="mx-auto h-8 w-8 mb-2 opacity-50" />
-              No entries found.
+            <div className="p-12 text-center rounded-2xl border border-[#c7d8e8] bg-white text-slate-500 text-xs font-mono">
+              <BookOpen className="mx-auto h-8 w-8 mb-2 opacity-40 text-slate-400" />
+              No ledger transactions recorded yet.
             </div>
           ) : (
             <div className="space-y-2">
@@ -500,32 +506,32 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                   <div
                     key={entry.id}
                     className={cn(
-                      "p-3.5 rounded-xl border bg-[#0c1015] transition-all hover:bg-white/[0.02] flex items-center justify-between gap-4 font-mono text-xs",
+                      "p-3.5 rounded-xl border bg-white shadow-xs transition-all hover:border-[#94a3b8] flex items-center justify-between gap-4 font-mono text-xs",
                       isInflow
-                        ? "border-l-4 border-l-emerald-500 border-white/10"
-                        : "border-l-4 border-l-rose-500 border-white/10"
+                        ? "border-l-4 border-l-emerald-500 border-[#c7d8e8]"
+                        : "border-l-4 border-l-rose-500 border-[#c7d8e8]"
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div
                         className={cn(
                           "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                          isInflow ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                          isInflow ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-rose-50 text-rose-600 border border-rose-200"
                         )}
                       >
                         {isInflow ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm truncate">{entry.party || "Direct Entry"}</span>
+                          <span className="font-bold text-slate-900 text-sm truncate">{entry.party || "Direct Entry"}</span>
                           {entry.voucherNo && (
-                            <span className="text-[10px] text-gray-500">#{entry.voucherNo}</span>
+                            <span className="text-[10px] text-slate-400 font-matrix">#{entry.voucherNo}</span>
                           )}
-                          <Badge variant="outline" className="text-[9px] uppercase bg-white/5 border-white/10 text-gray-400">
+                          <Badge variant="outline" className="text-[9px] uppercase bg-slate-100 border-[#c7d8e8] text-slate-700">
                             {entry.voucherType}
                           </Badge>
                         </div>
-                        <p className="text-[11px] text-gray-400 truncate font-sans">{entry.particulars || "—"}</p>
+                        <p className="text-[11px] text-slate-500 truncate font-sans">{entry.particulars || "—"}</p>
                       </div>
                     </div>
 
@@ -533,19 +539,19 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                       <div>
                         <div
                           className={cn(
-                            "font-bold text-sm",
-                            isInflow ? "text-emerald-400" : "text-rose-400"
+                            "font-bold text-sm font-matrix",
+                            isInflow ? "text-emerald-700" : "text-rose-700"
                           )}
                         >
                           {isInflow ? `+ NPR ${formatNpr(entry.debit)}` : `- NPR ${formatNpr(entry.credit)}`}
                         </div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className="text-[10px] text-slate-500 font-matrix">
                           Bal: NPR {formatNpr(entry.runningBalance)}
                         </div>
                       </div>
-                      <div className="text-right text-[10px] text-gray-400 border-l border-white/10 pl-3">
-                        <div className="text-white font-bold">{entry.miti || "—"}</div>
-                        <div className="text-gray-500">{entry.date}</div>
+                      <div className="text-right text-[10px] text-slate-500 border-l border-[#c7d8e8] pl-3">
+                        <div className="text-slate-800 font-bold font-matrix">{entry.miti || "—"}</div>
+                        <div className="text-slate-400 font-matrix">{entry.date}</div>
                       </div>
                     </div>
                   </div>
@@ -556,32 +562,34 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         </div>
       )}
 
-      {/* Modal: Record Inflow (Money In) */}
+      {/* Modal: Record Inflow (Money In) - 16:10 Widescreen Aero Modal */}
       <Dialog open={recordInflowOpen} onOpenChange={setRecordInflowOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col p-0 gap-0 bg-[#0c1015] border border-emerald-500/20 shadow-[0_0_60px_rgba(0,255,102,0.08)] rounded-3xl font-sans overflow-hidden">
-          <div className="px-6 pt-6 pb-4 shrink-0 border-b border-white/5 text-center relative">
-            <DialogTitle className="text-xl font-bold text-white tracking-tight">
-              Record Money In (आम्दानी दर्ता)
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-400 mt-0.5">
-              Log client IPC payment receipts, mobilization advance, or capital deposits.
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-base font-bold text-slate-900 tracking-tight font-sans">
+                Record Money In (आम्दानी दर्ता)
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                Log client IPC payment receipts, mobilization advance, or capital deposits.
+              </DialogDescription>
+            </div>
             {inflowMiti && (
-              <span className="absolute right-6 top-6 text-xs font-mono font-medium text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-[0_0_10px_rgba(0,255,102,0.2)]">
+              <span className="text-xs font-mono font-bold text-[#0284c7] px-2.5 py-0.5 rounded-full bg-sky-50 border border-[#bae6fd]">
                 {inflowMiti} BS
               </span>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 text-xs custom-scrollbar">
-            {/* Row 0: Project Selector */}
+          <div className="p-6 space-y-4 text-xs bg-white">
+            {/* Row 0: Target Project */}
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-xs font-medium text-gray-300">Target Project (प्रोजेक्ट)</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Target Project (प्रोजेक्ट)</Label>
               <Select value={inflowProjectId} onValueChange={setInflowProjectId}>
-                <SelectTrigger className="w-full min-w-0 h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
+                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
                   <SelectValue placeholder="Select Project" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
+                <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
                   {allProjects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name} ({p.code})
@@ -594,7 +602,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             {/* Row 1: Date & Received From */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Date (मिति)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Date (मिति)</Label>
                 <NepaliDatePicker
                   value={inflowDate}
                   onChange={(_d, dateStr) => {
@@ -606,17 +614,17 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                     }
                   }}
                   placeholder="Select Nepali date (BS)"
-                  className="w-full h-10 text-xs font-mono rounded-xl border-emerald-500/30 bg-[#121820] text-white"
+                  className="w-full h-9 text-xs font-mono rounded-lg border border-[#c7d8e8] bg-white text-slate-900"
                 />
               </div>
 
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Received From (कसबाट प्राप्त?)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Received From (कसबाट प्राप्त?)</Label>
                 <Input
                   value={inflowSource}
                   onChange={(e) => setInflowSource(e.target.value)}
                   placeholder="e.g. DoR, Employer, Partner"
-                  className="h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                  className="h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                 />
               </div>
             </div>
@@ -624,22 +632,22 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             {/* Row 2: Amount & Inflow Nature */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Inflow Amount (NPR)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Inflow Amount (NPR)</Label>
                 <Input
                   type="number"
                   value={inflowAmount}
                   onChange={(e) => setInflowAmount(e.target.value)}
                   placeholder="e.g. 5000000"
-                  className="w-full h-10 text-xs font-mono font-bold bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                  className="w-full h-9 text-xs font-mono font-bold bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                 />
               </div>
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Inflow Nature</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Inflow Nature</Label>
                 <Select value={inflowCategory} onValueChange={setInflowCategory}>
-                  <SelectTrigger className="w-full min-w-0 h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
+                  <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
+                  <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
                     <SelectItem value="Client IPC Running Bill">Client IPC Running Bill</SelectItem>
                     <SelectItem value="Mobilization Advance">Mobilization Advance</SelectItem>
                     <SelectItem value="Partner Capital Deposit">Partner Capital Deposit</SelectItem>
@@ -650,14 +658,15 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               </div>
             </div>
 
+            {/* Row 3: Payment Channel & Deposited Bank */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-gray-300">Payment Channel</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Payment Channel</Label>
                 <Select value={inflowMode} onValueChange={setInflowMode}>
-                  <SelectTrigger className="w-full min-w-0 h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
+                  <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
+                  <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
                     <SelectItem value="bank_transfer">Bank Transfer / connectIPS</SelectItem>
                     <SelectItem value="cheque">Bank Cheque</SelectItem>
                     <SelectItem value="cash">Cash Deposit</SelectItem>
@@ -665,12 +674,12 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-gray-300">Deposited Bank Account</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Deposited Bank Account</Label>
                 <Select value={inflowBank} onValueChange={setInflowBank}>
-                  <SelectTrigger className="w-full min-w-0 h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
+                  <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8]">
                     <SelectValue placeholder="Select bank/cash account" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs">
+                  <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
                     {bankAndCashAccounts.length > 0 ? (
                       bankAndCashAccounts.map((acc: any) => (
                         <SelectItem key={acc.id} value={acc.id}>
@@ -685,33 +694,35 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-300">Bank Txn Ref / Cheque #</Label>
-              <Input
-                value={inflowRefNo}
-                onChange={(e) => setInflowRefNo(e.target.value)}
-                placeholder="e.g. NCHL-881923 or CHQ-99104"
-                className="h-10 text-xs font-mono bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-gray-300">Narration / Notes</Label>
-              <Input
-                value={inflowNotes}
-                onChange={(e) => setInflowNotes(e.target.value)}
-                placeholder="e.g. Received for IPC #02 after 1.5% TDS & 5% retention deductions"
-                className="h-10 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
-              />
+            {/* Row 4: Bank Txn Ref & Narration */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-slate-700">Bank Txn Ref / Cheque #</Label>
+                <Input
+                  value={inflowRefNo}
+                  onChange={(e) => setInflowRefNo(e.target.value)}
+                  placeholder="e.g. NCHL-881923 or CHQ-99104"
+                  className="h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[11px] font-semibold text-slate-700">Narration / Notes</Label>
+                <Input
+                  value={inflowNotes}
+                  onChange={(e) => setInflowNotes(e.target.value)}
+                  placeholder="e.g. Received for IPC #02"
+                  className="h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                />
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5 bg-[#0c1015] shrink-0">
+          <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[#e2edf7] bg-[#f8fbfe] shrink-0">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => setRecordInflowOpen(false)}
-              className="h-9 text-xs rounded-xl px-4 text-gray-400 hover:text-white"
+              className="h-8 text-xs rounded-lg px-4 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
             >
               Cancel
             </Button>
@@ -746,9 +757,9 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 });
               }}
               disabled={createInflowMut.isPending || !inflowSource.trim() || !inflowAmount}
-              className="h-9 text-xs px-5 font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] shadow-[0_0_20px_rgba(0,255,102,0.3)] rounded-xl transition-all"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-8 px-4 text-xs rounded-lg shadow-xs transition-all"
             >
-              {createInflowMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Save Inflow
+              {createInflowMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Save Inflow (दाखिला सुरक्षित)
             </Button>
           </div>
         </DialogContent>

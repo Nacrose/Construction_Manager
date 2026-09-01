@@ -61,16 +61,16 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Summary Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
           <div className="flex items-center gap-4 text-xs font-mono">
-            <span className="text-gray-400">
-              Total Certificates: <span className="font-bold text-white">{allIpcs.length}</span>
+            <span className="text-slate-600">
+              Total Certificates: <span className="font-bold text-slate-900 font-matrix">{allIpcs.length}</span>
             </span>
             {allIpcs.length > 0 && (
               <>
-                <div className="h-3 w-[1px] bg-white/10" />
-                <span className="text-gray-400">
-                  Certified: <span className="font-bold text-emerald-400">{allIpcs.filter(i => i.status === "certified" || i.status === "paid").length}</span>
+                <div className="h-3 w-[1px] bg-[#c7d8e8]" />
+                <span className="text-slate-600">
+                  Certified: <span className="font-bold text-emerald-700 font-matrix">{allIpcs.filter(i => i.status === "certified" || i.status === "paid").length}</span>
                 </span>
               </>
             )}
@@ -79,8 +79,8 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
           {canWrite && (
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5">
-                  <Plus className="h-3.5 w-3.5" /> + New IPC
+                <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 font-sans">
+                  <Plus className="h-3.5 w-3.5" /> + New IPC (नयाँ बिल)
                 </Button>
               </DialogTrigger>
               <AddIpcDialog projectId={id} onDone={() => setAddOpen(false)} />
@@ -88,52 +88,52 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
           )}
         </div>
 
-        {isLoading ? <Skeleton className="h-64 rounded-2xl" /> : !allIpcs.length ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center bg-[#0c1015]/50 border-white/10 rounded-2xl">
-            <Inbox className="h-10 w-10 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">No Interim Payment Certificates recorded yet.</p>
+        {isLoading ? <Skeleton className="h-64 rounded-xl bg-slate-100" /> : !allIpcs.length ? (
+          <Card className="flex flex-col items-center gap-3 p-12 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl">
+            <Inbox className="h-10 w-10 text-slate-400" />
+            <p className="text-xs text-slate-500">No Interim Payment Certificates recorded yet.</p>
           </Card>
         ) : (
         <div className="space-y-3">
           {allIpcs.map((ipc) => (
             <Link key={ipc.id} href={`/projects/${id}/ipc/${ipc.id}`}>
-              <Card className="transition-shadow hover:shadow-md">
+              <Card className="bg-white border-[#c7d8e8] shadow-xs hover:border-[#0284c7] transition-all rounded-xl">
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-[#0284c7] border border-[#bae6fd]">
                     <ReceiptText className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{ipc.number}</span>
+                      <span className="font-mono text-xs font-bold text-slate-500">{ipc.number}</span>
                       <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
-                      {ipc.period && <span className="text-xs text-muted-foreground">{ipc.period}</span>}
+                      {ipc.period && <span className="text-xs text-slate-500 font-mono">{ipc.period}</span>}
                       {ipc.subcontractor && (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 gap-1 text-[11px] font-normal py-0.5">
+                        <Badge variant="outline" className="bg-sky-50 text-[#0284c7] border-[#bae6fd] gap-1 text-[11px] font-normal py-0.5">
                           <Users className="h-3 w-3" /> Subcontractor: {ipc.subcontractor.name}
                         </Badge>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
-                      <span>Gross: <span className="font-medium">NPR {ipc.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></span>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono font-matrix">
+                      <span className="text-slate-600">Gross: <span className="font-bold text-slate-900 font-matrix">NPR {ipc.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></span>
                       {(ipc.vatAmount ?? 0) > 0 && (
-                        <span className="text-amber-700 dark:text-amber-400">
+                        <span className="text-amber-700 font-matrix">
                           +VAT ({ipc.vatPercent ?? 0}%): NPR {(ipc.vatAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </span>
                       )}
-                      <span className="text-muted-foreground">Retention: NPR {ipc.retentionAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                      <span className="text-muted-foreground">Advance: NPR {ipc.advanceRecovery.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-slate-500 font-matrix">Retention: NPR {ipc.retentionAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-slate-500 font-matrix">Advance: NPR {ipc.advanceRecovery.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
                       {(ipc.tdsAmount ?? 0) > 0 && (
-                        <span className="text-red-600">
+                        <span className="text-rose-700 font-matrix">
                           −TDS ({ipc.tdsPercent ?? 0}%): NPR {(ipc.tdsAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </span>
                       )}
-                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                      <span className="text-emerald-700 font-bold font-matrix">
                         Final: NPR {(ipc.finalPayable ?? ipc.netPayable).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge variant="outline">{ipc._count.items} items</Badge>
+                    <Badge variant="outline" className="border-[#c7d8e8] text-slate-600 font-mono">{ipc._count.items} items</Badge>
                   </div>
                 </CardContent>
               </Card>

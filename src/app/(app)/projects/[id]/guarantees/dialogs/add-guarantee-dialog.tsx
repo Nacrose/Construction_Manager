@@ -126,27 +126,27 @@ export function AddGuaranteeDialog({
   };
 
   return (
-    <DialogContent className="max-w-4xl lg:max-w-5xl bg-[#0c1015] border-white/10 text-white backdrop-blur-md p-6">
-      <DialogHeader className="pb-2 border-b border-white/10">
-        <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-          <ShieldCheck className="h-5 w-5 text-emerald-400" />
+    <DialogContent className="sm:max-w-[900px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+      <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+        <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+          <ShieldCheck className="h-5 w-5 text-[#0284c7]" />
           Register Bank Guarantee / Insurance Policy (जमानत तथा बीमा)
         </DialogTitle>
-      </DialogHeader>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs bg-white">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Column: Core Guarantee Information */}
           <div className="space-y-3">
             {/* Type & BG Number */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Guarantee / Policy Type *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Guarantee / Policy Type *</Label>
                 <Select value={type} onValueChange={(v: any) => setType(v)}>
-                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
                     <SelectItem value="performance_bond">Performance Security (कार्यसम्पादन)</SelectItem>
                     <SelectItem value="advance_payment">Mobilization APG (पेश्की जमानत)</SelectItem>
                     <SelectItem value="car_insurance">Contractor&apos;s All Risk (CAR)</SelectItem>
@@ -158,11 +158,11 @@ export function AddGuaranteeDialog({
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">BG / Policy Number *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">BG / Policy Number *</Label>
                 <Input
                   required
                   placeholder="e.g. BG/NABIL/2081/042"
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={guaranteeNumber}
                   onChange={(e) => setGuaranteeNumber(e.target.value)}
                 />
@@ -172,21 +172,21 @@ export function AddGuaranteeDialog({
             {/* Issuing Bank & Branch */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Issuing Bank / Insurer *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Issuing Bank / Insurer *</Label>
                 <Input
                   required
-                  placeholder="e.g. Nabil Bank / Shikhar Insurance"
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  placeholder="e.g. Nabil Bank Ltd"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={issuingBank}
                   onChange={(e) => setIssuingBank(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Branch (Optional)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Branch (Optional)</Label>
                 <Input
                   placeholder="e.g. Hetauda / New Road"
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                 />
@@ -195,11 +195,11 @@ export function AddGuaranteeDialog({
 
             {/* Beneficiary */}
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">Beneficiary (Client / Employer) *</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Beneficiary (Client / Employer) *</Label>
               <Input
                 required
                 placeholder="e.g. Division Road Office, Hetauda"
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 value={beneficiary}
                 onChange={(e) => setBeneficiary(e.target.value)}
               />
@@ -208,40 +208,40 @@ export function AddGuaranteeDialog({
             {/* Amount & Margins */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Guarantee Value (NPR) *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Guarantee Value (NPR) *</Label>
                 <Input
                   required
                   type="number"
                   min="0"
                   step="any"
                   placeholder="0.00"
-                  className="h-9 text-xs font-mono font-bold bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Margin Amount</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Margin Amount</Label>
                 <Input
                   type="number"
                   min="0"
                   step="any"
                   placeholder="0.00"
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={marginAmount}
                   onChange={(e) => setMarginAmount(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Commission Paid</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Commission Paid</Label>
                 <Input
                   type="number"
                   min="0"
                   step="any"
                   placeholder="0.00"
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={commissionPaid}
                   onChange={(e) => setCommissionPaid(e.target.value)}
                 />
@@ -252,12 +252,12 @@ export function AddGuaranteeDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold">Issued Date (AD)</Label>
-                  {issuedMiti && <span className="text-[10px] text-emerald-400 font-mono">{issuedMiti}</span>}
+                  <Label className="text-[11px] font-semibold text-slate-700">Issued Date (AD)</Label>
+                  {issuedMiti && <span className="text-[10px] text-[#0284c7] font-mono font-bold">{issuedMiti}</span>}
                 </div>
                 <Input
                   type="date"
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={issuedDate}
                   onChange={(e) => handleIssuedDateChange(e.target.value)}
                 />
@@ -265,13 +265,13 @@ export function AddGuaranteeDialog({
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold">Expiry Date (AD) *</Label>
-                  {expiryMiti && <span className="text-[10px] text-amber-400 font-mono">{expiryMiti}</span>}
+                  <Label className="text-[11px] font-semibold text-slate-700">Expiry Date (AD) *</Label>
+                  {expiryMiti && <span className="text-[10px] text-amber-700 font-mono font-bold">{expiryMiti}</span>}
                 </div>
                 <Input
                   type="date"
                   required
-                  className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white text-amber-400"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={expiryDate}
                   onChange={(e) => handleExpiryDateChange(e.target.value)}
                 />
@@ -284,21 +284,21 @@ export function AddGuaranteeDialog({
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold">Claim Period (Days)</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Claim Days</Label>
                   <Input
                     type="number"
                     placeholder="30"
-                    className="h-9 text-xs font-mono bg-[#161d26] border-white/10 text-white"
+                    className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                     value={claimPeriodDays}
                     onChange={(e) => setClaimPeriodDays(e.target.value)}
                   />
                 </div>
 
                 <div className="col-span-2 space-y-1">
-                  <Label className="text-xs font-semibold">Purpose / Contract Ref</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Purpose / Contract Ref</Label>
                   <Input
                     placeholder="e.g. 5% Performance Security"
-                    className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                    className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                     value={purpose}
                     onChange={(e) => setPurpose(e.target.value)}
                   />
@@ -319,11 +319,11 @@ export function AddGuaranteeDialog({
 
               {/* Notes */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Remarks / Notes</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Remarks / Notes</Label>
                 <Textarea
                   rows={2}
                   placeholder="Any special terms, collateral pledged, or extension conditions..."
-                  className="text-xs bg-[#161d26] border-white/10 text-white resize-none"
+                  className="text-xs bg-white border-[#c7d8e8] text-slate-900 resize-none focus:border-[#0284c7]"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
@@ -332,15 +332,15 @@ export function AddGuaranteeDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 pt-3 border-t border-white/10">
-          <Button type="button" variant="ghost" onClick={onDone} className="text-xs text-muted-foreground hover:text-white">
+        <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+          <Button type="button" variant="outline" size="sm" onClick={onDone} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">
             Cancel
           </Button>
-          <Button type="submit" disabled={createMutation.isPending} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs px-5">
+          <Button type="submit" size="sm" disabled={createMutation.isPending} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">
             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Register Guarantee
+            Register Guarantee (जमानत सुरक्षित)
           </Button>
-        </DialogFooter>
+        </div>
       </form>
     </DialogContent>
   );

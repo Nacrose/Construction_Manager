@@ -9,18 +9,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Terminal, Search, Sparkles, FolderKanban, Truck, ReceiptText,
-  FileQuestion, Database, Layers, CloudRain, Eye, CornerDownLeft,
-  Maximize2, Zap, FileText, ClipboardList, Loader2,
+  Search, FolderKanban, Truck, ReceiptText,
+  FileQuestion, Database, Layers, CornerDownLeft,
+  Maximize2, FileText, ClipboardList, Loader2,
 } from "lucide-react";
-import { useFXStore } from "@/lib/fx-store";
-import { cyberAudio } from "@/lib/cyber-audio";
 import { fetchWithAuth } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
   id: string;
-  category: "Search Results" | "Navigation" | "FX & Terminal" | "Actions";
+  category: "Search Results" | "Navigation" | "Actions";
   title: string;
   subtitle?: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -42,7 +40,6 @@ export function CommandPalette() {
   const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const fx = useFXStore();
 
   const projectId = useMemo(() => {
     const m = pathname?.match(/^\/projects\/([^/]+)/);
@@ -55,12 +52,11 @@ export function CommandPalette() {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setOpen((prev) => !prev);
-        if (fx.soundEnabled) cyberAudio.playCommandChime(fx.soundVolume);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [fx.soundEnabled, fx.soundVolume]);
+  }, []);
 
   // Debounced live search against /api/search
   const runSearch = useCallback(async (q: string) => {
@@ -140,10 +136,9 @@ export function CommandPalette() {
   // Static command list
   const staticCommands: CommandItem[] = useMemo(() => {
     const list: CommandItem[] = [
-      // FX & Terminal
       {
         id: "app-fullscreen-toggle",
-        category: "FX & Terminal",
+        category: "Actions",
         title: "Toggle True Fullscreen",
         subtitle: "Enter or exit complete immersive fullscreen desktop mode",
         icon: Maximize2,
@@ -155,78 +150,6 @@ export function CommandPalette() {
           }
         },
         keywords: ["fullscreen", "full", "screen", "hide", "browser"],
-      },
-      {
-        id: "fx-droplets-toggle",
-        category: "FX & Terminal",
-        title: `Glass Water Droplets: ${fx.waterDropletsEnabled ? "DISABLE" : "ENABLE"}`,
-        subtitle: `Surface water beads and sliding gravity trickles (${fx.dropletCount} drops)`,
-        icon: CloudRain,
-        action: () => fx.setWaterDroplets(!fx.waterDropletsEnabled),
-        keywords: ["water", "droplets", "glass", "beads", "trickle"],
-      },
-      {
-        id: "fx-storm-toggle",
-        category: "FX & Terminal",
-        title: `Storm Wind Streaks: ${fx.stormWindEnabled ? "DISABLE" : "ENABLE"}`,
-        subtitle: "Angled wind drift and falling storm rain streaks",
-        icon: CloudRain,
-        action: () => fx.setStormWind(!fx.stormWindEnabled),
-        keywords: ["storm", "wind", "rain", "streaks"],
-      },
-      {
-        id: "fx-matrix-toggle",
-        category: "FX & Terminal",
-        title: `Matrix Digital Stream: ${fx.matrixRainEnabled ? "DISABLE" : "ENABLE"}`,
-        subtitle: "Toggle green falling code characters",
-        icon: Terminal,
-        action: () => fx.setMatrixRain(!fx.matrixRainEnabled),
-        keywords: ["matrix", "code", "green", "glyphs"],
-      },
-      {
-        id: "fx-lightning-toggle",
-        category: "FX & Terminal",
-        title: `Lightning Simulator: ${fx.lightningEnabled ? "DISABLE" : "ENABLE"}`,
-        subtitle: "Toggle electric bolts and horizon thunder flashes",
-        icon: Zap,
-        action: () => fx.setLightning(!fx.lightningEnabled),
-        keywords: ["lightning", "thunder", "flash", "storm"],
-      },
-      {
-        id: "fx-sound-toggle",
-        category: "FX & Terminal",
-        title: `Cyber Audio Soundscapes: ${fx.soundEnabled ? "MUTE" : "UNMUTE"}`,
-        subtitle: `Mechanical key clicks, thunder, and rain audio (${Math.round(fx.soundVolume * 100)}% vol)`,
-        icon: Sparkles,
-        action: () => fx.setSoundEnabled(!fx.soundEnabled),
-        keywords: ["sound", "audio", "mute", "click", "volume"],
-      },
-      {
-        id: "fx-preset-heavy-storm",
-        category: "FX & Terminal",
-        title: "Preset: Heavy Cyber Storm",
-        subtitle: "Matrix Rain + Storm Wind + Water Droplets + Lightning + Rain Audio",
-        icon: Sparkles,
-        action: () => fx.applyPreset("heavy_storm"),
-        keywords: ["preset", "heavy", "storm", "max"],
-      },
-      {
-        id: "fx-preset-rainy-glass",
-        category: "FX & Terminal",
-        title: "Preset: Rainy Glass",
-        subtitle: "Condensing water droplets with 50% glass transparency",
-        icon: CloudRain,
-        action: () => fx.applyPreset("rainy_glass"),
-        keywords: ["preset", "rainy", "glass", "droplets"],
-      },
-      {
-        id: "fx-preset-clean-office",
-        category: "FX & Terminal",
-        title: "Preset: Clean Office Solid",
-        subtitle: "100% Solid Carbon panels, 0% FX for distraction-free focus",
-        icon: Eye,
-        action: () => fx.applyPreset("clean_office"),
-        keywords: ["preset", "clean", "office", "solid", "off"],
       },
       // Navigation
       {
@@ -345,38 +268,38 @@ export function CommandPalette() {
     }
 
     return list;
-  }, [fx, projectId, router]);
+  }, [projectId, router]);
 
   // All items: live search results first, then static filtered
   const allItems: CommandItem[] = useMemo(() => {
-    const hasQuery = query.trim().length >= 2;
-    if (hasQuery) {
-      const q = query.toLowerCase();
-      const filteredStatic = staticCommands.filter((cmd) =>
-        cmd.title.toLowerCase().includes(q) ||
-        cmd.subtitle?.toLowerCase().includes(q) ||
-        cmd.category.toLowerCase().includes(q) ||
-        cmd.keywords?.some((k) => k.toLowerCase().includes(q))
-      );
-      return [...searchResultCommands, ...filteredStatic];
+    if (searchResults && searchResultCommands.length > 0) {
+      return searchResultCommands;
     }
-    return staticCommands;
-  }, [query, searchResultCommands, staticCommands]);
+    if (!query.trim()) return staticCommands;
+    const lower = query.toLowerCase();
+    return staticCommands.filter((item) => {
+      const matchTitle = item.title.toLowerCase().includes(lower);
+      const matchSubtitle = item.subtitle?.toLowerCase().includes(lower);
+      const matchKeywords = item.keywords?.some((k) => k.toLowerCase().includes(lower));
+      return matchTitle || matchSubtitle || matchKeywords;
+    });
+  }, [query, searchResults, searchResultCommands, staticCommands]);
 
-  const handleSelect = (cmd: CommandItem) => {
-    cmd.action();
-    setOpen(false);
-    setQuery("");
-    if (fx.soundEnabled) cyberAudio.playCommandChime(fx.soundVolume);
-  };
+  const handleSelect = useCallback(
+    (cmd: CommandItem) => {
+      setOpen(false);
+      cmd.action();
+    },
+    []
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % Math.max(1, allItems.length));
+      setSelectedIndex((prev) => (prev + 1) % (allItems.length || 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + allItems.length) % Math.max(1, allItems.length));
+      setSelectedIndex((prev) => (prev - 1 + (allItems.length || 1)) % (allItems.length || 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (allItems[selectedIndex]) {
@@ -385,7 +308,7 @@ export function CommandPalette() {
     }
   };
 
-  // Group items by category for display
+  // Group by category
   const grouped = useMemo(() => {
     const map = new Map<string, CommandItem[]>();
     for (const item of allItems) {
@@ -401,26 +324,26 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-xl p-0 border border-primary/40 bg-card/90 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,255,102,0.25)] rounded-lg overflow-hidden gap-0">
-        <DialogTitle className="sr-only">Matrix HUD Command Palette</DialogTitle>
+      <DialogContent className="max-w-xl p-0 border border-[#c7d8e8] bg-white text-slate-900 shadow-2xl rounded-2xl overflow-hidden gap-0">
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
 
-        {/* Terminal Header */}
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/80">
-          <Terminal className="h-4 w-4 text-primary animate-pulse" />
-          <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
-            MATRIX COMMAND TERMINAL [Cmd+K]
+        {/* Header */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e2edf7] bg-[#f8fbfe]">
+          <Search className="h-4 w-4 text-[#0284c7]" />
+          <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">
+            Quick Navigation & Search [Cmd+K]
           </span>
           {isSearching && (
-            <Loader2 className="h-3 w-3 text-primary animate-spin ml-1" />
+            <Loader2 className="h-3.5 w-3.5 text-[#0284c7] animate-spin ml-1" />
           )}
-          <div className="ml-auto flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
-            <span className="px-1 py-0.5 rounded border border-border bg-muted">ESC</span> to exit
+          <div className="ml-auto flex items-center gap-1 text-[10px] font-mono text-slate-500">
+            <span className="px-1.5 py-0.5 rounded border border-[#c7d8e8] bg-[#e5eef7] text-slate-700 font-bold">ESC</span> to exit
           </div>
         </div>
 
         {/* Search Input */}
-        <div className="flex items-center px-3 py-2 border-b border-border/60 bg-background/60">
-          <Search className="h-4 w-4 text-muted-foreground mr-2 shrink-0" />
+        <div className="flex items-center px-4 py-2.5 border-b border-[#e2edf7] bg-white">
+          <Search className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
           <Input
             autoFocus
             value={query}
@@ -429,24 +352,24 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search projects, RFIs, reports — or type a command..."
-            className="h-8 border-none bg-transparent font-mono text-xs text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 px-0 placeholder:text-muted-foreground"
+            placeholder="Search projects, RFIs, reports — or type a destination..."
+            className="h-8 border-none bg-transparent font-sans text-xs text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 px-0 placeholder:text-slate-400"
           />
         </div>
 
         {/* Results List */}
-        <div className="max-h-[420px] overflow-y-auto p-1.5">
+        <div className="max-h-[420px] overflow-y-auto p-2">
           {allItems.length === 0 && !isSearching ? (
-            <div className="py-8 text-center text-xs font-mono text-muted-foreground">
+            <div className="py-8 text-center text-xs font-sans text-slate-500">
               {query.length >= 2
                 ? `No results found for "${query}"`
-                : "No matching command found"}
+                : "No matching destination found"}
             </div>
           ) : (
             Array.from(grouped.entries()).map(([category, items]) => (
-              <div key={category} className="mb-1">
+              <div key={category} className="mb-2">
                 {/* Category label */}
-                <div className="px-2 py-1 text-[9px] font-mono font-bold uppercase tracking-widest text-muted-foreground/60">
+                <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
                   {category}
                 </div>
                 {items.map((cmd) => {
@@ -459,20 +382,20 @@ export function CommandPalette() {
                       onClick={() => handleSelect(cmd)}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded cursor-pointer transition-all text-xs font-mono",
+                        "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs font-sans",
                         isSelected
-                          ? "bg-primary/20 text-primary border border-primary/50 shadow-[0_0_12px_rgba(0,255,102,0.2)]"
-                          : "text-foreground hover:bg-muted/60"
+                          ? "bg-[#e5eef7] text-[#0284c7] border border-[#c7d8e8] font-bold shadow-xs"
+                          : "text-slate-700 hover:bg-slate-50"
                       )}
                     >
-                      <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                      <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-[#0284c7]" : "text-slate-400")} />
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold truncate">{cmd.title}</p>
+                        <p className="truncate">{cmd.title}</p>
                         {cmd.subtitle && (
-                          <p className="text-[10px] text-muted-foreground truncate">{cmd.subtitle}</p>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">{cmd.subtitle}</p>
                         )}
                       </div>
-                      {isSelected && <CornerDownLeft className="h-3 w-3 text-primary shrink-0" />}
+                      {isSelected && <CornerDownLeft className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />}
                     </div>
                   );
                 })}
@@ -484,4 +407,3 @@ export function CommandPalette() {
     </Dialog>
   );
 }
-

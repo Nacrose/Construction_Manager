@@ -504,7 +504,7 @@ export const dailyProgramRouter = router({
       // Hourly weather codes for morning (06:00), afternoon (13:00), evening (19:00)
       const hourlyTimes: string[] = weatherData?.hourly?.time ?? [];
       const hourlyCodes: number[] = weatherData?.hourly?.weather_code ?? [];
-      const hourlyPrecip: number[] = weatherData?.hourly?.precipitation ?? [];
+      const _hourlyPrecip: number[] = weatherData?.hourly?.precipitation ?? [];
 
       const findHourlyIdx = (hour: number): number | undefined => {
         const target = `${isoDate}T${String(hour).padStart(2, "0")}:00`;

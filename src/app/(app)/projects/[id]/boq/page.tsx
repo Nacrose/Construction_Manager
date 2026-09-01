@@ -3,7 +3,6 @@
 import { use, useState, useRef, useMemo, useEffect, Suspense } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { useFXStore } from "@/lib/fx-store";
 import { Plus, Loader2, Download, Upload, Printer, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
@@ -160,8 +159,7 @@ function BoqPageContent({
   });
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
-  const tableDensity = useFXStore((s) => s.tableDensity);
-  const setTableDensity = useFXStore((s) => s.setTableDensity);
+  const [tableDensity, setTableDensity] = useState<"comfortable" | "compact">("comfortable");
 
   const availableSections = useMemo(() => {
     if (!data?.items) return [];

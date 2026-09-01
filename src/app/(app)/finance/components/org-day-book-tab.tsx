@@ -142,27 +142,27 @@ export function OrgDayBookTab() {
   return (
     <div className="space-y-3">
       {/* Single-Line Summary Strip (Khatabook Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-white/10 bg-[#0c1015] text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-[#c7d8e8] bg-white shadow-xs text-xs font-mono">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Total Disbursements (Dr):</span>
-            <span className="font-bold text-red-400">NPR {formatNpr(summary.totalDebit)}</span>
+            <span className="text-slate-500">Total Disbursements (Dr):</span>
+            <span className="font-bold text-rose-700 font-matrix">NPR {formatNpr(summary.totalDebit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-white/10" />
+          <div className="h-3 w-[1px] bg-[#c7d8e8]" />
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Total Invoiced / Inflow (Cr):</span>
-            <span className="font-bold text-emerald-400">NPR {formatNpr(summary.totalCredit)}</span>
+            <span className="text-slate-500">Total Invoiced / Inflow (Cr):</span>
+            <span className="font-bold text-emerald-700 font-matrix">NPR {formatNpr(summary.totalCredit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-white/10" />
+          <div className="h-3 w-[1px] bg-[#c7d8e8]" />
           <div className="flex items-center gap-2">
-            <span className="text-gray-400">Net Flow:</span>
-            <span className={cn("font-bold", summary.totalCredit - summary.totalDebit >= 0 ? "text-emerald-400" : "text-red-400")}>
+            <span className="text-slate-500">Net Flow:</span>
+            <span className={cn("font-bold font-matrix", summary.totalCredit - summary.totalDebit >= 0 ? "text-emerald-700" : "text-rose-700")}>
               NPR {formatNpr(summary.totalCredit - summary.totalDebit)}
             </span>
           </div>
         </div>
 
-        <div className="text-[11px] text-gray-500 font-mono">
+        <div className="text-[11px] text-slate-500 font-mono">
           {entries.length} Master Journal Entries
         </div>
       </div>

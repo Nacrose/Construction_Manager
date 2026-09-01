@@ -30,15 +30,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { adToBs } from "@/lib/nepali-calendar";
 import { NepaliDatePicker } from "@/components/ui/nepali-date-picker";
 import { CategoryManagerDialog } from "./category-manager-dialog";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+import { formatNpr } from "@/lib/currency";
 
 interface RecordPaymentDialogProps {
   projectId: string;
@@ -280,33 +278,35 @@ export function RecordPaymentDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] flex flex-col p-0 gap-0 bg-[#0c1015] border border-emerald-500/20 shadow-[0_0_60px_rgba(0,255,102,0.08)] rounded-3xl font-sans overflow-hidden">
-          {/* Premium Header */}
-          <div className="px-6 pt-6 pb-4 shrink-0 text-center relative border-b border-white/5">
-            <DialogTitle className="text-xl font-bold text-white tracking-tight">
-              Record Payment
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-400 mt-0.5">
-              Log daily site expenses, vendor payments, or contractor advances.
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-base font-bold text-slate-900 tracking-tight font-sans">
+                Record Payment (भुक्तानी दर्ता)
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                Log daily site expenses, vendor payments, or contractor advances.
+              </DialogDescription>
+            </div>
             {miti && (
-              <span className="absolute right-6 top-6 text-xs font-mono font-medium text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-[0_0_10px_rgba(0,255,102,0.2)]">
+              <span className="text-xs font-mono font-bold text-[#0284c7] px-2.5 py-0.5 rounded-full bg-sky-50 border border-[#bae6fd]">
                 {miti} BS
               </span>
             )}
           </div>
 
           {/* Scrollable Form Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 text-xs custom-scrollbar">
+          <div className="p-6 space-y-4 text-xs bg-white">
             {/* Row 0: Target Project */}
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-xs font-medium text-gray-300">Target Project (प्रोजेक्ट)</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Target Project (प्रोजेक्ट)</Label>
               <Select value={targetProjectId} onValueChange={setTargetProjectId}>
-                <SelectTrigger className="w-full min-w-0 h-11 text-xs bg-[#121820] text-white rounded-xl border-emerald-500/30">
+                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
                   <SelectValue placeholder="Select Project" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f141c] border-emerald-500/30 text-xs text-white">
-                  <SelectItem value="head_office" className="text-amber-400 font-semibold">
+                <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
+                  <SelectItem value="head_office" className="text-amber-600 font-semibold">
                     🏢 Head Office (कार्यालय खर्च)
                   </SelectItem>
                   {allProjects.map((p) => (
@@ -322,10 +322,10 @@ export function RecordPaymentDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Date (First Field) */}
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Date (मिति)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Date (मिति)</Label>
                 <NepaliDatePicker
                   value={date}
-                  onChange={(d, dateStr) => {
+                  onChange={(_d, dateStr) => {
                     if (dateStr) {
                       setDate(dateStr);
                       try {
@@ -334,16 +334,16 @@ export function RecordPaymentDialog({
                     }
                   }}
                   placeholder="Select Nepali date (BS)"
-                  className="w-full h-11 text-xs font-mono rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white transition-all shadow-[0_0_15px_rgba(0,255,102,0.03)]"
+                  className="w-full h-9 text-xs font-mono rounded-lg border border-[#c7d8e8] bg-white text-slate-900"
                 />
               </div>
 
               {/* Paid To (Payee) */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-gray-300">Paid To</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Paid To</Label>
                   {partyPan && (
-                    <span className="text-[10px] font-mono text-emerald-400/80">
+                    <span className="text-[10px] font-mono text-slate-500 font-matrix">
                       PAN: {partyPan}
                     </span>
                   )}
@@ -361,7 +361,7 @@ export function RecordPaymentDialog({
                         }}
                         onFocus={() => setPayeePopoverOpen(true)}
                         placeholder="Search payee or type..."
-                        className="w-full h-11 text-xs pr-8 rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white truncate shadow-[0_0_15px_rgba(0,255,102,0.03)] transition-all"
+                        className="w-full h-9 text-xs pr-8 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900 truncate"
                       />
                       <Button
                         type="button"
@@ -371,7 +371,7 @@ export function RecordPaymentDialog({
                           e.preventDefault();
                           setPayeePopoverOpen(!payeePopoverOpen);
                         }}
-                        className="absolute right-0 h-11 w-8 p-0 text-gray-400 hover:text-white"
+                        className="absolute right-0 h-9 w-8 p-0 text-slate-400 hover:text-slate-700"
                       >
                         <ChevronsUpDown className="h-3.5 w-3.5" />
                       </Button>
@@ -379,7 +379,7 @@ export function RecordPaymentDialog({
                   </PopoverTrigger>
 
                   <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-emerald-500/30 bg-[#0f141c] rounded-2xl"
+                    className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-xl border border-[#c7d8e8] bg-white rounded-xl"
                     align="start"
                     sideOffset={6}
                     onOpenAutoFocus={(e) => e.preventDefault()}
@@ -401,18 +401,18 @@ export function RecordPaymentDialog({
                               setPayeeType(p.type);
                               setPayeePopoverOpen(false);
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left hover:bg-emerald-500/15 hover:text-emerald-400 transition cursor-pointer group"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-sky-50 hover:text-[#0284c7] transition cursor-pointer group"
                           >
                             <div className="truncate">
-                              <p className="font-medium text-white group-hover:text-emerald-400 truncate">
+                              <p className="font-medium text-slate-900 group-hover:text-[#0284c7] truncate">
                                 {p.name}
                               </p>
-                              <p className="text-[10px] text-gray-400">
+                              <p className="text-[10px] text-slate-400">
                                 {p.typeLabel} {p.pan ? `• PAN: ${p.pan}` : ""}
                               </p>
                             </div>
                             {payeeName === p.name && (
-                              <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <Check className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />
                             )}
                           </button>
                         ))}
@@ -422,8 +422,8 @@ export function RecordPaymentDialog({
                         p.name.toLowerCase().includes(payeeSearchQuery.toLowerCase()) ||
                         (p.pan && p.pan.includes(payeeSearchQuery))
                       ).length === 0 && (
-                        <div className="py-2.5 px-3 text-center text-xs text-gray-400">
-                          Use <span className="text-emerald-400 font-semibold">"{payeeName}"</span> as one-time payee
+                        <div className="py-2 px-3 text-center text-xs text-slate-500">
+                          Use <span className="text-[#0284c7] font-semibold">"{payeeName}"</span> as one-time payee
                         </div>
                       )}
                     </div>
@@ -437,11 +437,11 @@ export function RecordPaymentDialog({
               {/* Category */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-gray-300">Category</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Category</Label>
                   <button
                     type="button"
                     onClick={() => setCatManagerOpen(true)}
-                    className="text-[10px] text-emerald-400 hover:underline"
+                    className="text-[10px] text-[#0284c7] hover:underline font-medium"
                   >
                     + Manage
                   </button>
@@ -453,12 +453,12 @@ export function RecordPaymentDialog({
                     setSelectedSubId("");
                   }}
                 >
-                  <SelectTrigger className="w-full min-w-0 h-11 text-xs rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)]">
+                  <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900">
                     <SelectValue placeholder="Select Category" className="truncate" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-60 bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                  <SelectContent className="max-h-60 bg-white border border-[#c7d8e8] text-slate-900 rounded-xl shadow-xl">
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs text-gray-200 focus:bg-emerald-500/20 focus:text-white">
+                      <SelectItem key={c.id} value={c.id} className="text-xs text-slate-800">
                         {c.name} {c.nameNp ? `(${c.nameNp})` : ""}
                       </SelectItem>
                     ))}
@@ -469,12 +469,12 @@ export function RecordPaymentDialog({
               {/* Subcategory */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-gray-300">Subcategory</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Subcategory</Label>
                   {selectedCategoryObj && !isCreatingSub && (
                     <button
                       type="button"
                       onClick={() => setIsCreatingSub(true)}
-                      className="text-[10px] text-emerald-400 hover:underline"
+                      className="text-[10px] text-[#0284c7] hover:underline font-medium"
                     >
                       + New Sub
                     </button>
@@ -487,7 +487,7 @@ export function RecordPaymentDialog({
                       placeholder="e.g. Fuel / Mess / Repair"
                       value={newSubName}
                       onChange={(e) => setNewSubName(e.target.value)}
-                      className="h-11 text-xs bg-[#121820] border-emerald-500/30 text-white rounded-xl flex-1"
+                      className="h-9 text-xs bg-white border border-[#c7d8e8] text-slate-900 rounded-lg flex-1"
                       autoFocus
                     />
                     <Button
@@ -501,7 +501,7 @@ export function RecordPaymentDialog({
                         });
                       }}
                       disabled={createSubMut.isPending || !newSubName.trim()}
-                      className="h-11 text-xs px-3 bg-[#00ff66] hover:bg-[#00e65c] text-black font-bold rounded-xl shadow-[0_0_12px_rgba(0,255,102,0.4)]"
+                      className="h-9 text-xs px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-xs"
                     >
                       {createSubMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                     </Button>
@@ -509,7 +509,7 @@ export function RecordPaymentDialog({
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsCreatingSub(false)}
-                      className="h-11 text-xs px-2 text-gray-400 hover:text-white"
+                      className="h-9 text-xs px-2 text-slate-400 hover:text-slate-700"
                     >
                       ✕
                     </Button>
@@ -520,7 +520,7 @@ export function RecordPaymentDialog({
                     onValueChange={setSelectedSubId}
                     disabled={!selectedCategoryObj || subcategoryList.length === 0}
                   >
-                    <SelectTrigger className="w-full min-w-0 h-11 text-xs rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)] disabled:opacity-40">
+                    <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900 disabled:opacity-40">
                       <SelectValue
                         placeholder={
                           !selectedCategoryObj
@@ -532,9 +532,9 @@ export function RecordPaymentDialog({
                         className="truncate"
                       />
                     </SelectTrigger>
-                    <SelectContent className="max-h-56 bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                    <SelectContent className="max-h-56 bg-white border border-[#c7d8e8] rounded-xl shadow-xl text-slate-900">
                       {subcategoryList.map((s) => (
-                        <SelectItem key={s.id} value={s.id} className="text-xs text-gray-200 focus:bg-emerald-500/20 focus:text-white">
+                        <SelectItem key={s.id} value={s.id} className="text-xs text-slate-800">
                           {s.name} {s.nameNp ? `(${s.nameNp})` : ""}
                         </SelectItem>
                       ))}
@@ -549,10 +549,10 @@ export function RecordPaymentDialog({
               {/* Amount */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-gray-300">Amount (NPR)</Label>
+                  <Label className="text-[11px] font-semibold text-slate-700">Amount (NPR)</Label>
                   {amount && parseFloat(tds) > 0 && (
-                    <span className="text-[10px] text-emerald-400 font-mono font-semibold">
-                      Net: NPR {fmt(computedNet)}
+                    <span className="text-[10px] text-emerald-700 font-mono font-bold font-matrix">
+                      Net: NPR {formatNpr(computedNet)}
                     </span>
                   )}
                 </div>
@@ -569,40 +569,33 @@ export function RecordPaymentDialog({
                     }
                   }}
                   placeholder="e.g. 50000"
-                  className="w-full h-11 text-xs font-mono font-bold rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 bg-[#121820] text-white shadow-[0_0_15px_rgba(0,255,102,0.03)]"
+                  className="w-full h-9 text-xs font-mono font-bold rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900"
                 />
               </div>
 
               {/* Payment Mode Selector */}
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-xs font-medium text-gray-300">Payment Mode</Label>
-                <div className="flex items-center justify-between p-2 h-11 rounded-xl border border-emerald-500/30 bg-[#121820]">
+                <Label className="text-[11px] font-semibold text-slate-700">Payment Mode</Label>
+                <div className="flex items-center justify-between p-1 h-9 rounded-lg border border-[#c7d8e8] bg-slate-50">
                   {[
                     { value: "cash", label: "Cash" },
                     { value: "bank_transfer", label: "Bank" },
                     { value: "cheque", label: "Cheque" },
                     { value: "connectips", label: "Digital" },
                   ].map((item) => (
-                    <label
+                    <button
+                      type="button"
                       key={item.value}
                       onClick={() => setMode(item.value as any)}
-                      className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-300 hover:text-white"
+                      className={cn(
+                        "flex-1 py-1 text-xs rounded-md font-mono transition text-center",
+                        mode === item.value
+                          ? "bg-white text-[#0284c7] font-bold shadow-xs border border-[#bae6fd]"
+                          : "text-slate-600 hover:text-slate-900"
+                      )}
                     >
-                      <div
-                        className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center transition-all ${
-                          mode === item.value
-                            ? "border-emerald-400 bg-emerald-500/20 shadow-[0_0_8px_rgba(0,255,102,0.5)]"
-                            : "border-gray-600"
-                        }`}
-                      >
-                        {mode === item.value && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-[#00ff66]" />
-                        )}
-                      </div>
-                      <span className={mode === item.value ? "font-bold text-white" : "text-gray-400"}>
-                        {item.label}
-                      </span>
-                    </label>
+                      {item.label}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -610,9 +603,9 @@ export function RecordPaymentDialog({
 
             {/* Contextual Bank / Cheque / Digital Details */}
             {mode !== "cash" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-2xl border border-emerald-500/30 bg-[#121820] shadow-[0_0_20px_rgba(0,255,102,0.04)] transition-all">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[11px] font-medium text-gray-300">
+                  <Label className="text-[11px] font-medium text-slate-700">
                     {mode === "cheque"
                       ? "Cheque Number"
                       : mode === "connectips"
@@ -629,43 +622,43 @@ export function RecordPaymentDialog({
                         ? "e.g. TXN-881923"
                         : "e.g. REF-44120"
                     }
-                    className="h-10 text-xs font-mono bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/20"
+                    className="h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                   />
                 </div>
                 <div className="space-y-1 min-w-0 w-full">
-                  <Label className="text-[11px] font-medium text-gray-300">
+                  <Label className="text-[11px] font-medium text-slate-700">
                     {mode === "connectips" ? "Digital Wallet / Channel" : "Bank Account Used"}
                   </Label>
                   <Select value={bankAccount} onValueChange={setBankAccount}>
-                    <SelectTrigger className="w-full min-w-0 h-10 text-xs font-mono bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400">
+                    <SelectTrigger className="w-full min-w-0 h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
                       <SelectValue placeholder="Select Bank / Channel" className="truncate" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-60 text-xs bg-[#0f141c] border-emerald-500/30 rounded-2xl">
+                    <SelectContent className="max-h-60 text-xs bg-white border border-[#c7d8e8] text-slate-900 rounded-xl shadow-xl">
                       {mode === "connectips" ? (
                         <>
-                          <SelectItem value="connectIPS (NCHL)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">connectIPS (NCHL)</SelectItem>
-                          <SelectItem value="eSewa Wallet" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">eSewa Wallet</SelectItem>
-                          <SelectItem value="Khalti Digital Wallet" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Khalti Digital Wallet</SelectItem>
-                          <SelectItem value="Corporate Mobile Banking" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Corporate Mobile Banking</SelectItem>
+                          <SelectItem value="connectIPS (NCHL)">connectIPS (NCHL)</SelectItem>
+                          <SelectItem value="eSewa Wallet">eSewa Wallet</SelectItem>
+                          <SelectItem value="Khalti Digital Wallet">Khalti Digital Wallet</SelectItem>
+                          <SelectItem value="Corporate Mobile Banking">Corporate Mobile Banking</SelectItem>
                         </>
                       ) : (
                         <>
-                          <SelectItem value="Nabil Bank Site A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Nabil Bank Site A/C</SelectItem>
-                          <SelectItem value="Global IME Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Global IME Bank Ltd</SelectItem>
-                          <SelectItem value="NIC Asia Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">NIC Asia Bank Ltd</SelectItem>
-                          <SelectItem value="Rastriya Banijya Bank (RBB)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Rastriya Banijya Bank (RBB)</SelectItem>
-                          <SelectItem value="Nepal Investment Mega Bank (NIMB)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Nepal Investment Mega Bank (NIMB)</SelectItem>
-                          <SelectItem value="Prabhu Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Prabhu Bank Ltd</SelectItem>
-                          <SelectItem value="Himalayan Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Himalayan Bank Ltd</SelectItem>
-                          <SelectItem value="Siddhartha Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Siddhartha Bank Ltd</SelectItem>
-                          <SelectItem value="Sanima Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Sanima Bank Ltd</SelectItem>
-                          <SelectItem value="Everest Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Everest Bank Ltd</SelectItem>
-                          <SelectItem value="Laxmi Sunrise Bank" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Laxmi Sunrise Bank</SelectItem>
-                          <SelectItem value="Kumari Bank Ltd" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Kumari Bank Ltd</SelectItem>
-                          <SelectItem value="Prime Commercial Bank" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Prime Commercial Bank</SelectItem>
-                          <SelectItem value="Agriculture Development Bank (ADBL)" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">ADBL</SelectItem>
-                          <SelectItem value="Main Operating Project A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Main Operating Project A/C</SelectItem>
-                          <SelectItem value="Petty Cash Site A/C" className="text-gray-200 focus:bg-emerald-500/20 focus:text-white">Petty Cash Site A/C</SelectItem>
+                          <SelectItem value="Nabil Bank Site A/C">Nabil Bank Site A/C</SelectItem>
+                          <SelectItem value="Global IME Bank Ltd">Global IME Bank Ltd</SelectItem>
+                          <SelectItem value="NIC Asia Bank Ltd">NIC Asia Bank Ltd</SelectItem>
+                          <SelectItem value="Rastriya Banijya Bank (RBB)">Rastriya Banijya Bank (RBB)</SelectItem>
+                          <SelectItem value="Nepal Investment Mega Bank (NIMB)">Nepal Investment Mega Bank (NIMB)</SelectItem>
+                          <SelectItem value="Prabhu Bank Ltd">Prabhu Bank Ltd</SelectItem>
+                          <SelectItem value="Himalayan Bank Ltd">Himalayan Bank Ltd</SelectItem>
+                          <SelectItem value="Siddhartha Bank Ltd">Siddhartha Bank Ltd</SelectItem>
+                          <SelectItem value="Sanima Bank Ltd">Sanima Bank Ltd</SelectItem>
+                          <SelectItem value="Everest Bank Ltd">Everest Bank Ltd</SelectItem>
+                          <SelectItem value="Laxmi Sunrise Bank">Laxmi Sunrise Bank</SelectItem>
+                          <SelectItem value="Kumari Bank Ltd">Kumari Bank Ltd</SelectItem>
+                          <SelectItem value="Prime Commercial Bank">Prime Commercial Bank</SelectItem>
+                          <SelectItem value="Agriculture Development Bank (ADBL)">ADBL</SelectItem>
+                          <SelectItem value="Main Operating Project A/C">Main Operating Project A/C</SelectItem>
+                          <SelectItem value="Petty Cash Site A/C">Petty Cash Site A/C</SelectItem>
                         </>
                       )}
                     </SelectContent>
@@ -674,38 +667,38 @@ export function RecordPaymentDialog({
               </div>
             )}
 
-            {/* Discreet Optional Details Toggle */}
+            {/* Optional Details Toggle */}
             <div className="pt-1">
               {!showErpSync ? (
                 <button
                   type="button"
                   onClick={() => setShowErpSync(true)}
-                  className="text-xs text-gray-400 hover:text-emerald-400 flex items-center gap-1.5 transition font-medium"
+                  className="text-xs text-slate-600 hover:text-[#0284c7] flex items-center gap-1.5 transition font-medium"
                 >
-                  <Plus className="h-3.5 w-3.5 text-emerald-400" /> Add TDS, Payment Voucher / Slip, or Notes (Optional)
+                  <Plus className="h-3.5 w-3.5 text-[#0284c7]" /> Add TDS, Payment Voucher / Slip, or Notes (Optional)
                 </button>
               ) : (
-                <div className="space-y-3.5 p-4 rounded-2xl border border-emerald-500/20 bg-[#121820]/90">
+                <div className="space-y-3.5 p-4 rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">Additional Details & Attachments</span>
+                    <span className="text-xs font-bold text-slate-800">Additional Details & Attachments</span>
                     <button
                       type="button"
                       onClick={() => setShowErpSync(false)}
-                      className="text-[10px] text-gray-400 hover:text-white"
+                      className="text-[10px] text-slate-500 hover:text-slate-800"
                     >
                       ✕ Close
                     </button>
                   </div>
 
                   {/* TDS Withholding Section */}
-                  <div className="space-y-2 p-3 rounded-xl border border-emerald-500/20 bg-[#0c1015]">
+                  <div className="space-y-2 p-3 rounded-lg border border-[#c7d8e8] bg-white">
                     <div className="flex items-center justify-between">
-                      <Label className="text-[11px] font-medium text-gray-300">
+                      <Label className="text-[11px] font-medium text-slate-700">
                         TDS Withholding (कर कट्टी)
                       </Label>
                       {parseFloat(tds) > 0 && (
-                        <span className="text-[10px] font-mono text-emerald-400 font-bold">
-                          Deduct: NPR {fmt(parseFloat(tds))}
+                        <span className="text-[10px] font-mono text-emerald-700 font-bold font-matrix">
+                          Deduct: NPR {formatNpr(parseFloat(tds))}
                         </span>
                       )}
                     </div>
@@ -714,7 +707,7 @@ export function RecordPaymentDialog({
                       {/* TDS Percentage with Quick Presets */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-gray-400">TDS Rate (%)</span>
+                          <span className="text-[10px] text-slate-500">TDS Rate (%)</span>
                           <div className="flex items-center gap-1">
                             {[
                               { label: "1.5%", val: 1.5 },
@@ -729,11 +722,12 @@ export function RecordPaymentDialog({
                                   const gross = parseFloat(amount) || 0;
                                   setTds(((gross * preset.val) / 100).toFixed(2));
                                 }}
-                                className={`px-2 py-0.5 text-[10px] font-mono rounded-lg border transition ${
+                                className={cn(
+                                  "px-2 py-0.5 text-[10px] font-mono rounded border transition",
                                   tdsPercent === preset.val.toString()
-                                    ? "bg-[#00ff66] text-black font-bold border-[#00ff66] shadow-[0_0_8px_rgba(0,255,102,0.4)]"
-                                    : "bg-[#121820] border-white/10 text-gray-400 hover:text-white hover:border-white/20"
-                                }`}
+                                    ? "bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-xs"
+                                    : "bg-slate-100 border-[#c7d8e8] text-slate-600 hover:text-slate-900"
+                                )}
                               >
                                 {preset.label}
                               </button>
@@ -753,15 +747,15 @@ export function RecordPaymentDialog({
                               setTds(pVal > 0 ? ((gross * pVal) / 100).toFixed(2) : "0");
                             }}
                             placeholder="e.g. 1.5"
-                            className="h-9 text-xs font-mono bg-[#121820] text-white pr-6 rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                            className="h-9 text-xs font-mono bg-white text-slate-900 pr-6 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                           />
-                          <span className="absolute right-2.5 top-2.5 text-[10px] text-gray-400 font-bold">%</span>
+                          <span className="absolute right-2.5 top-2.5 text-[10px] text-slate-400 font-bold">%</span>
                         </div>
                       </div>
 
                       {/* Direct TDS Amount (NPR) */}
                       <div className="space-y-1">
-                        <span className="text-[10px] text-gray-400">TDS Amount (NPR)</span>
+                        <span className="text-[10px] text-slate-500">TDS Amount (NPR)</span>
                         <Input
                           type="number"
                           value={tds}
@@ -777,7 +771,7 @@ export function RecordPaymentDialog({
                             }
                           }}
                           placeholder="0.00"
-                          className="h-9 text-xs font-mono bg-[#121820] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                          className="h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                         />
                       </div>
                     </div>
@@ -785,11 +779,11 @@ export function RecordPaymentDialog({
 
                   {/* Upload Payment Voucher */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-gray-300">
+                    <Label className="text-[11px] text-slate-700">
                       Upload Payment Voucher / Slip / Cheque
                     </Label>
-                    <label className="flex items-center justify-center gap-2 h-10 px-3 border border-dashed border-emerald-500/40 rounded-xl cursor-pointer hover:bg-emerald-500/10 text-xs text-gray-300 hover:text-white transition">
-                      <Paperclip className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <label className="flex items-center justify-center gap-2 h-9 px-3 border border-dashed border-[#c7d8e8] rounded-lg cursor-pointer hover:bg-slate-100 text-xs text-slate-600 transition">
+                      <Paperclip className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />
                       <span className="truncate">
                         {fileName || "Attach signed voucher, cheque copy, or transfer slip (PDF/Image)"}
                       </span>
@@ -804,12 +798,12 @@ export function RecordPaymentDialog({
 
                   {/* Notes */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-gray-300">Narration / Notes (कैफियत)</Label>
+                    <Label className="text-[11px] text-slate-700">Narration / Notes (कैफियत)</Label>
                     <Input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="e.g. Being payment disbursed for site expenses..."
-                      className="h-9 text-xs bg-[#0c1015] text-white rounded-xl border-emerald-500/30 focus:border-emerald-400"
+                      className="h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
                     />
                   </div>
                 </div>
@@ -817,13 +811,13 @@ export function RecordPaymentDialog({
             </div>
           </div>
 
-          {/* Sticky Footer with Glowing Pill Buttons */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/5 bg-[#0c1015] shrink-0">
+          {/* Sticky Footer with 3D Amber CTA */}
+          <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[#e2edf7] bg-[#f8fbfe] shrink-0">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="h-10 text-xs rounded-xl px-5 text-gray-400 hover:text-white hover:bg-white/5"
+              className="h-8 text-xs rounded-lg px-4 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
             >
               Cancel
             </Button>
@@ -831,9 +825,9 @@ export function RecordPaymentDialog({
               size="sm"
               onClick={handleRecordPayment}
               disabled={createMut.isPending || !amount}
-              className="h-10 text-xs px-6 font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] shadow-[0_0_25px_rgba(0,255,102,0.4)] rounded-xl transition-all"
+              className="amber-cta-btn h-8 text-xs px-5 font-bold text-white rounded-lg shadow-sm transition-all"
             >
-              {createMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Record Payment
+              {createMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Record Payment (भौचर दर्ता)
             </Button>
           </div>
         </DialogContent>

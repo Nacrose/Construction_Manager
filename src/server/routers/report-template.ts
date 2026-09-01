@@ -15,7 +15,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertProjectManager } from "@/lib/authz";
+import { assertProjectMember } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
 const CreateTemplateSchema = z.object({

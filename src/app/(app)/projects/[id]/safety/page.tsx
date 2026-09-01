@@ -46,65 +46,73 @@ export default function SafetyPage({ params }: { params: Promise<{ id: string }>
         {/* Metric Cards */}
         {stats && (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-slate-400">{stats.total}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Total</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-red-400">{stats.incidents}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Incidents</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-amber-400">{stats.nearMiss}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Near Miss</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-blue-400">{stats.toolbox}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Toolbox</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-orange-400">{stats.open}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Open</div></Card>
-            <Card className="p-3 text-center bg-[#0c1015] border-white/10 rounded-xl"><div className="text-lg font-bold font-mono text-emerald-400">{stats.resolved}</div><div className="text-[10px] text-muted-foreground uppercase font-mono">Resolved</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-slate-700">{stats.total}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Total</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-rose-700">{stats.incidents}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Incidents</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-amber-700">{stats.nearMiss}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Near Miss</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-[#0284c7]">{stats.toolbox}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Toolbox</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-orange-700">{stats.open}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Open</div></Card>
+            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold font-mono text-emerald-700">{stats.resolved}</div><div className="text-[10px] text-slate-500 uppercase font-mono">Resolved</div></Card>
           </div>
         )}
 
         {/* Single-Row Action Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-            <span>Safety Log ({incidents.length} records)</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-700">
+            <span className="font-bold">Safety Log ({incidents.length} records)</span>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
-                <Plus className="h-3.5 w-3.5" /> + New Safety Record
+              <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + New Safety Record (सुरक्षा अभिलेख)
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-              <DialogHeader>
-                <DialogTitle className="text-base font-bold text-white">Log Safety Record</DialogTitle>
-                <DialogDescription className="text-xs text-muted-foreground">Report an incident, near-miss, toolbox talk, or site observation.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 py-2 text-xs">
+            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900">Log Safety Record (सुरक्षा अभिलेख दर्ता)</DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">Report an incident, near-miss, toolbox talk, or site observation.</DialogDescription>
+                </div>
+              </div>
+              <div className="p-6 space-y-3.5 text-xs bg-white">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Type</Label>
+                    <Label className="text-[11px] font-semibold text-slate-700">Type</Label>
                     <Select value={type} onValueChange={setType}>
-                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="incident">Incident</SelectItem><SelectItem value="near_miss">Near Miss</SelectItem><SelectItem value="toolbox_talk">Toolbox Talk</SelectItem><SelectItem value="observation">Observation</SelectItem></SelectContent>
+                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl"><SelectItem value="incident">Incident</SelectItem><SelectItem value="near_miss">Near Miss</SelectItem><SelectItem value="toolbox_talk">Toolbox Talk</SelectItem><SelectItem value="observation">Observation</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Severity</Label>
+                    <Label className="text-[11px] font-semibold text-slate-700">Severity</Label>
                     <Select value={severity} onValueChange={setSeverity}>
-                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs"><SelectItem value="minor">Minor</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="serious">Serious</SelectItem><SelectItem value="fatal">Fatal</SelectItem></SelectContent>
+                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl"><SelectItem value="minor">Minor</SelectItem><SelectItem value="moderate">Moderate</SelectItem><SelectItem value="serious">Serious</SelectItem><SelectItem value="fatal">Fatal</SelectItem></SelectContent>
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Worker cut hand on rebar" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
-                <div className="space-y-1.5"><Label className="text-xs">Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="text-xs bg-[#121820] border-white/10 text-white" /></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-xs">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="0+250, Grid A-3" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div><div className="space-y-1.5"><Label className="text-xs">Reported By</Label><Input value={reportedBy} onChange={(e) => setReportedBy(e.target.value)} className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div></div>
-                <div className="space-y-1.5"><Label className="text-xs">Action Taken</Label><Textarea value={actionTaken} onChange={(e) => setActionTaken(e.target.value)} rows={2} className="text-xs bg-[#121820] border-white/10 text-white" /></div>
-                {type === "toolbox_talk" && <div className="space-y-1.5"><Label className="text-xs">Toolbox Topic</Label><Input value={toolboxTopic} onChange={(e) => setToolboxTopic(e.target.value)} placeholder="PPE compliance" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>}
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Title *</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Worker cut hand on rebar" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Description *</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="0+250, Grid A-3" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div><div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Reported By</Label><Input value={reportedBy} onChange={(e) => setReportedBy(e.target.value)} className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div></div>
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Action Taken</Label><Textarea value={actionTaken} onChange={(e) => setActionTaken(e.target.value)} rows={2} className="text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+                {type === "toolbox_talk" && <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Toolbox Topic</Label><Input value={toolboxTopic} onChange={(e) => setToolboxTopic(e.target.value)} placeholder="PPE compliance" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>}
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">Cancel</Button>
+                  <Button size="sm" onClick={() => createMut.mutate({ projectId: id, type: type as any, severity: severity as any, title, description, location: location || undefined, reportedBy: reportedBy || undefined, actionTaken: actionTaken || undefined, toolboxTopic: toolboxTopic || undefined })} disabled={createMut.isPending || !title || !description} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">
+                    {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create Record (दर्ता गर्नुहोस्)
+                  </Button>
+                </div>
               </div>
-              <DialogFooter><Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="text-xs text-gray-400">Cancel</Button><Button size="sm" onClick={() => createMut.mutate({ projectId: id, type: type as any, severity: severity as any, title, description, location: location || undefined, reportedBy: reportedBy || undefined, actionTaken: actionTaken || undefined, toolboxTopic: toolboxTopic || undefined })} disabled={createMut.isPending || !title || !description} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold">{createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
-      {isLoading ? <Skeleton className="h-64" /> : incidents.length === 0 ? <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center"><ShieldCheck className="h-12 w-12 text-emerald-500/40 mb-3" /><p className="text-sm text-muted-foreground">No safety records. Stay safe!</p></CardContent></Card> : (
+      {isLoading ? <Skeleton className="h-64 rounded-xl bg-slate-100" /> : incidents.length === 0 ? <Card className="bg-white border-[#c7d8e8] shadow-xs rounded-xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><ShieldCheck className="h-12 w-12 text-[#0284c7] mb-3" /><p className="text-sm text-slate-600">No safety records. Stay safe!</p></CardContent></Card> : (
         <div className="space-y-2">{incidents.map(inc => { const Icon = TYPE_ICONS[inc.type] ?? AlertTriangle; return (
-          <Card key={inc.id}><CardContent className="p-3 flex items-start gap-3">
-            <div className={cn("shrink-0 h-8 w-8 rounded-full flex items-center justify-center", inc.severity === "serious" || inc.severity === "fatal" ? "bg-red-100 dark:bg-red-950" : "bg-muted")}><Icon className={cn("h-4 w-4", inc.severity === "serious" || inc.severity === "fatal" ? "text-red-600" : "text-muted-foreground")} /></div>
-            <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-sm font-medium">{inc.title}</span><span className={cn("rounded px-1 text-[9px] font-medium uppercase", SEVERITY_COLORS[inc.severity])}>{inc.severity}</span><span className="rounded bg-muted px-1 text-[9px] capitalize">{inc.type.replace(/_/g, " ")}</span></div><p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{inc.description}</p><div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">{inc.location && <span>📍 {inc.location}</span>}{inc.reportedBy && <span>👤 {inc.reportedBy}</span>}<span>📅 {format(new Date(inc.date), "dd MMM yy")}</span></div></div>
-            <div className="shrink-0"><span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", inc.status === "closed" || inc.status === "resolved" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950" : "bg-amber-100 text-amber-700 dark:bg-amber-950")}>{inc.status}</span>{inc.status !== "closed" && inc.status !== "resolved" && <button onClick={() => statusMut.mutate({ id: inc.id, status: "resolved" })} className="block text-[9px] text-emerald-600 hover:underline mt-1">Resolve</button>}</div>
+          <Card key={inc.id} className="bg-white border-[#c7d8e8] shadow-xs hover:border-[#0284c7] transition-all rounded-xl"><CardContent className="p-3 flex items-start gap-3">
+            <div className={cn("shrink-0 h-8 w-8 rounded-full flex items-center justify-center", inc.severity === "serious" || inc.severity === "fatal" ? "bg-rose-50 border border-rose-200" : "bg-slate-100")}><Icon className={cn("h-4 w-4", inc.severity === "serious" || inc.severity === "fatal" ? "text-rose-600" : "text-slate-500")} /></div>
+            <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-sm font-semibold text-slate-900">{inc.title}</span><span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase", SEVERITY_COLORS[inc.severity])}>{inc.severity}</span><span className="rounded bg-slate-100 text-slate-700 px-1.5 py-0.5 text-[9px] capitalize font-medium">{inc.type.replace(/_/g, " ")}</span></div><p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{inc.description}</p><div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">{inc.location && <span>📍 {inc.location}</span>}{inc.reportedBy && <span>👤 {inc.reportedBy}</span>}<span>📅 {format(new Date(inc.date), "dd MMM yy")}</span></div></div>
+            <div className="shrink-0"><span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold", inc.status === "closed" || inc.status === "resolved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200")}>{inc.status}</span>{inc.status !== "closed" && inc.status !== "resolved" && <button onClick={() => statusMut.mutate({ id: inc.id, status: "resolved" })} className="block text-[9px] text-[#0284c7] font-bold hover:underline mt-1">Resolve</button>}</div>
           </CardContent></Card>
         ); })}</div>
       )}

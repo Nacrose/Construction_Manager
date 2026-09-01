@@ -132,18 +132,18 @@ export function OrgPartyStatementTab() {
       {/* 2-Column Split Khatabook Ledger (Exactly Matching Project Level) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Pane: Parties Directory (4 cols) */}
-        <div className="lg:col-span-4 space-y-3 rounded-2xl border border-white/10 bg-[#0c1015] p-3.5">
-          <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
+        <div className="lg:col-span-4 space-y-3 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs p-3.5">
+          <div className="flex items-center justify-between pb-2 border-b border-[#e2edf7]">
+            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
               Suppliers &amp; Contractors ({suppliers.length})
             </span>
           </div>
 
           <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
               placeholder="Search party by name or PAN..."
-              className="pl-8 h-9 text-xs bg-[#121820] text-white rounded-xl border-white/10 focus:border-emerald-400"
+              className="pl-8 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
               value={searchParty}
               onChange={(e) => setSearchParty(e.target.value)}
             />
@@ -152,10 +152,10 @@ export function OrgPartyStatementTab() {
           <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-1">
             {payablesLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-xl bg-white/5" />
+                <Skeleton key={i} className="h-16 w-full rounded-xl bg-slate-100" />
               ))
             ) : suppliers.length === 0 ? (
-              <div className="py-12 text-center text-xs text-gray-400">
+              <div className="py-12 text-center text-xs text-slate-500">
                 No parties found matching "{searchParty}"
               </div>
             ) : (
@@ -169,24 +169,24 @@ export function OrgPartyStatementTab() {
                     className={cn(
                       "w-full text-left p-3 rounded-xl border transition-all text-xs flex items-center justify-between group",
                       isSelected
-                        ? "bg-emerald-500/10 border-emerald-500/40 text-white shadow-[0_0_15px_rgba(0,255,102,0.06)]"
-                        : "border-white/5 bg-[#121820]/60 hover:bg-[#121820] text-gray-300 hover:text-white"
+                        ? "bg-sky-50 border-[#0284c7] text-slate-900 shadow-xs"
+                        : "border-[#e2edf7] bg-white hover:bg-slate-50 text-slate-700"
                     )}
                   >
                     <div className="space-y-1 min-w-0 pr-2">
-                      <div className="font-semibold truncate text-white flex items-center gap-1.5">
+                      <div className="font-semibold truncate text-slate-900 flex items-center gap-1.5">
                         {p.name}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
                         {p.pan && <span>PAN: {p.pan}</span>}
                         <span>• {p.billsCount} Bills</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-bold font-mono text-amber-400 text-xs">
+                      <div className="font-bold font-mono text-amber-700 text-xs font-matrix">
                         {formatNpr(p.totalDue)}
                       </div>
-                      <span className="text-[9px] text-gray-500 uppercase">Due</span>
+                      <span className="text-[9px] text-slate-500 uppercase">Due</span>
                     </div>
                   </button>
                 );
@@ -198,17 +198,17 @@ export function OrgPartyStatementTab() {
         {/* Right Pane: Party Khata Statement Ledger (8 cols) */}
         <div className="lg:col-span-8 space-y-3">
           {/* Active Party Header Banner */}
-          <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-white/10 bg-[#0c1015]">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-wide">
+                <h2 className="text-base font-bold text-slate-900 tracking-wide">
                   {activeParty || "Select a Party"}
                 </h2>
-                <Badge variant="outline" className="text-[10px] uppercase font-mono bg-white/5 border-white/10 text-gray-300">
+                <Badge variant="outline" className="text-[10px] uppercase font-mono bg-sky-50 border-[#bae6fd] text-[#0284c7]">
                   Consolidated Statement
                 </Badge>
               </div>
-              <p className="text-xs text-gray-400 mt-0.5 font-mono">
+              <p className="text-xs text-slate-500 mt-0.5 font-mono">
                 Multi-project chronological transaction history &amp; running balance.
               </p>
             </div>
@@ -216,21 +216,21 @@ export function OrgPartyStatementTab() {
 
           {/* 3-Head Financial Summary Strip */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
-              <span className="text-[10px] font-mono text-gray-400 uppercase">Total Invoiced / Billed</span>
-              <div className="text-base font-bold font-mono text-emerald-400">
+            <div className="p-3 rounded-xl border border-[#c7d8e8] bg-white shadow-xs space-y-0.5">
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Total Invoiced / Billed</span>
+              <div className="text-base font-bold font-mono text-slate-900 font-matrix">
                 {formatNpr(totalBilled)}
               </div>
             </div>
-            <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
-              <span className="text-[10px] font-mono text-gray-400 uppercase">Total Settled / Paid</span>
-              <div className="text-base font-bold font-mono text-blue-400">
+            <div className="p-3 rounded-xl border border-[#c7d8e8] bg-white shadow-xs space-y-0.5">
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Total Settled / Paid</span>
+              <div className="text-base font-bold font-mono text-[#0284c7] font-matrix">
                 {formatNpr(totalPaid)}
               </div>
             </div>
-            <div className="p-3 rounded-xl border border-white/10 bg-[#0c1015] space-y-0.5">
-              <span className="text-[10px] font-mono text-gray-400 uppercase">Net Closing Balance Due</span>
-              <div className="text-base font-bold font-mono text-amber-400">
+            <div className="p-3 rounded-xl border border-[#c7d8e8] bg-white shadow-xs space-y-0.5">
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Net Closing Balance Due</span>
+              <div className="text-base font-bold font-mono text-amber-700 font-matrix">
                 {formatNpr(closingBalance)}
               </div>
             </div>
@@ -251,7 +251,7 @@ export function OrgPartyStatementTab() {
               title: "No transactions recorded for this party",
               description: "Transactions will automatically populate when vendor bills or subcontractor payments are posted.",
             }}
-            className="border-white/10 bg-[#0c1015]"
+            className="border-[#c7d8e8] bg-white"
           />
         </div>
       </div>

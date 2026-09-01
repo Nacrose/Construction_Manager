@@ -22,6 +22,7 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatNpr } from "@/lib/construction-finance";
+import { sanitizeUrl } from "@/lib/safe-url";
 import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui/construction-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";

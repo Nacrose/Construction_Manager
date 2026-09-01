@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  createJournalEntry,
-  reverseJournalEntry,
   vendorPaymentEntry,
   ipcBillingEntry,
   clientReceiptEntry,

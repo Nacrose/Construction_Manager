@@ -43,26 +43,28 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={WF_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
-            <span>Meeting Minutes ({meetings.length} meetings)</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-700">
+            <span className="font-bold">Meeting Minutes ({meetings.length} meetings)</span>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
-                <Plus className="h-3.5 w-3.5" /> + Schedule Meeting
+              <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 shrink-0 font-sans">
+                <Plus className="h-3.5 w-3.5" /> + Schedule Meeting (बैठक तय)
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-              <DialogHeader><DialogTitle className="text-base font-bold text-white">Schedule Meeting</DialogTitle></DialogHeader>
-              <div className="space-y-3 py-2 text-xs">
-                <div className="space-y-1.5"><Label className="text-xs">Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+                <DialogTitle className="text-base font-bold text-slate-900">Schedule Project Meeting (बैठक तय गर्नुहोस्)</DialogTitle>
+              </div>
+              <div className="p-6 space-y-3.5 text-xs bg-white">
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Title *</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5"><Label className="text-xs">Type</Label>
+                  <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Type</Label>
                     <Select value={type} onValueChange={setType}>
-                      <SelectTrigger className="h-9 text-xs bg-[#121820] border-white/10 text-white"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
                         <SelectItem value="site_coordination">Site Coordination</SelectItem>
                         <SelectItem value="progress_review">Progress Review</SelectItem>
                         <SelectItem value="design_coordination">Design Coordination</SelectItem>
@@ -71,26 +73,27 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5"><Label className="text-xs">Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
+                  <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
                 </div>
-                <div className="space-y-1.5"><Label className="text-xs">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
-                <div className="space-y-1.5"><Label className="text-xs">Attendees (comma-separated)</Label><Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-xs bg-[#121820] border-white/10 text-white" /></div>
-                <div className="space-y-1.5"><Label className="text-xs">Agenda</Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={2} className="text-xs bg-[#121820] border-white/10 text-white" /></div>
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Attendees (comma-separated)</Label><Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-slate-700">Agenda</Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={2} className="text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" /></div>
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">Cancel</Button>
+                  <Button size="sm" onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">
+                    {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule Meeting (तय गर्नुहोस्)
+                  </Button>
+                </div>
               </div>
-              <DialogFooter>
-                <Button variant="ghost" size="sm" onClick={() => setAddOpen(false)} className="text-xs text-gray-400">Cancel</Button>
-                <Button size="sm" onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title} className="text-xs bg-emerald-500 hover:bg-emerald-600 text-black font-bold">
-                  {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
-      {isLoading ? <Skeleton className="h-64" /> : meetings.length === 0 ? <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center"><Calendar className="h-12 w-12 text-muted-foreground/40 mb-3" /><p className="text-sm text-muted-foreground">No meetings scheduled.</p></CardContent></Card> : (
+      {isLoading ? <Skeleton className="h-64 rounded-xl bg-slate-100" /> : meetings.length === 0 ? <Card className="bg-white border-[#c7d8e8] shadow-xs rounded-xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><Calendar className="h-12 w-12 text-slate-400 mb-3" /><p className="text-sm text-slate-600">No meetings scheduled.</p></CardContent></Card> : (
         <div className="space-y-2">{meetings.map(m => (
-          <Card key={m.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => setDetailId(m.id)}><CardContent className="p-3 flex items-start gap-3">
-            <div className="shrink-0 h-8 w-8 rounded-full bg-blue-50 dark:bg-blue-950 flex items-center justify-center"><Calendar className="h-4 w-4 text-blue-600" /></div>
-            <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-sm font-medium">{m.title}</span><span className="rounded bg-muted px-1 text-[9px] capitalize">{m.type.replace(/_/g, " ")}</span><span className={cn("rounded px-1 text-[9px] font-medium", m.status === "completed" ? "bg-emerald-100 text-emerald-700" : m.status === "cancelled" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700")}>{m.status}</span></div><div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground"><span>📅 {format(new Date(m.date), "dd MMM yyyy, HH:mm")}</span>{m.location && <span>📍 {m.location}</span>}<span className="flex items-center gap-0.5"><CheckSquare className="h-2.5 w-2.5" /> {m._count?.actionItems ?? 0} action items</span></div></div>
+          <Card key={m.id} className="bg-white border-[#c7d8e8] shadow-xs hover:border-[#0284c7] transition-all cursor-pointer rounded-xl" onClick={() => setDetailId(m.id)}><CardContent className="p-3 flex items-start gap-3">
+            <div className="shrink-0 h-8 w-8 rounded-full bg-sky-50 flex items-center justify-center border border-[#bae6fd]"><Calendar className="h-4 w-4 text-[#0284c7]" /></div>
+            <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="text-sm font-semibold text-slate-900">{m.title}</span><span className="rounded bg-slate-100 text-slate-700 px-1.5 py-0.5 text-[9px] capitalize font-medium">{m.type.replace(/_/g, " ")}</span><span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold", m.status === "completed" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : m.status === "cancelled" ? "bg-red-50 text-red-700 border border-red-200" : "bg-amber-50 text-amber-700 border border-amber-200")}>{m.status}</span></div><div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 font-matrix"><span>📅 {format(new Date(m.date), "dd MMM yyyy, HH:mm")}</span>{m.location && <span>📍 {m.location}</span>}<span className="flex items-center gap-0.5"><CheckSquare className="h-2.5 w-2.5" /> {m._count?.actionItems ?? 0} action items</span></div></div>
           </CardContent></Card>
         ))}</div>
       )}

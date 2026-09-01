@@ -424,43 +424,45 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
 
       {/* 16:10 Setup JV Agreement Dialog */}
       <Dialog open={agreementOpen} onOpenChange={setAgreementOpen}>
-        <DialogContent className="sm:max-w-[560px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-              <Handshake className="h-5 w-5 text-emerald-400" /> Joint Venture Partner Agreement
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Define the non-operating JV partner and agreed commission percentage on certified billing.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[640px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <Handshake className="h-5 w-5 text-[#0284c7]" /> Joint Venture Partner Agreement
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                Define the non-operating JV partner and agreed commission percentage on certified billing.
+              </DialogDescription>
+            </div>
+          </div>
 
-          <form onSubmit={handleAgreementSubmit} className="space-y-4 pt-2">
+          <form onSubmit={handleAgreementSubmit} className="p-6 space-y-4 text-xs bg-white">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">JV Partner Company Name *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">JV Partner Company Name *</Label>
                 <Input
                   required
                   placeholder="e.g. Sharma Construction Pvt. Ltd."
                   value={partnerName}
                   onChange={(e) => setPartnerName(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Partner PAN Number</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Partner PAN Number</Label>
                 <Input
                   placeholder="e.g. 600123456"
                   value={partnerPan}
                   onChange={(e) => setPartnerPan(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Commission Rate (%) *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Commission Rate (%) *</Label>
                 <Input
                   required
                   type="number"
@@ -468,77 +470,79 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                   placeholder="1.5"
                   value={commissionRate}
                   onChange={(e) => setCommissionRate(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Contact Person</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Contact Person</Label>
                 <Input
                   placeholder="e.g. Ram Shrestha"
                   value={contactPerson}
                   onChange={(e) => setContactPerson(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Contact Phone</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Contact Phone</Label>
                 <Input
                   placeholder="98510..."
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
-            <div className="border-t border-white/10 pt-3 space-y-3">
-              <span className="text-[11px] uppercase font-mono text-muted-foreground font-bold">Partner Settlement Bank Account</span>
+            <div className="border-t border-[#e2edf7] pt-3 space-y-3">
+              <span className="text-[11px] uppercase font-mono text-slate-500 font-bold">Partner Settlement Bank Account</span>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Bank Name</Label>
+                  <Label className="text-[11px] text-slate-700 font-medium">Bank Name</Label>
                   <Input
                     placeholder="e.g. Nabil Bank"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
-                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white"
+                    className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Account Number</Label>
+                  <Label className="text-[11px] text-slate-700 font-medium">Account Number</Label>
                   <Input
                     placeholder="012001..."
                     value={bankAccountNumber}
                     onChange={(e) => setBankAccountNumber(e.target.value)}
-                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                    className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Branch</Label>
+                  <Label className="text-[11px] text-slate-700 font-medium">Branch</Label>
                   <Input
                     placeholder="Kathmandu"
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
-                    className="h-8 text-xs bg-[#161d26] border-white/10 text-white"
+                    className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                size="sm"
                 onClick={() => setAgreementOpen(false)}
-                className="text-xs text-muted-foreground hover:text-white"
+                className="text-xs h-8 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
+                size="sm"
                 disabled={saveAgreementMut.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
+                className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm"
               >
                 {saveAgreementMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Save JV Agreement
@@ -550,20 +554,22 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
 
       {/* Disburse Commission Payout Dialog */}
       <Dialog open={payoutOpen} onOpenChange={setPayoutOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-[#0c1015] border-white/10 text-white backdrop-blur-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base font-bold text-white">
-              <CreditCard className="h-5 w-5 text-blue-400" /> Disburse JV Partner Commission
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Record a commission payment to {agreement?.partnerName}. Automatically calculates 1.5% TDS.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <CreditCard className="h-5 w-5 text-[#0284c7]" /> Disburse JV Partner Commission
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                Record a commission payment to {agreement?.partnerName}. Automatically calculates 1.5% TDS.
+              </DialogDescription>
+            </div>
+          </div>
 
-          <form onSubmit={handlePayoutSubmit} className="space-y-4 pt-2">
+          <form onSubmit={handlePayoutSubmit} className="p-6 space-y-4 text-xs bg-white">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">Gross Commission (NPR) *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Gross Commission (NPR) *</Label>
                 <Input
                   required
                   type="number"
@@ -571,35 +577,35 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                   placeholder="0.00"
                   value={payoutGross}
                   onChange={(e) => setPayoutGross(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono font-bold"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono font-bold focus:border-[#0284c7]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">TDS Rate (%) *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">TDS Rate (%) *</Label>
                 <Input
                   required
                   type="number"
                   step="0.01"
                   value={tdsPercent}
                   onChange={(e) => setTdsPercent(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
             {/* Calculated Breakdown preview */}
             {parseFloat(payoutGross) > 0 && (
-              <div className="bg-[#161d26] p-3 rounded-xl border border-white/10 text-xs font-mono space-y-1">
-                <div className="flex justify-between text-muted-foreground">
+              <div className="bg-[#f8fbfe] p-3 rounded-xl border border-[#c7d8e8] text-xs font-mono space-y-1">
+                <div className="flex justify-between text-slate-600 font-matrix">
                   <span>Gross Commission:</span>
                   <span>Rs. {formatNpr(parseFloat(payoutGross) || 0)}</span>
                 </div>
-                <div className="flex justify-between text-rose-400">
+                <div className="flex justify-between text-rose-600 font-matrix">
                   <span>Less 1.5% TDS:</span>
                   <span>- Rs. {formatNpr(((parseFloat(payoutGross) || 0) * (parseFloat(tdsPercent) || 1.5)) / 100)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-blue-400 border-t border-white/10 pt-1 text-sm">
+                <div className="flex justify-between font-bold text-emerald-700 border-t border-[#c7d8e8] pt-1 text-sm font-matrix">
                   <span>Net Disbursed:</span>
                   <span>
                     Rs.{" "}
@@ -614,12 +620,12 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Payment Mode</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Payment Mode</Label>
                 <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)}>
-                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs rounded-xl shadow-xl">
                     <SelectItem value="bank_transfer">Bank Transfer / connectIPS</SelectItem>
                     <SelectItem value="cheque">Cheque</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
@@ -628,12 +634,12 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs">Paid from Bank Account</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Paid from Bank Account</Label>
                 <Select value={selectedBankId} onValueChange={setSelectedBankId}>
-                  <SelectTrigger className="h-9 text-xs bg-[#161d26] border-white/10 text-white">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]">
                     <SelectValue placeholder="Select Account" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#161d26] border-white/10 text-white text-xs">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs rounded-xl shadow-xl">
                     <SelectItem value="none">Site Petty Cash / Unlinked</SelectItem>
                     {bankAccounts.map((b) => (
                       <SelectItem key={b.id} value={b.id}>
@@ -647,19 +653,19 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
 
             {paymentMode === "cheque" && (
               <div className="space-y-1">
-                <Label className="text-xs">Cheque Number</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Cheque Number</Label>
                 <Input
                   placeholder="e.g. CHQ-99104"
                   value={chequeNo}
                   onChange={(e) => setChequeNo(e.target.value)}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Date (AD)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Date (AD)</Label>
                 <Input
                   type="date"
                   value={payoutDate}
@@ -667,43 +673,45 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                     setPayoutDate(e.target.value);
                     try { setPayoutMiti(adToBs(e.target.value).formatted); } catch {}
                   }}
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Miti (BS)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Miti (BS)</Label>
                 <Input
                   value={payoutMiti}
                   onChange={(e) => setPayoutMiti(e.target.value)}
                   placeholder="YYYY-MM-DD"
-                  className="h-9 text-xs bg-[#161d26] border-white/10 text-white font-mono text-emerald-400"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono text-[#0284c7] font-bold focus:border-[#0284c7]"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs">Narration / Remarks</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Narration / Remarks</Label>
               <Input
                 placeholder="e.g. Commission settlement for IPC #02"
                 value={payoutRemarks}
                 onChange={(e) => setPayoutRemarks(e.target.value)}
-                className="h-9 text-xs bg-[#161d26] border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                size="sm"
                 onClick={() => setPayoutOpen(false)}
-                className="text-xs text-muted-foreground hover:text-white"
+                className="text-xs h-8 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
+                size="sm"
                 disabled={recordPayoutMut.isPending}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs"
+                className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm"
               >
                 {recordPayoutMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                 Record Payout Voucher

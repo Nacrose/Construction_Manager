@@ -31,7 +31,6 @@ import { CreateRfiDialog } from "@/components/workflow/create-rfi-dialog";
 import { KanbanBoard } from "@/components/workflow/kanban-board";
 import { cn } from "@/lib/utils";
 import { AnimatedPage } from "@/components/ui/animated-page";
-import { useFXStore } from "@/lib/fx-store";
 import { RfiToolbar } from "./components/rfi-toolbar";
 import { RfiTable } from "./components/rfi-table";
 import { RfiBatchBar } from "./components/rfi-batch-bar";
@@ -50,8 +49,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
 
-  const tableDensity = useFXStore((s) => s.tableDensity);
-  const setTableDensity = useFXStore((s) => s.setTableDensity);
+  const [tableDensity, setTableDensity] = useState<"comfortable" | "compact">("comfortable");
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 

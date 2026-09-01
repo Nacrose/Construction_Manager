@@ -218,51 +218,51 @@ export default function OrgCorrespondencePage() {
   return (
     <div className="space-y-4 pb-8">
       {/* Header Bar with KPI Metrics & Action */}
-      <div className="p-4 rounded-2xl border border-white/10 bg-[#0c1015] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-emerald-400" />
-            <h1 className="text-lg font-bold text-white tracking-tight">
+            <Mail className="h-5 w-5 text-[#0284c7]" />
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
               Enterprise Correspondence Register
             </h1>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            <span className="text-[10px] font-mono text-[#0284c7] bg-sky-50 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
               सम्पूर्ण आयोजना पत्र दर्ता / चलानी
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Centralized formal letter tracking, client/consultant notices, EOT claims, and reply deadlines across all site projects.
           </p>
         </div>
 
         {/* Quick KPI summary chips */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#121820] border border-white/10 text-xs">
-            <span className="text-gray-400">Total:</span>
-            <span className="font-bold text-white font-mono">{totalCount}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-[#c7d8e8] text-xs">
+            <span className="text-slate-500">Total:</span>
+            <span className="font-bold text-slate-900 font-mono">{totalCount}</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
-            <Clock className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-amber-300">Pending Reply:</span>
-            <span className="font-bold text-amber-400 font-mono">{actionablePending}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs">
+            <Clock className="h-3.5 w-3.5 text-amber-600" />
+            <span className="text-amber-800">Pending Reply:</span>
+            <span className="font-bold text-amber-800 font-mono">{actionablePending}</span>
           </div>
           {overdueCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
-              <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-              <span className="text-rose-300">Overdue:</span>
-              <span className="font-bold text-rose-400 font-mono">{overdueCount}</span>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-rose-50 border border-rose-200 text-xs">
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+              <span className="text-rose-800">Overdue:</span>
+              <span className="font-bold text-rose-800 font-mono">{overdueCount}</span>
             </div>
           )}
           {eotClaimsCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs">
-              <span className="text-cyan-300">EOT Claims:</span>
-              <span className="font-bold text-cyan-400 font-mono">{eotClaimsCount}</span>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-xs">
+              <span className="text-sky-800">EOT Claims:</span>
+              <span className="font-bold text-[#0284c7] font-mono">{eotClaimsCount}</span>
             </div>
           )}
 
           <Button
             size="sm"
             onClick={() => setLogOpen(true)}
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 rounded-xl shadow-md"
+            className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white gap-1.5 rounded-lg shadow-sm"
           >
             <Plus className="h-3.5 w-3.5" />
             + Log Letter (दर्ता / चलानी)
@@ -271,16 +271,16 @@ export default function OrgCorrespondencePage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-white/10 bg-[#0c1015]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {/* Project Scoper */}
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-gray-400" />
+            <Building2 className="h-3.5 w-3.5 text-slate-500" />
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white min-w-[170px] rounded-lg">
+              <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 min-w-[170px] rounded-lg focus:border-[#0284c7]">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
                 <SelectItem value="all">🏢 All Projects (सम्पूर्ण आयोजना)</SelectItem>
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
@@ -293,10 +293,10 @@ export default function OrgCorrespondencePage() {
 
           {/* Direction Filter */}
           <Select value={directionFilter} onValueChange={setDirectionFilter}>
-            <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white w-32 rounded-lg">
+            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-32 rounded-lg focus:border-[#0284c7]">
               <SelectValue placeholder="Direction" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Directions</SelectItem>
               <SelectItem value="incoming">📥 Incoming (दर्ता)</SelectItem>
               <SelectItem value="outgoing">📤 Outgoing (चलानी)</SelectItem>
@@ -305,10 +305,10 @@ export default function OrgCorrespondencePage() {
 
           {/* Letter Type */}
           <Select value={letterTypeFilter} onValueChange={setLetterTypeFilter}>
-            <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white w-36 rounded-lg">
+            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-36 rounded-lg focus:border-[#0284c7]">
               <SelectValue placeholder="Letter Type" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="actionable">Actionable (जवाफ आवश्यक)</SelectItem>
               <SelectItem value="informative">Informative (जानकारी मात्र)</SelectItem>

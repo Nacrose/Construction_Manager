@@ -22,7 +22,7 @@ import { withOrgContext } from "@/lib/rls";
 import { isOrgAdmin } from "@/lib/authz";
 
 const normalize = (s: string) =>
-  s.toLowerCase().trim().replace(/[,.()\-]/g, " ").replace(/\s+/g, " ");
+  s.toLowerCase().trim().replace(/[,.()-]/g, " ").replace(/\s+/g, " ");
 
 // ── Authorization helpers ──────────────────────────────────────────────────────
 

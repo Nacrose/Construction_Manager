@@ -164,47 +164,47 @@ export function OrgBanksTab() {
         </div>
       )}
 
-      {/* Add Bank Account Dialog with Backdrop Blur */}
+      {/* Add Bank Account Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-md backdrop-blur-md bg-black/85 border-white/10 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-white">
-              <Building2 className="h-5 w-5 text-emerald-400" />
-              Add Company Bank Account
+        <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <Building2 className="h-5 w-5 text-[#0284c7]" />
+              Add Company Bank Account (बैंक खाता दर्ता)
             </DialogTitle>
-          </DialogHeader>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3 mt-2">
+          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-white">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Bank / Cash Name *</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Bank / Cash Name *</Label>
               <Input
                 required
                 placeholder="e.g. Nabil Bank Ltd / Head Office Petty Cash"
-                className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Account Number *</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Account Number *</Label>
                 <Input
                   required
                   placeholder="01201017500..."
-                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Account Type</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Account Type</Label>
                 <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
-                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono">
+                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0c1015] border-white/10 text-white text-xs font-mono">
+                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
                     <SelectItem value="current">Current Account (चालु)</SelectItem>
                     <SelectItem value="saving">Saving Account (बचत)</SelectItem>
                     <SelectItem value="overdraft">Overdraft / OD</SelectItem>
@@ -215,48 +215,48 @@ export function OrgBanksTab() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Account Name / Title *</Label>
+              <Label className="text-[11px] font-semibold text-slate-700">Account Name / Title *</Label>
               <Input
                 required
                 placeholder="Company legal title"
-                className="h-8 text-xs bg-white/5 border-white/10 text-white"
+                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Branch (Optional)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Branch (Optional)</Label>
                 <Input
                   placeholder="e.g. Hetauda / New Road"
-                  className="h-8 text-xs bg-white/5 border-white/10 text-white font-mono"
+                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs">Opening Balance (NPR)</Label>
+                <Label className="text-[11px] font-semibold text-slate-700">Opening Balance (NPR)</Label>
                 <Input
                   type="number"
                   step="any"
-                  className="h-8 text-xs font-mono bg-white/5 border-white/10 text-white"
+                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
                   value={openingBalance}
                   onChange={(e) => setOpeningBalance(e.target.value)}
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-2 pt-2 border-t border-white/10">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs font-mono">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">
                 Cancel
               </Button>
-              <Button type="submit" size="sm" disabled={createMutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button type="submit" size="sm" disabled={createMutation.isPending} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Bank Account
+                Save Bank Account (खाता सुरक्षित)
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

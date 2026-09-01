@@ -150,13 +150,13 @@ export default function BankGuaranteesPage({
       <ModuleTabs projectId={projectId} tabs={CONTRACT_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-white/10 bg-[#0c1015]">
-          <div className="flex items-center gap-4 text-xs font-mono text-gray-400">
-            <span>Active Guarantees: <span className="font-bold text-white">{kpis.activeCount}</span></span>
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+          <div className="flex items-center gap-4 text-xs font-mono text-slate-700">
+            <span>Active Guarantees: <span className="font-bold text-slate-900 font-matrix">{kpis.activeCount}</span></span>
             {kpis.expiringWithin30DaysCount > 0 && (
               <>
-                <div className="h-3 w-[1px] bg-white/10" />
-                <span className="text-amber-400 font-bold">⚠️ {kpis.expiringWithin30DaysCount} Expiring Soon</span>
+                <div className="h-3 w-[1px] bg-[#c7d8e8]" />
+                <span className="text-amber-700 font-bold">⚠️ {kpis.expiringWithin30DaysCount} Expiring Soon</span>
               </>
             )}
           </div>
@@ -164,9 +164,9 @@ export default function BankGuaranteesPage({
           <Button
             size="sm"
             onClick={() => setAddOpen(true)}
-            className="h-9 px-4 text-xs font-bold bg-[#00ff66] text-black hover:bg-[#00e65c] rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 font-sans"
+            className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 font-sans"
           >
-            <Plus className="h-3.5 w-3.5" /> + Add Guarantee / Insurance
+            <Plus className="h-3.5 w-3.5" /> + Add Guarantee / Insurance (धरौटी / बीमा)
           </Button>
         </div>
 

@@ -176,42 +176,42 @@ export default function OrgDrawingsPage() {
   return (
     <div className="space-y-4 pb-8">
       {/* Header Bar */}
-      <div className="p-4 rounded-2xl border border-white/10 bg-[#0c1015] flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="h-5 w-5 text-emerald-400" />
-            <h1 className="text-lg font-bold text-white tracking-tight">
-              Master Blueprints & Drawings Vault
+            <Compass className="h-5 w-5 text-[#0284c7]" />
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+              Master Blueprints &amp; Drawings Vault
             </h1>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            <span className="text-[10px] font-mono text-[#0284c7] bg-sky-50 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
               सम्पूर्ण आयोजना नक्सा भण्डार
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Centralized blueprint library, discipline categorizations, revision histories, and direct downloads across all projects.
           </p>
         </div>
 
         {/* Quick KPI summary chips & Action */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#121820] border border-white/10 text-xs">
-            <span className="text-gray-400">Total Drawings:</span>
-            <span className="font-bold text-white font-mono">{totalDrawings}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-[#c7d8e8] text-xs">
+            <span className="text-slate-500">Total Drawings:</span>
+            <span className="font-bold text-slate-900 font-mono">{totalDrawings}</span>
           </div>
           {structuralCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
               <span>Structural:</span>
               <span className="font-bold font-mono">{structuralCount}</span>
             </div>
           )}
           {architecturalCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-xs text-indigo-800">
               <span>Architectural:</span>
               <span className="font-bold font-mono">{architecturalCount}</span>
             </div>
           )}
           {civilCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
               <span>Civil:</span>
               <span className="font-bold font-mono">{civilCount}</span>
             </div>
@@ -220,7 +220,7 @@ export default function OrgDrawingsPage() {
           <Button
             size="sm"
             onClick={() => setUploadOpen(true)}
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 rounded-xl shadow-md"
+            className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white gap-1.5 rounded-lg shadow-sm"
           >
             <Plus className="h-3.5 w-3.5" />
             + Upload Drawing (नक्सा दर्ता)
@@ -229,16 +229,16 @@ export default function OrgDrawingsPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-white/10 bg-[#0c1015]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {/* Project Scoper */}
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-gray-400" />
+            <Building2 className="h-3.5 w-3.5 text-slate-500" />
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white min-w-[170px] rounded-lg">
+              <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 min-w-[170px] rounded-lg focus:border-[#0284c7]">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
-              <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
                 <SelectItem value="all">🏢 All Projects (सम्पूर्ण आयोजना)</SelectItem>
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
@@ -251,10 +251,10 @@ export default function OrgDrawingsPage() {
 
           {/* Discipline Filter */}
           <Select value={discipline} onValueChange={setDiscipline}>
-            <SelectTrigger className="h-8 text-xs bg-[#121820] border-white/10 text-white w-36 rounded-lg">
+            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-36 rounded-lg focus:border-[#0284c7]">
               <SelectValue placeholder="Discipline" />
             </SelectTrigger>
-            <SelectContent className="bg-[#0f141c] border-white/10 text-white text-xs">
+            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Disciplines</SelectItem>
               <SelectItem value="civil">Civil (सिभिल)</SelectItem>
               <SelectItem value="structural">Structural (स्ट्रक्चरल)</SelectItem>

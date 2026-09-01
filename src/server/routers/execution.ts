@@ -337,7 +337,7 @@ export const executionRouter = router({
 
       const conflicts: Conflict[] = [];
 
-      for (const [key, allocations] of allocationsByResource) {
+      for (const [, allocations] of allocationsByResource) {
         if (allocations.length < 2) continue;
 
         // Sort by start date

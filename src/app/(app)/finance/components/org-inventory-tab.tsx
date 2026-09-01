@@ -112,16 +112,16 @@ export function OrgInventoryTab() {
   return (
     <div className="space-y-4 font-sans">
       {/* Top Filter, Category Pills & Log Material Bar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 rounded-2xl bg-[#0c1015] border border-white/10">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 rounded-2xl bg-[#e5eef7] border border-[#c7d8e8]">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
           {/* Search Input */}
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search material across sites..."
-              className="h-8 pl-8 text-xs bg-[#121820] text-white rounded-xl border-white/10 focus:border-emerald-500 font-mono"
+              className="h-8 pl-8 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] font-mono"
             />
           </div>
 
@@ -134,8 +134,8 @@ export function OrgInventoryTab() {
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-mono capitalize shrink-0 transition ${
                   categoryFilter === cat
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold"
-                    : "bg-[#121820] text-gray-400 border border-white/5 hover:text-white hover:border-white/20"
+                    ? "bg-white text-[#0284c7] border border-[#bae6fd] font-bold shadow-xs"
+                    : "bg-white/60 text-slate-600 border border-[#c7d8e8] hover:bg-white hover:text-slate-900"
                 }`}
               >
                 {cat === "all" ? "All Categories" : cat}
@@ -146,15 +146,15 @@ export function OrgInventoryTab() {
 
         {/* Action Button & Valuation Summary */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#121820] border border-emerald-500/20 text-xs font-mono">
-            <span className="text-gray-400 text-[10px] uppercase">Total Valuation:</span>
-            <span className="text-emerald-400 font-bold">{formatNpr(totalCompanyValuation)}</span>
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-[#c7d8e8] text-xs font-mono">
+            <span className="text-slate-500 text-[10px] uppercase">Total Valuation:</span>
+            <span className="text-slate-900 font-bold font-matrix">{formatNpr(totalCompanyValuation)}</span>
           </div>
 
           <Button
             onClick={() => setLogMaterialOpen(true)}
             size="sm"
-            className="h-8 px-3 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-black rounded-xl gap-1.5 shadow-[0_0_15px_rgba(0,255,102,0.2)] font-mono"
+            className="amber-cta-btn h-8 px-3 text-xs font-bold text-white rounded-lg gap-1.5 shadow-sm font-mono"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
             Log Material (दाखिला)
@@ -164,27 +164,27 @@ export function OrgInventoryTab() {
 
       {/* Multi-Project Comparative Stock Matrix Table */}
       {isLoading ? (
-        <div className="p-8 text-center space-y-3 bg-[#0c1015] rounded-2xl border border-white/10">
-          <Skeleton className="h-10 w-full bg-white/5 rounded-xl" />
-          <Skeleton className="h-10 w-full bg-white/5 rounded-xl" />
-          <Skeleton className="h-10 w-full bg-white/5 rounded-xl" />
+        <div className="p-8 text-center space-y-3 bg-white rounded-2xl border border-[#c7d8e8]">
+          <Skeleton className="h-10 w-full bg-slate-100 rounded-xl" />
+          <Skeleton className="h-10 w-full bg-slate-100 rounded-xl" />
+          <Skeleton className="h-10 w-full bg-slate-100 rounded-xl" />
         </div>
       ) : matrixRows.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-[#0c1015] border border-white/10">
-          <Package className="h-8 w-8 text-gray-500 mx-auto mb-2 opacity-60" />
-          <h3 className="text-sm font-semibold text-white">No Inventory Items Found</h3>
-          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto font-mono">
+        <div className="p-12 text-center rounded-2xl bg-white border border-[#c7d8e8]">
+          <Package className="h-8 w-8 text-slate-400 mx-auto mb-2 opacity-60" />
+          <h3 className="text-sm font-semibold text-slate-900">No Inventory Items Found</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-mono">
             Click &quot;+ Log Material&quot; to record physical material delivery against any project site.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#0c1015]">
+        <div className="overflow-x-auto rounded-2xl border border-[#c7d8e8] bg-white shadow-xs">
           <table className="w-full text-left text-xs font-mono border-collapse">
             {/* Table Header */}
-            <thead className="border-b border-white/10 bg-[#121820] uppercase text-[10px] text-gray-400 tracking-wider">
+            <thead className="border-b border-[#c7d8e8] bg-[#f8fbfe] uppercase text-[10px] text-slate-600 tracking-wider">
               <tr>
                 {/* Frozen Column: Material Spec */}
-                <th className="px-4 py-3 min-w-[220px] font-sans sticky left-0 z-20 bg-[#121820] border-r border-white/10 shadow-[2px_0_10px_rgba(0,0,0,0.5)]">
+                <th className="px-4 py-3 min-w-[220px] font-sans sticky left-0 z-20 bg-[#f8fbfe] border-r border-[#c7d8e8] shadow-[2px_0_6px_rgba(0,0,0,0.04)] font-bold text-slate-800">
                   Material &amp; Specification
                 </th>
 
@@ -192,35 +192,35 @@ export function OrgInventoryTab() {
                 {projects.map((proj) => (
                   <th
                     key={proj.id}
-                    className="px-3 py-3 min-w-[170px] border-r border-white/5 text-center font-mono"
+                    className="px-3 py-3 min-w-[170px] border-r border-[#e2edf7] text-center font-mono"
                   >
-                    <div className="font-bold text-white text-[11px] truncate max-w-[160px] mx-auto">
+                    <div className="font-bold text-slate-900 text-[11px] truncate max-w-[160px] mx-auto">
                       {proj.name}
                     </div>
-                    <div className="text-[10px] text-emerald-400/80 font-normal">
+                    <div className="text-[10px] text-[#0284c7] font-normal">
                       {proj.code}
                     </div>
                   </th>
                 ))}
 
                 {/* Frozen Column: Total Company Stock */}
-                <th className="px-4 py-3 min-w-[180px] text-right font-mono bg-[#141b24] text-emerald-400 sticky right-0 z-20 border-l border-white/10 shadow-[-2px_0_10px_rgba(0,0,0,0.5)]">
+                <th className="px-4 py-3 min-w-[180px] text-right font-mono bg-[#f1f7fc] text-[#0284c7] sticky right-0 z-20 border-l border-[#c7d8e8] shadow-[-2px_0_6px_rgba(0,0,0,0.04)] font-bold">
                   Total Company Stock
                 </th>
               </tr>
             </thead>
 
             {/* Table Body Matrix */}
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#e2edf7]">
               {matrixRows.map((row) => (
-                <tr key={row.key} className="hover:bg-white/[0.02] transition-colors group">
+                <tr key={row.key} className="hover:bg-slate-50 transition-colors group">
                   {/* Left Column: Material Info */}
-                  <td className="px-4 py-2.5 font-sans sticky left-0 z-10 bg-[#0c1015] group-hover:bg-[#10151d] border-r border-white/10 shadow-[2px_0_10px_rgba(0,0,0,0.5)]">
-                    <div className="font-bold text-white text-xs leading-tight">
+                  <td className="px-4 py-2.5 font-sans sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-[#c7d8e8] shadow-[2px_0_6px_rgba(0,0,0,0.04)]">
+                    <div className="font-bold text-slate-900 text-xs leading-tight">
                       {row.name}
                     </div>
-                    <div className="text-[10px] text-gray-400 font-mono mt-0.5">
-                      {row.unit} • <span className="text-gray-500">{row.category}</span>
+                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                      {row.unit} • <span className="text-slate-600">{row.category}</span>
                       {row.subCategory ? ` • ${row.subCategory}` : ""}
                     </div>
                   </td>
@@ -237,33 +237,33 @@ export function OrgInventoryTab() {
                     return (
                       <td
                         key={proj.id}
-                        className="px-3 py-2.5 text-center border-r border-white/5 font-mono"
+                        className="px-3 py-2.5 text-center border-r border-[#e2edf7] font-mono"
                       >
                         {hasStock ? (
                           <div className="flex flex-col items-center justify-center">
                             <div className="flex items-center gap-1 text-xs font-bold leading-tight">
                               <span
                                 className={`h-1.5 w-1.5 rounded-full ${
-                                  isLow ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
+                                  isLow ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
                                 }`}
                               />
-                              <span className={isLow ? "text-amber-400" : "text-white"}>
+                              <span className={isLow ? "text-amber-700" : "text-slate-900 font-matrix"}>
                                 {cell.currentStock.toLocaleString("en-IN")} {row.unit}
                               </span>
                             </div>
-                            <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">
+                            <div className="text-[10px] text-slate-500 mt-0.5 leading-tight font-matrix">
                               @ {formatNpr(cell.lastRate)} | {formatNpr(cell.totalValue)}
                               {isLow && (
-                                <span className="text-amber-400/90 ml-1 font-semibold">
+                                <span className="text-amber-700 ml-1 font-semibold">
                                   (Low)
                                 </span>
                               )}
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center text-gray-600">
+                          <div className="flex flex-col items-center justify-center text-slate-400">
                             <span className="text-xs font-bold leading-tight">—</span>
-                            <span className="text-[10px] text-gray-600 mt-0.5 leading-tight">
+                            <span className="text-[10px] text-slate-400 mt-0.5 leading-tight">
                               NPR 0
                             </span>
                           </div>
@@ -273,11 +273,11 @@ export function OrgInventoryTab() {
                   })}
 
                   {/* Right Column: Total Company Stock & Valuation */}
-                  <td className="px-4 py-2.5 text-right font-mono bg-[#0e141c] group-hover:bg-[#121822] sticky right-0 z-10 border-l border-white/10 shadow-[-2px_0_10px_rgba(0,0,0,0.5)]">
-                    <div className="font-bold text-xs text-emerald-400 leading-tight">
+                  <td className="px-4 py-2.5 text-right font-mono bg-[#f8fbfe] group-hover:bg-slate-100 sticky right-0 z-10 border-l border-[#c7d8e8] shadow-[-2px_0_6px_rgba(0,0,0,0.04)]">
+                    <div className="font-bold text-xs text-[#0284c7] leading-tight font-matrix">
                       {row.totalStock.toLocaleString("en-IN")} {row.unit}
                     </div>
-                    <div className="text-[10px] text-emerald-500/80 mt-0.5 leading-tight">
+                    <div className="text-[10px] text-slate-500 mt-0.5 leading-tight font-matrix">
                       Avg: {formatNpr(row.avgRate)} | {formatNpr(row.totalValue)}
                     </div>
                   </td>
@@ -286,9 +286,9 @@ export function OrgInventoryTab() {
             </tbody>
 
             {/* Summary Footer */}
-            <tfoot className="border-t-2 border-white/10 bg-[#121820] font-bold text-white font-mono">
+            <tfoot className="border-t-2 border-[#c7d8e8] bg-[#f8fbfe] font-bold text-slate-900 font-mono">
               <tr>
-                <td className="px-4 py-3 font-sans text-xs sticky left-0 z-20 bg-[#121820] border-r border-white/10">
+                <td className="px-4 py-3 font-sans text-xs sticky left-0 z-20 bg-[#f8fbfe] border-r border-[#c7d8e8]">
                   Total Matrix ({matrixRows.length} Material Types)
                 </td>
                 {projects.map((proj) => {
@@ -299,13 +299,13 @@ export function OrgInventoryTab() {
                   return (
                     <td
                       key={proj.id}
-                      className="px-3 py-3 text-center text-xs text-emerald-400 border-r border-white/5"
+                      className="px-3 py-3 text-center text-xs text-slate-900 border-r border-[#e2edf7] font-matrix"
                     >
                       {formatNpr(projTotalVal)}
                     </td>
                   );
                 })}
-                <td className="px-4 py-3 text-right text-xs text-emerald-400 sticky right-0 z-20 bg-[#141b24] border-l border-white/10">
+                <td className="px-4 py-3 text-right text-xs text-[#0284c7] sticky right-0 z-20 bg-[#f1f7fc] border-l border-[#c7d8e8] font-matrix">
                   {formatNpr(totalCompanyValuation)}
                 </td>
               </tr>
