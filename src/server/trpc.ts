@@ -231,54 +231,110 @@ export const projectProcedure = (
   });
 
 /**
- * Financial Mutation Declarative Procedure:
- * Centralized 5-Point Financial & Multi-Tenant Pipeline:
- *  1. Project write permission check (if projectId present)
- *  2. Fiscal year lock check on target date
- *  3. Operating model delegation limits on monetary amount
- *  4. Multi-tenant bank account isolation check
- *  5. Injects verified financial metadata into context
+ * Domain Router Factory + Financial Guard:
+ * Adopted Phase E — extracted from leave / site-expense / jv-partner pilots.
+ *
+ * Before the factory, routers hand-rolled the same security pipeline in ~528
+ * inline calls (assertProjectMember/assertCanWrite/... + assertNotLocked +
+ * assertDelegation), while the declarative projectProcedure had 8 adopters.
+ * createDomainRouter pre-binds the policy vocabulary so a router declares
+ * role policy once:
+ *
+ *   const { router, proc } = createDomainRouter();
+ *   export const xRouter = router({
+ *     list:  proc.member.input(...).query(...),
+ *     create: proc.write.use(financialGuard({ action: "create_x", amountFields: ["amount"] }))
+ *              .input(...).mutation(...),
+ *   });
+ *
+ * proc.* are input-level guards: they require `projectId` in the input and
+ * inject ctx.projectId / ctx.projectRole. Record-level authorization (the
+ * record's project differs from input, e.g. approve-by-id) stays in the
+ * handler — it is a different concern.
  */
-export const financialProcedure = (action: DelegationAction) =>
-  protectedProcedure.use(async ({ ctx, getRawInput, next }) => {
+export function createDomainRouter() {
+  return {
+    router,
+    proc: {
+      /** Authenticated, no project scope. */
+      protected: protectedProcedure,
+      /** Requires projectId in input; injects ctx.projectId + ctx.projectRole. */
+      member: projectProcedure("member"),
+      write: projectProcedure("write"),
+      admin: projectProcedure("admin"),
+      manager: projectProcedure("manager"),
+    },
+  };
+}
+
+/**
+ * Strict financial middleware — the declarative successor of financialProcedure.
+ *
+ * Unlike financialProcedure, it NEVER guesses input shapes: the author must
+ * name the date field, the amount fields, and the bank-account fields
+ * explicitly. Composition order matters — chain it AFTER a proc.* guard so
+ * auth, RLS context and project membership are already established:
+ *
+ *   proc.write.use(financialGuard({
+ *     action: "create_site_expense",
+ *     dateField: "date",                  // optional; absent -> today
+ *     amountFields: ["amount", "vatAmount"], // summed for delegation limit
+ *   }))
+ *
+ * Pipeline: fiscal-year lock (org + date) -> delegation limit (sum of
+ * finite numeric amount fields, when > 0) -> org bank-account isolation.
+ */
+export function financialGuard(opts: {
+  action: DelegationAction;
+  /** Input field carrying the transaction date. Absent field or value -> today (same as legacy trio). */
+  dateField?: string;
+  /** Input fields summed (finite numbers only) for the delegation limit check. Required so authors state the money shape explicitly; pass [] only for non-monetary actions. */
+  amountFields: string[];
+  /** Input fields holding org bank-account ids to verify for the caller's organization. */
+  bankAccountFields?: string[];
+}) {
+  return t.middleware(async ({ ctx, getRawInput, next }) => {
     const rawInput = await getRawInput();
-    const inputObj = rawInput && typeof rawInput === "object" ? (rawInput as Record<string, any>) : {};
+    const input = rawInput && typeof rawInput === "object" ? (rawInput as Record<string, unknown>) : {};
 
-    // 1. Project write access check if projectId is present
-    const projectId = inputObj.projectId;
-    if (projectId && typeof projectId === "string") {
-      await assertCanWrite(ctx.user, projectId);
+    // Fail loud — the guard always runs behind a proc.* guard (auth done),
+    // but a statically-impossible state must never pass silently. Re-inject
+    // the narrowed user so downstream handlers keep ctx.user: AuthUser.
+    const user = ctx.user;
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
     }
 
-    // 2. Fiscal year lock check
-    const dateVal = inputObj.paymentDate || inputObj.payoutDate || inputObj.billDate || inputObj.date;
-    const targetDate = dateVal ? new Date(dateVal) : new Date();
-    await assertNotLocked(ctx.user.organizationId, targetDate);
+    // 1. Fiscal-year lock on the effective transaction date.
+    const rawDate = opts.dateField ? input[opts.dateField] : undefined;
+    const fiscalDate = rawDate ? new Date(rawDate as string | number | Date) : new Date();
+    await assertNotLocked(user.organizationId, fiscalDate);
 
-    // 3. Financial delegation limit check
-    const amount = Number(inputObj.grossAmount ?? inputObj.amount ?? inputObj.totalAmount ?? 0);
+    // 2. Delegation limit over the explicitly named money fields.
+    let amount = 0;
+    for (const field of opts.amountFields) {
+      const v = input[field];
+      if (typeof v === "number" && Number.isFinite(v) && v > 0) amount += v;
+    }
     if (amount > 0) {
-      await assertDelegation(ctx.user, action, amount);
+      await assertDelegation(user, opts.action, amount);
     }
 
-    // 4. Multi-tenant bank account isolation check
-    const bankIds = [
-      inputObj.bankAccountId,
-      inputObj.companyBankAccountId,
-      inputObj.transportBankAccountId,
-      inputObj.incidentalBankAccountId,
-    ].filter((id): id is string => typeof id === "string" && id.length > 0);
-
-    for (const bId of bankIds) {
-      await assertOrgBankAccount(bId, ctx.user.organizationId);
+    // 3. Multi-tenant bank account isolation.
+    for (const field of opts.bankAccountFields ?? []) {
+      const v = input[field];
+      if (typeof v === "string" && v.length > 0) {
+        await assertOrgBankAccount(v, user.organizationId);
+      }
     }
 
     return next({
       ctx: {
         ...ctx,
-        fiscalDate: targetDate,
-        delegatedAction: action,
-        projectId: typeof projectId === "string" ? projectId : undefined,
+        user,
+        fiscalDate,
+        delegatedAction: opts.action,
       },
     });
   });
+}

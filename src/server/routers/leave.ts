@@ -1,21 +1,26 @@
 /**
  * tRPC router for Leave Management.
+ *
+ * Phase E: input-level authorization is declarative via createDomainRouter
+ * (proc.member / proc.write / proc.admin). Record-level guards (approve/reject
+ * by id — the record's project governs) stay in the handlers by design.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { createDomainRouter, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { assertProjectMember, assertProjectAdmin } from "@/lib/authz";
+
+const { router, proc } = createDomainRouter();
 
 export const leaveRouter = router({
   /** List leave requests for a project, with optional status filter. */
-  list: protectedProcedure
+  list: proc.member
     .input(z.object({
       projectId: z.string(),
       status: z.enum(["pending", "approved", "rejected"]).optional(),
     }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+    .query(async ({ input }) => {
       const where: Record<string, unknown> = { projectId: input.projectId };
       if (input.status) where.status = input.status;
 
@@ -60,7 +65,7 @@ export const leaveRouter = router({
     }),
 
   /** Create leave request. Auto-calculate totalDays from date difference. */
-  create: protectedProcedure
+  create: proc.write
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
@@ -70,8 +75,6 @@ export const leaveRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
-
       // Cross-project guard: the leave must be filed for a staff member
       // of THIS project — without this, a caller with write access to
       // project A could file leaves for staff in project B (leaking their
@@ -189,14 +192,13 @@ export const leaveRouter = router({
     }),
 
   /** Get leave balances for a staff member (by year). */
-  getBalances: protectedProcedure
+  getBalances: proc.member
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
       year: z.number().optional(),
     }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+    .query(async ({ input }) => {
       const year = input.year || new Date().getFullYear();
 
       const balances = await db.leaveBalance.findMany({
@@ -211,7 +213,7 @@ export const leaveRouter = router({
     }),
 
   /** PM sets annual leave allowances (creates/updates LeaveBalance records). */
-  updateBalances: protectedProcedure
+  updateBalances: proc.admin
     .input(z.object({
       projectId: z.string(),
       staffId: z.string(),
@@ -219,9 +221,7 @@ export const leaveRouter = router({
       year: z.number(),
       totalAllowed: z.number().min(0),
     }))
-    .mutation(async ({ ctx, input }) => {
-      await assertProjectAdmin(ctx.user, input.projectId);
-
+    .mutation(async ({ input }) => {
       const existing = await db.leaveBalance.findUnique({
         where: {
           projectId_staffId_leaveType_year: {

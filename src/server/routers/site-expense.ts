@@ -1,9 +1,14 @@
 /**
  * tRPC router for Site Expenses / Petty Cash.
+ *
+ * Phase E: input-level authz via createDomainRouter; `create` rides the
+ * strict financialGuard (fiscal lock + delegation over explicitly named
+ * amount fields). Record-level guards (update/approve/reject/delete by id)
+ * stay in the handlers by design.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { createDomainRouter, financialGuard, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
@@ -14,9 +19,11 @@ import { assertDelegation } from "@/lib/delegation";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 
+const { router, proc } = createDomainRouter();
+
 export const siteExpenseRouter = router({
   /** List expenses for a project, with filters. */
-  list: protectedProcedure
+  list: proc.member
     .input(z.object({
       projectId: z.string(),
       category: z.string().optional(),
@@ -24,9 +31,7 @@ export const siteExpenseRouter = router({
       dateFrom: z.string().optional(),
       dateTo: z.string().optional(),
     }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-
+    .query(async ({ input }) => {
       const where: Record<string, unknown> = { projectId: input.projectId };
       if (input.category) where.category = input.category;
       if (input.status) where.status = input.status;
@@ -70,7 +75,12 @@ export const siteExpenseRouter = router({
     }),
 
   /** Create expense (auto-generate number EXP-{seq}). */
-  create: protectedProcedure
+  create: proc.write
+    .use(financialGuard({
+      action: "create_site_expense",
+      dateField: "date",
+      amountFields: ["amount", "vatAmount"],
+    }))
     .input(z.object({
       projectId: z.string(),
       date: z.string().optional(),
@@ -85,10 +95,8 @@ export const siteExpenseRouter = router({
       receiptName: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
-      const expenseDate = input.date ? new Date(input.date) : new Date();
-      await assertNotLocked(ctx.user.organizationId, expenseDate);
-      await assertDelegation(ctx.user, "create_site_expense", input.amount + (input.vatAmount || 0));
+      // Security pipeline (authz, fiscal lock, delegation) is declarative
+      // above via proc.write + financialGuard.
 
       // Auto-generate expense number with collision-prevention retry.
       //
@@ -117,7 +125,7 @@ export const siteExpenseRouter = router({
             data: {
               projectId: input.projectId,
               number,
-              date: expenseDate,
+              date: input.date ? new Date(input.date) : new Date(),
               category: input.category,
               description: input.description,
               amount: input.amount,
@@ -357,11 +365,9 @@ export const siteExpenseRouter = router({
     }),
 
   /** Stats: total by category, total pending, total approved. */
-  stats: protectedProcedure
+  stats: proc.member
     .input(z.object({ projectId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
-
+    .query(async ({ input }) => {
       const allExpenses = await db.siteExpense.findMany({
         where: { projectId: input.projectId },
         select: { category: true, status: true, totalAmount: true },

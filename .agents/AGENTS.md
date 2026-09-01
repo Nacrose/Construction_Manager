@@ -18,6 +18,8 @@ The codebase is being consolidated onto a central engine kit. The kit is exactly
 | useRegister | `src/hooks/use-register.ts` | Register/list page query plumbing: typed query + pick, loading/fetching, refresh (adopted Phase B, extracted from the leaves pilot) |
 | useAction | `src/hooks/use-action.ts` | ALL non-dialog tRPC mutations (approve/reject/delete/status changes): success toast -> invalidate -> onSuccess, error toast -> onError. Returns the full mutation shape, so adoption is a mechanical swap of `proc.useMutation({...})` blocks (adopted Phase C, extracted from leaves + expenses) |
 | Nav Registry | `src/lib/nav-registry.ts` | ALL navigation data: sidebar arrays (GLOBAL_NAV, PROJECT_MODULE_NAV), project tab-bar clusters (NAV_CLUSTERS), and the href→module gating map (MODULE_KEY_BY_HREF). Adding/renaming a route = one entry here; 28 page-level `*_TABS` copies were deleted (adopted Phase D) |
+| createDomainRouter | `src/server/trpc.ts` | Server-side declarative security pipeline: `const { router, proc } = createDomainRouter()` pre-binds proc.member/write/admin/manager (projectId-in-input role gates injecting ctx.projectId/ctx.projectRole). Record-level authz stays in handlers — a different concern (adopted Phase E, extracted from leave / site-expense / jv-partner pilots) |
+| financialGuard | `src/server/trpc.ts` | ALL financial mutations: strict fiscal-lock + delegation + bank-isolation middleware with EXPLICITLY named input fields (`amountFields` required — no guessing). Chain after a proc.* guard; re-injects narrowed ctx.user + ctx.fiscalDate. Replaced the guessing financialProcedure (deleted Phase E) |
 
 Phase B notes:
 - The speculative `src/components/ui/form-engine.tsx` (ConstructionForm, zero adopters) was DELETED; its field kit lives on in `src/components/engine/form-fields.tsx` behind FormDialogEngine.
@@ -32,6 +34,12 @@ Phase D notes (nav registry):
 - Module gating: cluster tabs declare `moduleKey` inline; orphan hrefs (e.g. `/hr/payroll`) live in MODULE_KEY_BY_HREF. `nav-registry.test.ts` pins the legacy gating key set — never grow it silently.
 - Known preserved drift (product decisions, not engineering): `finance` (6 tabs) vs `finance-compact` (3 tabs) both exist; `documents` cluster is the 4-tab superset (document-center & submittals gained "Photo Progress").
 - AppSidebar renders from GLOBAL_NAV / PROJECT_MODULE_NAV; it owns rendering only, never nav data.
+
+Phase E notes (domain router factory + financial hardening):
+- Input-level guards (projectId comes from the request) use `proc.member/write/admin/manager`. Record-level guards (approve-by-id: the record's projectId governs) stay inline in handlers — they are NOT tech debt.
+- `financialGuard({ action, dateField?, amountFields, bankAccountFields? })`: amountFields is REQUIRED so authors state the money shape explicitly; it sums finite positive numbers (string amounts are ignored — zod rejects them downstream). The guessing `financialProcedure` was deleted; adopters compose `proc.write.use(financialGuard(...))`.
+- Engine ratchet (vitest): `engine-ratchet.test.ts` pins hand-rolled authz (456), hand-rolled fiscal locks (37), and server float-money coercions (34) — these counts may only SHRINK. Declarative adoption floors (3 domain routers, 2 financial guards) may only GROW.
+- The boundary scanner (`client-graph-boundary.test.ts`) stripComments is now a linear-time scanner — the old regex backtracked O(n²) on files with unterminated-looking quotes (one file made it 60s). Keep it linear: never reintroduce backtracking regexes over source text there.
 
 **Protocol rules every change must obey:**
 
