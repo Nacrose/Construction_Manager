@@ -63,7 +63,7 @@
     "@reactuses/core": "^6.0.5",
     "@sentry/nextjs": "^10.72.0",
     "@tanstack/react-query": "^5.102.8",
-    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-table": "^9.2.4",
     "@trpc/client": "^11.13.0",
     "@trpc/next": "^11.13.0",
     "@trpc/react-query": "^11.13.0",
