@@ -29,6 +29,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency audit gate
+        # Fails the build on known high/critical CVEs in the dependency
+        # graph. Dependabot (see .github/dependabot.yml) opens the fix PRs.
+        run: npm audit --audit-level=high
+
       - name: "Lint ratchet (warnings may only decrease)"
         # Ratchet: 1200 warnings baseline with architectural engine fences active.
         run: npx eslint . --max-warnings 1200

@@ -1,0 +1,37 @@
+# Dependabot — automated dependency maintenance.
+#
+# npm audit is currently clean (0 vulnerabilities at enablement); this config
+# keeps it that way: weekly version-bump PRs with grouped non-major updates
+# so the queue stays reviewable, plus weekly github-actions bumps.
+#
+# Conventions for this repo:
+#   - Lockfile is package-lock.json (npm ci everywhere; pnpm-lock.yaml was
+#     removed as stale). Dependabot updates it in-place.
+#   - Money-path and ledger packages (prisma, zod, @trpc/*) can change
+#     behavior — review their release notes before merging major bumps.
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Next.js majors change build/runtime behavior in ways that need a
+      # dedicated migration window, not a drive-by bump.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
