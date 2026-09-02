@@ -7,7 +7,6 @@ import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
 import { transitionEntityState } from "@/server/utils/state-machine";
-import { emitDomainEvent } from "@/server/utils/domain-events";
 
 
 export const variationOrderRouter = router({
@@ -344,16 +343,11 @@ export const variationOrderRouter = router({
         },
       });
 
-      emitDomainEvent({
-        type: "lifecycle.transitioned",
-        projectId: input.projectId,
-        actorUserId: ctx.user.id,
-        title: `Variation Order ${input.status === "approved" ? "Approved" : input.status === "rejected" ? "Rejected" : "Updated"} (${vo.number})`,
-        message: `Variation Order ${vo.number} marked as ${input.status} by ${ctx.user.name || "User"}.`,
-        entityType: "variationOrder",
-        entityId: input.id,
-        metadata: { model: "variationOrder", from: vo.status, to: input.status },
-      });
+      // NOTE: no inline emitDomainEvent here — the engine transition inside
+      // the transaction already enqueued lifecycle.transitioned onto the
+      // outbox (crash-safe, at-least-once). Firing the inline emitter too
+      // delivered every VO notification TWICE (once inline, once via outbox
+      // dispatch).
 
       return { success: true };
     }),
