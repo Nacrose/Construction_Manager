@@ -4,14 +4,17 @@
  * Dev mode: saves to a PRIVATE ./uploads/ directory (outside public/) —
  * files are ONLY reachable through the authenticated /api/files/[key]
  * route, which enforces tenant isolation via the StoredFile registry.
- * Production: pluggable S3/R2/Blob backend via env vars, also streamed
- * through /api/files/[key] so buckets can stay fully private.
+ * Production: Vercel Blob via env vars, also streamed
+ * through /api/files/[key] so the StoredFile registry stays the access gate.
  *
  * STORAGE_PROVIDER=local (default) — private ./uploads/ dir + authed route
- * STORAGE_PROVIDER=s3 — S3-compatible storage (R2, MinIO, etc.)
- *   STORAGE_ENDPOINT, STORAGE_REGION, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET
- * STORAGE_PROVIDER=vercel-blob — Vercel Blob (Vercel deploy only)
+ * STORAGE_PROVIDER=vercel-blob — Vercel Blob (the consolidated production choice)
  *   BLOB_READ_WRITE_TOKEN
+ *
+ * The S3/R2 provider was removed (storage consolidation): one supported cloud
+ * backend means one code path, one set of env vars, one failure mode. Local
+ * remains available for dev and self-hosted deployments that need strictly
+ * private buckets.
  *
  * SECURITY (audit C-4): previously local files lived in public/uploads/ and
  * were served as unauthenticated static assets; S3/Blob objects were public.
@@ -37,32 +40,12 @@ export type StoredFileOwner = {
   projectId?: string | null;
 };
 
-async function importS3() {
-  try {
-    return await import("@aws-sdk/client-s3");
-  } catch {
-    throw new Error("@aws-sdk/client-s3 is not installed.");
-  }
-}
-
 async function importVercelBlob() {
   try {
     return await import("@vercel/blob");
   } catch {
     throw new Error("@vercel/blob is not installed.");
   }
-}
-
-async function s3Client() {
-  const { S3Client } = await import("@aws-sdk/client-s3");
-  return new S3Client({
-    endpoint: process.env.STORAGE_ENDPOINT,
-    region: process.env.STORAGE_REGION || "auto",
-    credentials: {
-      accessKeyId: process.env.STORAGE_ACCESS_KEY || "",
-      secretAccessKey: process.env.STORAGE_SECRET_KEY || "",
-    },
-  });
 }
 
 export type StorageFile = {
@@ -96,22 +79,12 @@ export async function uploadFile(
   if (PROVIDER === "local" || PROVIDER === "dev") {
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
     await fs.writeFile(path.join(UPLOAD_DIR, key), buffer);
-  } else if (PROVIDER === "s3") {
-    const { PutObjectCommand } = await importS3();
-    await (await s3Client()).send(
-      new PutObjectCommand({
-        Bucket: process.env.STORAGE_BUCKET || "uploads",
-        Key: key,
-        Body: buffer,
-        ContentType: mimeType,
-      }),
-    );
   } else if (PROVIDER === "vercel-blob") {
     const { put } = await importVercelBlob();
     // SDK limitation: @vercel/blob only supports public-access blobs on
     // hobby/simple plans. The blob URL is recorded in the registry and ALL
-    // access is routed through /api/files/[key]; for strict privacy use the
-    // local or s3 providers (bucket kept private).
+    // access is routed through /api/files/[key]; for strictly private files
+    // use the local provider.
     const blob = await put(key, buffer, { contentType: mimeType, access: "public" });
     externalUrl = blob.url;
   } else {
@@ -155,20 +128,6 @@ export async function readStoredFile(
     }
   }
 
-  if (PROVIDER === "s3") {
-    const { GetObjectCommand } = await importS3();
-    const res = await (await s3Client()).send(
-      new GetObjectCommand({ Bucket: process.env.STORAGE_BUCKET || "uploads", Key: key }),
-    );
-    const bytes = await res.Body?.transformToByteArray();
-    if (!bytes) return null;
-    return {
-      body: Buffer.from(bytes),
-      mimeType: res.ContentType || meta.mimeType,
-      fileName: meta.fileName,
-    };
-  }
-
   if (PROVIDER === "vercel-blob") {
     if (!meta.externalUrl) return null;
     const res = await fetch(meta.externalUrl);
@@ -207,15 +166,6 @@ export async function deleteFile(keyOrUrl: string): Promise<void> {
     key = key.slice("/uploads/".length);
   }
 
-  // S3 URLs look like `<endpoint>/<bucket>/<key>` — strip everything
-  // up to and including the bucket name. We use the configured bucket
-  // name to find the split point.
-  const bucket = process.env.STORAGE_BUCKET || "uploads";
-  const bucketMarker = `/${bucket}/`;
-  if (key.includes(bucketMarker)) {
-    key = key.slice(key.indexOf(bucketMarker) + bucketMarker.length);
-  }
-
   // Vercel Blob URLs — recover the key from the registry's externalUrl.
   if (key.startsWith("http")) {
     const meta = await db.storedFile.findFirst({
@@ -237,14 +187,6 @@ export async function deleteFile(keyOrUrl: string): Promise<void> {
   if (PROVIDER === "local" || PROVIDER === "dev") {
     const filePath = path.join(UPLOAD_DIR, key);
     try { await fs.unlink(filePath); } catch { /* file may not exist */ }
-  } else if (PROVIDER === "s3") {
-    const { DeleteObjectCommand } = await importS3();
-    await (await s3Client()).send(
-      new DeleteObjectCommand({
-        Bucket: process.env.STORAGE_BUCKET || "uploads",
-        Key: key,
-      }),
-    );
   } else if (PROVIDER === "vercel-blob") {
     const { del } = await importVercelBlob();
     // Vercel Blob's del() accepts the full URL, not the key — look it up.
