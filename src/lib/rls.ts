@@ -45,58 +45,6 @@ export type TenantUser = {
  */
 
 /**
- * The SQL statements to enable RLS.
- * These are idempotent (safe to run multiple times).
- */
-export const RLS_SQL = `
--- ═══════════════════════════════════════════════════════════════
--- Row-Level Security on Project table (Phase-4 FORCE)
--- ═══════════════════════════════════════════════════════════════
-
--- Enable and FORCE RLS on Project table
-ALTER TABLE "Project" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Project" FORCE ROW LEVEL SECURITY;
-
--- Drop existing policies if they exist (idempotent)
-DROP POLICY IF EXISTS "project_org_isolation" ON "Project";
-DROP POLICY IF EXISTS "project_insert_org_check" ON "Project";
-DROP POLICY IF EXISTS "project_update_org_check" ON "Project";
-DROP POLICY IF EXISTS "project_delete_org_check" ON "Project";
-
-CREATE POLICY "project_org_isolation" ON "Project"
-  FOR SELECT
-  USING (
-    current_setting('app.is_superadmin', true) = 'true'
-    OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
-  );
-
-CREATE POLICY "project_insert_org_check" ON "Project"
-  FOR INSERT
-  WITH CHECK (
-    current_setting('app.is_superadmin', true) = 'true'
-    OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
-  );
-
-CREATE POLICY "project_update_org_check" ON "Project"
-  FOR UPDATE
-  USING (
-    current_setting('app.is_superadmin', true) = 'true'
-    OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
-  )
-  WITH CHECK (
-    current_setting('app.is_superadmin', true) = 'true'
-    OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
-  );
-
-CREATE POLICY "project_delete_org_check" ON "Project"
-  FOR DELETE
-  USING (
-    current_setting('app.is_superadmin', true) = 'true'
-    OR "organizationId" = NULLIF(current_setting('app.organization_id', true), '')::text
-  );
-`;
-
-/**
  * Set the organization context for the current database session.
  * Must be called at the start of each request (tRPC context).
  *

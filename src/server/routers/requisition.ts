@@ -8,8 +8,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
-import { canTransition, transitionEntityState } from "@/server/utils/state-machine";
-import { emitDomainEvent } from "@/server/utils/domain-events";
+import { transitionEntityState } from "@/server/utils/state-machine";
 
 
 
@@ -571,14 +570,6 @@ export const requisitionRouter = router({
       });
       if (!pr) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Requisition not found." });
 
-      const transitionCheck = canTransition("purchaseRequisition", pr.status, input.status);
-      if (!transitionCheck.allowed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: transitionCheck.reason || `Cannot change the status of an already ${pr.status} requisition.`,
-        });
-      }
-
       if (input.status === "rejected" && (!input.rejectionReason || !input.rejectionReason.trim())) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -586,24 +577,22 @@ export const requisitionRouter = router({
         });
       }
 
-      const updated = await db.purchaseRequisition.update({
-        where: { id: input.requisitionId },
-        data: {
-          status: input.status,
-          approvedById: ctx.user.id,
-          rejectionReason: input.status === "rejected" ? input.rejectionReason?.trim() : null,
-        },
-      });
-
-      emitDomainEvent({
-        type: "lifecycle.transitioned",
+      // Engine transition (was canTransition + read-then-write + inline
+      // emitDomainEvent): the graph edge is validated against the same
+      // declarative model, but the write is now CAS-claimed on the status
+      // we just read — two concurrent approvals can no longer both pass
+      // validation and double-write approvedById/approvedAt. The lifecycle
+      // event rides the transactional outbox instead of the fire-and-forget
+      // inline emitter, so a crash between write and notify can no longer
+      // lose it. approvedById/approvedAt/rejectionReason are engine-stamped.
+      const { entity: updated } = await transitionEntityState(db, {
+        model: "purchaseRequisition",
+        id: input.requisitionId,
+        targetState: input.status,
+        userId: ctx.user.id,
+        userName: ctx.user.name,
         projectId: input.projectId,
-        actorUserId: ctx.user.id,
-        title: `Requisition ${input.status === "approved" ? "Approved" : "Rejected"} (${pr.number || "PR"})`,
-        message: `Purchase Requisition ${pr.number} marked as ${input.status} by ${ctx.user.name || "Manager"}.`,
-        entityType: "purchaseRequisition",
-        entityId: updated.id,
-        metadata: { model: "purchaseRequisition", from: pr.status, to: input.status },
+        notes: input.status === "rejected" ? input.rejectionReason?.trim() : undefined,
       });
 
       return { requisition: updated };

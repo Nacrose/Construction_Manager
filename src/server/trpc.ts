@@ -26,6 +26,7 @@ import {
 } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation, type DelegationAction } from "@/lib/delegation";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // ─── Context ───────────────────────────────────────────────────
 // The context is created per-request. We lazily resolve the user
@@ -133,14 +134,14 @@ const enforceAuth = t.middleware(async ({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(enforceAuth);
 
-// ─── Rate limiting (in-memory, per-user sliding window) ──────────────
+// ─── Rate limiting (Redis-shared counter, in-memory fallback) ─────────
 //
 // Protects expensive aggregate/report endpoints from runaway client loops
-// and accidental request storms. Single-instance memory store: for
-// multi-instance deployments back this with Redis (interface unchanged).
+// and accidental request storms. The counter lives in Redis when REDIS_URL
+// is configured (shared across instances, survives deploys); otherwise it
+// degrades to the per-instance in-memory limiter (still a real bound).
+// See src/lib/rate-limit.ts for the contract.
 type RateLimitOptions = { windowMs?: number; max?: number };
-
-const rateLimitBuckets = new Map<string, number[]>();
 
 export const rateLimit = (options: RateLimitOptions = {}) => {
   const windowMs = options.windowMs ?? 60_000;
@@ -148,22 +149,12 @@ export const rateLimit = (options: RateLimitOptions = {}) => {
 
   return t.middleware(async ({ ctx, path, next }) => {
     const key = `${ctx.user?.id ?? "anon"}:${path ?? "unknown"}`;
-    const now = Date.now();
-    const recent = (rateLimitBuckets.get(key) ?? []).filter((ts) => ts > now - windowMs);
-    if (recent.length >= max) {
+    const verdict = await checkRateLimit(key, { windowMs, max });
+    if (!verdict.allowed) {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
-        message: "Too many requests — please slow down.",
+        message: `Too many requests — please slow down (retry in ${verdict.retryAfterSec}s).`,
       });
-    }
-    recent.push(now);
-    rateLimitBuckets.set(key, recent);
-
-    // Occasional GC so idle buckets do not accumulate forever.
-    if (rateLimitBuckets.size > 5_000) {
-      for (const [k, v] of rateLimitBuckets) {
-        if (v.every((ts) => ts <= now - windowMs)) rateLimitBuckets.delete(k);
-      }
     }
     return next();
   });

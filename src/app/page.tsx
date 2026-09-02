@@ -6,7 +6,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function RootPage() {
-  const [status, setStatus] = useState<"checking" | "setting-up" | "ready" | "error">("checking");
+  const [status, setStatus] = useState<"checking" | "ready" | "error">("checking");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -44,32 +44,16 @@ export default function RootPage() {
             return;
           }
 
-          setStatus("setting-up");
-          setMessage("Setting up database for the first time…");
-
-          const setupRes = await fetch("/api/setup");
-          const setupData = await setupRes.json();
-
-          // In production, setup may require a secret (403)
-          if (setupRes.status === 403) {
-            setStatus("error");
-            setMessage(
-              "Database needs setup. An administrator must run: " +
-              "curl /api/setup?secret=SETUP_SECRET " +
-              "(set SETUP_SECRET in your environment variables)"
-            );
-            return;
-          }
-
-          if (setupData.error) {
-            setStatus("error");
-            setMessage(setupData.error);
-            return;
-          }
-
-          // Setup succeeded — go to login
-          setStatus("ready");
-          window.location.href = "/login";
+          // Schema is missing — migrations have not been applied. The old
+          // flow tried GET /api/setup here, which could never succeed (the
+          // route required an x-setup-secret header a browser never sends)
+          // and, even when invoked correctly, applied unversioned runtime
+          // DDL. Runtime schema patching is retired: say the command.
+          setStatus("error");
+          setMessage(
+            "Database schema is not applied. An administrator must run: " +
+            "npx prisma migrate deploy (see DEPLOY.md)"
+          );
           return;
         }
 
@@ -86,15 +70,6 @@ export default function RootPage() {
 
   if (status === "checking") {
     return <AppLoadingScreen />;
-  }
-
-  if (status === "setting-up") {
-    return (
-      <AppLoadingScreen
-        message={message}
-        submessage="This one-time initialization will complete shortly."
-      />
-    );
   }
 
   if (status === "error") {
