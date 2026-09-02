@@ -402,7 +402,7 @@ describe("finance.cashFlow — outflow completeness (B6 regression)", () => {
     ]);
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     anyDb.payrollRun.findMany.mockResolvedValue([
-      { month: monthKey, disbursedAmount: 700, totalNetPayable: 700 },
+      { period: monthKey, disbursedAmount: 700, totalNetPayable: 700 },
     ]);
     anyDb.siteExpense.findMany.mockResolvedValue([
       { totalAmount: 200, date: now },

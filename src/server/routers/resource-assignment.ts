@@ -28,7 +28,7 @@ export const resourceAssignmentRouter = router({
         where: { taskId: input.taskId },
         include: {
           staffRole: { select: { id: true, name: true, category: true, headcount: true, chainageFrom: true, chainageTo: true } },
-          staff: { select: { id: true, name: true, designation: true, category: true, dailyWage: true } },
+          person: { select: { id: true, displayName: true, category: true, phone: true } },
           equipment: { select: { id: true, name: true, code: true, type: true, status: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -102,7 +102,7 @@ export const resourceAssignmentRouter = router({
   assignStaff: protectedProcedure
     .input(z.object({
       taskId: z.string(),
-      staffId: z.string(),
+      personId: z.string(), // workforce identity (ADR-0005) — must be actively assigned to this project
       staffRoleId: z.string().optional(), // optional: link to the role this person is filling
       quantity: z.number().min(1).default(1),
       startDate: z.string().datetime().optional(),
@@ -122,25 +122,34 @@ export const resourceAssignmentRouter = router({
         throw authErrorToTRPC(err);
       }
 
-      const staff = await db.staff.findUnique({
-        where: { id: input.staffId },
-        select: { id: true, projectId: true, name: true },
+      // The person must hold an ACTIVE assignment on this project — execution
+      // assignment follows engagement, never bypasses it.
+      const assignment = await db.projectStaffAssignment.findFirst({
+        where: { personId: input.personId, projectId: task.projectId, status: "active" },
+        select: { id: true },
       });
-      if (!staff || staff.projectId !== task.projectId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Staff not found in this project." });
+      if (!assignment) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Person has no active assignment on this project." });
+      }
+      const person = await db.person.findUnique({
+        where: { id: input.personId },
+        select: { id: true, displayName: true },
+      });
+      if (!person) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Person not found." });
       }
 
-      const assignment = await db.resourceAssignment.create({
+      const created = await db.resourceAssignment.create({
         data: {
           taskId: input.taskId,
-          staffId: input.staffId,
+          personId: input.personId,
           staffRoleId: input.staffRoleId || null,
           quantity: input.quantity,
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           notes: input.notes,
         },
-        include: { staff: true, staffRole: true },
+        include: { person: true, staffRole: true },
       });
 
       await audit({
@@ -149,10 +158,10 @@ export const resourceAssignmentRouter = router({
         action: "gantt.assignStaff",
         entityType: "gantt_task",
         entityId: input.taskId,
-        metadata: { staff: staff.name },
+        metadata: { person: person.displayName },
       });
 
-      return { assignment };
+      return { assignment: created };
     }),
 
   /** Assign equipment to a task. */
@@ -253,7 +262,7 @@ export const resourceAssignmentRouter = router({
         include: {
           task: { select: { id: true, name: true, code: true, startDate: true, endDate: true } },
           staffRole: { select: { id: true, name: true, category: true, headcount: true } },
-          staff: { select: { id: true, name: true, designation: true } },
+          person: { select: { id: true, displayName: true, category: true } },
           equipment: { select: { id: true, name: true, code: true, type: true } },
         },
         orderBy: { createdAt: "asc" },

@@ -29,8 +29,9 @@ import { formatNpr } from "@/lib/currency";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 type AttendanceItem = {
-  staffId: string;
-  staffName: string;
+  assignmentId: string;
+  personId: string;
+  name: string;
   designation: string | null;
   category: string | null;
   employmentType: string;
@@ -59,7 +60,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (data?.items) {
-      setItems(data.items as AttendanceItem[]);
+      setItems(data.items as unknown as AttendanceItem[]);
       setIsDirty(false);
     }
   }, [data]);
@@ -79,9 +80,9 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
     setSelectedDate(format(shifted, "yyyy-MM-dd"));
   };
 
-  const updateItemByStaffId = (staffId: string, updates: Partial<AttendanceItem>) => {
+  const updateItemByAssignmentId = (assignmentId: string, updates: Partial<AttendanceItem>) => {
     setItems((prev) =>
-      prev.map((item) => (item.staffId === staffId ? { ...item, ...updates } : item))
+      prev.map((item) => (item.assignmentId === assignmentId ? { ...item, ...updates } : item))
     );
     setIsDirty(true);
   };
@@ -103,7 +104,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
 
   const handleSave = () => {
     const payload = items.map((i) => ({
-      staffId: i.staffId,
+      assignmentId: i.assignmentId,
       status: i.status,
       hours: i.hours,
       overtime: i.overtime,
@@ -141,11 +142,11 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
 
   const columns: ConstructionTableColumn<AttendanceItem>[] = [
     {
-      key: "staffName",
+      key: "name",
       header: "Worker Name",
       render: (_, item) => (
         <div>
-          <span className="font-sans font-medium text-foreground">{item.staffName}</span>
+          <span className="font-sans font-medium text-foreground">{item.name}</span>
           {item.designation && (
             <span className="block text-[10px] text-muted-foreground font-normal">
               {item.designation}
@@ -191,7 +192,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
         <div className="flex items-center justify-center gap-1">
           <button
             type="button"
-            onClick={() => updateItemByStaffId(item.staffId, { status: "present", hours: 8 })}
+            onClick={() => updateItemByAssignmentId(item.assignmentId, { status: "present", hours: 8 })}
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "present"
@@ -203,7 +204,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => updateItemByStaffId(item.staffId, { status: "half_day", hours: 4 })}
+            onClick={() => updateItemByAssignmentId(item.assignmentId, { status: "half_day", hours: 4 })}
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "half_day"
@@ -215,7 +216,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => updateItemByStaffId(item.staffId, { status: "absent", hours: 0, overtime: 0 })}
+            onClick={() => updateItemByAssignmentId(item.assignmentId, { status: "absent", hours: 0, overtime: 0 })}
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "absent"
@@ -227,7 +228,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => updateItemByStaffId(item.staffId, { status: "leave", hours: 0, overtime: 0 })}
+            onClick={() => updateItemByAssignmentId(item.assignmentId, { status: "leave", hours: 0, overtime: 0 })}
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "leave"
@@ -240,7 +241,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           <button
             type="button"
             onClick={() =>
-              updateItemByStaffId(item.staffId, {
+              updateItemByAssignmentId(item.assignmentId, {
                 status: "overtime",
                 hours: 8,
                 overtime: item.overtime > 0 ? item.overtime : 2,
@@ -268,7 +269,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           min="0"
           max="24"
           value={item.hours}
-          onChange={(e) => updateItemByStaffId(item.staffId, { hours: parseFloat(e.target.value) || 0 })}
+          onChange={(e) => updateItemByAssignmentId(item.assignmentId, { hours: parseFloat(e.target.value) || 0 })}
           className="h-6 w-14 text-xs text-right font-mono p-1"
         />
       ),
@@ -284,7 +285,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           max="16"
           step="0.5"
           value={item.overtime}
-          onChange={(e) => updateItemByStaffId(item.staffId, { overtime: parseFloat(e.target.value) || 0 })}
+          onChange={(e) => updateItemByAssignmentId(item.assignmentId, { overtime: parseFloat(e.target.value) || 0 })}
           className={cn(
             "h-6 w-16 text-xs text-right font-mono p-1",
             item.overtime > 0 && "font-bold text-info border-info/40"
@@ -328,7 +329,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
         <Input
           type="text"
           value={item.remarks}
-          onChange={(e) => updateItemByStaffId(item.staffId, { remarks: e.target.value })}
+          onChange={(e) => updateItemByAssignmentId(item.assignmentId, { remarks: e.target.value })}
           placeholder="e.g. Pier 4 concrete"
           className="h-6 text-[10px] p-1.5"
         />
@@ -471,7 +472,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
         columns={columns}
         isLoading={isLoading}
         searchPlaceholder="Search daily attendance by worker name, trade, gang..."
-        searchFilterKeys={["staffName", "designation", "gangName", "category", "remarks"]}
+        searchFilterKeys={["name", "designation", "gangName", "category", "remarks"]}
       />
     </div>
   );

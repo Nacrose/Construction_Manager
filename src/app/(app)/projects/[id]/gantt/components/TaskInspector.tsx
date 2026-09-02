@@ -663,10 +663,10 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                       <span className="text-muted-foreground shrink-0">×{a.quantity}</span>
                     </>
                   )}
-                  {a.staff && !a.staffRole && (
+                  {a.person && !a.staffRole && (
                     <>
                       <Users className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
-                      <span className="font-medium truncate flex-1">{a.staff.name}</span>
+                      <span className="font-medium truncate flex-1">{a.person.displayName}</span>
                     </>
                   )}
                   {a.equipment && (
@@ -718,7 +718,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                   value=""
                   onChange={(e) => {
                     if (e.target.value) {
-                      assignStaffMutation.mutate({ taskId: task.id, staffId: e.target.value });
+                      assignStaffMutation.mutate({ taskId: task.id, personId: e.target.value });
                     }
                   }}
                   disabled={assignStaffMutation.isPending}
@@ -726,7 +726,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                 >
                   <option value="">+ Assign person…</option>
                   {staffData.staff.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <option key={s.personId} value={s.personId}>
                       {s.name}{s.designation ? ` (${s.designation})` : ""}
                     </option>
                   ))}

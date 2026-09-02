@@ -108,7 +108,7 @@ export type RfiResponseEntry = {
   response: string;
   decision: string;
   createdAt: Date | string;
-  responder: { id: string; name: string; role: string } | null;
+  responder: { id: string; name: string } | null;
 };
 
 export type RfiDetail = {
@@ -136,7 +136,7 @@ export type RfiDetail = {
   costImpact: boolean;
   scheduleImpact: boolean;
   project: { id: string; name: string; code: string };
-  createdBy: { id: string; name: string; role: string } | null;
+  createdBy: { id: string; name: string } | null;
   ganttTask: { id: string; code: string | null; name: string } | null;
   boqItem: { id: string; code: string; description: string; unit: string } | null;
   drawing: { id: string; number: string; title: string; revision: string } | null;

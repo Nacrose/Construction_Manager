@@ -34,7 +34,7 @@ const LEAVE_TYPES = ["casual", "sick", "paid", "unpaid", "emergency", "maternity
 export interface LeaveRecord {
   id: string;
   projectId: string;
-  staffId: string;
+  personId: string;
   leaveType: string;
   startDate: string | Date;
   endDate: string | Date;
@@ -42,9 +42,8 @@ export interface LeaveRecord {
   reason?: string | null;
   status: string;
   approvedById?: string | null;
-  staff: {
-    name: string;
-    designation: string | null;
+  person: {
+    displayName: string;
     category: string | null;
   };
   approvedBy?: {
@@ -59,7 +58,7 @@ export function LeavesTab({
   canWrite = false,
 }: {
   projectId: string;
-  staffList: Array<{ id: string; name: string; designation: string | null; category: string | null }>;
+  staffList: Array<{ id: string; personId: string; name: string; designation: string | null; category: string | null }>;
   isAdmin?: boolean;
   canWrite?: boolean;
 }) {
@@ -67,7 +66,7 @@ export function LeavesTab({
   const [addOpen, setAddOpen] = useState(false);
 
   // Form states
-  const [staffId, setStaffId] = useState("");
+  const [personId, setPersonId] = useState("");
   const [leaveType, setLeaveType] = useState("casual");
   const [startDate, setStartDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -122,13 +121,13 @@ export function LeavesTab({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!staffId) {
+    if (!personId) {
       toast.error("Please select a worker");
       return;
     }
     createMut.mutate({
       projectId,
-      staffId,
+      personId,
       leaveType,
       startDate,
       endDate,
@@ -141,14 +140,14 @@ export function LeavesTab({
       {
         key: "staffName",
         header: "Worker Name",
-        accessor: (row) => row.staff.name,
+        accessor: (row) => row.person.displayName,
         sortable: true,
         render: (_, row) => (
           <div className="font-sans">
-            <span className="font-semibold text-foreground text-xs">{row.staff.name}</span>
-            {row.staff.designation && (
-              <span className="block text-[10px] text-muted-foreground font-mono">
-                {row.staff.designation}
+            <span className="font-semibold text-foreground text-xs">{row.person.displayName}</span>
+            {row.person.category && (
+              <span className="block text-[10px] text-muted-foreground font-mono capitalize">
+                {row.person.category}
               </span>
             )}
           </div>
@@ -235,7 +234,7 @@ export function LeavesTab({
                       open: true,
                       type: "approve",
                       id: leave.id,
-                      employeeName: leave.staff.name,
+                      employeeName: leave.person.displayName,
                       dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
                     })
                   }
@@ -252,7 +251,7 @@ export function LeavesTab({
                       open: true,
                       type: "reject",
                       id: leave.id,
-                      employeeName: leave.staff.name,
+                      employeeName: leave.person.displayName,
                       dates: `${format(new Date(leave.startDate), "dd MMM")} – ${format(new Date(leave.endDate), "dd MMM yyyy")}`,
                     })
                   }
@@ -376,13 +375,13 @@ export function LeavesTab({
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-foreground/90">Select Worker / Staff *</Label>
-            <Select value={staffId} onValueChange={setStaffId} required>
+            <Select value={personId} onValueChange={setPersonId} required>
               <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono rounded-xl">
                 <SelectValue placeholder="Choose personnel..." />
               </SelectTrigger>
               <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                 {staffList.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <SelectItem key={s.personId} value={s.personId}>
                     {s.name} ({s.designation || s.category || "Staff"})
                   </SelectItem>
                 ))}

@@ -46,7 +46,7 @@ export type AdvancesByStaff = {
 };
 
 export type PayrollLine = {
-  staffId: string;
+  personId: string; // ADR-0005: payroll lines are person-grain
   staffName: string;
   designation: string | null;
   category: string | null;
@@ -209,7 +209,7 @@ export function computePayrollLine(
   const netPayable = Math.max(0, gross - totalDeductions);
 
   return {
-    staffId: staff.id,
+    personId: staff.id,
     staffName: staff.name,
     designation: staff.designation,
     category: staff.category,

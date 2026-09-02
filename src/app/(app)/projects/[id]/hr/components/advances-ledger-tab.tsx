@@ -33,7 +33,7 @@ export function AdvancesLedgerTab({
   staffList = [],
 }: {
   projectId: string;
-  staffList: Array<{ id: string; name: string; designation: string | null; category: string | null }>;
+  staffList: Array<{ id: string; personId: string; name: string; designation: string | null; category: string | null }>;
 }) {
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<string>("all");
   const [recoveredFilter, setRecoveredFilter] = useState<string>("all");
@@ -50,15 +50,15 @@ export function AdvancesLedgerTab({
 
   const { data, isLoading, refetch, isFetching } = trpc.hr.getStaffAdvances.useQuery({
     projectId,
-    staffId: selectedStaffFilter === "all" ? undefined : selectedStaffFilter,
+    personId: selectedStaffFilter === "all" ? undefined : selectedStaffFilter,
     isRecovered: recoveredFilter === "all" ? undefined : recoveredFilter === "recovered",
   });
 
   const advances = data?.advances || [];
   const totalPending = data?.totalPendingAdvances || 0;
   const totalRecovered = advances
-    .filter((a) => a.isRecovered)
-    .reduce((s, a) => s + a.amount, 0);
+    .filter((a) => a.recoveredAmount >= a.amount)
+    .reduce((s, a) => s + a.recoveredAmount, 0);
 
   const createMut = trpc.hr.createStaffAdvance.useMutation({
     onSuccess: () => {
@@ -92,7 +92,7 @@ export function AdvancesLedgerTab({
 
     createMut.mutate({
       projectId,
-      staffId: targetStaffId,
+      personId: targetStaffId,  // advances belong to the person (ADR-0007)
       amount,
       date: advanceDate,
       type: advanceType,
@@ -128,10 +128,10 @@ export function AdvancesLedgerTab({
       header: "Worker Name",
       render: (_, item) => (
         <div>
-          <span className="font-sans font-medium text-foreground">{item.staff.name}</span>
-          {item.staff.designation && (
-            <span className="block text-[10px] text-muted-foreground font-normal font-mono">
-              {item.staff.designation}
+          <span className="font-sans font-medium text-foreground">{item.person.displayName}</span>
+          {item.person.category && (
+            <span className="block text-[10px] text-muted-foreground font-normal font-mono capitalize">
+              {item.person.category}
             </span>
           )}
         </div>
@@ -171,7 +171,7 @@ export function AdvancesLedgerTab({
       header: "Status",
       align: "center",
       render: (_, item) =>
-        item.isRecovered ? (
+        item.recoveredAmount >= item.amount ? (
           <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1 font-mono">
             <CheckCircle2 className="h-2.5 w-2.5" /> Recovered
           </Badge>
@@ -186,7 +186,7 @@ export function AdvancesLedgerTab({
       header: "Actions",
       align: "right",
       render: (_, item) => {
-        if (item.isRecovered) return null;
+        if (item.recoveredAmount >= item.amount) return null;
         return (
           <Button
             size="sm"
@@ -214,7 +214,7 @@ export function AdvancesLedgerTab({
             <SelectContent>
               <SelectItem value="all">All Personnel</SelectItem>
               {staffList.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
+                <SelectItem key={s.personId} value={s.personId}>
                   {s.name}
                 </SelectItem>
               ))}
@@ -295,7 +295,7 @@ export function AdvancesLedgerTab({
               </SelectTrigger>
               <SelectContent>
                 {staffList.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <SelectItem key={s.personId} value={s.personId}>
                     {s.name} ({s.designation || s.category || "Labor"})
                   </SelectItem>
                 ))}

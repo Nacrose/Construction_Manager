@@ -141,7 +141,7 @@ const dailyReportCoreRouter = router({
         where: { id: input.reportId },
         include: {
           project: { select: { id: true, name: true, code: true, client: true } },
-          createdBy: { select: { id: true, name: true, role: true } },
+          createdBy: { select: { id: true, name: true } },
           attachments: {
             orderBy: { uploadedAt: "desc" },
             // Select only metadata columns — NOT the `data` base64 column.

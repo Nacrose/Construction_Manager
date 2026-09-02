@@ -69,6 +69,11 @@ const covered: string[] = TRACKER.covered ?? [];
 const excluded: string[] = Object.keys(TRACKER.excluded ?? {});
 const plannedBuckets = TRACKER.planned as Record<string, string[]> | undefined;
 const planned: string[] = Object.values(plannedBuckets ?? {}).flat();
+// Tables whose RLS SQL exists only in HISTORICAL migrations and whose model
+// was dropped by a later migration (e.g. the ADR-0008 clean break). They
+// are tracked so the drift guard can distinguish "stale rename" from
+// "intentionally dropped".
+const dropped: string[] = Object.keys(TRACKER.dropped ?? {});
 
 // ── RLS statements present in migration SQL ──
 const migrationsDir = path.join(ROOT, "prisma/migrations");
@@ -127,8 +132,10 @@ describe("RLS drift guard (schema ↔ tracker ↔ migrations)", () => {
   });
 
   it("every table with RLS SQL in migrations is a scoped, covered model", () => {
+    const tableOfDropped = new Set(dropped.map((m) => TABLE_OF[m] ?? m));
     const modelOfTable = new Map(Object.entries(TABLE_OF).map(([m, t]) => [t, m]));
     const stray = [...rlsEnabledTables].filter((t) => {
+      if (tableOfDropped.has(t)) return false; // historical — model dropped by a later migration
       const model = modelOfTable.get(t) ?? t;
       return !scopedModels.has(model) || !covered.includes(model);
     });

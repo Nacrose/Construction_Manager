@@ -772,25 +772,10 @@ async function captureReportCosts(
 
   if (report.workforce && report.workforce.length > 0) {
     try {
-      const staffIds = report.workforce
-        .filter((w: any) => w.staffId)
-        .map((w: any) => w.staffId);
-      const staffMap = new Map<
-        string,
-        { dailyWage: number; name: string; category: string | null }
-      >();
-      if (staffIds.length > 0) {
-        const staff = await db.staff.findMany({
-          where: { id: { in: staffIds } },
-          select: { id: true, name: true, dailyWage: true, category: true },
-        });
-        for (const s of staff)
-          staffMap.set(s.id, {
-            dailyWage: s.dailyWage,
-            name: s.name,
-            category: s.category,
-          });
-      }
+      // ADR-0007: daily-report workforce rows are aggregate crew entries
+      // (company/trade/skill/headcount) and never carried a person pointer;
+      // wages resolve via skill + project rates. Person-grain labor cost
+      // flows exclusively through payroll allocations.
 
       let totalLaborCost = 0;
       let totalHeadcount = 0;
@@ -800,12 +785,7 @@ async function captureReportCosts(
         const otHours = Number(w.otHours) || 0;
         totalHeadcount += headcount;
 
-        const dailyWage = getLaborWage(
-          w.staffId ? staffMap.get(w.staffId)?.dailyWage : null,
-          w.skill,
-          staffMap.get(w.staffId)?.category ?? undefined,
-          projectRates
-        );
+        const dailyWage = getLaborWage(null, w.skill, undefined, projectRates);
 
         const hourlyRate = dailyWage / 8;
         const otRate = hourlyRate * 1.5;

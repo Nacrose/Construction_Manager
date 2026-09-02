@@ -295,7 +295,7 @@ export const materialCrudProcedures = {
     .query(async ({ ctx, input }) => {
       const user = await db.user.findUnique({
         where: { id: ctx.user.id },
-        select: { organizationId: true, role: true },
+        select: { organizationId: true },
       });
 
       if (!user?.organizationId) {

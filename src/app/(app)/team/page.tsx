@@ -26,19 +26,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const ROLE_LABELS: Record<string, string> = {
-  project_manager: "Project Manager",
-  engineer: "Engineer",
-  coordinator: "Coordinator",
-  client: "Client",
-  inspector: "Inspector",
+  owner: "Owner",
+  org_admin: "Org Admin",
+  member: "Member",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  project_manager: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
-  engineer: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  client: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
-  inspector: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+  owner: "bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/20",
+  org_admin: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
+  member: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
 };
 
 export default function TeamPage() {
@@ -54,7 +50,6 @@ export default function TeamPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("engineer");
 
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -89,7 +84,7 @@ export default function TeamPage() {
     onSuccess: () => {
       utils.project.listOrgUsers.invalidate();
       setAddOpen(false);
-      setName(""); setEmail(""); setPassword(""); setRole("engineer");
+      setName(""); setEmail(""); setPassword("");
       toast.success("User created");
     },
     onError: (e) => toast.error(e.message),
@@ -175,24 +170,11 @@ export default function TeamPage() {
                     <Input value={password} onChange={(e) => setPassword(e.target.value)} type="text" placeholder="At least 8 characters" className="h-9 text-sm" />
                     <p className="text-[10px] text-muted-foreground">Share this password with the user. They can change it after logging in.</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Role</Label>
-                    <Select value={role} onValueChange={setRole}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="project_manager">Project Manager</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
-                        <SelectItem value="coordinator">Coordinator</SelectItem>
-                        <SelectItem value="client">Client (Read-only)</SelectItem>
-                        <SelectItem value="inspector">Inspector</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
                   <Button
-                    onClick={() => createMut.mutate({ name, email, password, role: role as any })}
+                    onClick={() => createMut.mutate({ name, email, password })}
                     disabled={createMut.isPending || !name || !email || !password}
                   >
                     {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
@@ -236,16 +218,14 @@ export default function TeamPage() {
                             <Select value={editRole} onValueChange={setEditRole}>
                               <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="project_manager">Project Manager</SelectItem>
-                                <SelectItem value="engineer">Engineer</SelectItem>
-                                <SelectItem value="coordinator">Coordinator</SelectItem>
-                                <SelectItem value="client">Client</SelectItem>
-                                <SelectItem value="inspector">Inspector</SelectItem>
+                                <SelectItem value="owner">Owner</SelectItem>
+                                <SelectItem value="org_admin">Org Admin</SelectItem>
+                                <SelectItem value="member">Member</SelectItem>
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge className={cn("text-[10px] capitalize", ROLE_COLORS[u.role] || "bg-muted")}>
-                              {ROLE_LABELS[u.role] || u.role}
+                            <Badge className={cn("text-[10px] capitalize", ROLE_COLORS[u.orgRole] || "bg-muted")}>
+                              {ROLE_LABELS[u.orgRole] || u.orgRole}
                             </Badge>
                           )}
                         </TableCell>
@@ -263,7 +243,7 @@ export default function TeamPage() {
                           <div className="flex items-center justify-center gap-1">
                             {editUserId === u.id ? (
                               <>
-                                <Button size="sm" className="h-6 text-[10px]" onClick={() => updateRoleMut.mutate({ userId: u.id, role: editRole as any })}>
+                                <Button size="sm" className="h-6 text-[10px]" onClick={() => updateRoleMut.mutate({ userId: u.id, orgRole: editRole as any })}>
                                   Save
                                 </Button>
                                 <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setEditUserId(null)}>
@@ -273,7 +253,7 @@ export default function TeamPage() {
                             ) : (
                               <>
                                 <button
-                                  onClick={() => { setEditUserId(u.id); setEditRole(u.role); }}
+                                  onClick={() => { setEditUserId(u.id); setEditRole(u.orgRole); }}
                                   className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                                   title="Change role"
                                 >

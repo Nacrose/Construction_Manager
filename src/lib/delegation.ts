@@ -180,10 +180,11 @@ export async function assertDelegation(
   if (rule) {
     if (rule.allowedRoles.length > 0) {
       const userOrgRole = user.orgRole || "";
-      const userProjectRole = user.role || "";
+      // ADR-0005: user-level project roles no longer exist — delegation
+      // role checks key on the org role only. (allowedRoles itself is
+      // removed by the policy phase, ADR-0004.)
       const hasRole =
         rule.allowedRoles.includes(userOrgRole) ||
-        rule.allowedRoles.includes(userProjectRole) ||
         userOrgRole === "org_admin" ||
         userOrgRole === "owner";
       if (!hasRole) {

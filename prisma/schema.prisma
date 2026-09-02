@@ -37,32 +37,46 @@ model Notification {
 // ─────────────────────────────────────────────────────────────
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  logoUrl   String?
-  status    String   @default("active") // active | archived
+  id              String   @id @default(cuid())
+  name            String
+  code            String   @unique
+  logoUrl         String?
+  status          String   @default("active") // active | archived
   // Setup Wizard & Operating Model Fields
   orgScale        String   @default("multi_project") // "single_project_jv" | "multi_project"
-  partnershipType String   @default("sole")          // "sole" | "lead_partner_jv" | "joint_jv"
-  financeLocation String   @default("centralized")   // "centralized" | "site_autonomous" | "imprest_only"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  partnershipType String   @default("sole") // "sole" | "lead_partner_jv" | "joint_jv"
+  financeLocation String   @default("centralized") // "centralized" | "site_autonomous" | "imprest_only"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  // ─── Operating Model & Financial Delegation ───────────
-  // Controls how finance/procurement authority is distributed
-  // between HQ and site teams.
-  operatingModel     String  @default("decentralized_site_and_hq")
+  // ─── Operating Method (ADR-0004) ─────────────────────
+  // Workflow template, NOT a contractor-size class. Exactly three
+  // values; resolves to the OperatingCapabilities map through the
+  // ACTIVE OrganizationPolicyVersion. Prospective-only: new work binds
+  // to the active version, posted history is never reinterpreted.
+  operatingMethod       String                     @default("owner_led") // owner_led | crew_led | delegated
+  activePolicyVersion   OrganizationPolicyVersion? @relation("ActivePolicyVersion", fields: [activePolicyVersionId], references: [id], onDelete: SetNull)
+  activePolicyVersionId String?                    @unique // one active version per org
+
+  // DEPRECATED (ADR-0004): legacy four-value workflow vocabulary.
+  // Kept only until the policy phase (C) removes it; do not read in
+  // new code — use resolveCapabilities(org) instead.
+  operatingModel String @default("decentralized_site_and_hq")
   // "hq_centralized_imprest"   — HQ does all finance/procurement; site logs petty cash only
   // "hybrid_daybook_hq_procure" — Site + HQ both log Day Book; HQ manages bulk procurement
   // "decentralized_site_and_hq" — Site PMs have full local authority (default)
   // "single_project_jv"        — JV SPV mode (Phase 3 — not yet implemented)
 
-  sitePettyCashLimit Decimal @db.Decimal(15, 2) @default(25000.0)
+  sitePettyCashLimit Decimal @default(25000.0) @db.Decimal(15, 2)
   // Maximum single voucher amount a Site Engineer can create without HQ approval.
-  // Only enforced when operatingModel = "hq_centralized_imprest".
+  // Only enforced when financeLocation = "imprest_only".
 
+  policyVersions       OrganizationPolicyVersion[]
   users                User[]
+  persons              Person[]
+  leaveBalances        LeaveBalance[]
+  payrollRuns          PayrollRun[]
+  payrollPersonRecords PayrollPersonRecord[]
   projects             Project[]
   reportTemplates      ReportTemplate[]
   rateProfiles         RateProfile[]
@@ -85,14 +99,14 @@ model Organization {
 // ─────────────────────────────────────────────────────────────
 
 model DelegationRule {
-  id              String   @id @default(cuid())
-  organizationId  String
-  action          String   // e.g. "create_payment", "create_vendor_bill", "create_po", "create_site_expense"
-  maxAmount Decimal? @db.Decimal(15, 2) // null = unlimited; 0 = blocked entirely
-  allowedRoles    String   @default("[]") // JSON array: ["project_manager","coordinator","engineer"]
-  siteScopedOnly   Boolean  @default(false) // true = only site-level roles (engineer), not HQ
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  action         String // e.g. "create_payment", "create_vendor_bill", "create_po", "create_site_expense"
+  maxAmount      Decimal? @db.Decimal(15, 2) // null = unlimited; 0 = blocked entirely
+  allowedRoles   String   @default("[]") // JSON array: ["project_manager","coordinator","engineer"]
+  siteScopedOnly Boolean  @default(false) // true = only site-level roles (engineer), not HQ
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -216,7 +230,7 @@ model MarketRateRevisionLog {
   effectiveDate   DateTime @default(now())
   loggedAt        DateTime @default(now())
   loggedById      String
-  totalCostImpact Decimal @db.Decimal(15, 2) @default(0)
+  totalCostImpact Decimal  @default(0) @db.Decimal(15, 2)
   notes           String?
 
   project  Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -227,15 +241,15 @@ model MarketRateRevisionLog {
 }
 
 model MarketRateRevisionEntry {
-  id                    String @id @default(cuid())
+  id                    String  @id @default(cuid())
   revisionLogId         String
   materialName          String
   district              String
-  oldMarketRate Decimal @db.Decimal(15, 4)
-  newMarketRate Decimal @db.Decimal(15, 4)
-  rateDelta Decimal @db.Decimal(15, 4)
-  estimatedRemainingQty Decimal @db.Decimal(15, 4) @default(0)
-  costImpact Decimal @db.Decimal(15, 2) @default(0)
+  oldMarketRate         Decimal @db.Decimal(15, 4)
+  newMarketRate         Decimal @db.Decimal(15, 4)
+  rateDelta             Decimal @db.Decimal(15, 4)
+  estimatedRemainingQty Decimal @default(0) @db.Decimal(15, 4)
+  costImpact            Decimal @default(0) @db.Decimal(15, 2)
 
   revisionLog MarketRateRevisionLog @relation(fields: [revisionLogId], references: [id], onDelete: Cascade)
 
@@ -289,10 +303,9 @@ model User {
   email             String    @unique
   name              String
   passwordHash      String
-  role              String    @default("engineer") // project_manager | engineer | coordinator | client | inspector
   avatarUrl         String?
   organizationId    String? // null = not yet assigned to an org
-  orgRole           String    @default("member") // org_admin | member
+  orgRole           String    @default("member") // owner | org_admin | member
   isSuperAdmin      Boolean   @default(false) // platform operator (cross-org)
   lastActiveAt      DateTime? // last time the user hit any API endpoint (presence)
   deactivatedAt     DateTime? // null = active; set when admin deactivates
@@ -301,35 +314,36 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  organization         Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  sessions             Session[]
-  pushSubscriptions    PushSubscription[]
-  memberships          ProjectMember[]
-  createdProjects      Project[]               @relation("ProjectCreatedBy")
-  rfis                 Rfi[]                   @relation("RfiCreatedBy")
-  rfiResponses         RfiResponse[]
-  rfiComments          RfiComment[]
-  dailyReports         DailyReport[]           @relation("ReportCreatedBy")
-  materialTransactions MaterialTransaction[]
-  auditLogs            AuditLog[]
-  approvedVersions     GanttVersion[]          @relation("ApprovedBy")
-  notifications        Notification[]
-  reportTemplates      ReportTemplate[]        @relation("ReportTemplateOwner")
-  approvedDocuments    ApprovedDocument[]      @relation("ApprovedDocUploadedBy")
-  projectCosts         ProjectCost[]           @relation("ProjectCostCreatedBy")
-  chatMemberships      ChatMember[]            @relation("ChatMemberUser")
-  chatMessages         ChatMessage[]           @relation("ChatMessageUser")
-  chatReadReceipts     ChatReadReceipt[]       @relation("ChatReadReceiptUser")
-  requisitionsCreated  PurchaseRequisition[]   @relation("RequisitionCreatedBy")
-  requisitionsApproved PurchaseRequisition[]   @relation("RequisitionApprovedBy")
-  vendorPayments       VendorPayment[]
-  subcontractorPayments SubcontractorPayment[]
-  materialMergeLogs    MaterialMergeLog[]
-  marketRateRevisions  MarketRateRevisionLog[]
-  ganttTemplates       GanttTaskTemplate[]
-  leaveApprovedBy      LeaveRequest[]          @relation("LeaveApprovedBy")
-  leaveCreatedBy       LeaveRequest[]          @relation("LeaveCreatedBy")
-  expensesApprovedBy   SiteExpense[]           @relation("ExpenseApprovedBy")
+  organization                 Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  personProfile                Person?                 @relation("PersonLinkedUser") // optional workforce identity link — grants NO permission (ADR-0005)
+  sessions                     Session[]
+  pushSubscriptions            PushSubscription[]
+  memberships                  ProjectMember[]
+  createdProjects              Project[]               @relation("ProjectCreatedBy")
+  rfis                         Rfi[]                   @relation("RfiCreatedBy")
+  rfiResponses                 RfiResponse[]
+  rfiComments                  RfiComment[]
+  dailyReports                 DailyReport[]           @relation("ReportCreatedBy")
+  materialTransactions         MaterialTransaction[]
+  auditLogs                    AuditLog[]
+  approvedVersions             GanttVersion[]          @relation("ApprovedBy")
+  notifications                Notification[]
+  reportTemplates              ReportTemplate[]        @relation("ReportTemplateOwner")
+  approvedDocuments            ApprovedDocument[]      @relation("ApprovedDocUploadedBy")
+  projectCosts                 ProjectCost[]           @relation("ProjectCostCreatedBy")
+  chatMemberships              ChatMember[]            @relation("ChatMemberUser")
+  chatMessages                 ChatMessage[]           @relation("ChatMessageUser")
+  chatReadReceipts             ChatReadReceipt[]       @relation("ChatReadReceiptUser")
+  requisitionsCreated          PurchaseRequisition[]   @relation("RequisitionCreatedBy")
+  requisitionsApproved         PurchaseRequisition[]   @relation("RequisitionApprovedBy")
+  vendorPayments               VendorPayment[]
+  subcontractorPayments        SubcontractorPayment[]
+  materialMergeLogs            MaterialMergeLog[]
+  marketRateRevisions          MarketRateRevisionLog[]
+  ganttTemplates               GanttTaskTemplate[]
+  leaveApprovedBy              LeaveRequest[]          @relation("LeaveApprovedBy")
+  leaveCreatedBy               LeaveRequest[]          @relation("LeaveCreatedBy")
+  expensesApprovedBy           SiteExpense[]           @relation("ExpenseApprovedBy")
   expensesCreatedBy            SiteExpense[]           @relation("ExpenseCreatedBy")
   subBillsCreatedBy            SubcontractorBill[]     @relation("SubBillCreatedBy")
   dispatchedTransfers          InterSiteTransfer[]     @relation("DispatchedByUser")
@@ -384,7 +398,7 @@ model Project {
   code               String
   client             String?
   location           String?
-  contractValue Decimal? @db.Decimal(15, 2)
+  contractValue      Decimal?  @db.Decimal(15, 2)
   startDate          DateTime?
   endDate            DateTime?
   status             String    @default("active") // active | on_hold | completed | archived
@@ -394,95 +408,94 @@ model Project {
   createdAt          DateTime  @default(now())
   boqLocked          Boolean   @default(false)
   // Configurable cost rates per project
-  skilledWageRate Decimal? @db.Decimal(15, 4) // NPR/day for skilled workers
-  unskilledWageRate Decimal? @db.Decimal(15, 4) // NPR/day for unskilled workers
-  supervisorWageRate Decimal? @db.Decimal(15, 4) // NPR/day for supervisors
-  ownedEquipRate Decimal? @db.Decimal(15, 4) // NPR/hr for owned equipment
-  hiredEquipRate Decimal? @db.Decimal(15, 4) // NPR/hr for hired equipment
-  fuelPricePerLiter Decimal? @db.Decimal(15, 2) // NPR/liter for diesel
+  skilledWageRate    Decimal?  @db.Decimal(15, 4) // NPR/day for skilled workers
+  unskilledWageRate  Decimal?  @db.Decimal(15, 4) // NPR/day for unskilled workers
+  supervisorWageRate Decimal?  @db.Decimal(15, 4) // NPR/day for supervisors
+  ownedEquipRate     Decimal?  @db.Decimal(15, 4) // NPR/hr for owned equipment
+  hiredEquipRate     Decimal?  @db.Decimal(15, 4) // NPR/hr for hired equipment
+  fuelPricePerLiter  Decimal?  @db.Decimal(15, 2) // NPR/liter for diesel
   updatedAt          DateTime  @updatedAt
 
   // Default library for resource/cost calculations (Gantt, Procurement, Daily Program)
   costLibraryId String?
   costLibrary   AnalysisLibrary? @relation("ProjectCostLibrary", fields: [costLibraryId], references: [id], onDelete: SetNull)
 
-  organization         Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  createdBy            User                    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
-  members              ProjectMember[]
-  rfis                 Rfi[]
-  dailyReports         DailyReport[]
-  boqItems             BoqItem[]
-  ganttTasks           GanttTask[]
-  ganttVersions        GanttVersion[]
-  materials            Material[]
-  materialTransactions MaterialTransaction[]
-  suppliers            Supplier[]
-  purchaseOrders       PurchaseOrder[]
-  equipment            Equipment[]
-  equipmentLogs        EquipmentLog[]
-  equipmentMaintenance EquipmentMaintenance[]
-  documents            Document[]
-  transmittals         Transmittal[]
-  drawings             Drawing[]
-  ipcs                 Ipc[]
-  staff                Staff[]
-  staffAttendance      StaffAttendance[]
-  staffRoles           StaffRole[]
-  dailyPrograms        DailyProgram[]
-  rateProfiles         RateProfile[]
-  analysisLibraries    AnalysisLibrary[]
-  boqVersions          BoqVersion[]
-  auditLogs            AuditLog[]
-  gateEntries          GateEntry[]
-  subcontractors       Subcontractor[]
-  variationOrders      VariationOrder[]
-  reportTemplates      ReportTemplate[]
-  approvedDocuments    ApprovedDocument[]
-  projectCosts         ProjectCost[]
-  correspondences      Correspondence[]
-  drawingSets          DrawingSet[]
-  equipmentRentals     EquipmentRental[]
-  equipmentVendors     EquipmentVendor[]
-  equipmentSpotHires   EquipmentSpotHire[]
-  submittals           Submittal[]
-  punchItems           PunchItem[]
-  chatChannels         ChatChannel[]
-  payments             Payment[]
-  safetyIncidents      SafetyIncident[]
-  qualityInspections   QualityInspection[]
-  meetings             Meeting[]
-  leaveRequests        LeaveRequest[]
-  leaveBalances        LeaveBalance[]
-  siteExpenses         SiteExpense[]
-  subcontractorBills   SubcontractorBill[]
-  staffAdvances        StaffAdvance[]
-  payrollRuns          PayrollRun[]
-  partners             Partner[]
-  requisitions         PurchaseRequisition[]
-  storeLocations       StoreLocation[]
-  vendorBills          VendorBill[]
-  vendorPayments       VendorPayment[]
-  subcontractorPayments SubcontractorPayment[]
-  paymentCategories    PaymentCategory[]
-  vatBills             VatBill[]
-  rateBooks            RateBook[]
-  activeFiscalYear     String?
-  rateLockDate         DateTime?
-  financeMode          String    @default("autonomous") // "lean" | "imprest_only" | "autonomous"
-  enabledModules       Json      @default("{}")  // per-project module toggle map; missing key = enabled
-  marketRateRevisions  MarketRateRevisionLog[]
-  plants               Plant[]
-  plantMixDesigns      PlantMixDesign[]
-  plantBatchTickets    PlantBatchTicket[]
-  plantDailyLogs       PlantDailyLog[]
-  ganttTemplates       GanttTaskTemplate[]
-  bankGuarantees               BankGuarantee[]
-  jvAgreement                  JvPartnerAgreement?
-  operationalPreset            String                  @default("record_keeper") // "record_keeper" | "lean" | "enterprise"
-  outboundTransfers            InterSiteTransfer[]     @relation("OriginProjectTransfers")
-  inboundTransfers             InterSiteTransfer[]     @relation("DestinationProjectTransfers")
-  outboundEquipmentTransfers   EquipmentTransfer[]     @relation("OriginEquipmentTransfers")
-  inboundEquipmentTransfers    EquipmentTransfer[]     @relation("DestinationEquipmentTransfers")
+  organization               Organization?            @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy                  User                     @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  members                    ProjectMember[]
+  rfis                       Rfi[]
+  dailyReports               DailyReport[]
+  boqItems                   BoqItem[]
+  ganttTasks                 GanttTask[]
+  ganttVersions              GanttVersion[]
+  materials                  Material[]
+  materialTransactions       MaterialTransaction[]
+  suppliers                  Supplier[]
+  purchaseOrders             PurchaseOrder[]
+  equipment                  Equipment[]
+  equipmentLogs              EquipmentLog[]
+  equipmentMaintenance       EquipmentMaintenance[]
+  documents                  Document[]
+  transmittals               Transmittal[]
+  drawings                   Drawing[]
+  ipcs                       Ipc[]
+  staffAttendance            StaffAttendance[]
+  staffRoles                 StaffRole[]
+  dailyPrograms              DailyProgram[]
+  rateProfiles               RateProfile[]
+  analysisLibraries          AnalysisLibrary[]
+  boqVersions                BoqVersion[]
+  auditLogs                  AuditLog[]
+  gateEntries                GateEntry[]
+  subcontractors             Subcontractor[]
+  variationOrders            VariationOrder[]
+  reportTemplates            ReportTemplate[]
+  approvedDocuments          ApprovedDocument[]
+  projectCosts               ProjectCost[]
+  correspondences            Correspondence[]
+  drawingSets                DrawingSet[]
+  equipmentRentals           EquipmentRental[]
+  equipmentVendors           EquipmentVendor[]
+  equipmentSpotHires         EquipmentSpotHire[]
+  submittals                 Submittal[]
+  punchItems                 PunchItem[]
+  chatChannels               ChatChannel[]
+  payments                   Payment[]
+  safetyIncidents            SafetyIncident[]
+  qualityInspections         QualityInspection[]
+  meetings                   Meeting[]
+  leaveRequests              LeaveRequest[]
+  siteExpenses               SiteExpense[]
+  subcontractorBills         SubcontractorBill[]
+  staffAdvances              StaffAdvance[]
+  staffAssignments           ProjectStaffAssignment[]
+  payrollAllocations         PayrollAllocation[]
+  partners                   Partner[]
+  requisitions               PurchaseRequisition[]
+  storeLocations             StoreLocation[]
+  vendorBills                VendorBill[]
+  vendorPayments             VendorPayment[]
+  subcontractorPayments      SubcontractorPayment[]
+  paymentCategories          PaymentCategory[]
+  vatBills                   VatBill[]
+  rateBooks                  RateBook[]
+  activeFiscalYear           String?
+  rateLockDate               DateTime?
+  financeMode                String                   @default("autonomous") // "lean" | "imprest_only" | "autonomous"
+  enabledModules             Json                     @default("{}") // per-project module toggle map; missing key = enabled
+  marketRateRevisions        MarketRateRevisionLog[]
+  plants                     Plant[]
+  plantMixDesigns            PlantMixDesign[]
+  plantBatchTickets          PlantBatchTicket[]
+  plantDailyLogs             PlantDailyLog[]
+  ganttTemplates             GanttTaskTemplate[]
+  bankGuarantees             BankGuarantee[]
+  jvAgreement                JvPartnerAgreement?
+  operationalPreset          String                   @default("record_keeper") // "record_keeper" | "lean" | "enterprise"
+  outboundTransfers          InterSiteTransfer[]      @relation("OriginProjectTransfers")
+  inboundTransfers           InterSiteTransfer[]      @relation("DestinationProjectTransfers")
+  outboundEquipmentTransfers EquipmentTransfer[]      @relation("OriginEquipmentTransfers")
+  inboundEquipmentTransfers  EquipmentTransfer[]      @relation("DestinationEquipmentTransfers")
 
   @@unique([organizationId, code])
   @@index([status])
@@ -494,7 +507,7 @@ model ProjectMember {
   id        String   @id @default(cuid())
   projectId String
   userId    String
-  role      String // project_manager | engineer | coordinator | client | inspector
+  role      String // project_manager | engineer | coordinator — external parties (client/consultant/inspector) NEVER receive roles (ADR-0005)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -529,8 +542,8 @@ model Rfi {
   respondedAt         DateTime?
   inspectionStartTime DateTime?
   inspectionEndTime   DateTime?
-  pinX Decimal? @db.Decimal(15, 2) // x coordinate (0-1, percentage) on the linked drawing
-  pinY Decimal? @db.Decimal(15, 2) // y coordinate (0-1, percentage) on the linked drawing
+  pinX                Decimal?  @db.Decimal(15, 2) // x coordinate (0-1, percentage) on the linked drawing
+  pinY                Decimal?  @db.Decimal(15, 2) // y coordinate (0-1, percentage) on the linked drawing
   costImpact          Boolean   @default(false)
   scheduleImpact      Boolean   @default(false)
   createdAt           DateTime  @default(now())
@@ -566,7 +579,7 @@ model RfiItem {
   boqItemId   String? // linked BOQ item (for material/resource derivation)
   boqCode     String? // denormalized for display
   boqDesc     String? // denormalized for display
-  quantity Decimal? @db.Decimal(15, 4) // planned quantity for THIS RFI (portion of task total)
+  quantity    Decimal? @db.Decimal(15, 4) // planned quantity for THIS RFI (portion of task total)
   unit        String?
   paymentType String   @default("payable") // payable | unpayable | temporary
   remark      String?
@@ -701,8 +714,8 @@ model DailyReportWorkforce {
   trade     String
   skill     String
   headcount Int
-  regHours Decimal @db.Decimal(15, 4)
-  otHours Decimal @db.Decimal(15, 4)
+  regHours  Decimal @db.Decimal(15, 4)
+  otHours   Decimal @db.Decimal(15, 4)
   location  String?
   sortOrder Int     @default(0)
 
@@ -712,7 +725,7 @@ model DailyReportWorkforce {
 }
 
 model DailyReportProgress {
-  id              String  @id @default(cuid())
+  id              String   @id @default(cuid())
   reportId        String
   rfiId           String?
   rfiItemId       String?
@@ -721,19 +734,19 @@ model DailyReportProgress {
   boqCode         String?
   boqDesc         String?
   taskDescription String?
-  plannedQty Decimal @db.Decimal(15, 4) @default(0)
-  actualQty Decimal @db.Decimal(15, 4) @default(0)
-  batchedQty Decimal? @db.Decimal(15, 4) @default(0)
-  payableQty Decimal? @db.Decimal(15, 4) @default(0)
+  plannedQty      Decimal  @default(0) @db.Decimal(15, 4)
+  actualQty       Decimal  @default(0) @db.Decimal(15, 4)
+  batchedQty      Decimal? @default(0) @db.Decimal(15, 4)
+  payableQty      Decimal? @default(0) @db.Decimal(15, 4)
   unit            String?
-  paymentType     String  @default("payable")
-  executionStatus String  @default("planned")
+  paymentType     String   @default("payable")
+  executionStatus String   @default("planned")
   delayReason     String?
   delayNotes      String?
-  isEotCandidate  Boolean @default(false)
+  isEotCandidate  Boolean  @default(false)
   location        String?
   remarks         String?
-  sortOrder       Int     @default(0)
+  sortOrder       Int      @default(0)
 
   report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
@@ -747,8 +760,8 @@ model DailyReportEquipment {
   name         String
   type         String
   ownership    String  @default("owned")
-  workingHours Decimal @db.Decimal(15, 4) @default(0)
-  fuel Decimal @db.Decimal(15, 2) @default(0)
+  workingHours Decimal @default(0) @db.Decimal(15, 4)
+  fuel         Decimal @default(0) @db.Decimal(15, 2)
   sortOrder    Int     @default(0)
 
   report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -760,7 +773,7 @@ model DailyReportMaterial {
   id         String  @id @default(cuid())
   reportId   String
   name       String
-  qty Decimal @db.Decimal(15, 4) @default(0)
+  qty        Decimal @default(0) @db.Decimal(15, 4)
   unit       String?
   supplier   String?
   vehicle    String?
@@ -777,7 +790,7 @@ model DailyReportMaterialConsumed {
   reportId   String
   materialId String?
   name       String
-  quantity Decimal @db.Decimal(15, 4) @default(0)
+  quantity   Decimal @default(0) @db.Decimal(15, 4)
   unit       String?
   sortOrder  Int     @default(0)
 
@@ -819,17 +832,17 @@ model DailyReportMeeting {
 // ─────────────────────────────────────────────────────────────
 
 model BoqItem {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   projectId   String
   code        String // e.g. 1.1.1
   description String
   unit        String // e.g. cum, sqm, no, m
-  quantity Decimal @db.Decimal(15, 4) @default(0)
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  amount Decimal @db.Decimal(15, 2) @default(0) // quantity * rate, denormalized for speed
+  quantity    Decimal @default(0) @db.Decimal(15, 4)
+  rate        Decimal @default(0) @db.Decimal(15, 4)
+  amount      Decimal @default(0) @db.Decimal(15, 2) // quantity * rate, denormalized for speed
 
   // Phase 3: Baseline tracking (Original Contract state)
-  baselineQty Decimal? @db.Decimal(15, 4)
+  baselineQty  Decimal? @db.Decimal(15, 4)
   baselineRate Decimal? @db.Decimal(15, 4)
 
   category  String? // e.g. "Civil", "Structural" (legacy, kept for compatibility)
@@ -840,19 +853,19 @@ model BoqItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ingredients       BoqIngredient[]
-  rateAnalyses      RateAnalysis[]
-  taskLinks         TaskBoqLink[]
-  rfiItems          RfiItem[]
-  rfis              Rfi[]
-  variationItems    VariationOrderItem[]
-  versionItems      BoqVersionItem[]
-  dailyProgramTasks DailyProgramTask[]
-  projectCosts      ProjectCost[]
-  equipmentLogs     EquipmentLog[]
+  project            Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ingredients        BoqIngredient[]
+  rateAnalyses       RateAnalysis[]
+  taskLinks          TaskBoqLink[]
+  rfiItems           RfiItem[]
+  rfis               Rfi[]
+  variationItems     VariationOrderItem[]
+  versionItems       BoqVersionItem[]
+  dailyProgramTasks  DailyProgramTask[]
+  projectCosts       ProjectCost[]
+  equipmentLogs      EquipmentLog[]
   equipmentSpotHires EquipmentSpotHire[]
-  plantMixDesigns   PlantMixDesign[]
+  plantMixDesigns    PlantMixDesign[]
 
   @@unique([projectId, code])
   @@index([projectId, sortOrder])
@@ -865,12 +878,12 @@ model BoqIngredient {
   name           String
   type           String // material | labor | equipment | overhead
   calcMode       String  @default("fixed") // fixed | percentage
-  quantity Decimal @db.Decimal(15, 4) @default(0)
+  quantity       Decimal @default(0) @db.Decimal(15, 4)
   unit           String  @default("")
-  percentage Decimal @db.Decimal(15, 4) @default(0)
+  percentage     Decimal @default(0) @db.Decimal(15, 4)
   pctBase        String  @default("")
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  amount Decimal @db.Decimal(15, 2) @default(0)
+  rate           Decimal @default(0) @db.Decimal(15, 4)
+  amount         Decimal @default(0) @db.Decimal(15, 2)
   sortOrder      Int     @default(0)
 
   // Provenance: which RateProfileItem supplied this ingredient's rate
@@ -902,7 +915,7 @@ model RateAnalysis {
   boqItemId   String
   libraryId   String?
   name        String           @default("Default")
-  batchSize Decimal @db.Decimal(15, 2) @default(1)
+  batchSize   Decimal          @default(1) @db.Decimal(15, 2)
   isDefault   Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -968,16 +981,16 @@ model BoqVersionItem {
   code        String
   description String
   unit        String
-  quantity Decimal @db.Decimal(15, 4)
-  rate Decimal @db.Decimal(15, 4)
-  amount Decimal @db.Decimal(15, 2)
+  quantity    Decimal @db.Decimal(15, 4)
+  rate        Decimal @db.Decimal(15, 4)
+  amount      Decimal @db.Decimal(15, 2)
 
   // Baseline = original contract values (set once in V1, read-only after)
-  baselineQty Decimal? @db.Decimal(15, 4)
+  baselineQty  Decimal? @db.Decimal(15, 4)
   baselineRate Decimal? @db.Decimal(15, 4)
 
   // Delta from previous version
-  previousQty Decimal? @db.Decimal(15, 4)
+  previousQty  Decimal? @db.Decimal(15, 4)
   previousRate Decimal? @db.Decimal(15, 4)
 
   version BoqVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
@@ -998,7 +1011,7 @@ model GlobalPresetAnalysis {
   source         String   @default("Custom")
   category       String   @default("General")
   description    String?
-  batchSize Decimal @db.Decimal(15, 2) @default(1)
+  batchSize      Decimal  @default(1) @db.Decimal(15, 2)
   fiscalYear     String? // "2080/81"
   scope          String   @default("global") // "global" | "org"
   sourcePresetId String? // which global preset this was imported from
@@ -1013,18 +1026,18 @@ model GlobalPresetAnalysis {
 }
 
 model GlobalPresetIngredient {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   presetId   String
   name       String
   type       String // material | labor | equipment | overhead
-  calcMode   String @default("fixed") // fixed | percentage
-  quantity Decimal @db.Decimal(15, 4) @default(0)
-  unit       String @default("")
-  percentage Decimal @db.Decimal(15, 4) @default(0)
-  pctBase    String @default("")
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  amount Decimal @db.Decimal(15, 2) @default(0)
-  sortOrder  Int    @default(0)
+  calcMode   String  @default("fixed") // fixed | percentage
+  quantity   Decimal @default(0) @db.Decimal(15, 4)
+  unit       String  @default("")
+  percentage Decimal @default(0) @db.Decimal(15, 4)
+  pctBase    String  @default("")
+  rate       Decimal @default(0) @db.Decimal(15, 4)
+  amount     Decimal @default(0) @db.Decimal(15, 2)
+  sortOrder  Int     @default(0)
 
   // Link to canonical material name (for rate auto-pull)
   catalogMaterialId String?
@@ -1067,7 +1080,7 @@ model RateProfileItem {
   category      String? // Discipline/Trade Tag (e.g., "Civil & Concrete", "Steel & Rebar")
   subCategory   String? // Size/Spec Rating (e.g., "53 Grade OPC", "20mm", "12mm")
   unit          String
-  rate Decimal @db.Decimal(15, 4) @default(0)
+  rate          Decimal @default(0) @db.Decimal(15, 4)
 
   // Link to canonical material name
   catalogMaterialId String?
@@ -1136,7 +1149,7 @@ model GanttTask {
   actualStartDate DateTime?
   actualEndDate   DateTime?
   duration        Int       @default(1) // days
-  progress Decimal @db.Decimal(15, 4) @default(0) // 0..100
+  progress        Decimal   @default(0) @db.Decimal(15, 4) // 0..100
 
   // ─── Execution → Planning link (for variance tracking) ───
   planningTaskId String? // For EXECUTION tasks: the corresponding PLANNING task
@@ -1144,12 +1157,12 @@ model GanttTask {
   executionTasks GanttTask[] @relation("PlanningExecutionPair")
 
   // Progress Inheritance Fields
-  baseProgress Decimal? @db.Decimal(15, 4) @default(0) // Progress inherited from base version (0..100)
+  baseProgress     Decimal?      @default(0) @db.Decimal(15, 4) // Progress inherited from base version (0..100)
   isProgressEdited Boolean       @default(false) // True if user manually edited progress in this version
   baseVersionId    String? // Version from which progress was inherited
   baseVersion      GanttVersion? @relation("TaskBaseVersion", fields: [baseVersionId], references: [id])
 
-  plannedValue Decimal @db.Decimal(15, 2) @default(0) // total planned cost (NPR) for this task (legacy/fallback)
+  plannedValue           Decimal   @default(0) @db.Decimal(15, 2) // total planned cost (NPR) for this task (legacy/fallback)
   selectedCostLibraryId  String? // If linked to dynamic BOQ rates
   laborCount             Int       @default(0) // number of workers allocated
   assignees              String? // JSON string of user ids
@@ -1157,7 +1170,7 @@ model GanttTask {
   sortOrder              Int       @default(0)
   isMilestone            Boolean   @default(false)
   // ─── MS Project compatibility fields (all optional, default = no change) ───
-  workHours Decimal @db.Decimal(15, 4) @default(0) // person-hours of effort (distinct from duration days)
+  workHours              Decimal   @default(0) @db.Decimal(15, 4) // person-hours of effort (distinct from duration days)
   taskType               String    @default("fixed_duration") // fixed_duration | fixed_work | fixed_units
   constraintType         String    @default("asap") // asap | alap | mso | mfo | snlt | fnlt | fnet | snet
   constraintDate         DateTime? // for fixed constraints (mso, mfo, snlt, fnlt, fnet, snet)
@@ -1200,15 +1213,15 @@ model ResourceAssignment {
   id            String    @id @default(cuid())
   taskId        String
   staffRoleId   String? // link to a StaffRole (generic role assignment)
-  staffId       String? // link to specific Staff (execution: who's filling the role)
+  personId      String? // link to a specific Person (execution: who's filling the role)
   equipmentId   String? // link to specific Equipment
-  quantity Decimal @db.Decimal(15, 4) @default(1) // headcount or units
+  quantity      Decimal   @default(1) @db.Decimal(15, 4) // headcount or units
   unit          String    @default("person")
   startDate     DateTime? // when this resource starts on this task
   endDate       DateTime? // null = until task ends
   notes         String?
   // ─── MS Project compatibility fields (optional) ───
-  workHours Decimal @db.Decimal(15, 4) @default(0) // person-hours for this assignment
+  workHours     Decimal   @default(0) @db.Decimal(15, 4) // person-hours for this assignment
   resourceType  String    @default("work") // work | material | cost
   materialLabel String? // e.g., "bags", "m³" — for material resources
   createdAt     DateTime  @default(now())
@@ -1216,12 +1229,12 @@ model ResourceAssignment {
 
   task      GanttTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
   staffRole StaffRole? @relation(fields: [staffRoleId], references: [id], onDelete: SetNull)
-  staff     Staff?     @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  person    Person?    @relation(fields: [personId], references: [id], onDelete: SetNull)
   equipment Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([taskId])
   @@index([staffRoleId])
-  @@index([staffId])
+  @@index([personId])
   @@index([equipmentId])
 }
 
@@ -1248,7 +1261,7 @@ model TaskBoqLink {
   id        String   @id @default(cuid())
   taskId    String
   boqItemId String
-  quantity Decimal @db.Decimal(15, 4) @default(0) // planned quantity of this BOQ item for this task
+  quantity  Decimal  @default(0) @db.Decimal(15, 4) // planned quantity of this BOQ item for this task
   createdAt DateTime @default(now())
 
   task    GanttTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -1311,13 +1324,13 @@ model Partner {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  purchaseOrders    PurchaseOrder[]        @relation("PartnerPurchaseOrders")
-  rentals           EquipmentRental[]      @relation("PartnerRentals")
+  project            Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  purchaseOrders     PurchaseOrder[]        @relation("PartnerPurchaseOrders")
+  rentals            EquipmentRental[]      @relation("PartnerRentals")
   equipmentSpotHires EquipmentSpotHire[]
-  supplies          PartnerSupply[]
-  requisitionQuotes RequisitionItemQuote[]
-  bills             VendorBill[]
+  supplies           PartnerSupply[]
+  requisitionQuotes  RequisitionItemQuote[]
+  bills              VendorBill[]
 
   @@unique([projectId, name, type])
   @@index([projectId])
@@ -1330,8 +1343,8 @@ model PartnerSupply {
   brand         String? // e.g. "Shivam", "Kirloskar", "Tata Tiscon"
   specType      String? // e.g. "53 Grade OPC", "400 KVA", "12mm"
   unit          String
-  exFactoryRate Decimal @db.Decimal(15, 4)
-  transportRate Decimal @db.Decimal(15, 4)
+  exFactoryRate Decimal  @db.Decimal(15, 4)
+  transportRate Decimal  @db.Decimal(15, 4)
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -1358,9 +1371,9 @@ model Material {
   category           String?
   subCategory        String? // e.g. "20mm", "40mm", "12mm", "53 Grade"
   unit               String
-  minStock Decimal @db.Decimal(15, 2) @default(0)
-  currentStock Decimal @db.Decimal(15, 2) @default(0)
-  reorderLevel Decimal @db.Decimal(15, 2) @default(0)
+  minStock           Decimal                   @default(0) @db.Decimal(15, 2)
+  currentStock       Decimal                   @default(0) @db.Decimal(15, 2)
+  reorderLevel       Decimal                   @default(0) @db.Decimal(15, 2)
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
   project            Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1385,28 +1398,28 @@ model MaterialTransaction {
   materialId        String
   projectId         String
   type              String // receive | issue | transfer | adjustment
-  quantity Decimal @db.Decimal(15, 4)
+  quantity          Decimal  @db.Decimal(15, 4)
   unit              String
-  rate Decimal @db.Decimal(15, 4) @default(0)
+  rate              Decimal  @default(0) @db.Decimal(15, 4)
   reference         String? // GRN no, issue slip no
   remarks           String?
   date              DateTime @default(now())
   createdById       String?
   isDebitable       Boolean  @default(false)
   subcontractorId   String?
-  recoveryRate Decimal? @db.Decimal(15, 4)
+  recoveryRate      Decimal? @db.Decimal(15, 4)
   paymentType       String   @default("payable") // payable | unpayable | temporary
   gateEntryId       String?  @unique
   // Tracks which IPC this material deduction was already applied to —
   // prevents double-counting across multiple IPCs for the same subcontractor.
   deductedInIpcId   String?
   // Tax fields (only applicable to 'receive' transactions)
-  vatPercent Decimal @db.Decimal(15, 4) @default(0) // VAT % applied (e.g. 13% in Nepal)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0) // computed: (quantity * rate) * vatPercent / 100
-  tdsPercent Decimal @db.Decimal(15, 4) @default(0) // TDS % deducted at source
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0) // computed: (quantity * rate) * tdsPercent / 100
-  totalWithVat Decimal @db.Decimal(15, 2) @default(0) // quantity * rate + vatAmount
-  netPayable Decimal @db.Decimal(15, 2) @default(0) // totalWithVat - tdsAmount
+  vatPercent        Decimal  @default(0) @db.Decimal(15, 4) // VAT % applied (e.g. 13% in Nepal)
+  vatAmount         Decimal  @default(0) @db.Decimal(15, 2) // computed: (quantity * rate) * vatPercent / 100
+  tdsPercent        Decimal  @default(0) @db.Decimal(15, 4) // TDS % deducted at source
+  tdsAmount         Decimal  @default(0) @db.Decimal(15, 2) // computed: (quantity * rate) * tdsPercent / 100
+  totalWithVat      Decimal  @default(0) @db.Decimal(15, 2) // quantity * rate + vatAmount
+  netPayable        Decimal  @default(0) @db.Decimal(15, 2) // totalWithVat - tdsAmount
   supplierInvoiceNo String? // supplier's invoice/bill number
   supplierPan       String? // supplier's PAN/Tax ID at time of transaction
   billedToEntity    String   @default("primary_org") // primary_org | dedicated_jv | lead_partner
@@ -1420,8 +1433,8 @@ model MaterialTransaction {
 
   // Weighbridge calculation fields
   weighbridgeGross Decimal? @db.Decimal(15, 2)
-  weighbridgeTare Decimal? @db.Decimal(15, 2)
-  densityFactor Decimal? @db.Decimal(15, 4)
+  weighbridgeTare  Decimal? @db.Decimal(15, 2)
+  densityFactor    Decimal? @db.Decimal(15, 4)
 
   createdBy         User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   material          Material         @relation(fields: [materialId], references: [id], onDelete: Cascade)
@@ -1434,9 +1447,9 @@ model MaterialTransaction {
   catalogMaterial   CatalogMaterial? @relation(fields: [catalogMaterialId], references: [id], onDelete: SetNull)
 
   // Scanned Bill Attachment
-  scannedBillUrl    String?
-  scannedBillName   String?
-  isBillAttached    Boolean  @default(false)
+  scannedBillUrl  String?
+  scannedBillName String?
+  isBillAttached  Boolean @default(false)
 
   @@index([materialId])
   @@index([projectId, date])
@@ -1472,10 +1485,10 @@ model PurchaseOrder {
   status        String                @default("draft") // draft | issued | partially_received | received | cancelled
   orderDate     DateTime              @default(now())
   expectedDate  DateTime?
-  totalAmount Decimal @db.Decimal(15, 2) @default(0)
-  vatPercent Decimal @db.Decimal(15, 4) @default(13)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  netAmount Decimal @db.Decimal(15, 2) @default(0)
+  totalAmount   Decimal               @default(0) @db.Decimal(15, 2)
+  vatPercent    Decimal               @default(13) @db.Decimal(15, 4)
+  vatAmount     Decimal               @default(0) @db.Decimal(15, 2)
+  netAmount     Decimal               @default(0) @db.Decimal(15, 2)
   deliveryTerms String?
   paymentTerms  String?
   remarks       String?
@@ -1498,11 +1511,11 @@ model PurchaseOrderItem {
   purchaseOrderId   String
   materialId        String
   requisitionItemId String?
-  quantity Decimal @db.Decimal(15, 4)
-  receivedQty Decimal @db.Decimal(15, 4) @default(0)
+  quantity          Decimal                  @db.Decimal(15, 4)
+  receivedQty       Decimal                  @default(0) @db.Decimal(15, 4)
   unit              String
-  rate Decimal @db.Decimal(15, 4)
-  amount Decimal @db.Decimal(15, 2) @default(0)
+  rate              Decimal                  @db.Decimal(15, 4)
+  amount            Decimal                  @default(0) @db.Decimal(15, 2)
   purchaseOrder     PurchaseOrder            @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   material          Material                 @relation(fields: [materialId], references: [id], onDelete: Cascade)
   requisitionItem   PurchaseRequisitionItem? @relation(fields: [requisitionItemId], references: [id], onDelete: SetNull)
@@ -1526,8 +1539,8 @@ model Equipment {
   capacity            String?
   unit                String                 @default("hrs") // hrs | km | day
   status              String                 @default("active") // active | maintenance | breakdown | idle
-  fuelRate Decimal @db.Decimal(15, 4) @default(0) // L per hour
-  factoryFuelRate Decimal @db.Decimal(15, 4) @default(0)
+  fuelRate            Decimal                @default(0) @db.Decimal(15, 4) // L per hour
+  factoryFuelRate     Decimal                @default(0) @db.Decimal(15, 4)
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1546,15 +1559,15 @@ model EquipmentLog {
   equipmentId     String
   projectId       String
   date            DateTime @default(now())
-  startHours Decimal @db.Decimal(15, 4) @default(0)
-  endHours Decimal @db.Decimal(15, 4) @default(0)
-  workedHours Decimal @db.Decimal(15, 4) @default(0)
-  fuelFilled Decimal @db.Decimal(15, 2) @default(0)
+  startHours      Decimal  @default(0) @db.Decimal(15, 4)
+  endHours        Decimal  @default(0) @db.Decimal(15, 4)
+  workedHours     Decimal  @default(0) @db.Decimal(15, 4)
+  fuelFilled      Decimal  @default(0) @db.Decimal(15, 2)
   workDescription String?
   operator        String?
   ganttTaskId     String?
   boqItemId       String?
-  outputQty Decimal? @db.Decimal(15, 4)
+  outputQty       Decimal? @db.Decimal(15, 4)
   outputUnit      String?
   tripCount       Int?
   logMode         String   @default("meter") // meter | odometer | direct
@@ -1577,8 +1590,8 @@ model EquipmentMaintenance {
   date          DateTime  @default(now())
   type          String // routine | repair | inspection
   description   String
-  cost Decimal @db.Decimal(15, 2) @default(0)
-  nextDueHours Decimal? @db.Decimal(15, 4)
+  cost          Decimal   @default(0) @db.Decimal(15, 2)
+  nextDueHours  Decimal?  @db.Decimal(15, 4)
   status        String    @default("pending") // pending | resolved
   resolvedDate  DateTime?
   resolvedNotes String?
@@ -1613,14 +1626,14 @@ model EquipmentRental {
 
   // Rental terms
   rentalType       String    @default("daily") // daily | hourly | monthly | lump_sum
-  rentalRate Decimal @db.Decimal(15, 4) @default(0)
+  rentalRate       Decimal   @default(0) @db.Decimal(15, 4)
   startDate        DateTime  @default(now())
   scheduledEndDate DateTime?
 
   // Maintenance terms — who maintains the equipment
-  maintenanceBy            String @default("vendor") // vendor | contractor | shared
-  maintenanceMinContractor Decimal @db.Decimal(15, 2) @default(0) // if shared: min NPR contractor pays before vendor covers
-  consumablesBy            String @default("vendor") // vendor | contractor — grease, oil, filters, etc.
+  maintenanceBy            String  @default("vendor") // vendor | contractor | shared
+  maintenanceMinContractor Decimal @default(0) @db.Decimal(15, 2) // if shared: min NPR contractor pays before vendor covers
+  consumablesBy            String  @default("vendor") // vendor | contractor — grease, oil, filters, etc.
 
   // Agreement file (rental contract upload)
   agreementFileData String?
@@ -1634,10 +1647,10 @@ model EquipmentRental {
 
   // Cost summary (calculated)
   totalBillableDays Decimal? @db.Decimal(15, 2)
-  totalRentalCost Decimal? @db.Decimal(15, 2)
+  totalRentalCost   Decimal? @db.Decimal(15, 2)
 
   // Deductions from vendor bill
-  totalDeductions Decimal @db.Decimal(15, 2) @default(0) // total NPR deducted from vendor (damage, late, etc.)
+  totalDeductions Decimal @default(0) @db.Decimal(15, 2) // total NPR deducted from vendor (damage, late, etc.)
 
   notes       String?
   createdById String?
@@ -1667,24 +1680,24 @@ model EquipmentCrew {
   phone    String?
 
   // Salary
-  salaryType   String @default("daily") // daily | hourly | monthly | lump_sum
-  salaryRate Decimal @db.Decimal(15, 4) @default(0) // NPR per day/hour/month
-  salaryPaidBy String @default("project") // vendor | project
+  salaryType   String  @default("daily") // daily | hourly | monthly | lump_sum
+  salaryRate   Decimal @default(0) @db.Decimal(15, 4) // NPR per day/hour/month
+  salaryPaidBy String  @default("project") // vendor | project
 
   // Allowance (food/tea)
-  allowanceType   String @default("daily") // daily | monthly | none
-  allowanceRate Decimal @db.Decimal(15, 4) @default(0) // NPR per day/month
-  allowancePaidBy String @default("project") // vendor | project
+  allowanceType   String  @default("daily") // daily | monthly | none
+  allowanceRate   Decimal @default(0) @db.Decimal(15, 4) // NPR per day/month
+  allowancePaidBy String  @default("project") // vendor | project
 
   // Lodging
-  lodgingType   String @default("none") // project_provided | monthly_reimburse | per_diem | none
-  lodgingRate Decimal @db.Decimal(15, 4) @default(0) // NPR (monthly rent or per-diem)
-  lodgingPaidBy String @default("project") // vendor | project
+  lodgingType   String  @default("none") // project_provided | monthly_reimburse | per_diem | none
+  lodgingRate   Decimal @default(0) @db.Decimal(15, 4) // NPR (monthly rent or per-diem)
+  lodgingPaidBy String  @default("project") // vendor | project
 
   // Fooding
-  foodingType   String @default("none") // project_provided | daily_allowance | none
-  foodingRate Decimal @db.Decimal(15, 4) @default(0) // NPR per day
-  foodingPaidBy String @default("project") // vendor | project
+  foodingType   String  @default("none") // project_provided | daily_allowance | none
+  foodingRate   Decimal @default(0) @db.Decimal(15, 4) // NPR per day
+  foodingPaidBy String  @default("project") // vendor | project
 
   // Period
   startDate DateTime  @default(now())
@@ -1737,10 +1750,10 @@ model EquipmentDamage {
   description      String
   damageType       String    @default("normal_wear") // normal_wear | negligence | accident | force_majeure
   responsibleParty String    @default("contractor") // contractor | vendor | shared | third_party
-  repairCost Decimal @db.Decimal(15, 2) @default(0)
+  repairCost       Decimal   @default(0) @db.Decimal(15, 2)
   paidBy           String    @default("contractor") // contractor | vendor | insurance | shared
-  contractorShare Decimal? @db.Decimal(15, 2) // if shared, contractor's portion
-  vendorShare Decimal? @db.Decimal(15, 2) // if shared, vendor's portion
+  contractorShare  Decimal?  @db.Decimal(15, 2) // if shared, contractor's portion
+  vendorShare      Decimal?  @db.Decimal(15, 2) // if shared, vendor's portion
   status           String    @default("reported") // reported | assessed | repaired | disputed
   photoData        String? // base64 photo of damage
   photoName        String?
@@ -1762,7 +1775,7 @@ model EquipmentDamage {
 // ─────────────────────────────────────────────────────────────
 
 model EquipmentSpotHire {
-  id               String    @id @default(cuid())
+  id               String   @id @default(cuid())
   projectId        String
   vendorId         String?
   partnerId        String?
@@ -1770,35 +1783,35 @@ model EquipmentSpotHire {
   vendorPhone      String?
   machineName      String
   registrationNo   String?
-  equipmentType    String    @default("excavator") // excavator | crane | pump | roller | tipper | grader | loader | other
-  hireType         String    @default("hourly") // hourly | trip | daily | shift | lump_sum
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  minCalloutHours Decimal @db.Decimal(15, 4) @default(0)
-  mobilizationFee Decimal @db.Decimal(15, 2) @default(0)
-  fuelMode         String    @default("wet") // wet | dry
-  fuelLitersIssued Decimal @db.Decimal(15, 2) @default(0)
-  fuelUnitCost Decimal @db.Decimal(15, 2) @default(0)
-  date             DateTime  @default(now())
+  equipmentType    String   @default("excavator") // excavator | crane | pump | roller | tipper | grader | loader | other
+  hireType         String   @default("hourly") // hourly | trip | daily | shift | lump_sum
+  rate             Decimal  @default(0) @db.Decimal(15, 4)
+  minCalloutHours  Decimal  @default(0) @db.Decimal(15, 4)
+  mobilizationFee  Decimal  @default(0) @db.Decimal(15, 2)
+  fuelMode         String   @default("wet") // wet | dry
+  fuelLitersIssued Decimal  @default(0) @db.Decimal(15, 2)
+  fuelUnitCost     Decimal  @default(0) @db.Decimal(15, 2)
+  date             DateTime @default(now())
   startTime        String?
   endTime          String?
-  hoursWorked Decimal @db.Decimal(15, 4) @default(0)
-  tripCount        Int       @default(0)
-  totalGross Decimal @db.Decimal(15, 2) @default(0)
-  fuelDeduction Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
+  hoursWorked      Decimal  @default(0) @db.Decimal(15, 4)
+  tripCount        Int      @default(0)
+  totalGross       Decimal  @default(0) @db.Decimal(15, 2)
+  fuelDeduction    Decimal  @default(0) @db.Decimal(15, 2)
+  netPayable       Decimal  @default(0) @db.Decimal(15, 2)
   operatorName     String?
   operatorPhone    String?
   slipNumber       String?
   remarks          String?
   ganttTaskId      String?
   boqItemId        String?
-  isBilled         Boolean   @default(false)
+  isBilled         Boolean  @default(false)
   vendorBillId     String?
-  paymentStatus    String    @default("unpaid") // unpaid | paid
+  paymentStatus    String   @default("unpaid") // unpaid | paid
   paymentReference String?
   createdById      String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   vendor     EquipmentVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
@@ -1854,7 +1867,7 @@ model PlantMixDesign {
   type              String   @default("concrete") // concrete | asphalt | wmm | aggregate
   targetSlumpMm     Float? // e.g. 100 mm
   targetTempC       Float? // e.g. 155 °C
-  waterCementRatio Decimal? @db.Decimal(15, 4) // e.g. 0.42
+  waterCementRatio  Decimal? @db.Decimal(15, 4) // e.g. 0.42
   bitumenContentPct Decimal? @db.Decimal(15, 4) // e.g. 4.5%
   unit              String   @default("cum") // cum | ton
   status            String   @default("approved") // approved | trial | archived
@@ -1883,9 +1896,9 @@ model PlantBatchTicket {
   transitVehicleNo String // e.g. "Ba 2 Kha 9012"
   driverName       String?
   driverPhone      String?
-  orderedQty Decimal @db.Decimal(15, 4) @default(0)
-  dispatchedQty Decimal @db.Decimal(15, 4) @default(0)
-  receivedQty Decimal? @db.Decimal(15, 4)
+  orderedQty       Decimal   @default(0) @db.Decimal(15, 4)
+  dispatchedQty    Decimal   @default(0) @db.Decimal(15, 4)
+  receivedQty      Decimal?  @db.Decimal(15, 4)
   unit             String    @default("cum") // cum | ton
   slumpMm          Float?
   temperatureC     Float?
@@ -1917,12 +1930,12 @@ model PlantSilo {
   plantId       String
   name          String // e.g. "Cement Silo 1 (100 MT)", "Bin 1 - 20mm Agg", "Bitumen Tank 1"
   materialType  String // cement | sand | aggregate_10mm | aggregate_20mm | aggregate_40mm | bitumen | admixture | filler
-  capacity Decimal @db.Decimal(15, 2) @default(0)
-  currentStock Decimal @db.Decimal(15, 2) @default(0)
+  capacity      Decimal   @default(0) @db.Decimal(15, 2)
+  currentStock  Decimal   @default(0) @db.Decimal(15, 2)
   unit          String    @default("MT") // MT | cum | kg | liter
-  minAlertLevel Decimal? @db.Decimal(15, 2)
+  minAlertLevel Decimal?  @db.Decimal(15, 2)
   lastDipDate   DateTime?
-  lastDipValue Decimal? @db.Decimal(15, 2)
+  lastDipValue  Decimal?  @db.Decimal(15, 2)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1937,13 +1950,13 @@ model PlantDailyLog {
   plantId             String
   logDate             DateTime @default(now())
   totalBatches        Int      @default(0)
-  totalProduced Decimal @db.Decimal(15, 2) @default(0)
+  totalProduced       Decimal  @default(0) @db.Decimal(15, 2)
   unit                String   @default("cum")
-  operatingHours Decimal @db.Decimal(15, 4) @default(0)
-  idleHours Decimal @db.Decimal(15, 4) @default(0)
-  breakdownHours Decimal @db.Decimal(15, 4) @default(0)
+  operatingHours      Decimal  @default(0) @db.Decimal(15, 4)
+  idleHours           Decimal  @default(0) @db.Decimal(15, 4)
+  breakdownHours      Decimal  @default(0) @db.Decimal(15, 4)
   electricityUnitsKwh Decimal? @db.Decimal(15, 2)
-  dieselLitres Decimal? @db.Decimal(15, 2)
+  dieselLitres        Decimal? @db.Decimal(15, 2)
   downtimeReason      String?
   operatorName        String?
   remarks             String?
@@ -2046,7 +2059,7 @@ model Drawing {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   // Drawing scale for real-world measurements
-  scaleValue Decimal? @db.Decimal(15, 2) // e.g. 100 for 1:100
+  scaleValue     Decimal?  @db.Decimal(15, 2) // e.g. 100 for 1:100
   scaleUnit      String?   @default("m") // m | mm | ft | in
 
   project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -2093,23 +2106,23 @@ model DrawingRevision {
 // ─────────────────────────────────────────────────────────────
 
 model Ipc {
-  id              String         @id @default(cuid())
+  id              String    @id @default(cuid())
   projectId       String
   number          String
   period          String?
-  status          String         @default("draft")
-  grossAmount Decimal @db.Decimal(15, 2) @default(0)
-  retention Decimal @db.Decimal(15, 2) @default(0)
-  retentionAmount Decimal @db.Decimal(15, 2) @default(0)
-  advanceRecovery Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
+  status          String    @default("draft")
+  grossAmount     Decimal   @default(0) @db.Decimal(15, 2)
+  retention       Decimal   @default(0) @db.Decimal(15, 2)
+  retentionAmount Decimal   @default(0) @db.Decimal(15, 2)
+  advanceRecovery Decimal   @default(0) @db.Decimal(15, 2)
+  netPayable      Decimal   @default(0) @db.Decimal(15, 2)
   // Tax fields
-  vatPercent Decimal @db.Decimal(15, 4) @default(13) // Nepal VAT 13%
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  tdsPercent Decimal @db.Decimal(15, 4) @default(0) // TDS on contractor payment (varies 1.5%-10%)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  totalWithVat Decimal @db.Decimal(15, 2) @default(0) // grossAmount + vatAmount
-  finalPayable Decimal @db.Decimal(15, 2) @default(0) // totalWithVat - retention - advance - tds
+  vatPercent      Decimal   @default(13) @db.Decimal(15, 4) // Nepal VAT 13%
+  vatAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  tdsPercent      Decimal   @default(0) @db.Decimal(15, 4) // TDS on contractor payment (varies 1.5%-10%)
+  tdsAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  totalWithVat    Decimal   @default(0) @db.Decimal(15, 2) // grossAmount + vatAmount
+  finalPayable    Decimal   @default(0) @db.Decimal(15, 2) // totalWithVat - retention - advance - tds
   issueDate       DateTime?
 
   // Retention release tracking — set by `releaseRetention` mutation.
@@ -2118,44 +2131,43 @@ model Ipc {
   // Without this field, re-running releaseRetention (double-click,
   // accidental re-trigger) would generate the same release journal
   // entries a second time, double-crediting revenue.
-  retentionReleasedAt DateTime?
+  retentionReleasedAt   DateTime?
   retentionReleasedById String?
 
-
   // Official Nepal Tax Invoice & Client Metadata
-  taxInvoiceNo    String?        // Client Tax Invoice number
-  taxInvoiceDate  DateTime?
-  clientPan       String?
-  clientName      String?
+  taxInvoiceNo   String? // Client Tax Invoice number
+  taxInvoiceDate DateTime?
+  clientPan      String?
+  clientName     String?
 
   // Nepal Contract & Mobilization Metadata (Summary of Payment)
-  contractAgreementDate              DateTime?
-  workCommenceDate                   DateTime?
-  contractCompletionDate             DateTime?
-  originalContractAmountWithoutVat Decimal? @db.Decimal(15, 2)
-  originalContractAmountWithVat Decimal? @db.Decimal(15, 2)
-  mobilizationAdvanceTotal Decimal? @db.Decimal(15, 2)
-  mobilizationAdvanceDeducted Decimal? @db.Decimal(15, 2)
-  mobilizationAdvanceRate Decimal? @db.Decimal(15, 4) @default(30)
-  submittedBy                        String?
-  submittedByLocation                String?
-  checkedBy                          String?
-  checkedByLocation                  String?
-  approvedBy                         String?
-  approvedByLocation                 String?
+  contractAgreementDate            DateTime?
+  workCommenceDate                 DateTime?
+  contractCompletionDate           DateTime?
+  originalContractAmountWithoutVat Decimal?  @db.Decimal(15, 2)
+  originalContractAmountWithVat    Decimal?  @db.Decimal(15, 2)
+  mobilizationAdvanceTotal         Decimal?  @db.Decimal(15, 2)
+  mobilizationAdvanceDeducted      Decimal?  @db.Decimal(15, 2)
+  mobilizationAdvanceRate          Decimal?  @default(30) @db.Decimal(15, 4)
+  submittedBy                      String?
+  submittedByLocation              String?
+  checkedBy                        String?
+  checkedByLocation                String?
+  approvedBy                       String?
+  approvedByLocation               String?
 
   // Cumulative Previous IPC Totals
-  previousGrossAmount Decimal @db.Decimal(15, 2) @default(0)
-  previousVatAmount Decimal @db.Decimal(15, 2) @default(0)
-  previousAdvanceRecovery Decimal @db.Decimal(15, 2) @default(0)
-  previousRetentionAmount Decimal @db.Decimal(15, 2) @default(0)
-  previousTdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  previousFinalPayable Decimal @db.Decimal(15, 2) @default(0)
+  previousGrossAmount     Decimal @default(0) @db.Decimal(15, 2)
+  previousVatAmount       Decimal @default(0) @db.Decimal(15, 2)
+  previousAdvanceRecovery Decimal @default(0) @db.Decimal(15, 2)
+  previousRetentionAmount Decimal @default(0) @db.Decimal(15, 2)
+  previousTdsAmount       Decimal @default(0) @db.Decimal(15, 2)
+  previousFinalPayable    Decimal @default(0) @db.Decimal(15, 2)
 
   // Scanned Copy Attachment (Soft-mandatory)
   scannedBillUrl  String?
   scannedBillName String?
-  isBillAttached  Boolean        @default(false)
+  isBillAttached  Boolean @default(false)
 
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -2180,19 +2192,19 @@ model VatBill {
   billType            String   @default("purchase") // purchase | sales | expense | capital_goods | import
   billNumber          String
   billDate            DateTime @default(now())
-  billMiti            String?  // Nepali BS Date
+  billMiti            String? // Nepali BS Date
   partyName           String
   partyPan            String?
   partyAddress        String?
-  taxableAmount Decimal @db.Decimal(15, 2) @default(0)
-  exemptAmount Decimal @db.Decimal(15, 2) @default(0)
-  vatPercent Decimal @db.Decimal(15, 4) @default(13)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  totalAmount Decimal @db.Decimal(15, 2) @default(0)
-  tdsPercent Decimal @db.Decimal(15, 4) @default(0)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
-  category            String?  // material | subcontractor | equipment | office_overhead | site_expense | client_ipc | other
+  taxableAmount       Decimal  @default(0) @db.Decimal(15, 2)
+  exemptAmount        Decimal  @default(0) @db.Decimal(15, 2)
+  vatPercent          Decimal  @default(13) @db.Decimal(15, 4)
+  vatAmount           Decimal  @default(0) @db.Decimal(15, 2)
+  totalAmount         Decimal  @default(0) @db.Decimal(15, 2)
+  tdsPercent          Decimal  @default(0) @db.Decimal(15, 4)
+  tdsAmount           Decimal  @default(0) @db.Decimal(15, 2)
+  netPayable          Decimal  @default(0) @db.Decimal(15, 2)
+  category            String? // material | subcontractor | equipment | office_overhead | site_expense | client_ipc | other
   billedToEntity      String   @default("primary_org") // primary_org | dedicated_jv | lead_partner
   recipientPan        String?
   description         String?
@@ -2221,12 +2233,12 @@ model IpcItem {
   description String
   unit        String
   section     String? // e.g. "A) Provisional Items", "B) Civil Cost"
-  contractQty Decimal @db.Decimal(15, 4) @default(0)
-  previousQty Decimal @db.Decimal(15, 4) @default(0)
-  thisQty Decimal @db.Decimal(15, 4) @default(0)
-  cumQty Decimal @db.Decimal(15, 4) @default(0)
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  amount Decimal @db.Decimal(15, 2) @default(0) // this period amount = thisQty * rate
+  contractQty Decimal @default(0) @db.Decimal(15, 4)
+  previousQty Decimal @default(0) @db.Decimal(15, 4)
+  thisQty     Decimal @default(0) @db.Decimal(15, 4)
+  cumQty      Decimal @default(0) @db.Decimal(15, 4)
+  rate        Decimal @default(0) @db.Decimal(15, 4)
+  amount      Decimal @default(0) @db.Decimal(15, 2) // this period amount = thisQty * rate
   sortOrder   Int     @default(0)
   ipc         Ipc     @relation(fields: [ipcId], references: [id], onDelete: Cascade)
 
@@ -2237,37 +2249,98 @@ model IpcItem {
 // HR / Staff module
 // ─────────────────────────────────────────────────────────────
 
-model Staff {
-  id                  String                @id @default(cuid())
-  projectId           String
-  name                String
-  designation         String?
-  category            String? // skilled | unskilled | supervisor | staff | operator
-  employmentType      String                @default("daily") // daily | monthly | piece_rate
-  phone               String?
-  dailyWage Decimal @db.Decimal(15, 2) @default(0)
-  monthlySalary Decimal @db.Decimal(15, 2) @default(0)
-  gangName            String? // e.g. "Mason Gang A", "Carpentry Toli"
-  bankAccountNo       String?
-  bankName            String?
-  pan                 String?
-  idNumber            String? // Citizenship / ID no
-  status              String                @default("active") // active | inactive | left
-  joinedDate          DateTime?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  attendance          StaffAttendance[]
-  roleAssignments     StaffRoleAssignment[]
-  resourceAssignments ResourceAssignment[]
+// ─────────────────────────────────────────────────────────────
+// Workforce Identity (ADR-0005). Person is the org-wide human record.
+// App access (User) and workforce identity are independent facts:
+// linking a user grants no permission; an assignment grants no app
+// access; inviting a user never creates a workforce record.
+// Records are never silently destroyed — status fields and the merge
+// bookkeeping below replace hard deletes.
+// ─────────────────────────────────────────────────────────────
+
+model Person {
+  id             String   @id @default(cuid())
+  organizationId String
+  displayName    String
+  // Identity / compliance (Nepal context)
+  phone          String?
+  pan            String?
+  idNumber       String? // citizenship / national ID no
+  photoUrl       String?
+  // Banking — used by payroll disbursement
+  bankAccountNo  String?
+  bankName       String?
+  // Employment profile defaults (assignments may override per project)
+  category       String? // skilled | unskilled | supervisor | staff | operator
+  employmentType String   @default("daily") // daily | monthly | piece_rate
+  // Optional app identity link — unique when present, grants NO permission
+  linkedUserId   String?  @unique
+  status         String   @default("active") // active | inactive | left
+  // Merge bookkeeping — dedupe suggestions are surfaced, never auto-applied
+  mergedIntoId   String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedUser          User?                    @relation("PersonLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  mergedInto          Person?                  @relation("PersonMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom          Person[]                 @relation("PersonMerge")
+  assignments         ProjectStaffAssignment[]
+  advances            StaffAdvance[]
   leaveRequests       LeaveRequest[]
   leaveBalances       LeaveBalance[]
-  advances            StaffAdvance[]
-  payrollRecords      PayrollStaffRecord[]
+  payrollRecords      PayrollPersonRecord[]
+  roleFillings        StaffRoleAssignment[]
+  resourceAssignments ResourceAssignment[]
 
-  @@index([projectId])
+  @@index([organizationId])
+  @@index([displayName])
+  @@index([phone])
   @@index([status])
-  @@index([gangName])
+}
+
+// Dated project engagement. A person may hold multiple concurrent
+// assignments (shared worker) or a chain of sequential ones (transfer /
+// rehire via sourceAssignmentId). Overlap is validated by the workforce
+// service, NOT blocked by the schema — there is deliberately NO
+// [projectId, personId] unique constraint (ADR-0005). Ending an
+// engagement destroys nothing.
+model ProjectStaffAssignment {
+  id                 String    @id @default(cuid())
+  projectId          String
+  personId           String
+  fromDate           DateTime
+  toDate             DateTime? // null = current engagement
+  sourceAssignmentId String? // transfer / rehire chain: the engagement this replaces
+  // Engagement terms (may differ per project for concurrent assignments)
+  designation        String?
+  category           String? // skilled | unskilled | supervisor | staff | operator
+  employmentType     String    @default("daily") // daily | monthly | piece_rate
+  dailyWage          Decimal   @default(0) @db.Decimal(15, 2)
+  monthlySalary      Decimal   @default(0) @db.Decimal(15, 2)
+  gangName           String? // e.g. "Mason Gang A", "Carpentry Toli"
+  // Fallback split share for org-level payroll (ADR-0007): share of this
+  // person's monthly capacity this project consumes. Actual approved
+  // attendance always wins over this default.
+  allocationPercent  Decimal?  @db.Decimal(5, 2) // 0..100
+  status             String    @default("active") // active | ended
+  endReason          String? // transferred | resigned | terminated | contract_end | other
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project            Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person             Person                   @relation(fields: [personId], references: [id], onDelete: Restrict)
+  sourceAssignment   ProjectStaffAssignment?  @relation("AssignmentChain", fields: [sourceAssignmentId], references: [id], onDelete: SetNull)
+  chainedFrom        ProjectStaffAssignment[] @relation("AssignmentChain")
+  attendance         StaffAttendance[]
+  payrollAllocations PayrollAllocation[]
+
+  @@index([projectId, status])
+  @@index([personId])
+  @@index([sourceAssignmentId])
+  @@index([fromDate])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2286,7 +2359,7 @@ model StaffRole {
   chainageFrom Float? // 0 (for linear projects, in meters)
   chainageTo   Float? // 5000
   headcount    Int      @default(1) // how many people needed for this role
-  dailyWage Decimal @db.Decimal(15, 2) @default(0) // expected daily cost per person
+  dailyWage    Decimal  @default(0) @db.Decimal(15, 2) // expected daily cost per person
   skills       String? // JSON array: ["RCC certified", "Height work"]
   notes        String?
   createdAt    DateTime @default(now())
@@ -2302,117 +2375,130 @@ model StaffRole {
   @@index([parentId])
 }
 
-// Links specific staff to a role (with date ranges for turnover tracking)
-// When staff quits: set endDate, create new assignment for replacement
+// Links specific people to a role slot (with date ranges for turnover
+// tracking). When a worker leaves: set endDate, create a new assignment.
 model StaffRoleAssignment {
   id          String    @id @default(cuid())
   staffRoleId String
-  staffId     String
+  personId    String
   startDate   DateTime  @default(now())
   endDate     DateTime? // null = currently assigned
   notes       String?
   createdAt   DateTime  @default(now())
 
   staffRole StaffRole @relation(fields: [staffRoleId], references: [id], onDelete: Cascade)
-  staff     Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  person    Person    @relation(fields: [personId], references: [id], onDelete: Restrict)
 
   @@index([staffRoleId, endDate])
-  @@index([staffId])
+  @@index([personId])
 }
 
 model StaffAttendance {
-  id        String   @id @default(cuid())
-  staffId   String
-  projectId String
-  date      DateTime
-  status    String // present | absent | half_day | leave | overtime
-  hours Decimal @db.Decimal(15, 4) @default(8)
-  overtime Decimal @db.Decimal(15, 2) @default(0)
-  remarks   String?
-  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  projectId    String // denormalized from the assignment (RLS + muster queries)
+  assignmentId String
+  date         DateTime
+  status       String // present | absent | half_day | leave | overtime
+  hours        Decimal  @default(8) @db.Decimal(15, 4)
+  overtime     Decimal  @default(0) @db.Decimal(15, 2)
+  remarks      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  @@unique([staffId, date])
+  assignment ProjectStaffAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  project    Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, date])
   @@index([projectId, date])
 }
 
 // ─────────────────────────────────────────────────────────────
 // Construction HR: Site Advances & Deductions Ledger
+// Advances belong to the PERSON (ADR-0007); the issuing project is
+// retained for ledger attribution only. Recovery is a CAS-guarded
+// increment — never a boolean flip, never a principal mutation.
 // ─────────────────────────────────────────────────────────────
 
 model StaffAdvance {
-  id                  String      @id @default(cuid())
-  projectId           String
-  staffId             String
-  date                DateTime    @default(now())
-  amount Decimal @db.Decimal(15, 2)
-  type                String      @default("cash_advance") // cash_advance | mess_deduction | safety_gear | other
-  isRecovered         Boolean     @default(false)
+  id                   String   @id @default(cuid())
+  projectId            String
+  personId             String
+  date                 DateTime @default(now())
+  amount               Decimal  @db.Decimal(15, 2)
+  type                 String   @default("cash_advance") // cash_advance | mess_deduction | safety_gear | other
+  recoveredAmount      Decimal  @default(0) @db.Decimal(15, 2) // CAS: recoveredAmount + x ≤ amount
   recoveredInPayrollId String?
-  remarks             String?
-  createdById         String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
+  remarks              String?
+  createdById          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  staff      Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  person     Person      @relation(fields: [personId], references: [id], onDelete: Restrict)
   payrollRun PayrollRun? @relation(fields: [recoveredInPayrollId], references: [id], onDelete: SetNull)
 
-  @@index([projectId, staffId])
-  @@index([isRecovered])
+  @@index([projectId, personId])
+  @@index([recoveredAmount])
 }
 
 // ─────────────────────────────────────────────────────────────
-// Construction HR: Monthly Payroll Runs & Payslip Line Records
+// Construction HR: Org-Level Payroll Runs (ADR-0007).
+// One run per org per period (database-enforced unique). Salary is
+// calculated once per PERSON per period; project cost flows only
+// through PayrollAllocation rows.
 // ─────────────────────────────────────────────────────────────
 
 model PayrollRun {
-  id                    String               @id @default(cuid())
-  projectId             String
-  month                 String // "YYYY-MM", e.g. "2026-08"
-  runDate               DateTime             @default(now())
-  status                String               @default("draft") // draft | approved | disbursed
-  totalStaffCount       Int                  @default(0)
-  totalGross Decimal @db.Decimal(15, 2) @default(0)
-  totalAllowances Decimal @db.Decimal(15, 2) @default(0)
-  totalDeductions Decimal @db.Decimal(15, 2) @default(0)
-  totalAdvancesRecovered Decimal @db.Decimal(15, 2) @default(0)
-  totalNetPayable Decimal @db.Decimal(15, 2) @default(0)
-  disbursedAmount Decimal @db.Decimal(15, 2) @default(0)
-  approvedById          String?
-  approvedAt            DateTime?
-  notes                 String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                     String    @id @default(cuid())
+  organizationId         String
+  period                 String // "YYYY-MM", e.g. "2026-08"
+  runDate                DateTime  @default(now())
+  status                 String    @default("draft") // draft | approved | disbursed
+  policyVersionId        String? // policy snapshot this run was executed under (ADR-0004/0006)
+  totalPersonCount       Int       @default(0)
+  totalGross             Decimal   @default(0) @db.Decimal(15, 2)
+  totalAllowances        Decimal   @default(0) @db.Decimal(15, 2)
+  totalDeductions        Decimal   @default(0) @db.Decimal(15, 2)
+  totalAdvancesRecovered Decimal   @default(0) @db.Decimal(15, 2)
+  totalNetPayable        Decimal   @default(0) @db.Decimal(15, 2)
+  disbursedAmount        Decimal   @default(0) @db.Decimal(15, 2)
+  approvedById           String?
+  approvedAt             DateTime?
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  project  Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  records  PayrollStaffRecord[]
-  advances StaffAdvance[]
+  organization  Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  policyVersion OrganizationPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: SetNull)
+  records       PayrollPersonRecord[]
+  allocations   PayrollAllocation[]
+  advances      StaffAdvance[]
 
-  @@unique([projectId, month])
-  @@index([projectId, status])
+  @@unique([organizationId, period]) // database-enforced: one run per org per period
+  @@index([organizationId, status])
 }
 
-model PayrollStaffRecord {
+model PayrollPersonRecord {
   id               String   @id @default(cuid())
+  organizationId   String // denormalized from the run (RLS anchor)
   payrollRunId     String
-  staffId          String
+  personId         String
   employmentType   String   @default("daily") // daily | monthly | piece_rate
-  presentDays Decimal @db.Decimal(15, 2) @default(0)
-  halfDays Decimal @db.Decimal(15, 2) @default(0)
-  absentDays Decimal @db.Decimal(15, 2) @default(0)
-  leaveDays Decimal @db.Decimal(15, 2) @default(0)
-  overtimeHours Decimal @db.Decimal(15, 4) @default(0)
-  baseRate Decimal @db.Decimal(15, 4) @default(0) // daily wage or monthly salary
-  regularPay Decimal @db.Decimal(15, 2) @default(0)
-  overtimePay Decimal @db.Decimal(15, 2) @default(0)
-  allowances Decimal @db.Decimal(15, 2) @default(0) // site / hardship / night allowances
-  advanceDeduction Decimal @db.Decimal(15, 2) @default(0) // cash advance recovery
-  messDeduction Decimal @db.Decimal(15, 2) @default(0) // canteen / fooding
-  otherDeductions Decimal @db.Decimal(15, 2) @default(0)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
-  paidAmount Decimal @db.Decimal(15, 2) @default(0)
+  presentDays      Decimal  @default(0) @db.Decimal(15, 2)
+  halfDays         Decimal  @default(0) @db.Decimal(15, 2)
+  absentDays       Decimal  @default(0) @db.Decimal(15, 2)
+  leaveDays        Decimal  @default(0) @db.Decimal(15, 2)
+  overtimeHours    Decimal  @default(0) @db.Decimal(15, 4)
+  baseRate         Decimal  @default(0) @db.Decimal(15, 4) // daily wage or monthly salary
+  regularPay       Decimal  @default(0) @db.Decimal(15, 2)
+  overtimePay      Decimal  @default(0) @db.Decimal(15, 2)
+  allowances       Decimal  @default(0) @db.Decimal(15, 2) // site / hardship / night allowances
+  advanceDeduction Decimal  @default(0) @db.Decimal(15, 2) // cash advance recovery
+  messDeduction    Decimal  @default(0) @db.Decimal(15, 2) // canteen / fooding
+  otherDeductions  Decimal  @default(0) @db.Decimal(15, 2)
+  tdsAmount        Decimal  @default(0) @db.Decimal(15, 2)
+  netPayable       Decimal  @default(0) @db.Decimal(15, 2)
+  paidAmount       Decimal  @default(0) @db.Decimal(15, 2)
   paymentStatus    String   @default("unpaid") // unpaid | paid | partial
   paymentMethod    String   @default("cash") // cash | bank_transfer | cheque
   paymentReference String?
@@ -2420,12 +2506,79 @@ model PayrollStaffRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
-  staff      Staff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payrollRun   PayrollRun          @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  person       Person              @relation(fields: [personId], references: [id], onDelete: Restrict)
+  allocations  PayrollAllocation[]
 
-  @@unique([payrollRunId, staffId])
+  @@unique([payrollRunId, personId]) // salary calculated once per person per period
   @@index([payrollRunId])
-  @@index([staffId])
+  @@index([personId])
+  @@index([organizationId])
+}
+
+// Project cost split of a person's payroll record (ADR-0007). Invariant:
+// Σ allocation.net = person record netPayable EXACTLY (Decimal arithmetic,
+// largest-remainder / residual on primary assignment). The org-level
+// journal entry's labor expense LINES carry projectId per allocation;
+// liability accounts and bank stay organization-level.
+model PayrollAllocation {
+  id                String   @id @default(cuid())
+  organizationId    String // denormalized from the run (RLS anchor)
+  payrollRunId      String
+  personRecordId    String
+  assignmentId      String
+  projectId         String // cost target — becomes JournalEntryLine.projectId
+  basis             String   @default("actual_days") // actual_days | allocation_percent | manual
+  presentDays       Decimal  @default(0) @db.Decimal(15, 2)
+  overtimeHours     Decimal  @default(0) @db.Decimal(15, 4)
+  allocationPercent Decimal? @db.Decimal(5, 2) // set when basis = allocation_percent
+  gross             Decimal  @default(0) @db.Decimal(15, 2) // share of person gross
+  allowances        Decimal  @default(0) @db.Decimal(15, 2)
+  advanceDeduction  Decimal  @default(0) @db.Decimal(15, 2) // recovery attributed to this project
+  tdsAmount         Decimal  @default(0) @db.Decimal(15, 2)
+  net               Decimal  @default(0) @db.Decimal(15, 2) // Σ over record ≡ record.netPayable
+  overrideReason    String? // required when basis = manual (audited)
+  createdById       String?
+  createdAt         DateTime @default(now())
+
+  payrollRun   PayrollRun             @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  personRecord PayrollPersonRecord    @relation(fields: [personRecordId], references: [id], onDelete: Cascade)
+  assignment   ProjectStaffAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  project      Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([personRecordId, assignmentId])
+  @@index([payrollRunId])
+  @@index([projectId])
+  @@index([organizationId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Organization Policy (ADR-0004): prospective-only versioning.
+// New transactions bind the ACTIVE version; posted history is never
+// reinterpreted under later settings. `capabilities` holds the typed
+// OperatingCapabilities map — validated by the policy resolver, never
+// trusted from client input.
+// ─────────────────────────────────────────────────────────────
+
+model OrganizationPolicyVersion {
+  id              String    @id @default(cuid())
+  organizationId  String
+  version         Int
+  operatingMethod String // owner_led | crew_led | delegated
+  capabilities    Json // OperatingCapabilities map
+  notes           String?
+  activatedAt     DateTime  @default(now())
+  activatedById   String?
+  supersededAt    DateTime? // set when a newer version activates
+  createdAt       DateTime  @default(now())
+
+  organization           Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activeForOrganization  Organization? @relation("ActivePolicyVersion")
+  runsBoundToThisVersion PayrollRun[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, activatedAt])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2461,17 +2614,17 @@ model DailyProgramTask {
   boqItemId       String? // linked BOQ item
   boqCode         String?
   boqDesc         String?
-  plannedQty Decimal @db.Decimal(15, 4) @default(0)
+  plannedQty      Decimal @default(0) @db.Decimal(15, 4)
   unit            String?
   paymentType     String  @default("payable") // payable | unpayable | temporary
   assignedTo      String?
   remarks         String?
 
   // NEW Fields for execution tracking
-  executionStatus String @default("planned") // planned | done | partially_completed | uncompleted | postponed
-  actualQty Decimal? @db.Decimal(15, 4) @default(0) // Filled in via Daily Report
-  batchedQty Decimal? @db.Decimal(15, 4) @default(0)
-  payableQty Decimal? @db.Decimal(15, 4) @default(0)
+  executionStatus String   @default("planned") // planned | done | partially_completed | uncompleted | postponed
+  actualQty       Decimal? @default(0) @db.Decimal(15, 4) // Filled in via Daily Report
+  batchedQty      Decimal? @default(0) @db.Decimal(15, 4)
+  payableQty      Decimal? @default(0) @db.Decimal(15, 4)
 
   // Delay & EOT Tracking
   delayReason    String? // weather | material | equipment | labor | client | other
@@ -2541,10 +2694,10 @@ model GateEntry {
   driverName  String?
   challanNo   String?
   description String?
-  estQty Decimal? @db.Decimal(15, 4)
+  estQty      Decimal? @db.Decimal(15, 4)
   grossWeight Decimal? @db.Decimal(15, 4)
-  tareWeight Decimal? @db.Decimal(15, 4)
-  netWeight Decimal? @db.Decimal(15, 4)
+  tareWeight  Decimal? @db.Decimal(15, 4)
+  netWeight   Decimal? @db.Decimal(15, 4)
   unit        String?
   fileUrl     String? // Challan / Weighbridge slip photo
   status      String   @default("pending") // pending | received | rejected
@@ -2567,9 +2720,9 @@ model Subcontractor {
   pan                    String?
   status                 String   @default("active") // active | inactive
   // Retention tracking
-  totalRetentionHeld Decimal @db.Decimal(15, 2) @default(0) // cumulative retention deducted from IPCs
-  totalRetentionReleased Decimal @db.Decimal(15, 2) @default(0) // cumulative retention paid back
-  contractValue Decimal @db.Decimal(15, 2) @default(0) // total contract amount (for % tracking)
+  totalRetentionHeld     Decimal  @default(0) @db.Decimal(15, 2) // cumulative retention deducted from IPCs
+  totalRetentionReleased Decimal  @default(0) @db.Decimal(15, 2) // cumulative retention paid back
+  contractValue          Decimal  @default(0) @db.Decimal(15, 2) // total contract amount (for % tracking)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -2620,11 +2773,11 @@ model VariationOrderItem {
   unit      String
 
   // Delta Tracking
-  previousQty Decimal @db.Decimal(15, 4) @default(0)
-  newQty Decimal @db.Decimal(15, 4) @default(0)
+  previousQty Decimal @default(0) @db.Decimal(15, 4)
+  newQty      Decimal @default(0) @db.Decimal(15, 4)
 
-  previousRate Decimal @db.Decimal(15, 4) @default(0)
-  newRate Decimal @db.Decimal(15, 4) @default(0)
+  previousRate Decimal @default(0) @db.Decimal(15, 4)
+  newRate      Decimal @default(0) @db.Decimal(15, 4)
 
   variationOrder VariationOrder @relation(fields: [variationOrderId], references: [id], onDelete: Cascade)
   boqItem        BoqItem?       @relation(fields: [boqItemId], references: [id])
@@ -2704,7 +2857,7 @@ model ProjectCost {
   id          String   @id @default(cuid())
   projectId   String
   date        DateTime @default(now())
-  amount Decimal @db.Decimal(15, 2)
+  amount      Decimal  @db.Decimal(15, 2)
   category    String // material | labor | equipment | subcontractor | overhead
   subcategory String? // e.g. "Cement", "Fuel", "Skilled Labor"
   description String?
@@ -2783,8 +2936,8 @@ model Correspondence {
   replyNotes       String?
 
   // EOT-specific fields (when letterType = eot_claim)
-  eotDaysClaimed Decimal? @db.Decimal(15, 2) // days of extension requested
-  eotDaysGranted Decimal? @db.Decimal(15, 2) // days approved by client/consultant
+  eotDaysClaimed   Decimal? @db.Decimal(15, 2) // days of extension requested
+  eotDaysGranted   Decimal? @db.Decimal(15, 2) // days approved by client/consultant
   eotStatus        String? // submitted | under_review | approved | rejected | partially_approved
   eotLinkedTaskIds String? // JSON array of Gantt task IDs affected
 
@@ -2828,16 +2981,16 @@ model DrawingMarkup {
   drawingId       String
   revisionId      String? // specific revision (null = applies to all)
   type            String // cloud | arrow | text | pin | highlight | measurement | freehand | callout | stamp | area
-  x Decimal @db.Decimal(15, 2) // 0-1 percentage of width
-  y Decimal @db.Decimal(15, 2) // 0-1 percentage of height
-  w Decimal? @db.Decimal(15, 2) // width (for rectangles/clouds, 0-1)
-  h Decimal? @db.Decimal(15, 2) // height
-  x2 Decimal? @db.Decimal(15, 2) // end point x for lines/arrows/callouts (0-1)
-  y2 Decimal? @db.Decimal(15, 2) // end point y
-  rotation Decimal? @db.Decimal(15, 2) // degrees
+  x               Decimal  @db.Decimal(15, 2) // 0-1 percentage of width
+  y               Decimal  @db.Decimal(15, 2) // 0-1 percentage of height
+  w               Decimal? @db.Decimal(15, 2) // width (for rectangles/clouds, 0-1)
+  h               Decimal? @db.Decimal(15, 2) // height
+  x2              Decimal? @db.Decimal(15, 2) // end point x for lines/arrows/callouts (0-1)
+  y2              Decimal? @db.Decimal(15, 2) // end point y
+  rotation        Decimal? @db.Decimal(15, 2) // degrees
   color           String   @default("#ef4444")
-  strokeWidth Decimal? @db.Decimal(15, 4) @default(2)
-  opacity Decimal? @db.Decimal(15, 2) @default(1)
+  strokeWidth     Decimal? @default(2) @db.Decimal(15, 4)
+  opacity         Decimal? @default(1) @db.Decimal(15, 2)
   text            String? // for text annotations, callout text, stamp text
   points          String? // JSON array of {x,y} for freehand/area polygons
   stampType       String? // approved | rejected | revision | draft | final | caution
@@ -3045,44 +3198,44 @@ model ChatReadReceipt {
 // ─────────────────────────────────────────────────────────────
 
 model Payment {
-  id                  String    @id @default(cuid())
-  projectId           String
-  payeeType           String // vendor | subcontractor | supplier | staff | other
-  payeeId             String? // linked entity ID (subcontractorId, vendorId, etc.)
-  payeeName           String
-  partyPan            String? // PAN of the payee for Tally / Swastik accounting
-  ipcId               String? // linked IPC (if payment is for an IPC)
-  invoiceNumber       String?
-  amount Decimal @db.Decimal(15, 2)
-  tdsDeducted Decimal @db.Decimal(15, 2) @default(0)
-  vatIncluded Decimal @db.Decimal(15, 2) @default(0)
-  netPaid Decimal @db.Decimal(15, 2) @default(0)
-  paymentDate         DateTime  @default(now())
-  paymentMiti         String? // Bikram Sambat Miti (e.g. 2081/05/07)
-  paymentMode         String    @default("bank_transfer") // cash | bank_transfer | cheque | mobile_pay | connectips
-  chequeNo            String?
-  bankRef             String?
-  bankAccount         String? // e.g. "Nabil Bank A/C", "Global IME", "Site Petty Cash"
-  status              String    @default("paid") // pending | paid | cancelled
-  retentionReleased Decimal @db.Decimal(15, 2) @default(0)
-  notes               String?
-  createdById         String?
-  createdAt           DateTime  @default(now())
+  id                String   @id @default(cuid())
+  projectId         String
+  payeeType         String // vendor | subcontractor | supplier | staff | other
+  payeeId           String? // linked entity ID (subcontractorId, vendorId, etc.)
+  payeeName         String
+  partyPan          String? // PAN of the payee for Tally / Swastik accounting
+  ipcId             String? // linked IPC (if payment is for an IPC)
+  invoiceNumber     String?
+  amount            Decimal  @db.Decimal(15, 2)
+  tdsDeducted       Decimal  @default(0) @db.Decimal(15, 2)
+  vatIncluded       Decimal  @default(0) @db.Decimal(15, 2)
+  netPaid           Decimal  @default(0) @db.Decimal(15, 2)
+  paymentDate       DateTime @default(now())
+  paymentMiti       String? // Bikram Sambat Miti (e.g. 2081/05/07)
+  paymentMode       String   @default("bank_transfer") // cash | bank_transfer | cheque | mobile_pay | connectips
+  chequeNo          String?
+  bankRef           String?
+  bankAccount       String? // e.g. "Nabil Bank A/C", "Global IME", "Site Petty Cash"
+  status            String   @default("paid") // pending | paid | cancelled
+  retentionReleased Decimal  @default(0) @db.Decimal(15, 2)
+  notes             String?
+  createdById       String?
+  createdAt         DateTime @default(now())
 
   // Accounting Software (Tally / Swastik) & Category Structure
   categoryId          String?
   subCategoryId       String?
   category            String? // Denormalized Category name (e.g. "Site Overhead")
   subCategory         String? // Denormalized Subcategory name (e.g. "Food & Mess")
-  allocationType      String    @default("specific_payee") // specific_payee | bulk_category | advance
+  allocationType      String  @default("specific_payee") // specific_payee | bulk_category | advance
   accountingSoftware  String? // "tally" | "swastik" | "other"
   accountingVoucherNo String? // Tally / Swastik Voucher No (e.g. PV-2081-004, BP-012, CP-001)
-  voucherType         String?   @default("payment") // payment | bank_payment | cash_payment | journal
+  voucherType         String? @default("payment") // payment | bank_payment | cash_payment | journal
 
   // Scanned Document Attachment
-  scannedBillUrl      String?
-  scannedBillName     String?
-  isBillAttached      Boolean   @default(false)
+  scannedBillUrl  String?
+  scannedBillName String?
+  isBillAttached  Boolean @default(false)
 
   // Organization-level Central Bank Account Link
   companyBankAccountId String?
@@ -3098,23 +3251,23 @@ model Payment {
 }
 
 model PaymentCategory {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String // e.g. "Site Overhead", "Material", "Equipment"
-  nameNp      String? // Devanagari translation e.g. "साइट ओभरहेड"
-  code        String? // e.g. "OVH", "MAT", "EQP" or Swastik Sub-Ledger Code
-  color       String?  @default("amber") // theme palette key
-  icon        String? // Lucide icon name
-  parentId    String? // null = top-level category; set = subcategory
-  isSystem    Boolean  @default(false) // built-in preset vs user created
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  projectId String
+  name      String // e.g. "Site Overhead", "Material", "Equipment"
+  nameNp    String? // Devanagari translation e.g. "साइट ओभरहेड"
+  code      String? // e.g. "OVH", "MAT", "EQP" or Swastik Sub-Ledger Code
+  color     String?  @default("amber") // theme palette key
+  icon      String? // Lucide icon name
+  parentId  String? // null = top-level category; set = subcategory
+  isSystem  Boolean  @default(false) // built-in preset vs user created
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  parent      PaymentCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    PaymentCategory[] @relation("CategoryHierarchy")
-  payments    Payment[]
+  project  Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent   PaymentCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children PaymentCategory[] @relation("CategoryHierarchy")
+  payments Payment[]
 
   @@unique([projectId, name, parentId])
   @@index([projectId, parentId])
@@ -3255,10 +3408,10 @@ model PurchaseRequisition {
 }
 
 model PurchaseRequisitionItem {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   requisitionId String
   materialId    String
-  quantity Decimal @db.Decimal(15, 4)
+  quantity      Decimal @db.Decimal(15, 4)
   unit          String
 
   // Selection details
@@ -3278,8 +3431,8 @@ model RequisitionItemQuote {
   id                String  @id @default(cuid())
   requisitionItemId String
   partnerId         String
-  exFactoryRate Decimal @db.Decimal(15, 4)
-  transportRate Decimal @db.Decimal(15, 4)
+  exFactoryRate     Decimal @db.Decimal(15, 4)
+  transportRate     Decimal @db.Decimal(15, 4)
   notes             String?
 
   requisitionItem PurchaseRequisitionItem @relation(fields: [requisitionItemId], references: [id], onDelete: Cascade)
@@ -3305,12 +3458,12 @@ model StoreLocation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  stocks          MaterialStoreStock[]
-  transactions                    MaterialTransaction[] @relation("SourceStoreTransactions")
-  targetTransfers                 MaterialTransaction[] @relation("TargetStoreTransactions")
-  originInterSiteTransfers        InterSiteTransfer[]   @relation("OriginStoreInterSiteTransfers")
-  destinationInterSiteTransfers   InterSiteTransfer[]   @relation("DestinationStoreInterSiteTransfers")
+  project                       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stocks                        MaterialStoreStock[]
+  transactions                  MaterialTransaction[] @relation("SourceStoreTransactions")
+  targetTransfers               MaterialTransaction[] @relation("TargetStoreTransactions")
+  originInterSiteTransfers      InterSiteTransfer[]   @relation("OriginStoreInterSiteTransfers")
+  destinationInterSiteTransfers InterSiteTransfer[]   @relation("DestinationStoreInterSiteTransfers")
 
   @@unique([projectId, name])
   @@index([projectId])
@@ -3320,7 +3473,7 @@ model MaterialStoreStock {
   id              String   @id @default(cuid())
   materialId      String
   storeLocationId String
-  currentStock Decimal @db.Decimal(15, 2) @default(0)
+  currentStock    Decimal  @default(0) @db.Decimal(15, 2)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -3344,11 +3497,11 @@ model VendorBill {
   billNumber      String // Supplier's Invoice/Bill No
   billDate        DateTime  @default(now())
   dueDate         DateTime?
-  grossAmount Decimal @db.Decimal(15, 2) @default(0)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
-  paidAmount Decimal @db.Decimal(15, 2) @default(0)
+  grossAmount     Decimal   @default(0) @db.Decimal(15, 2)
+  vatAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  tdsAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  netPayable      Decimal   @default(0) @db.Decimal(15, 2)
+  paidAmount      Decimal   @default(0) @db.Decimal(15, 2)
   status          String    @default("unpaid") // unpaid | partially_paid | paid | disputed
   billedToEntity  String    @default("primary_org") // primary_org | dedicated_jv | lead_partner
   recipientPan    String?
@@ -3373,7 +3526,7 @@ model VendorPayment {
   id              String   @id @default(cuid())
   projectId       String
   vendorBillId    String
-  amount Decimal @db.Decimal(15, 2)
+  amount          Decimal  @db.Decimal(15, 2)
   paymentDate     DateTime @default(now())
   paymentMethod   String   @default("bank_transfer") // bank_transfer | cheque | cash
   referenceNumber String? // Cheque / Bank Txn Ref
@@ -3415,9 +3568,9 @@ model SubcontractorPayment {
   createdById         String?
   createdAt           DateTime @default(now())
 
-  project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  subcontractorBill  SubcontractorBill @relation(fields: [subcontractorBillId], references: [id], onDelete: Cascade)
-  createdBy          User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractorBill SubcontractorBill @relation(fields: [subcontractorBillId], references: [id], onDelete: Cascade)
+  createdBy         User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([subcontractorBillId])
@@ -3441,12 +3594,12 @@ model DocumentSequence {
 
 model LeaveRequest {
   id              String    @id @default(cuid())
-  projectId       String
-  staffId         String
+  projectId       String // context: where the leave was requested
+  personId        String
   leaveType       String    @default("casual") // casual | sick | paid | unpaid | emergency | maternity
   startDate       DateTime
   endDate         DateTime
-  totalDays Decimal @db.Decimal(15, 2)
+  totalDays       Decimal   @db.Decimal(15, 2)
   reason          String?
   status          String    @default("pending") // pending | approved | rejected
   approvedById    String?
@@ -3457,29 +3610,33 @@ model LeaveRequest {
   updatedAt       DateTime  @updatedAt
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  staff      Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  person     Person  @relation(fields: [personId], references: [id], onDelete: Restrict)
   approvedBy User?   @relation("LeaveApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
   createdBy  User?   @relation("LeaveCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@index([projectId, staffId])
+  @@index([projectId, personId])
+  @@index([personId, startDate])
   @@index([status])
 }
 
+// Leave is an employment fact: balances are org-grain per person
+// (ADR-0005). Approved leave requests decrement the balance regardless
+// of which project's roster requested it.
 model LeaveBalance {
-  id           String @id @default(cuid())
-  projectId    String
-  staffId      String
-  leaveType    String @default("casual")
-  year         Int // e.g. 2026
-  totalAllowed Decimal @db.Decimal(15, 2) @default(0)
-  taken Decimal @db.Decimal(15, 2) @default(0)
-  remaining Decimal @db.Decimal(15, 2) @default(0)
+  id             String  @id @default(cuid())
+  organizationId String
+  personId       String
+  leaveType      String  @default("casual")
+  year           Int // e.g. 2026
+  totalAllowed   Decimal @default(0) @db.Decimal(15, 2)
+  taken          Decimal @default(0) @db.Decimal(15, 2)
+  remaining      Decimal @default(0) @db.Decimal(15, 2)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  staff   Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
 
-  @@unique([projectId, staffId, leaveType, year])
-  @@index([projectId, staffId])
+  @@unique([organizationId, personId, leaveType, year])
+  @@index([personId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3493,9 +3650,9 @@ model SiteExpense {
   date         DateTime  @default(now())
   category     String    @default("general") // material | transport | labor | food | accommodation | utility | office | travel | other
   description  String
-  amount Decimal @db.Decimal(15, 2)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  totalAmount Decimal @db.Decimal(15, 2)
+  amount       Decimal   @db.Decimal(15, 2)
+  vatAmount    Decimal   @default(0) @db.Decimal(15, 2)
+  totalAmount  Decimal   @db.Decimal(15, 2)
   paymentMode  String    @default("cash") // cash | bank_transfer | cheque | mobile
   referenceNo  String?
   vendorName   String?
@@ -3528,22 +3685,22 @@ model SubcontractorBill {
   number            String // e.g. SUB-BILL-001
   billDate          DateTime  @default(now())
   period            String? // e.g. "Aug 2026"
-  grossAmount Decimal @db.Decimal(15, 2) @default(0)
-  retentionPercent Decimal @db.Decimal(15, 4) @default(0)
-  retentionAmount Decimal @db.Decimal(15, 2) @default(0)
-  vatPercent Decimal @db.Decimal(15, 4) @default(13)
-  vatAmount Decimal @db.Decimal(15, 2) @default(0)
-  tdsPercent Decimal @db.Decimal(15, 4) @default(0)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  materialDeduction Decimal @db.Decimal(15, 2) @default(0)
-  advanceRecovery Decimal @db.Decimal(15, 2) @default(0)
-  netPayable Decimal @db.Decimal(15, 2) @default(0)
-  paidAmount Decimal @db.Decimal(15, 2) @default(0)
+  grossAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  retentionPercent  Decimal   @default(0) @db.Decimal(15, 4)
+  retentionAmount   Decimal   @default(0) @db.Decimal(15, 2)
+  vatPercent        Decimal   @default(13) @db.Decimal(15, 4)
+  vatAmount         Decimal   @default(0) @db.Decimal(15, 2)
+  tdsPercent        Decimal   @default(0) @db.Decimal(15, 4)
+  tdsAmount         Decimal   @default(0) @db.Decimal(15, 2)
+  materialDeduction Decimal   @default(0) @db.Decimal(15, 2)
+  advanceRecovery   Decimal   @default(0) @db.Decimal(15, 2)
+  netPayable        Decimal   @default(0) @db.Decimal(15, 2)
+  paidAmount        Decimal   @default(0) @db.Decimal(15, 2)
   status            String    @default("draft") // draft | submitted | verified | certified | paid | disputed
   notes             String?
   createdById       String?
-  verifiedGross Decimal? @db.Decimal(15, 2)
-  verifiedNet Decimal? @db.Decimal(15, 2)
+  verifiedGross     Decimal?  @db.Decimal(15, 2)
+  verifiedNet       Decimal?  @db.Decimal(15, 2)
   verifiedById      String?
   verifiedAt        DateTime?
   certifiedById     String?
@@ -3552,16 +3709,16 @@ model SubcontractorBill {
   // Retention release tracking — set by `releaseRetention` mutation.
   // Prevents duplicate journal entries on re-run, mirroring the IPC
   // field above.
-  retentionReleasedAt DateTime?
+  retentionReleasedAt   DateTime?
   retentionReleasedById String?
 
   // Scanned Bill Attachment
-  scannedBillUrl    String?
-  scannedBillName   String?
-  isBillAttached    Boolean   @default(false)
+  scannedBillUrl  String?
+  scannedBillName String?
+  isBillAttached  Boolean @default(false)
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   project       Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   subcontractor Subcontractor           @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
@@ -3575,20 +3732,20 @@ model SubcontractorBill {
 }
 
 model SubcontractorBillItem {
-  id               String  @id @default(cuid())
+  id               String   @id @default(cuid())
   billId           String
   boqCode          String?
   description      String
   unit             String?
-  contractQty Decimal @db.Decimal(15, 4) @default(0)
-  previousQty Decimal @db.Decimal(15, 4) @default(0)
-  thisQty Decimal @db.Decimal(15, 4) @default(0)
-  cumQty Decimal @db.Decimal(15, 4) @default(0)
-  rate Decimal @db.Decimal(15, 4) @default(0)
-  amount Decimal @db.Decimal(15, 2) @default(0)
-  verifiedQty Decimal? @db.Decimal(15, 4)
-  verifiedAmount Decimal? @db.Decimal(15, 2)
-  disallowedQty Decimal? @db.Decimal(15, 4)
+  contractQty      Decimal  @default(0) @db.Decimal(15, 4)
+  previousQty      Decimal  @default(0) @db.Decimal(15, 4)
+  thisQty          Decimal  @default(0) @db.Decimal(15, 4)
+  cumQty           Decimal  @default(0) @db.Decimal(15, 4)
+  rate             Decimal  @default(0) @db.Decimal(15, 4)
+  amount           Decimal  @default(0) @db.Decimal(15, 2)
+  verifiedQty      Decimal? @db.Decimal(15, 4)
+  verifiedAmount   Decimal? @db.Decimal(15, 2)
+  disallowedQty    Decimal? @db.Decimal(15, 4)
   disallowedReason String?
   remarks          String?
 
@@ -3615,7 +3772,7 @@ model CatalogMaterial {
   category       String?
   subCategory    String?
   defaultUnit    String   @default("")
-  defaultRate Decimal @db.Decimal(15, 4) @default(0)
+  defaultRate    Decimal  @default(0) @db.Decimal(15, 4)
   aliases        String[] // search aliases
   isActive       Boolean  @default(true)
 
@@ -3646,7 +3803,7 @@ model RateEntry {
   materialId        String
   rateCatalogId     String
   district          String
-  rate Decimal @db.Decimal(15, 4) @default(0)
+  rate              Decimal @default(0) @db.Decimal(15, 4)
   sourceRateEntryId String? // tracks import origin (RateEntry.id)
 
   createdAt DateTime @default(now())
@@ -3681,36 +3838,36 @@ model MaterialSubstitute {
 // ─────────────────────────────────────────────────────────────
 
 model BankGuarantee {
-  id               String    @id @default(cuid())
-  organizationId   String?   // Organization level tracking for Bid Bonds / Pre-award guarantees
-  projectId        String?   // Optional project link (null for pre-award tender bid bonds)
-  type             String    // performance_bond | advance_payment | car_insurance | retention_bond | bid_bond | other
-  guaranteeNumber  String    // BG Number or Policy Number (e.g. BG/NABIL/2081/042)
-  issuingBank      String    // e.g. Nabil Bank, Global IME Bank, Shikhar Insurance
-  branch           String?   // e.g. Hetauda Branch, New Road
-  beneficiary      String    // e.g. Division Road Office, DUDBC Chitwan, Bharatpur Municipality
-  amount Decimal @db.Decimal(15, 2) // Guarantee value in NPR
-  currency         String    @default("NPR")
-  issuedDate       DateTime
-  issuedMiti       String?   // BS Miti e.g. 2081-02-15
-  expiryDate       DateTime
-  expiryMiti       String?   // BS Miti e.g. 2082-02-14
-  claimPeriodDays  Int       @default(30) // standard 30 days under PPA
-  claimExpiryDate  DateTime?
-  status           String    @default("active") // active | extended | released | claimed | expired
-  purpose          String?   // e.g. "5% Performance Security for Package DOR-01" or "Bid Security for Tender IFB-02"
-  marginAmount Decimal @db.Decimal(15, 2) @default(0) // Cash margin held by bank
-  commissionRate Decimal @db.Decimal(15, 4) @default(0) // % p.a.
-  commissionPaid Decimal @db.Decimal(15, 2) @default(0) // Total commission cost
-  documentUrl      String?   // Scanned copy PDF / JPG
-  documentName     String?
-  amendments       Json      @default("[]") // Array of { date, oldExpiryDate, newExpiryDate, letterNo, remarks }
-  notes            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  organizationId  String? // Organization level tracking for Bid Bonds / Pre-award guarantees
+  projectId       String? // Optional project link (null for pre-award tender bid bonds)
+  type            String // performance_bond | advance_payment | car_insurance | retention_bond | bid_bond | other
+  guaranteeNumber String // BG Number or Policy Number (e.g. BG/NABIL/2081/042)
+  issuingBank     String // e.g. Nabil Bank, Global IME Bank, Shikhar Insurance
+  branch          String? // e.g. Hetauda Branch, New Road
+  beneficiary     String // e.g. Division Road Office, DUDBC Chitwan, Bharatpur Municipality
+  amount          Decimal   @db.Decimal(15, 2) // Guarantee value in NPR
+  currency        String    @default("NPR")
+  issuedDate      DateTime
+  issuedMiti      String? // BS Miti e.g. 2081-02-15
+  expiryDate      DateTime
+  expiryMiti      String? // BS Miti e.g. 2082-02-14
+  claimPeriodDays Int       @default(30) // standard 30 days under PPA
+  claimExpiryDate DateTime?
+  status          String    @default("active") // active | extended | released | claimed | expired
+  purpose         String? // e.g. "5% Performance Security for Package DOR-01" or "Bid Security for Tender IFB-02"
+  marginAmount    Decimal   @default(0) @db.Decimal(15, 2) // Cash margin held by bank
+  commissionRate  Decimal   @default(0) @db.Decimal(15, 4) // % p.a.
+  commissionPaid  Decimal   @default(0) @db.Decimal(15, 2) // Total commission cost
+  documentUrl     String? // Scanned copy PDF / JPG
+  documentName    String?
+  amendments      Json      @default("[]") // Array of { date, oldExpiryDate, newExpiryDate, letterNo, remarks }
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project          Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, expiryDate])
   @@index([projectId, status, expiryDate])
@@ -3721,12 +3878,12 @@ model BankGuarantee {
 // ─────────────────────────────────────────────────────────────
 
 model JvPartnerAgreement {
-  id                String    @id @default(cuid())
-  projectId         String    @unique
-  partnerName       String    // e.g. "Sharma Construction Pvt. Ltd."
-  partnerPan        String?   // Partner PAN
-  commissionRate Decimal @db.Decimal(15, 4) @default(1.5) // % of Certified IPC Gross (e.g. 1.5%)
-  leadPartnerShare Decimal @db.Decimal(15, 2) @default(100.0) // % operational execution by lead firm
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  partnerName       String // e.g. "Sharma Construction Pvt. Ltd."
+  partnerPan        String? // Partner PAN
+  commissionRate    Decimal  @default(1.5) @db.Decimal(15, 4) // % of Certified IPC Gross (e.g. 1.5%)
+  leadPartnerShare  Decimal  @default(100.0) @db.Decimal(15, 2) // % operational execution by lead firm
   contactPerson     String?
   phone             String?
   email             String?
@@ -3734,39 +3891,39 @@ model JvPartnerAgreement {
   bankAccountNumber String?
   branch            String?
   notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  payouts           JvCommissionPayout[]
+  project Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payouts JvCommissionPayout[]
 }
 
 model JvCommissionPayout {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   agreementId   String
-  ipcId         String?   // Optional link to specific IPC bill
-  voucherNo     String    // Day Book Voucher Number
-  payoutDate    DateTime  @default(now())
-  payoutMiti    String?   // BS Miti e.g. 2081-03-10
-  grossAmount Decimal @db.Decimal(15, 2) // Gross commission disbursed
-  tdsPercent Decimal @db.Decimal(15, 4) @default(1.5) // Nepal statutory TDS on commission (1.5%)
-  tdsAmount Decimal @db.Decimal(15, 2) @default(0)
-  netAmount Decimal @db.Decimal(15, 2) // Net paid via bank/cheque
-  paymentMode   String    @default("bank_transfer") // bank_transfer | cheque | connectips
+  ipcId         String? // Optional link to specific IPC bill
+  voucherNo     String // Day Book Voucher Number
+  payoutDate    DateTime @default(now())
+  payoutMiti    String? // BS Miti e.g. 2081-03-10
+  grossAmount   Decimal  @db.Decimal(15, 2) // Gross commission disbursed
+  tdsPercent    Decimal  @default(1.5) @db.Decimal(15, 4) // Nepal statutory TDS on commission (1.5%)
+  tdsAmount     Decimal  @default(0) @db.Decimal(15, 2)
+  netAmount     Decimal  @db.Decimal(15, 2) // Net paid via bank/cheque
+  paymentMode   String   @default("bank_transfer") // bank_transfer | cheque | connectips
   chequeNo      String?
   bankAccountId String?
   remarks       String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  agreement     JvPartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  agreement JvPartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
 
-  @@index([agreementId, payoutDate])
   // P2 item 25 + audit §4: one commission payout per IPC — the app-level
   // integrity check was read-then-write (double-pay race under
   // concurrency). NULL ipcId rows (manual payouts) are exempt: Postgres
   // unique indexes allow multiple NULLs.
   @@unique([ipcId])
+  @@index([agreementId, payoutDate])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3774,50 +3931,50 @@ model JvCommissionPayout {
 // ─────────────────────────────────────────────────────────────
 
 model CompanyBankAccount {
-  id              String    @id @default(cuid())
-  organizationId  String
-  bankName        String    // e.g. "Nabil Bank", "Global IME Bank", "Nepal Bank", "Site Petty Cash"
-  accountNumber   String    // Account Number
-  accountName     String    // e.g. "Nacrose Construction Pvt. Ltd."
-  accountType     String    @default("current") // current | saving | overdraft | petty_cash
-  branch          String?   // e.g. "Hetauda Branch"
-  openingBalance Decimal @db.Decimal(15, 2) @default(0)
-  currentBalance Decimal @db.Decimal(15, 2) @default(0)
-  currency        String    @default("NPR")
-  isDefault       Boolean   @default(false)
-  status          String    @default("active") // active | inactive
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  bankName       String // e.g. "Nabil Bank", "Global IME Bank", "Nepal Bank", "Site Petty Cash"
+  accountNumber  String // Account Number
+  accountName    String // e.g. "Nacrose Construction Pvt. Ltd."
+  accountType    String   @default("current") // current | saving | overdraft | petty_cash
+  branch         String? // e.g. "Hetauda Branch"
+  openingBalance Decimal  @default(0) @db.Decimal(15, 2)
+  currentBalance Decimal  @default(0) @db.Decimal(15, 2)
+  currency       String   @default("NPR")
+  isDefault      Boolean  @default(false)
+  status         String   @default("active") // active | inactive
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  payments        Payment[]
-  headOfficeExpenses HeadOfficeExpense[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payments            Payment[]
+  headOfficeExpenses  HeadOfficeExpense[]
   bankReconciliations BankReconciliation[]
 
-  @@index([organizationId, status])
   // P2 item 25: prevents duplicate bank-account registrations per org.
   @@unique([organizationId, accountNumber])
+  @@index([organizationId, status])
 }
 
 model HeadOfficeExpense {
-  id              String    @id @default(cuid())
-  organizationId  String
-  date            DateTime  @default(now())
-  miti            String?   // BS Miti e.g. 2081-05-15
-  category        String    // Rent, Audit/Tax Fees, Utilities, Vehicle/Fuel, Director Draw, Legal
-  particulars     String
-  amount Decimal @db.Decimal(15, 2)
-  paymentMode     String    @default("bank_transfer") // cheque | bank_transfer | cash | connectips
-  bankAccountId   String?
-  chequeNo        String?
-  voucherNo       String?
-  scannedBillUrl  String?
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  date           DateTime @default(now())
+  miti           String? // BS Miti e.g. 2081-05-15
+  category       String // Rent, Audit/Tax Fees, Utilities, Vehicle/Fuel, Director Draw, Legal
+  particulars    String
+  amount         Decimal  @db.Decimal(15, 2)
+  paymentMode    String   @default("bank_transfer") // cheque | bank_transfer | cash | connectips
+  bankAccountId  String?
+  chequeNo       String?
+  voucherNo      String?
+  scannedBillUrl String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bankAccount     CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bankAccount  CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, date])
 }
@@ -3852,48 +4009,48 @@ model StoredFile {
 }
 
 model JournalEntry {
-  id              String   @id @default(cuid())
-  entryNumber     String   @unique // e.g. JE-2026-0001
-  entryDate       DateTime @default(now())
-  miti            String?  // BS date
-  fiscalYearId    String?  // links to FiscalYearLock
-  organizationId  String?  // owning org (org-level entries have projectId=null lines; this is the ONLY reliable org scope)
-  source          String   // payment | vendor_bill | subcontractor_bill | ipc | site_expense | payroll | bank_charge | journal_voucher
-  sourceRefId     String?  // the record ID that generated this entry
-  sourceRefType   String?  // model name for reverse lookup
-  description     String
-  totalDebit Decimal @db.Decimal(15, 2) @default(0) // must equal totalCredit
-  totalCredit Decimal @db.Decimal(15, 2) @default(0) // must equal totalDebit
-  isPosted        Boolean  @default(false) // draft vs posted
-  postedById      String?
-  postedAt        DateTime?
-  reversalOfId    String?  // if this entry reverses another
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  entryNumber    String    @unique // e.g. JE-2026-0001
+  entryDate      DateTime  @default(now())
+  miti           String? // BS date
+  fiscalYearId   String? // links to FiscalYearLock
+  organizationId String? // owning org (org-level entries have projectId=null lines; this is the ONLY reliable org scope)
+  source         String // payment | vendor_bill | subcontractor_bill | ipc | site_expense | payroll | bank_charge | journal_voucher
+  sourceRefId    String? // the record ID that generated this entry
+  sourceRefType  String? // model name for reverse lookup
+  description    String
+  totalDebit     Decimal   @default(0) @db.Decimal(15, 2) // must equal totalCredit
+  totalCredit    Decimal   @default(0) @db.Decimal(15, 2) // must equal totalDebit
+  isPosted       Boolean   @default(false) // draft vs posted
+  postedById     String?
+  postedAt       DateTime?
+  reversalOfId   String? // if this entry reverses another
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  lines           JournalEntryLine[]
+  lines JournalEntryLine[]
 
-  @@index([entryDate])
   @@unique([source, sourceRefId])
+  @@index([entryDate])
   @@index([fiscalYearId])
   @@index([isPosted])
   @@index([organizationId])
 }
 
 model JournalEntryLine {
-  id              String   @id @default(cuid())
-  journalEntryId  String
-  lineNumber      Int
-  accountCode     String   // e.g. "1001", "2001", "4001"
-  accountName     String   // denormalized for readability
-  debit Decimal @db.Decimal(15, 2) @default(0)
-  credit Decimal @db.Decimal(15, 2) @default(0)
-  description     String?
-  projectId       String?  // for project-level cost allocation
-  partnerId       String?  // for vendor/subcontractor tracking
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  journalEntryId String
+  lineNumber     Int
+  accountCode    String // e.g. "1001", "2001", "4001"
+  accountName    String // denormalized for readability
+  debit          Decimal  @default(0) @db.Decimal(15, 2)
+  credit         Decimal  @default(0) @db.Decimal(15, 2)
+  description    String?
+  projectId      String? // for project-level cost allocation
+  partnerId      String? // for vendor/subcontractor tracking
+  createdAt      DateTime @default(now())
 
-  journalEntry    JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
 
   @@index([journalEntryId])
   @@index([accountCode])
@@ -3908,17 +4065,17 @@ model JournalEntryLine {
 // returns have been filed.
 
 model FiscalYearLock {
-  id              String   @id @default(cuid())
-  organizationId  String
-  fiscalYear      String   // e.g. "2081/82" (BS) or "2026" (AD)
-  startDate       DateTime
-  endDate         DateTime
-  isLocked        Boolean  @default(false)
-  lockedById      String?
-  lockedAt        DateTime?
-  lockNotes       String?  // e.g. "Locked after annual tax return filing"
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String
+  fiscalYear     String // e.g. "2081/82" (BS) or "2026" (AD)
+  startDate      DateTime
+  endDate        DateTime
+  isLocked       Boolean   @default(false)
+  lockedById     String?
+  lockedAt       DateTime?
+  lockNotes      String? // e.g. "Locked after annual tax return filing"
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([organizationId, fiscalYear])
   @@index([organizationId, isLocked])
@@ -3932,15 +4089,15 @@ model FiscalYearLock {
 // changes later. Critical for audit defense.
 
 model ReportSnapshot {
-  id              String   @id @default(cuid())
-  organizationId  String?
-  projectId       String?
-  reportType      String   // pnl | trial_balance | cash_flow | retention_ledger | tds_reconciliation
-  reportDate      DateTime @default(now())
-  generatedById   String
-  snapshotData    String   // JSON stringified full report result
-  periodLabel     String?  // e.g. "Fiscal Year 2081/82" or "2026-08"
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String?
+  projectId      String?
+  reportType     String // pnl | trial_balance | cash_flow | retention_ledger | tds_reconciliation
+  reportDate     DateTime @default(now())
+  generatedById  String
+  snapshotData   String // JSON stringified full report result
+  periodLabel    String? // e.g. "Fiscal Year 2081/82" or "2026-08"
+  createdAt      DateTime @default(now())
 
   @@index([organizationId, reportType])
   @@index([projectId, reportType])
@@ -3955,21 +4112,21 @@ model ReportSnapshot {
 // CPWD schedule). Each code has a parent for hierarchical reporting.
 
 model CostCode {
-  id              String   @id @default(cuid())
-  code            String   @unique // e.g. "1.1", "2.3.1"
-  name            String   // e.g. "Earthwork", "Concrete - PCC"
-  nameNp          String?  // Devanagari name
-  category        String   // material | labor | equipment | subcontract | overhead | revenue | asset | liability | equity
-  parentId        String?  // for hierarchy
-  level           Int      @default(1) // 1 = top-level, 2 = sub, 3 = detail
-  isActive        Boolean  @default(true)
-  sortOrder       Int      @default(0)
-  isSystem        Boolean  @default(false) // true = seeded standard codes (non-deletable)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id        String   @id @default(cuid())
+  code      String   @unique // e.g. "1.1", "2.3.1"
+  name      String // e.g. "Earthwork", "Concrete - PCC"
+  nameNp    String? // Devanagari name
+  category  String // material | labor | equipment | subcontract | overhead | revenue | asset | liability | equity
+  parentId  String? // for hierarchy
+  level     Int      @default(1) // 1 = top-level, 2 = sub, 3 = detail
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  isSystem  Boolean  @default(false) // true = seeded standard codes (non-deletable)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  parent          CostCode?  @relation("CostCodeHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children        CostCode[] @relation("CostCodeHierarchy")
+  parent   CostCode?  @relation("CostCodeHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children CostCode[] @relation("CostCodeHierarchy")
 
   @@index([category])
   @@index([parentId])
@@ -3984,46 +4141,42 @@ model CostCode {
 // and track reconciliation history.
 
 model BankReconciliation {
-  id                    String   @id @default(cuid())
-  bankAccountId         String
-  periodStart          DateTime
-  periodEnd             DateTime
-  statementClosingBalance Decimal @db.Decimal(15, 2) @default(0)
-  recordedBalance Decimal @db.Decimal(15, 2) @default(0)
-  adjustedBalance Decimal @db.Decimal(15, 2) @default(0)
-  matchedCount         Int      @default(0)
-  unmatchedStatementCount Int    @default(0)
-  unmatchedPaymentCount Int      @default(0)
-  outstandingPayments Decimal @db.Decimal(15, 2) @default(0)
-  unmatchedDeposits Decimal @db.Decimal(15, 2) @default(0)
-  isReconciled         Boolean  @default(false)
-  reconciliationData    String   // JSON: full matched/unmatched detail
-  status               String   @default("draft") // draft | confirmed | discarded
-  confirmedById         String?
-  confirmedAt           DateTime?
-  notes                 String?
-  createdAt             DateTime @default(now())
+  id                      String    @id @default(cuid())
+  bankAccountId           String
+  periodStart             DateTime
+  periodEnd               DateTime
+  statementClosingBalance Decimal   @default(0) @db.Decimal(15, 2)
+  recordedBalance         Decimal   @default(0) @db.Decimal(15, 2)
+  adjustedBalance         Decimal   @default(0) @db.Decimal(15, 2)
+  matchedCount            Int       @default(0)
+  unmatchedStatementCount Int       @default(0)
+  unmatchedPaymentCount   Int       @default(0)
+  outstandingPayments     Decimal   @default(0) @db.Decimal(15, 2)
+  unmatchedDeposits       Decimal   @default(0) @db.Decimal(15, 2)
+  isReconciled            Boolean   @default(false)
+  reconciliationData      String // JSON: full matched/unmatched detail
+  status                  String    @default("draft") // draft | confirmed | discarded
+  confirmedById           String?
+  confirmedAt             DateTime?
+  notes                   String?
+  createdAt               DateTime  @default(now())
 
-  bankAccount           CompanyBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  bankAccount CompanyBankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
 
   @@index([bankAccountId, periodStart])
   @@index([status])
 }
 
-
-
 // ─── Platform-level tables (no tenant scoping — see rls-tracker.json) ────────
 
 /**
  * Admin-editable Nepal public holidays.
- *
  * The compiled fallback constant lives in src/server/utils/nepal-calendar.ts
  * (approximate lunar-calendar dates, 2025-2026 only). Rows in THIS table are
  * authoritative for any year they cover: when at least one row exists for a
  * year, the constant is ignored for that year (so wrong approximate dates can
  * be corrected or removed, not just supplemented). Years with no rows fall
  * back to the constant.
- *
  * Seeded from the constant (plus approximate 2027) by migration
  * 20260830080000_holiday_loginattempt. Managed via admin router procedures.
  */
@@ -4038,12 +4191,10 @@ model Holiday {
 /**
  * Durable login attempt log backing the rate limiter
  * (src/lib/login-rate-limit.ts).
- *
  * The previous in-memory limiter reset on every serverless cold start and
  * never shared state across instances. This table is the source of truth:
  * N failed attempts per email (or M per IP) inside the window blocks the
  * next attempt regardless of which instance serves it.
- *
  * Platform-level (no organizationId) — like Session/User. Rows older than
  * 24h are pruned opportunistically.
  */
@@ -4063,43 +4214,43 @@ model LoginAttempt {
 // ─────────────────────────────────────────────────────────────
 
 model InterSiteTransfer {
-  id                          String   @id @default(cuid())
-  transferNo                  String   // e.g. "ITC-2081-001"
-  organizationId              String
-  originProjectId             String
-  destinationProjectId        String
-  materialId                  String
-  quantity                    Decimal  @db.Decimal(15, 4)
-  unit                        String
-  transferRate                Decimal  @db.Decimal(15, 4) @default(0)
-  totalAmount                 Decimal  @db.Decimal(15, 2) @default(0)
-  originStoreLocationId       String?
-  destinationStoreLocationId  String?
-  isInstantTransfer           Boolean  @default(true) // true = 1-click direct move; false = 2-step in-transit
-  status                      String   @default("received") // "dispatched" | "in_transit" | "received" | "cancelled"
-  dispatchDate                DateTime @default(now())
-  dispatchMiti                String?
-  dispatchedById              String?
-  vehicleNo                   String?
-  driverName                  String?
-  chalanNo                    String?
-  receivedDate                DateTime?
-  receivedMiti                String?
-  receivedById                String?
-  receivedQty                 Decimal? @db.Decimal(15, 4)
-  damageLossQty               Decimal? @db.Decimal(15, 4) @default(0)
-  remarks                     String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  id                         String    @id @default(cuid())
+  transferNo                 String // e.g. "ITC-2081-001"
+  organizationId             String
+  originProjectId            String
+  destinationProjectId       String
+  materialId                 String
+  quantity                   Decimal   @db.Decimal(15, 4)
+  unit                       String
+  transferRate               Decimal   @default(0) @db.Decimal(15, 4)
+  totalAmount                Decimal   @default(0) @db.Decimal(15, 2)
+  originStoreLocationId      String?
+  destinationStoreLocationId String?
+  isInstantTransfer          Boolean   @default(true) // true = 1-click direct move; false = 2-step in-transit
+  status                     String    @default("received") // "dispatched" | "in_transit" | "received" | "cancelled"
+  dispatchDate               DateTime  @default(now())
+  dispatchMiti               String?
+  dispatchedById             String?
+  vehicleNo                  String?
+  driverName                 String?
+  chalanNo                   String?
+  receivedDate               DateTime?
+  receivedMiti               String?
+  receivedById               String?
+  receivedQty                Decimal?  @db.Decimal(15, 4)
+  damageLossQty              Decimal?  @default(0) @db.Decimal(15, 4)
+  remarks                    String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
-  organization                Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  originProject               Project        @relation("OriginProjectTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
-  destinationProject          Project        @relation("DestinationProjectTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
-  material                    Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  originStoreLocation         StoreLocation? @relation("OriginStoreInterSiteTransfers", fields: [originStoreLocationId], references: [id], onDelete: SetNull)
-  destinationStoreLocation    StoreLocation? @relation("DestinationStoreInterSiteTransfers", fields: [destinationStoreLocationId], references: [id], onDelete: SetNull)
-  dispatchedBy                User?          @relation("DispatchedByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
-  receivedBy                  User?          @relation("ReceivedByUser", fields: [receivedById], references: [id], onDelete: SetNull)
+  organization             Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  originProject            Project        @relation("OriginProjectTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
+  destinationProject       Project        @relation("DestinationProjectTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+  material                 Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  originStoreLocation      StoreLocation? @relation("OriginStoreInterSiteTransfers", fields: [originStoreLocationId], references: [id], onDelete: SetNull)
+  destinationStoreLocation StoreLocation? @relation("DestinationStoreInterSiteTransfers", fields: [destinationStoreLocationId], references: [id], onDelete: SetNull)
+  dispatchedBy             User?          @relation("DispatchedByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
+  receivedBy               User?          @relation("ReceivedByUser", fields: [receivedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([originProjectId])
@@ -4110,7 +4261,7 @@ model InterSiteTransfer {
 
 model EquipmentTransfer {
   id                   String   @id @default(cuid())
-  transferNo           String   // e.g. "ETC-2081-001"
+  transferNo           String // e.g. "ETC-2081-001"
   organizationId       String
   equipmentId          String
   originProjectId      String
@@ -4118,12 +4269,12 @@ model EquipmentTransfer {
   transferDate         DateTime @default(now())
   transferMiti         String?
   chalanNo             String?
-  vehicleNo            String?  // Transporter truck / trailer number
+  vehicleNo            String? // Transporter truck / trailer number
   driverName           String?
   transporterName      String?
   meterAtDispatch      Decimal? @db.Decimal(15, 2)
   meterAtReceive       Decimal? @db.Decimal(15, 2)
-  freightCost          Decimal? @db.Decimal(15, 2) @default(0)
+  freightCost          Decimal? @default(0) @db.Decimal(15, 2)
   status               String   @default("completed") // "in_transit" | "completed" | "cancelled"
   dispatchedById       String?
   receivedById         String?
@@ -4131,12 +4282,12 @@ model EquipmentTransfer {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  equipment            Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  originProject        Project      @relation("OriginEquipmentTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
-  destinationProject   Project      @relation("DestinationEquipmentTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
-  dispatchedBy         User?        @relation("DispatchedEquipmentByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
-  receivedBy           User?        @relation("ReceivedEquipmentByUser", fields: [receivedById], references: [id], onDelete: SetNull)
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  equipment          Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  originProject      Project      @relation("OriginEquipmentTransfers", fields: [originProjectId], references: [id], onDelete: Cascade)
+  destinationProject Project      @relation("DestinationEquipmentTransfers", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+  dispatchedBy       User?        @relation("DispatchedEquipmentByUser", fields: [dispatchedById], references: [id], onDelete: SetNull)
+  receivedBy         User?        @relation("ReceivedEquipmentByUser", fields: [receivedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([equipmentId])
@@ -4144,7 +4295,6 @@ model EquipmentTransfer {
   @@index([destinationProjectId])
   @@index([status])
 }
-
 
 /// Transactional outbox — durable event log written in the SAME database
 /// transaction as the state change that produced it. The background worker

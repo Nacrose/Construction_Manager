@@ -38,7 +38,7 @@ const UpdateRoleSchema = z.object({
 
 const AssignStaffSchema = z.object({
   staffRoleId: z.string(),
-  staffId: z.string(),
+  personId: z.string(), // workforce identity (ADR-0005)
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().nullable().optional(),
   notes: z.string().optional(),
@@ -57,7 +57,7 @@ export const staffRoleRouter = router({
           children: { orderBy: { name: "asc" } },
           assignments: {
             where: { endDate: null },
-            include: { staff: { select: { id: true, name: true, designation: true, category: true, dailyWage: true, status: true } } },
+            include: { person: { select: { id: true, displayName: true, category: true, phone: true, status: true } } },
             orderBy: { startDate: "desc" },
           },
           _count: { select: { assignments: true } },
@@ -199,13 +199,13 @@ export const staffRoleRouter = router({
       if (!role) throw new TRPCError({ code: "NOT_FOUND", message: "Role not found." });
       await assertCanWrite(ctx.user, role.projectId);
 
-      // Verify staff belongs to same project
-      const staff = await db.staff.findUnique({
-        where: { id: input.staffId },
-        select: { id: true, projectId: true, name: true },
+      // The person must hold an ACTIVE assignment on the role's project
+      const staff = await db.projectStaffAssignment.findFirst({
+        where: { personId: input.personId, projectId: role.projectId, status: "active" },
+        select: { id: true, person: { select: { id: true, displayName: true } } },
       });
-      if (!staff || staff.projectId !== role.projectId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Staff member not found in this project." });
+      if (!staff) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Person has no active assignment on this project." });
       }
 
       // If this is a new current assignment (endDate is null), close any existing
@@ -220,12 +220,12 @@ export const staffRoleRouter = router({
       const assignment = await db.staffRoleAssignment.create({
         data: {
           staffRoleId: input.staffRoleId,
-          staffId: input.staffId,
+          personId: input.personId,
           startDate: input.startDate ? new Date(input.startDate) : new Date(),
           endDate: input.endDate ? new Date(input.endDate) : null,
           notes: input.notes,
         },
-        include: { staff: true },
+        include: { person: true },
       });
 
       await audit({
@@ -234,7 +234,7 @@ export const staffRoleRouter = router({
         action: "staffRole.assign",
         entityType: "staff_role",
         entityId: input.staffRoleId,
-        metadata: { role: role.name, staff: staff.name },
+        metadata: { role: role.name, person: staff.person.displayName },
       });
 
       return { assignment };
@@ -283,7 +283,7 @@ export const staffRoleRouter = router({
       const assignments = await db.staffRoleAssignment.findMany({
         where: { staffRoleId: input.staffRoleId },
         include: {
-          staff: { select: { id: true, name: true, designation: true, category: true, phone: true } },
+          person: { select: { id: true, displayName: true, category: true, phone: true } },
         },
         orderBy: { startDate: "desc" },
          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts

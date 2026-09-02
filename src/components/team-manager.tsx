@@ -33,14 +33,13 @@ type _Member = {
   user: { id: string; name: string; email: string; role: string };
 };
 
-const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspector"] as const;
+// ADR-0005: external parties never receive project roles
+const ROLES = ["project_manager", "engineer", "coordinator"] as const;
 
 const ROLE_STYLES: Record<string, string> = {
   project_manager: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   engineer: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  client: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  inspector: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
 };
 
 export function TeamManager({
@@ -196,7 +195,7 @@ function AddMemberDialog({
   const utils = trpc.useUtils();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"project_manager" | "engineer" | "coordinator" | "client" | "inspector">("engineer");
+  const [role, setRole] = useState<"project_manager" | "engineer" | "coordinator">("engineer");
 
   const mutation = trpc.project.addMember.useMutation({
     onSuccess: () => {

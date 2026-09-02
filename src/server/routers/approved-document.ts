@@ -54,7 +54,7 @@ export const approvedDocumentRouter = router({
         },
         orderBy: { uploadedAt: "desc" },
         include: {
-          uploadedBy: { select: { id: true, name: true, role: true } },
+          uploadedBy: { select: { id: true, name: true } },
         },
          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
        });

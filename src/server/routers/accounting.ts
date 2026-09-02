@@ -503,7 +503,7 @@ export const accountingRouter = router({
         }),
         db.projectMember.findMany({
           where: { projectId: input.projectId },
-          include: { user: { select: { id: true, name: true, email: true, role: true } } },
+          include: { user: { select: { id: true, name: true, email: true } } },
           take: REF_CAP,
         }),
         db.equipmentVendor.findMany({
@@ -572,7 +572,7 @@ export const accountingRouter = router({
         })),
         ...members.map((m) => ({
           id: m.user.id,
-          name: `${m.user.name || m.user.email}${m.user.role ? ` (${m.user.role})` : ""}`,
+          name: `${m.user.name || m.user.email}`,
           type: "staff" as const,
           group: "Staff Imprest / Advances",
           pan: null,

@@ -162,7 +162,7 @@ export function StaffRolesTab({ projectId, canWrite }: { projectId: string; canW
               onAssign={(roleId) => setAssignOpen(roleId)}
               onUnassign={(assignmentId) => unassignMutation.mutate({ assignmentId })}
               assignOpen={assignOpen}
-              onAssignSubmit={(roleId, staffId) => assignMutation.mutate({ staffRoleId: roleId, staffId })}
+              onAssignSubmit={(roleId, personId) => assignMutation.mutate({ staffRoleId: roleId, personId })}
               isAssigning={assignMutation.isPending}
               depth={0}
               isLast={true}
@@ -202,12 +202,12 @@ function RoleNodeView({
   onToggle: (id: string) => void;
   canWrite: boolean;
   projectId: string;
-  staff: Array<{ id: string; name: string; designation: string | null; category: string | null }>;
+  staff: Array<{ id: string; personId: string; name: string; designation: string | null; category: string | null }>;
   onDelete: (id: string) => void;
   onAssign: (roleId: string) => void;
   onUnassign: (assignmentId: string) => void;
   assignOpen: string | null;
-  onAssignSubmit: (roleId: string, staffId: string) => void;
+  onAssignSubmit: (roleId: string, personId: string) => void;
   isAssigning: boolean;
   depth: number;
   isLast: boolean;
@@ -391,8 +391,8 @@ function AssignStaffDialog({
   open: boolean;
   onOpenChange: () => void;
   roleName: string;
-  staff: Array<{ id: string; name: string; designation: string | null; category: string | null }>;
-  onAssign: (staffId: string) => void;
+  staff: Array<{ id: string; personId: string; name: string; designation: string | null; category: string | null }>;
+  onAssign: (personId: string) => void;
   isAssigning: boolean;
 }) {
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -411,7 +411,7 @@ function AssignStaffDialog({
             <SelectTrigger className="h-9"><SelectValue placeholder="Select staff member…" /></SelectTrigger>
             <SelectContent>
               {staff.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
+                <SelectItem key={s.personId} value={s.personId}>
                   {s.name}{s.designation ? ` — ${s.designation}` : ""}
                 </SelectItem>
               ))}

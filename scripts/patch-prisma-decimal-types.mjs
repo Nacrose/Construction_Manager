@@ -29,7 +29,12 @@ const DTS = path.join(ROOT, "node_modules/.prisma/client/index.d.ts");
 
 const schema = fs.readFileSync(SCHEMA, "utf8");
 const fieldNames = new Set();
-for (const m of schema.matchAll(/^\s+(\w+)\s+Decimal\??\s+@db\.Decimal\(15, \d\)/gm)) {
+// Tolerant collection: `field Decimal [attrs...] @db.Decimal(p, s)` — the
+// @default may appear before or after @db.Decimal, and precision may be
+// (15, x) or any other (e.g. (5, 2) percent shares). The runtime decimal
+// boundary converts EVERY Decimal to number, so every declared Decimal
+// field must have its type patched, whatever the attribute order.
+for (const m of schema.matchAll(/^\s+(\w+)\s+Decimal\??\b.*@db\.Decimal\(\d+,\s*\d+\)/gm)) {
   fieldNames.add(m[1]);
 }
 if (fieldNames.size === 0) {

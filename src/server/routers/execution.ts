@@ -105,7 +105,7 @@ export const executionRouter = router({
           resourceAssignments: {
             include: {
               staffRole: { select: { id: true, name: true } },
-              staff: { select: { id: true, name: true } },
+              person: { select: { id: true, displayName: true } },
             },
           },
         },
@@ -150,7 +150,7 @@ export const executionRouter = router({
 
             // Get assigned staff/role
             const assignment = task.resourceAssignments[0];
-            const assignedTo = assignment?.staff?.name ?? assignment?.staffRole?.name ?? null;
+            const assignedTo = assignment?.person?.displayName ?? assignment?.staffRole?.name ?? null;
 
             programTasks.push({
               programId: program.id,
@@ -168,7 +168,7 @@ export const executionRouter = router({
         } else {
           // No BOQ link — just create a generic task entry
           const assignment = task.resourceAssignments[0];
-          const assignedTo = assignment?.staff?.name ?? assignment?.staffRole?.name ?? null;
+          const assignedTo = assignment?.person?.displayName ?? assignment?.staffRole?.name ?? null;
 
           programTasks.push({
             programId: program.id,
@@ -251,7 +251,7 @@ export const executionRouter = router({
         include: {
           resourceAssignments: {
             include: {
-              staff: { select: { id: true, name: true } },
+              person: { select: { id: true, displayName: true } },
               staffRole: { select: { id: true, name: true } },
               equipment: { select: { id: true, name: true } },
             },
@@ -276,12 +276,12 @@ export const executionRouter = router({
 
       for (const task of tasks) {
         for (const ra of task.resourceAssignments) {
-          if (ra.staff) {
-            const key = `staff:${ra.staff.id}`;
+          if (ra.person) {
+            const key = `staff:${ra.person.id}`;
             const list = allocationsByResource.get(key) ?? [];
             list.push({
-              resourceId: ra.staff.id,
-              resourceName: ra.staff.name,
+              resourceId: ra.person.id,
+              resourceName: ra.person.displayName,
               resourceType: "staff",
               taskId: task.id,
               taskName: task.name,

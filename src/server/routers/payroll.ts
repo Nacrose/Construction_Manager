@@ -1,6 +1,14 @@
 /**
  * tRPC router for Construction Payroll Management:
- * Monthly Payroll Runs, Advance Deductions, Allowances, Approval Cycles, and Worker Payslips.
+ * Org-Level Monthly Payroll Runs, Advance Deductions, Allowances,
+ * Approval Cycles, and Worker Payslips.
+ *
+ * ADR-0007 grain: one PayrollRun per ORG per period (database-enforced),
+ * one PayrollPersonRecord per person per run (salary computed once per
+ * person), and PayrollAllocation rows that split cost to projects with the
+ * hard invariant Σ allocation.net ≡ record.netPayable (exact — Decimal).
+ * The org-level journal entry's labor expense LINES carry projectId per
+ * allocation; liability accounts and bank stay organization-level.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -16,8 +24,32 @@ import { assertDelegation } from "@/lib/delegation";
 import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
+/** CAS-guarded advance recovery (ADR-0007): the increment only lands while
+ * recoveredAmount + x ≤ amount. Never a boolean flip, never a principal
+ * mutation; concurrent runs cannot double-recover. */
+async function recoverAdvanceCas(
+  tx: any,
+  advanceId: string,
+  take: number,
+  payrollRunId: string,
+): Promise<void> {
+  const updated = await tx.$executeRaw`
+    UPDATE "StaffAdvance"
+       SET "recoveredAmount" = "recoveredAmount" + ${take},
+           "recoveredInPayrollId" = ${payrollRunId},
+           "updatedAt" = NOW()
+     WHERE "id" = ${advanceId}
+       AND "recoveredAmount" + ${take} <= "amount"`;
+  if (updated === 0) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `Advance ${advanceId} was concurrently recovered or has insufficient outstanding balance — reload and retry.`,
+    });
+  }
+}
+
 export const payrollRouter = router({
-  /** Calculate on-the-fly preview for a given project and month (YYYY-MM). */
+  /** Calculate on-the-fly preview for a given project and period (YYYY-MM). */
   calculate: protectedProcedure
     .input(
       z.object({
@@ -27,6 +59,9 @@ export const payrollRouter = router({
     )
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
 
       const [yearStr, monthStr] = input.month.split("-");
       const year = parseInt(yearStr, 10);
@@ -36,10 +71,21 @@ export const payrollRouter = router({
       const startDate = new Date(Date.UTC(year, month - 1, 1));
       const endDate = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
 
-      const [staffList, attendanceRecords, unrecoveredAdvances, existingRun] = await Promise.all([
-        db.staff.findMany({
+      const [assignments, attendanceRecords, existingRun] = await Promise.all([
+        db.projectStaffAssignment.findMany({
           where: { projectId: input.projectId, status: "active" },
-          orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
+          include: {
+            person: {
+              select: {
+                id: true,
+                displayName: true,
+                bankAccountNo: true,
+                bankName: true,
+                pan: true,
+              },
+            },
+          },
+          orderBy: [{ gangName: "asc" }, { category: "asc" }, { person: { displayName: "asc" } }],
            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
          }),
         db.staffAttendance.findMany({
@@ -49,18 +95,11 @@ export const payrollRouter = router({
           },
            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
          }),
-        db.staffAdvance.findMany({
-          where: {
-            projectId: input.projectId,
-            isRecovered: false,
-          },
-           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
-         }),
         db.payrollRun.findUnique({
           where: {
-            projectId_month: {
-              projectId: input.projectId,
-              month: input.month,
+            organizationId_period: {
+              organizationId: ctx.user.organizationId,
+              period: input.month,
             },
           },
           include: {
@@ -69,45 +108,76 @@ export const payrollRouter = router({
         }),
       ]);
 
-      // Group attendance by staffId
-      const attendanceByStaff = new Map<string, typeof attendanceRecords>();
-      for (const record of attendanceRecords) {
-        const existing = attendanceByStaff.get(record.staffId) || [];
-        existing.push(record);
-        attendanceByStaff.set(record.staffId, existing);
-      }
-
-      // Group unrecovered advances by staffId & type
-      const advancesByStaff = new Map<string, { cashAdvances: number; messDeductions: number; otherDeductions: number }>();
-      for (const adv of unrecoveredAdvances) {
-        if (!advancesByStaff.has(adv.staffId)) {
-          advancesByStaff.set(adv.staffId, { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 });
+      // Deduplicate persons (a shared worker on two assignments of this
+      // project is ONE payroll person record).
+      const personByAssignment = new Map<string, (typeof assignments)[number]>();
+      const persons = new Map<string, (typeof assignments)[number]["person"] & {
+        assignment: (typeof assignments)[number];
+      }>();
+      for (const a of assignments) {
+        personByAssignment.set(a.id, a);
+        if (!persons.has(a.personId)) {
+          persons.set(a.personId, { ...a.person, assignment: a });
         }
-        const current = advancesByStaff.get(adv.staffId)!;
-        if (adv.type === "cash_advance") current.cashAdvances += adv.amount;
-        else if (adv.type === "mess_deduction") current.messDeductions += adv.amount;
-        else current.otherDeductions += adv.amount;
       }
 
-      // Compute worker lines using the shared calculation helper.
+      // Outstanding advances of the persons being paid (ADR-0007: advances
+      // belong to the PERSON; outstanding = amount - recoveredAmount)
+      const personIds = [...persons.keys()];
+      const unrecoveredAdvances = personIds.length
+        ? await db.staffAdvance.findMany({
+            where: {
+              personId: { in: personIds },
+              recoveredAmount: { lt: db.staffAdvance.fields.amount },
+            },
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           })
+        : [];
+
+      // Group attendance by personId (combined across the person's
+      // assignments on this project).
+      const attendanceByPerson = new Map<string, typeof attendanceRecords>();
+      for (const record of attendanceRecords) {
+        const assignment = personByAssignment.get(record.assignmentId);
+        if (!assignment) continue;
+        const existing = attendanceByPerson.get(assignment.personId) || [];
+        existing.push(record);
+        attendanceByPerson.set(assignment.personId, existing);
+      }
+
+      // Group outstanding advances by personId & type (outstanding = amount - recoveredAmount)
+      const advancesByPerson = new Map<string, { cashAdvances: number; messDeductions: number; otherDeductions: number }>();
+      for (const adv of unrecoveredAdvances) {
+        if (!advancesByPerson.has(adv.personId)) {
+          advancesByPerson.set(adv.personId, { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 });
+        }
+        const outstanding = adv.amount - adv.recoveredAmount;
+        const current = advancesByPerson.get(adv.personId)!;
+        if (adv.type === "cash_advance") current.cashAdvances += outstanding;
+        else if (adv.type === "mess_deduction") current.messDeductions += outstanding;
+        else current.otherDeductions += outstanding;
+      }
+
+      // Compute person lines using the shared calculation helper.
       // This ensures `calculate` (preview) and `createPayrollRun` (commit)
       // produce identical numbers — previously they could diverge.
-      const payrollItems = staffList.map((staff) => {
-        const records = attendanceByStaff.get(staff.id) || [];
-        const adv = advancesByStaff.get(staff.id) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
+      const payrollItems = [...persons.values()].map((p) => {
+        const records = attendanceByPerson.get(p.id) || [];
+        const adv = advancesByPerson.get(p.id) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
+        const a = p.assignment;
         return computePayrollLine(
           {
-            id: staff.id,
-            name: staff.name,
-            designation: staff.designation,
-            category: staff.category,
-            employmentType: staff.employmentType,
-            gangName: staff.gangName,
-            dailyWage: staff.dailyWage,
-            monthlySalary: staff.monthlySalary,
-            bankAccountNo: staff.bankAccountNo,
-            bankName: staff.bankName,
-            pan: staff.pan,
+            id: p.id,
+            name: p.displayName,
+            designation: a.designation,
+            category: a.category,
+            employmentType: a.employmentType,
+            gangName: a.gangName,
+            dailyWage: a.dailyWage,
+            monthlySalary: a.monthlySalary,
+            bankAccountNo: p.bankAccountNo,
+            bankName: p.bankName,
+            pan: p.pan,
           },
           records.map((r) => ({
             date: r.date,
@@ -141,22 +211,22 @@ export const payrollRouter = router({
       };
     }),
 
-  /** Create / Save persistent monthly Payroll Run and lock in advance recoveries. */
+  /** Create / Save persistent org-level Payroll Run and lock in advance recoveries. */
   createPayrollRun: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         month: z.string().regex(/^\d{4}-\d{2}$/, "Month must be YYYY-MM format"),
         notes: z.string().optional().nullable(),
-        // Client sends attendance-based records. The server RECOMPUTES
-        // all pay amounts (regularPay, overtimePay, tdsAmount, netPayable)
-        // from the attendance + staff data — the client's submitted
-        // amounts are IGNORED and only used as a sanity reference.
+        // Client sends attendance-based records per PERSON. The server
+        // RECOMPUTES all pay amounts (regularPay, overtimePay, tdsAmount,
+        // netPayable) from the attendance + person data — the client's
+        // submitted amounts are IGNORED and only used as a sanity reference.
         // This prevents a malicious/buggy client from persisting wrong
         // net payables.
         records: z.array(
           z.object({
-            staffId: z.string(),
+            personId: z.string(),
             // Attendance summary (used for server-side recomputation)
             presentDays: z.number().nonnegative(),
             halfDays: z.number().nonnegative().default(0),
@@ -181,6 +251,9 @@ export const payrollRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
       // Parse input.month (format "YYYY-MM") into a Date for fiscal-year
       // lock checking. Previously this used new Date() (today), so
       // back-dating a payroll run to a locked fiscal year bypassed the lock.
@@ -188,7 +261,7 @@ export const payrollRouter = router({
       await assertNotLocked(ctx.user.organizationId, _payrollDate);
 
       // ── Server-side recomputation ──────────────────────────────
-      // Fetch fresh staff + attendance + advances data and recompute
+      // Fetch fresh assignments + attendance + advances data and recompute
       // all pay amounts. Client-submitted amounts are NOT trusted.
       const [yearStr, monthStr] = input.month.split("-");
       const year = parseInt(yearStr, 10);
@@ -197,77 +270,107 @@ export const payrollRouter = router({
       const startDate = new Date(Date.UTC(year, month - 1, 1));
       const endDate = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
 
-      const staffIds = input.records.map((r) => r.staffId);
+      const personIds = [...new Set(input.records.map((r) => r.personId))];
 
-      const [staffList, attendanceRecords, unrecoveredAdvances] = await Promise.all([
-        db.staff.findMany({
-          where: { id: { in: staffIds }, projectId: input.projectId, status: "active" },
+      const [assignments, attendanceRecords, unrecoveredAdvances, org] = await Promise.all([
+        // Active assignments of these persons on the AUTHORIZED project
+        db.projectStaffAssignment.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+          where: { personId: { in: personIds }, projectId: input.projectId, status: "active" },
+          include: {
+            person: {
+              select: {
+                id: true,
+                displayName: true,
+                bankAccountNo: true,
+                bankName: true,
+                pan: true,
+              },
+            },
+          },
         }),
         db.staffAttendance.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: {
             projectId: input.projectId,
-            staffId: { in: staffIds },
+            assignment: { personId: { in: personIds } },
             date: { gte: startDate, lte: endDate },
           },
         }),
         db.staffAdvance.findMany({
-          where: {
-            projectId: input.projectId,
-            staffId: { in: staffIds },
-            isRecovered: false,
-          },
+          where: { personId: { in: personIds } },
+          orderBy: { date: "asc" }, // FIFO recovery order
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+        }),
+        db.organization.findUnique({
+          where: { id: ctx.user.organizationId },
+          select: { id: true, activePolicyVersionId: true },
         }),
       ]);
 
-      // Verify every submitted staffId exists and belongs to the project.
-      const staffMap = new Map(staffList.map((s) => [s.id, s]));
+      if (!org) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+      }
+
+      // Verify every submitted personId has an ACTIVE assignment on the
+      // authorized project (and collect their terms).
+      const assignmentByPerson = new Map<string, (typeof assignments)[number]>();
+      for (const a of assignments) {
+        // a person may hold several assignments on this project — the
+        // first (oldest) one carries the pay terms for the person record.
+        if (!assignmentByPerson.has(a.personId)) assignmentByPerson.set(a.personId, a);
+      }
       for (const rec of input.records) {
-        if (!staffMap.has(rec.staffId)) {
+        if (!assignmentByPerson.has(rec.personId)) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: `Staff member ${rec.staffId} not found in this project.`,
+            message: `Person ${rec.personId} has no active assignment in this project.`,
           });
         }
       }
 
-      // Group attendance by staffId
-      const attendanceByStaff = new Map<string, typeof attendanceRecords>();
+      // Group attendance by personId
+      const assignmentById = new Map(assignments.map((a) => [a.id, a]));
+      const attendanceByPerson = new Map<string, typeof attendanceRecords>();
       for (const record of attendanceRecords) {
-        const existing = attendanceByStaff.get(record.staffId) || [];
+        const assignment = assignmentById.get(record.assignmentId);
+        if (!assignment) continue;
+        const existing = attendanceByPerson.get(assignment.personId) || [];
         existing.push(record);
-        attendanceByStaff.set(record.staffId, existing);
+        attendanceByPerson.set(assignment.personId, existing);
       }
 
-      // Group unrecovered advances by staffId & type
-      const advancesByStaff = new Map<string, { cashAdvances: number; messDeductions: number; otherDeductions: number }>();
-      for (const adv of unrecoveredAdvances) {
-        if (!advancesByStaff.has(adv.staffId)) {
-          advancesByStaff.set(adv.staffId, { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 });
+      // Group outstanding advances by personId & type (outstanding only)
+      const advancesByPerson = new Map<string, { cashAdvances: number; messDeductions: number; otherDeductions: number }>();
+      for (const adv of unrecoveredAdvances.filter((a) => a.amount - a.recoveredAmount > 0)) {
+        if (!advancesByPerson.has(adv.personId)) {
+          advancesByPerson.set(adv.personId, { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 });
         }
-        const current = advancesByStaff.get(adv.staffId)!;
-        if (adv.type === "cash_advance") current.cashAdvances += adv.amount;
-        else if (adv.type === "mess_deduction") current.messDeductions += adv.amount;
-        else current.otherDeductions += adv.amount;
+        const outstanding = adv.amount - adv.recoveredAmount;
+        const current = advancesByPerson.get(adv.personId)!;
+        if (adv.type === "cash_advance") current.cashAdvances += outstanding;
+        else if (adv.type === "mess_deduction") current.messDeductions += outstanding;
+        else current.otherDeductions += outstanding;
       }
 
       // Recompute each record server-side using the shared helper.
       const computedRecords = input.records.map((rec) => {
-        const staff = staffMap.get(rec.staffId)!;
-        const attendance = attendanceByStaff.get(rec.staffId) || [];
-        const advances = advancesByStaff.get(rec.staffId) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
+        const assignment = assignmentByPerson.get(rec.personId)!;
+        const attendance = attendanceByPerson.get(rec.personId) || [];
+        const advances = advancesByPerson.get(rec.personId) || { cashAdvances: 0, messDeductions: 0, otherDeductions: 0 };
         const computed = computePayrollLine(
           {
-            id: staff.id,
-            name: staff.name,
-            designation: staff.designation,
-            category: staff.category,
-            employmentType: staff.employmentType,
-            gangName: staff.gangName,
-            dailyWage: staff.dailyWage,
-            monthlySalary: staff.monthlySalary,
-            bankAccountNo: staff.bankAccountNo,
-            bankName: staff.bankName,
-            pan: staff.pan,
+            id: rec.personId,
+            name: assignment.person.displayName,
+            designation: assignment.designation,
+            category: assignment.category,
+            employmentType: assignment.employmentType,
+            gangName: assignment.gangName,
+            dailyWage: assignment.dailyWage,
+            monthlySalary: assignment.monthlySalary,
+            bankAccountNo: assignment.person.bankAccountNo,
+            bankName: assignment.person.bankName,
+            pan: assignment.person.pan,
           },
           attendance.map((r) => ({
             date: r.date,
@@ -294,31 +397,11 @@ export const payrollRouter = router({
       // never applied to one of the largest recurring money movements.
       await assertDelegation(ctx.user, "create_payroll_run", totalNetPayable);
 
-      // CRITICAL: payroll-calc.ts clamps `netPayable = Math.max(0, gross - totalDeductions)`.
-      // When a staff member's deductions exceed their gross (a real situation
-      // — e.g. advance recovery after a big Dashain/Tihar advance, combined
-      // with a low-attendance period), the clamp silently drops the
-      // shortfall. The journal entry balance is then broken:
-      //
-      //   Dr Direct Labor = totalGross
-      //   Cr Salary Payable + TDS + Advances + Mess/Other
-      //      = totalNetPayable + totalTds + totalAdvancesRecovered + totalMessAndOther
-      //
-      // Without any clamp, those are equal. With clamp:
-      //   credits > debits by exactly Σ(max(0, totalDeductions - gross))
-      //   for each clamped staff member.
-      //
-      // `createJournalEntry`'s own balance check then throws
-      // "Unbalanced journal entry", failing the entire payroll run for
-      // every staff member, not just the one edge case.
-      //
-      // Fix: track the clamped shortfall (`deductionExcess`) and add it
-      // as an extra DEBIT line in the JE — "Staff Advance Recoverable"
-      // (account 2040) is the right place to track the un-recovered
-      // amount, since the shortfall represents an amount we still owe
-      // the staff member / that they owe us back. This keeps the entry
-      // balanced and surfaces the shortfall in the GL so the org can
-      // see the cumulative deduction-excess in one place.
+      // payroll-calc.ts clamps `netPayable = Math.max(0, gross - totalDeductions)`.
+      // When a person's deductions exceed their gross the clamp silently
+      // drops the shortfall and would break the JE balance. Track it and
+      // post it as an extra DEBIT line on "Staff Advance Recoverable" (2040)
+      // so the entry stays balanced and the shortfall shows in the GL.
       const totalMessAndOther = computedRecords.reduce(
         (s, { computed }) => s + computed.messDeduction + computed.otherDeductions, 0,
       );
@@ -329,19 +412,20 @@ export const payrollRouter = router({
 
       const payrollRun = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
-        // Upsert the main run
+        // Upsert the ORG-level run (one per org per period — database-enforced)
         const run = await tx.payrollRun.upsert({
           where: {
-            projectId_month: {
-              projectId: input.projectId,
-              month: input.month,
+            organizationId_period: {
+              organizationId: ctx.user.organizationId!,
+              period: input.month,
             },
           },
           create: {
-            projectId: input.projectId,
-            month: input.month,
+            organizationId: ctx.user.organizationId!,
+            period: input.month,
             status: "draft",
-            totalStaffCount: computedRecords.length,
+            policyVersionId: org.activePolicyVersionId, // bind the run to the ACTIVE policy (ADR-0004)
+            totalPersonCount: computedRecords.length,
             totalGross,
             totalAllowances,
             totalDeductions,
@@ -350,7 +434,8 @@ export const payrollRouter = router({
             notes: input.notes || null,
           },
           update: {
-            totalStaffCount: computedRecords.length,
+            policyVersionId: org.activePolicyVersionId,
+            totalPersonCount: computedRecords.length,
             totalGross,
             totalAllowances,
             totalDeductions,
@@ -360,16 +445,18 @@ export const payrollRouter = router({
           },
         });
 
-        // Delete old records for this run if updating draft
-        await tx.payrollStaffRecord.deleteMany({ where: { payrollRunId: run.id } });
+        // Delete old person records for this run if updating draft
+        await tx.payrollPersonRecord.deleteMany({ where: { payrollRunId: run.id } });
 
-        // Insert line item records — use SERVER-COMPUTED values,
-        // NOT the client-submitted ones.
+        // Insert person records — use SERVER-COMPUTED values,
+        // NOT the client-submitted ones. One record per person per run.
+        const createdRecords: Array<{ id: string; personId: string; netPayable: number; gross: number; allowances: number; advanceDeduction: number; tdsAmount: number }> = [];
         for (const { computed, remarks } of computedRecords) {
-          await tx.payrollStaffRecord.create({
+          const created = await tx.payrollPersonRecord.create({
             data: {
+              organizationId: ctx.user.organizationId!,
               payrollRunId: run.id,
-              staffId: computed.staffId,
+              personId: computed.personId,
               employmentType: computed.employmentType,
               presentDays: computed.presentDays,
               halfDays: computed.halfDays,
@@ -388,11 +475,101 @@ export const payrollRouter = router({
               remarks: remarks || null,
             },
           });
+          createdRecords.push({
+            id: created.id,
+            personId: computed.personId,
+            netPayable: computed.netPayable,
+            gross: computed.gross,
+            allowances: computed.allowances,
+            advanceDeduction: computed.advanceDeduction,
+            tdsAmount: computed.tdsAmount,
+          });
+        }
+
+        // ── Allocations (ADR-0007) ─────────────────────────────────
+        // Split each person record's cost across the person's ACTIVE
+        // assignments on this project by actual attendance days; the
+        // residual lands on the primary assignment so Σ net ≡ record net
+        // EXACTLY (single-assignment persons get one 1:1 allocation).
+        // Multi-project allocation UI + combined attendance lands in the
+        // payroll-allocation service phase; the invariant machinery is
+        // already exact here.
+        for (const rec of createdRecords) {
+          const personAssignments = assignments.filter(
+            (a) => a.personId === rec.personId && a.status === "active",
+          );
+          const ordered = [...personAssignments].sort(
+            (a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime(),
+          );
+          const primary = ordered[0];
+          if (!primary) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Person ${rec.personId} lost their active assignment while saving the run — reload and retry.`,
+            });
+          }
+
+          // Attendance days per assignment for this person (this period)
+          const attendanceForPerson = attendanceByPerson.get(rec.personId) || [];
+          const daysByAssignment = new Map<string, number>();
+          for (const r of attendanceForPerson) {
+            const effective =
+              (r.status === "present" || r.status === "overtime" ? 1 : 0) +
+              (r.status === "half_day" ? 0.5 : 0);
+            if (effective > 0) {
+              daysByAssignment.set(r.assignmentId, (daysByAssignment.get(r.assignmentId) ?? 0) + effective);
+            }
+          }
+          const totalDays = ordered.reduce((s, a) => s + (daysByAssignment.get(a.id) ?? 0), 0);
+
+          let remainingNet = rec.netPayable;
+          let remainingGross = rec.gross;
+          let remainingAllowances = rec.allowances;
+          let remainingAdvance = rec.advanceDeduction;
+          let remainingTds = rec.tdsAmount;
+
+          for (let i = 0; i < ordered.length; i++) {
+            const a = ordered[i];
+            const isPrimary = i === ordered.length - 1; // residual on the LAST (most recent) assignment
+            const share =
+              totalDays > 0 && !isPrimary
+                ? (daysByAssignment.get(a.id) ?? 0) / totalDays
+                : 1;
+
+            const net = isPrimary ? remainingNet : round2(rec.netPayable * share);
+            const gross = isPrimary ? remainingGross : round2(rec.gross * share);
+            const allowances = isPrimary ? remainingAllowances : round2(rec.allowances * share);
+            const advanceDeduction = isPrimary ? remainingAdvance : round2(rec.advanceDeduction * share);
+            const tdsAmount = isPrimary ? remainingTds : round2(rec.tdsAmount * share);
+
+            remainingNet = round2(remainingNet - net);
+            remainingGross = round2(remainingGross - gross);
+            remainingAllowances = round2(remainingAllowances - allowances);
+            remainingAdvance = round2(remainingAdvance - advanceDeduction);
+            remainingTds = round2(remainingTds - tdsAmount);
+
+            await tx.payrollAllocation.create({
+              data: {
+                organizationId: ctx.user.organizationId!,
+                payrollRunId: run.id,
+                personRecordId: rec.id,
+                assignmentId: a.id,
+                projectId: a.projectId,
+                basis: totalDays > 0 ? "actual_days" : "allocation_percent",
+                presentDays: daysByAssignment.get(a.id) ?? 0,
+                gross,
+                allowances,
+                advanceDeduction,
+                tdsAmount,
+                net,
+              },
+            });
+          }
         }
 
         // IDEMPOTENCY: check for an existing payroll JE before creating JE and deducting advances.
         // Re-saving a draft (or using reopen) would otherwise duplicate
-        // the journal entry and double-deduct staff advances. This is
+        // the journal entry and double-deduct person advances. This is
         // normal workflow, not an edge case.
         const existingJe = await tx.journalEntry.findFirst({
           where: { source: "payroll", sourceRefId: run.id },
@@ -404,103 +581,85 @@ export const payrollRouter = router({
           return run;
         }
 
-        // Mark associated unrecovered advances as recovered in this payroll run.
-        // IMPORTANT: Only mark the DEDUCTED PORTION as recovered, not the full
-        // advance amount. Only runs once when the payroll run and JE are first generated.
-        //
-        // Strategy: for each staff member, deduct advances in FIFO order
-        // (oldest first) until the deducted amount is consumed. Any advance
-        // that is partially recovered gets its remaining balance carried
-        // forward (isRecovered stays false).
-        // Use server-computed deduction amounts (not client-supplied)
-        // for advance recovery — ensures consistency with the persisted
-        // payroll record values.
-        const staffWithAdvanceRecovery = computedRecords
-          .filter(({ computed }) => computed.advanceDeduction > 0 || computed.messDeduction > 0)
-          .map(({ computed }) => computed.staffId);
+        // Recover outstanding advances via the settlement primitive:
+        // FIFO (oldest first), CAS-guarded increments on recoveredAmount.
+        // Only the DEDUCTED PORTION is recovered, never the full advance,
+        // and only once per run (JE idempotency guard above).
+        for (const { computed } of computedRecords) {
+          const totalDeduction = computed.advanceDeduction + computed.messDeduction;
+          if (totalDeduction <= 0) continue;
 
-        if (staffWithAdvanceRecovery.length > 0) {
-          for (const { computed } of computedRecords) {
-            const totalDeduction = computed.advanceDeduction + computed.messDeduction;
-            if (totalDeduction <= 0) continue;
-
-            // Fetch this staff's unrecovered advances, oldest first
-            const staffAdvances = await tx.staffAdvance.findMany({
-              where: {
-                projectId: input.projectId,
-                staffId: computed.staffId,
-                isRecovered: false,
-              },
+          // This person's outstanding advances, oldest first
+          const personAdvances = (
+            await tx.staffAdvance.findMany({
+              where: { personId: computed.personId },
               orderBy: { date: "asc" },
                take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
-             });
+             })
+          ).filter((a) => a.amount - a.recoveredAmount > 0);
 
-            // Apply the deduction in FIFO order, marking advances as
-            // recovered only when their full amount is consumed.
-            let remainingDeduction = totalDeduction;
-            for (const adv of staffAdvances) {
-              if (remainingDeduction <= 0) break;
-              if (adv.amount <= remainingDeduction + 0.01) {
-                // This advance is fully recovered
-                await tx.staffAdvance.update({
-                  where: { id: adv.id },
-                  data: {
-                    isRecovered: true,
-                    recoveredInPayrollId: run.id,
-                  },
-                });
-                remainingDeduction -= adv.amount;
-              } else {
-                // Partial recovery — don't mark as recovered, just
-                // reduce the amount. We need to track the remaining
-                // balance on the advance record.
-                await tx.staffAdvance.update({
-                  where: { id: adv.id },
-                  data: {
-                    amount: adv.amount - remainingDeduction,
-                    // Note: isRecovered stays false — remaining balance
-                    // will be recovered in a future payroll run.
-                    remarks: `Partially recovered in payroll ${input.month}. Remaining: NPR ${(adv.amount - remainingDeduction).toFixed(2)}`,
-                  },
-                });
-                remainingDeduction = 0;
-              }
-            }
+          let remainingDeduction = totalDeduction;
+          for (const adv of personAdvances) {
+            if (remainingDeduction <= 0) break;
+            const outstanding = adv.amount - adv.recoveredAmount;
+            const take = Math.min(outstanding, remainingDeduction);
+            // CAS-guarded increment: fails loudly if concurrently recovered
+            await recoverAdvanceCas(tx, adv.id, take, run.id);
+            remainingDeduction = round2(remainingDeduction - take);
           }
         }
 
-        // Generate the payroll journal entry:
-        // Dr Direct Labor (5010) = totalGross
-        //    Cr Salary Payable (2030) = totalNetPayable
-        //    Cr TDS Payable (2020) = totalTds
-        //    Cr Staff Advance Recoverable (2040) = totalAdvancesRecovered
-        //    Cr Cash (1001) = totalMessDeductions + totalOtherDeductions
-        //    (Dr Staff Advance Recoverable (2040) = deductionExcess if any clamp)
+        // Generate the ORG-LEVEL payroll journal entry:
+        //   Dr Direct Labor (5010) per ALLOCATION (lines carry projectId)
+        //      Cr Salary Payable (2030) = totalNetPayable        (org-level)
+        //      Cr TDS Payable (2020) = totalTds                  (org-level)
+        //      Cr Staff Advance Recoverable (2040) = advances    (org-level)
+        //      Cr Cash (1001) = mess + other deductions          (org-level)
+        //   Dr Staff Advance Recoverable (2040) = deductionExcess if any clamp
+
+        // Labor expense lines: one per allocation across all person records
+        const laborLines = [] as Array<{
+          accountCode: string;
+          accountName: string;
+          debit: number;
+          credit: number;
+          description: string;
+          projectId?: string;
+        }>;
+        for (const rec of createdRecords) {
+          const allocations = await tx.payrollAllocation.findMany({
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+            where: { personRecordId: rec.id },
+            select: { projectId: true, gross: true },
+          });
+          for (const alloc of allocations) {
+            laborLines.push({
+              accountCode: "5010",
+              accountName: "Direct Labor",
+              debit: alloc.gross,
+              credit: 0,
+              description: `Gross payroll allocation — ${input.month}`,
+              projectId: alloc.projectId,
+            });
+          }
+        }
 
         await createJournalEntry(tx, {
           source: "payroll",
           sourceRefId: run.id,
           sourceRefType: "PayrollRun",
-          description: `Payroll for ${input.month} — ${input.projectId}`,
+          description: `Payroll for ${input.month} — org ${ctx.user.organizationId}`,
           entryDate: new Date(),
           postedById: ctx.user.id,
           organizationId: ctx.user.organizationId ?? undefined,
           lines: [
-            {
-              accountCode: "5010",
-              accountName: "Direct Labor",
-              debit: totalGross,
-              credit: 0,
-              description: `Gross payroll — ${computedRecords.length} staff — ${input.month}`,
-              projectId: input.projectId,
-            },
+            ...laborLines,
             ...(totalNetPayable > 0 ? [{
               accountCode: "2030",
               accountName: "Salary Payable",
               debit: 0,
               credit: totalNetPayable,
-              description: `Net payable to staff — ${input.month}`,
-              projectId: input.projectId,
+              description: `Net payable — ${input.month} (org-level liability)`,
             }] : []),
             ...(totalTds > 0 ? [{
               accountCode: "2020" as const,
@@ -508,7 +667,6 @@ export const payrollRouter = router({
               debit: 0,
               credit: totalTds,
               description: `TDS deducted from payroll — ${input.month}`,
-              projectId: input.projectId,
             }] : []),
             ...(totalAdvancesRecovered > 0 ? [{
               accountCode: "2040" as const,
@@ -516,7 +674,6 @@ export const payrollRouter = router({
               debit: 0,
               credit: totalAdvancesRecovered,
               description: `Cash advances recovered — ${input.month}`,
-              projectId: input.projectId,
             }] : []),
             ...(totalMessAndOther > 0 ? [{
               accountCode: "1001" as const,
@@ -524,27 +681,13 @@ export const payrollRouter = router({
               debit: 0,
               credit: totalMessAndOther,
               description: `Mess & other deductions retained — ${input.month}`,
-              projectId: input.projectId,
             }] : []),
-            // Extra DEBIT line for the clamp shortfall — only added when
-            // at least one staff member's deductions exceeded their gross
-            // (so their netPayable was clamped to 0). Without this line,
-            // credits > debits by exactly the clamped amount and
-            // createJournalEntry throws "Unbalanced journal entry", failing
-            // the ENTIRE payroll run for every staff member.
-            //
-            // The shortfall is posted to "Staff Advance Recoverable"
-            // (account 2040) as a debit — representing an amount we
-            // attempted to recover but couldn't because the staff member's
-            // gross pay was insufficient. This keeps the entry balanced
-            // and surfaces the cumulative shortfall in the GL.
             ...(deductionExcess > 0 ? [{
               accountCode: "2040" as const,
               accountName: "Staff Advance Recoverable",
               debit: deductionExcess,
               credit: 0,
               description: `Deduction excess (clamp shortfall) — ${input.month}`,
-              projectId: input.projectId,
             }] : []),
           ],
         });
@@ -555,42 +698,52 @@ export const payrollRouter = router({
       return { payrollRun };
     }),
 
-  /** List historical payroll runs. */
+  /** List historical payroll runs (org-level, newest first). */
   listRuns: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
 
       const runs = await db.payrollRun.findMany({
-        where: { projectId: input.projectId },
-        orderBy: { month: "desc" },
+        where: { organizationId: ctx.user.organizationId },
+        orderBy: { period: "desc" },
          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
        });
 
       return { runs };
     }),
 
-  /** Get specific payroll run with worker payslip records. */
+  /** Get specific payroll run with person payslip records. */
   getRun: protectedProcedure
     .input(z.object({ projectId: z.string(), runId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
       const run = await db.payrollRun.findFirst({
-        where: { id: input.runId, projectId: input.projectId },
+        where: {
+          id: input.runId,
+          organizationId: ctx.user.organizationId ?? undefined,
+        },
         include: {
           records: {
             include: {
-              staff: {
+              person: {
                 select: {
                   id: true,
-                  name: true,
-                  designation: true,
-                  category: true,
+                  displayName: true,
                   phone: true,
                   bankAccountNo: true,
                   bankName: true,
                   pan: true,
+                },
+              },
+              allocations: {
+                include: {
+                  project: { select: { id: true, name: true, code: true } },
+                  assignment: { select: { id: true, designation: true, gangName: true } },
                 },
               },
             },
@@ -620,14 +773,14 @@ export const payrollRouter = router({
       await assertProjectAdmin(ctx.user, input.projectId);
 
       const run = await db.payrollRun.findFirst({
-        where: { id: input.runId, projectId: input.projectId },
+        where: { id: input.runId, organizationId: ctx.user.organizationId ?? undefined },
       });
       if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "PayrollRun not found." });
 
       // FISCAL LOCK FIX (audit §4): check the PAYROLL MONTH the run is
       // for, not the row's createdAt — a run created this month for a
       // locked month passed the old check and back-dated the whole run.
-      const [payrollYear, payrollMonth] = run.month.split("-").map(Number);
+      const [payrollYear, payrollMonth] = run.period.split("-").map(Number);
       await assertNotLocked(
         ctx.user.organizationId,
         new Date(Date.UTC(payrollYear, (payrollMonth || 1) - 1, 15)),
@@ -635,7 +788,7 @@ export const payrollRouter = router({
 
       // H-16: delegation on disbursement — money leaves the org.
       if (input.action === "disburse") {
-        await assertDelegation(ctx.user, "disburse_payroll", Number(run.totalNetPayable));
+        await assertDelegation(ctx.user, "disburse_payroll", run.totalNetPayable);
       }
 
       if (input.action === "disburse" && input.companyBankAccountId) {
@@ -660,14 +813,13 @@ export const payrollRouter = router({
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
         // Transition FIRST: an invalid/out-of-order move throws before any
-        // staff-record mutation is issued (both writes share the tx anyway).
+        // record mutation is issued (both writes share the tx anyway).
         const result = await transitionEntityState(tx, {
           model: "payrollRun",
           id: input.runId,
           targetState,
           userId: ctx.user.id,
           userName: ctx.user.name,
-          projectId: input.projectId,
           allowedCurrentStates,
           additionalData: {
             ...(input.action === "disburse" ? { disbursedAmount: run.totalNetPayable } : {}),
@@ -677,7 +829,7 @@ export const payrollRouter = router({
         });
 
         if (input.action === "disburse") {
-          await tx.payrollStaffRecord.updateMany({
+          await tx.payrollPersonRecord.updateMany({
             where: { payrollRunId: input.runId },
             data: { paymentStatus: "paid" },
           });
@@ -689,15 +841,17 @@ export const payrollRouter = router({
           // balance showed phantom payroll liabilities forever. Settle it:
           //   Dr 2030 Salary Payable  = totalNetPayable (liability cleared)
           //      Cr 1010 Bank          = totalNetPayable (cash out)
+          // Both lines are ORG-LEVEL (projectId null) — the settlement
+          // clears the org's liability from the org's bank.
           // JE idempotency: @@unique([source, sourceRefId]) keyed on the
           // run id makes double-posting on retry impossible.
-          const netPayable = Number(run.totalNetPayable);
+          const netPayable = run.totalNetPayable;
           if (netPayable > 0) {
             await createJournalEntry(tx, {
               source: "payroll_disbursement",
               sourceRefId: run.id,
               sourceRefType: "PayrollRun",
-              description: `Payroll disbursement — ${run.month}`,
+              description: `Payroll disbursement — ${run.period}`,
               entryDate: new Date(),
               postedById: ctx.user.id,
               organizationId: ctx.user.organizationId ?? undefined,
@@ -707,16 +861,14 @@ export const payrollRouter = router({
                   accountName: "Salary Payable",
                   debit: netPayable,
                   credit: 0,
-                  description: `Salary payable settled — ${run.month}`,
-                  projectId: input.projectId,
+                  description: `Salary payable settled — ${run.period}`,
                 },
                 {
                   accountCode: "1010",
                   accountName: "Bank",
                   debit: 0,
                   credit: netPayable,
-                  description: `Net payroll disbursed — ${run.month}`,
-                  projectId: input.projectId,
+                  description: `Net payroll disbursed — ${run.period}`,
                 },
               ],
             });
@@ -738,7 +890,7 @@ export const payrollRouter = router({
       return { run: updated };
     }),
 
-  /** Update individual worker payslip payment status and reference. */
+  /** Update individual person payslip payment status and reference. */
   updateStaffPayment: protectedProcedure
     .input(
       z.object({
@@ -753,14 +905,17 @@ export const payrollRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      // Verify the record belongs to the project the caller was authorized
-      // on. Without this, a user with project A access could mutate
-      // payroll staff records in project B by their cuid.
-      const record = await db.payrollStaffRecord.findFirst({
-        where: { id: input.recordId, payrollRun: { projectId: input.projectId } },
-        include: { payrollRun: { select: { status: true, createdAt: true, month: true } } },
+      // Verify the record belongs to the caller's org (org-level runs).
+      // Without this, a user from org A could mutate payroll records of
+      // org B by their cuid.
+      const record = await db.payrollPersonRecord.findFirst({
+        where: {
+          id: input.recordId,
+          payrollRun: { organizationId: ctx.user.organizationId ?? undefined },
+        },
+        include: { payrollRun: { select: { status: true, createdAt: true, period: true } } },
       });
-      if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Staff record not found." });
+      if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll record not found." });
 
       // H-7 FIX: payslips can only be marked paid while the RUN is in a
       // payment-eligible state. Previously a payslip could be flipped to
@@ -782,16 +937,16 @@ export const payrollRouter = router({
           : input.paymentStatus === "paid"
             ? record.netPayable
             : record.paidAmount;
-      if (targetPaidAmount > Number(record.netPayable) + 0.01) {
+      if (targetPaidAmount > record.netPayable + 0.01) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Paid amount (${targetPaidAmount}) exceeds the payslip net payable (${Number(record.netPayable)}).`,
+          message: `Paid amount (${targetPaidAmount}) exceeds the payslip net payable (${record.netPayable}).`,
         });
       }
 
       await assertNotLocked(ctx.user.organizationId, record.payrollRun.createdAt);
 
-      const updated = await db.payrollStaffRecord.update({
+      const updated = await db.payrollPersonRecord.update({
         where: { id: input.recordId },
         data: {
           paymentStatus: input.paymentStatus,
@@ -804,3 +959,8 @@ export const payrollRouter = router({
       return { record: updated };
     }),
 });
+
+/** Round to 2 decimal places without float drift beyond cents. */
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}

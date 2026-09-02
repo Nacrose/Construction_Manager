@@ -200,14 +200,18 @@ export const financeRouter = router({
       }
 
       const startMonthKey = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, "0")}`;
-      const payrollRuns = await db.payrollRun.findMany({
-        where: { projectId: input.projectId, status: "disbursed" },
-        select: { month: true, disbursedAmount: true, totalNetPayable: true },
-        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
-      });
+      // Org-level payroll (ADR-0007): disbursed org runs feed the cash
+      // outflow picture of every project in the org.
+      const payrollRuns = ctx.user.organizationId
+        ? await db.payrollRun.findMany({
+            where: { organizationId: ctx.user.organizationId, status: "disbursed" },
+            select: { period: true, disbursedAmount: true, totalNetPayable: true },
+            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+          })
+        : [];
       for (const run of payrollRuns) {
-        if (run.month < startMonthKey) continue;
-        const entry = monthMap.get(run.month);
+        if (run.period < startMonthKey) continue;
+        const entry = monthMap.get(run.period);
         if (entry) {
           entry.month.payrollOut += run.disbursedAmount || run.totalNetPayable;
         }

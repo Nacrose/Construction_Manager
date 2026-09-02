@@ -25,8 +25,8 @@ import { db } from "@/lib/db";
 import { ganttVersionsRouter } from "../gantt-versions";
 
 const anyDb = db as any;
-const PM = buildUser({ role: "member" });
-const ENGINEER = buildUser({ id: "user-2", role: "member" });
+const PM = buildUser();
+const ENGINEER = buildUser({ id: "user-2" });
 
 function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);

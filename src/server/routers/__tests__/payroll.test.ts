@@ -1,13 +1,17 @@
 /**
- * Router-layer tests for the payroll router.
+ * Router-layer tests for the payroll router — org-level runs at person
+ * grain (ADR-0007).
  *
  * Pins:
  *   - Server-side recomputation: client-submitted amounts are IGNORED —
- *     the server recomputes from staff + attendance + advances
- *   - Fiscal-year lock uses the run's MONTH (back-dating cannot bypass)
- *   - Status machine: disburse marks records paid + locks disbursedAmount
- *   - Cross-project record access is rejected (payrollStaffRecord scoped
- *     through payrollRun.projectId)
+ *     the server recomputes from assignments + attendance + advances
+ *   - Fiscal-year lock uses the run's PERIOD (back-dating cannot bypass)
+ *   - Status machine: disburse marks person records paid + locks
+ *     disbursedAmount
+ *   - Records of another org are rejected (payrollPersonRecord scoped
+ *     through payrollRun.organizationId)
+ *   - A PayrollAllocation row is written per person record and the JE's
+ *     labor line carries the allocation's projectId
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildUser, createCaller, expectTRPCError } from "./test-utils";
@@ -25,8 +29,8 @@ const anyDb = db as any;
 const ENGINEER = buildUser();
 const PM = buildUser();
 
-function member(role: string) {
-  anyDb.projectMember.findUnique.mockResolvedValue({ role });
+function member(role: string | null) {
+  anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);
 }
 
 beforeEach(() => {
@@ -40,7 +44,7 @@ describe("payroll.createPayrollRun", () => {
     month: "2025-01",
     records: [
       {
-        staffId: "s-1",
+        personId: "per-1",
         presentDays: 30, // LIE — server recomputes from attendance
         baseRate: 5000, // LIE
         regularPay: 999999, // LIE
@@ -49,8 +53,8 @@ describe("payroll.createPayrollRun", () => {
     ],
   };
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs callers without a writable project membership", async () => {
+    member(null);
     const caller = createCaller(payrollRouter, ENGINEER);
     await expectTRPCError(caller.createPayrollRun(runInput), "FORBIDDEN");
     expect(anyDb.payrollRun.upsert).not.toHaveBeenCalled();
@@ -71,43 +75,52 @@ describe("payroll.createPayrollRun", () => {
     expect(where.endDate.gte).toEqual(new Date("2025-01-01"));
   });
 
-  it("NOT_FOUNDs staff that are not active members of the project", async () => {
+  it("NOT_FOUNDs persons that have no active assignment on the project", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([]); // staff s-1 not in p-1
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([]); // per-1 not on p-1
     const caller = createCaller(payrollRouter, ENGINEER);
     await expectTRPCError(caller.createPayrollRun(runInput), "NOT_FOUND");
     expect(anyDb.payrollRun.upsert).not.toHaveBeenCalled();
   });
 
-  it("recomputes pay server-side and IGNORES client-submitted amounts", async () => {
+  it("recomputes pay server-side, IGNORES client amounts, and writes an allocation", async () => {
     member("engineer");
-    // Daily-wage worker: NPR 1000/day, has a PAN (TDS 1%)
-    anyDb.staff.findMany.mockResolvedValue([
+    // Daily-wage worker: NPR 1000/day, has a PAN (TDS 1%) — the terms come
+    // from the ACTIVE ASSIGNMENT, identity from the PERSON.
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
       {
-        id: "s-1",
-        name: "Ram Bahadur",
+        id: "a-1",
+        projectId: "p-1",
+        personId: "per-1",
+        status: "active",
         designation: "Mason",
         category: "skilled",
         employmentType: "daily",
         gangName: null,
         dailyWage: 1000,
-        monthlySalary: null,
-        bankAccountNo: null,
-        bankName: null,
-        pan: "12345",
+        monthlySalary: 0,
+        fromDate: new Date("2024-01-01"),
+        person: {
+          id: "per-1",
+          displayName: "Ram Bahadur",
+          bankAccountNo: null,
+          bankName: null,
+          pan: "12345",
+        },
       },
     ]);
-    // Attendance: 20 present + 2 half days (effective 21 days)
+    // Attendance: 20 present + 2 half days (effective 21 days), keyed by
+    // the ASSIGNMENT (attendance grain is [assignmentId, date], ADR-0005)
     anyDb.staffAttendance.findMany.mockResolvedValue([
       ...Array.from({ length: 20 }, () => ({
-        staffId: "s-1",
+        assignmentId: "a-1",
         date: new Date("2025-01-15"),
         status: "present",
         hours: 8,
         overtime: 0,
       })),
       ...Array.from({ length: 2 }, () => ({
-        staffId: "s-1",
+        assignmentId: "a-1",
         date: new Date("2025-01-16"),
         status: "half_day",
         hours: 4,
@@ -115,16 +128,27 @@ describe("payroll.createPayrollRun", () => {
       })),
     ]);
     anyDb.staffAdvance.findMany.mockResolvedValue([]);
+    anyDb.organization.findUnique.mockResolvedValue({
+      id: ENGINEER.organizationId,
+      activePolicyVersionId: "policy-1",
+    });
     anyDb.payrollRun.upsert.mockResolvedValue({ id: "run-1" });
+    anyDb.payrollPersonRecord.create.mockResolvedValue({ id: "rec-1" });
+    // the allocation loop reads back what it wrote for JE line construction
+    anyDb.payrollAllocation.findMany.mockResolvedValue([
+      { projectId: "p-1", gross: 21000 },
+    ]);
 
     const caller = createCaller(payrollRouter, ENGINEER);
     await caller.createPayrollRun(runInput);
 
-    // Persisted record carries SERVER-COMPUTED values:
+    // Persisted PERSON record carries SERVER-COMPUTED values:
     //   regularPay = 21 effective days × 1000 = 21000
     //   tdsAmount  = 21000 × 1% (PAN holder) = 210
     //   netPayable = 21000 − 210 = 20790  (NOT the forged 999999)
-    const recordData = anyDb.payrollStaffRecord.create.mock.calls[0][0].data;
+    const recordData = anyDb.payrollPersonRecord.create.mock.calls[0][0].data;
+    expect(recordData.organizationId).toBe(ENGINEER.organizationId); // RLS anchor
+    expect(recordData.personId).toBe("per-1");
     expect(recordData.presentDays).toBe(20);
     expect(recordData.halfDays).toBe(2);
     expect(recordData.regularPay).toBe(21000);
@@ -132,17 +156,43 @@ describe("payroll.createPayrollRun", () => {
     expect(recordData.netPayable).toBe(20790);
     expect(recordData.netPayable).not.toBe(999999);
 
-    // Run totals also server-computed
-    const upsertData = anyDb.payrollRun.upsert.mock.calls[0][0].create;
+    // Run is ORG-level: keyed (organizationId, period), bound to the active
+    // policy version, one record per person.
+    const upsertArgs = anyDb.payrollRun.upsert.mock.calls[0][0];
+    expect(upsertArgs.where).toEqual({
+      organizationId_period: {
+        organizationId: ENGINEER.organizationId,
+        period: "2025-01",
+      },
+    });
+    const upsertData = upsertArgs.create;
     expect(upsertData.totalGross).toBe(21000);
     expect(upsertData.totalNetPayable).toBe(20790);
-    expect(upsertData.totalStaffCount).toBe(1);
+    expect(upsertData.totalPersonCount).toBe(1);
+    expect(upsertData.policyVersionId).toBe("policy-1");
 
-    // Payroll JE balanced: Dr 5010 21000 = Cr 2030 20790 + Cr 2020 210
+    // Allocation row: cost lands on the project via the assignment
+    const allocData = anyDb.payrollAllocation.create.mock.calls[0][0].data;
+    expect(allocData).toMatchObject({
+      organizationId: ENGINEER.organizationId,
+      payrollRunId: "run-1",
+      personRecordId: "rec-1",
+      assignmentId: "a-1",
+      projectId: "p-1",
+      basis: "actual_days",
+      net: 20790,
+    });
+
+    // Payroll JE balanced: Dr 5010 (allocation line, projectId p-1) 21000
+    //                   = Cr 2030 20790 + Cr 2020 210
     const jeData = anyDb.journalEntry.create.mock.calls[0][0].data;
     expect(jeData.source).toBe("payroll");
     expect(jeData.totalDebit).toBe(21000);
     expect(jeData.totalCredit).toBe(21000);
+    const laborLine = jeData.lines.create.find((l: any) => l.accountCode === "5010");
+    expect(laborLine.projectId).toBe("p-1");
+    const liabilityLine = jeData.lines.create.find((l: any) => l.accountCode === "2030");
+    expect(liabilityLine.projectId ?? null).toBeNull(); // org-level liability
   });
 });
 
@@ -161,7 +211,7 @@ describe("payroll.updateRunStatus", () => {
     await expectTRPCError(caller.updateRunStatus(statusInput), "FORBIDDEN");
   });
 
-  it("NOT_FOUNDs a run that is not in the authorized project", async () => {
+  it("NOT_FOUNDs a run that is not in the caller's organization", async () => {
     member("project_manager");
     anyDb.payrollRun.findFirst.mockResolvedValue(null);
     const caller = createCaller(payrollRouter, PM);
@@ -172,8 +222,8 @@ describe("payroll.updateRunStatus", () => {
     member("project_manager");
     mockRun({
       id: "run-1",
-      projectId: "p-1",
-      month: "2025-01",
+      organizationId: PM.organizationId,
+      period: "2025-01",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-01-15"),
@@ -189,12 +239,12 @@ describe("payroll.updateRunStatus", () => {
     expect(anyDb.payrollRun.updateMany).not.toHaveBeenCalled();
   });
 
-  it("disburse marks all staff records paid and locks disbursedAmount", async () => {
+  it("disburse marks all person records paid and locks disbursedAmount", async () => {
     member("project_manager");
     mockRun({
       id: "run-1",
-      projectId: "p-1",
-      month: "2026-02",
+      organizationId: PM.organizationId,
+      period: "2026-02",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -207,7 +257,7 @@ describe("payroll.updateRunStatus", () => {
     const caller = createCaller(payrollRouter, PM);
     await caller.updateRunStatus(statusInput);
 
-    expect(anyDb.payrollStaffRecord.updateMany).toHaveBeenCalledWith({
+    expect(anyDb.payrollPersonRecord.updateMany).toHaveBeenCalledWith({
       where: { payrollRunId: "run-1" },
       data: { paymentStatus: "paid" },
     });
@@ -225,8 +275,8 @@ describe("payroll.updateRunStatus", () => {
     member("project_manager");
     mockRun({
       id: "run-1",
-      projectId: "p-1",
-      month: "2026-02",
+      organizationId: PM.organizationId,
+      period: "2026-02",
       status: "draft",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -256,8 +306,8 @@ describe("payroll.updateRunStatus", () => {
     member("project_manager");
     mockRun({
       id: "run-1",
-      projectId: "p-1",
-      month: "2026-02",
+      organizationId: PM.organizationId,
+      period: "2026-02",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -283,8 +333,8 @@ describe("payroll.updateRunStatus", () => {
     member("project_manager");
     mockRun({
       id: "run-1",
-      projectId: "p-1",
-      month: "2026-02",
+      organizationId: PM.organizationId,
+      period: "2026-02",
       status: "draft",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -300,7 +350,7 @@ describe("payroll.updateRunStatus", () => {
       "BAD_REQUEST",
     );
     expect(anyDb.payrollRun.updateMany).not.toHaveBeenCalled();
-    expect(anyDb.payrollStaffRecord.updateMany).not.toHaveBeenCalled();
+    expect(anyDb.payrollPersonRecord.updateMany).not.toHaveBeenCalled();
   });
 });
 
@@ -312,27 +362,27 @@ describe("payroll.updateStaffPayment", () => {
     paymentStatus: "paid" as const,
   };
 
-  it("NOT_FOUNDs records belonging to another project", async () => {
+  it("NOT_FOUNDs records belonging to another organization", async () => {
     member("engineer");
-    anyDb.payrollStaffRecord.findFirst.mockResolvedValue(null);
+    anyDb.payrollPersonRecord.findFirst.mockResolvedValue(null);
     const caller = createCaller(payrollRouter, ENGINEER);
     await expectTRPCError(caller.updateStaffPayment(staffPayInput), "NOT_FOUND");
-    expect(anyDb.payrollStaffRecord.update).not.toHaveBeenCalled();
+    expect(anyDb.payrollPersonRecord.update).not.toHaveBeenCalled();
   });
 
   it("paid without explicit amount defaults paidAmount to netPayable", async () => {
     member("engineer");
-    anyDb.payrollStaffRecord.findFirst.mockResolvedValue({
+    anyDb.payrollPersonRecord.findFirst.mockResolvedValue({
       id: "rec-1",
       netPayable: 20790,
       paidAmount: 0,
-      payrollRun: { createdAt: new Date("2025-02-01") },
+      payrollRun: { status: "approved", createdAt: new Date("2025-02-01"), period: "2025-01" },
     });
 
     const caller = createCaller(payrollRouter, ENGINEER);
     await caller.updateStaffPayment(staffPayInput);
 
-    const updateData = anyDb.payrollStaffRecord.update.mock.calls[0][0].data;
+    const updateData = anyDb.payrollPersonRecord.update.mock.calls[0][0].data;
     expect(updateData.paidAmount).toBe(20790);
     expect(updateData.paymentStatus).toBe("paid");
   });

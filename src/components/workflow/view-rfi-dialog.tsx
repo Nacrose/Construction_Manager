@@ -114,8 +114,8 @@ type RfiDetail = {
     costImpact: boolean;
     scheduleImpact: boolean;
     project: { id: string; name: string; code: string; client?: string | null };
-    createdBy: { id: string; name: string; role: string };
-    assignedTo: { id: string; role: string; user: { id: string; name: string; role: string } } | null;
+    createdBy: { id: string; name: string };
+    assignedTo: { id: string; user: { id: string; name: string } } | null;
     ganttTask: { id: string; code: string | null; name: string } | null;
     boqItem: { id: string; code: string; description: string; unit: string; rate: number } | null;
     drawing: { id: string; number: string; title: string; revision: string } | null;
@@ -150,7 +150,7 @@ type RfiDetail = {
       response: string;
       decision: string;
       createdAt: Date;
-      responder: { id: string; name: string; role: string };
+      responder: { id: string; name: string };
     }>;
   };
 };

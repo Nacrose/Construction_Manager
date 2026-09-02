@@ -178,7 +178,7 @@ export const rfiRouter = router({
           inspectionStartTime: true,
           inspectionEndTime: true,
           createdBy: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, user: { select: { id: true, name: true, role: true } } } },
+          assignedTo: { select: { id: true, user: { select: { id: true, name: true } } } },
           ganttTask: { select: { id: true, code: true, name: true } },
           boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } },
           drawing: { select: { id: true, number: true, title: true, revision: true } },
@@ -210,11 +210,11 @@ export const rfiRouter = router({
             orderBy: { createdAt: "asc" },
           },
           responses: {
-            include: { responder: { select: { id: true, name: true, role: true } } },
+            include: { responder: { select: { id: true, name: true } } },
             orderBy: { createdAt: "desc" },
           },
-          createdBy: { select: { id: true, name: true, role: true } },
-          assignedTo: { select: { id: true, role: true, user: { select: { id: true, name: true, role: true } } } },
+          createdBy: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, user: { select: { id: true, name: true } } } },
           ganttTask: { select: { id: true, code: true, name: true } },
           boqItem: { select: { id: true, code: true, description: true, unit: true, rate: true } },
           drawing: { select: { id: true, number: true, title: true, revision: true } },
@@ -665,7 +665,7 @@ export const rfiRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
       const members = await db.projectMember.findMany({
         where: { projectId: input.projectId, role: { in: ["project_manager", "coordinator", "engineer"] } },
-        select: { id: true, role: true, user: { select: { id: true, name: true, email: true, role: true } } },
+        select: { id: true, user: { select: { id: true, name: true, email: true } } },
         orderBy: { user: { name: "asc" } },
          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
        });

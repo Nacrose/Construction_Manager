@@ -84,7 +84,7 @@ export function PayrollManagementTab({
       projectId,
       month: selectedMonth,
       records: payrollItems.map((item) => ({
-        staffId: item.staffId,
+        personId: item.personId,
         employmentType: item.employmentType,
         presentDays: item.presentDays,
         halfDays: item.halfDays,

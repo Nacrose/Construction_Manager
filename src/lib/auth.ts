@@ -40,7 +40,6 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  role: string;
   avatarUrl?: string | null;
   organizationId?: string | null;
   orgRole?: string;
@@ -258,7 +257,6 @@ export async function getCurrentUser(authHeader?: string | null): Promise<AuthUs
         id: true,
         email: true,
         name: true,
-        role: true,
         avatarUrl: true,
         organizationId: true,
         orgRole: true,
@@ -320,7 +318,6 @@ export async function getCurrentUser(authHeader?: string | null): Promise<AuthUs
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
       avatarUrl: user.avatarUrl,
       organizationId: effectiveOrgId,
       orgRole: effectiveOrgRole,

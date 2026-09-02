@@ -1,26 +1,29 @@
 /**
  * Router-layer tests for hr.ts (staff directory, attendance, muster roll,
- * site advances).
+ * site advances) — person/assignment grain (ADR-0005).
  *
  * Pins:
- *   - list: org scoping (projectId + status/gang filters in the where
- *     clause), gang list derived from distinct non-null gangName
- *   - create: read-only roles blocked; negative wages rejected (zod);
- *     defaults applied (category/employmentType/joinedDate)
- *   - update/delete: NOT_FOUND for unknown ids; cross-project rows
- *     (staff belonging to another project) rejected via project-scoped
- *     write assertion
+ *   - list: roster rows come from ACTIVE ProjectStaffAssignment joins;
+ *     status filter maps "active" to the assignment, others to the person
+ *   - gang list derived from distinct non-null gangName
+ *   - create: creates a Person (org-wide) + an active assignment; wage
+ *     defaults via zod
+ *   - update: assignment terms vs person identity fields split; NOT_FOUND
+ *     for unknown assignment ids; cross-project rows rejected via
+ *     project-scoped write assertion
+ *   - delete: ENDS the assignment (soft) — never destroys history
  *   - getAttendanceByDate: unlogged workers default present/8h/0 OT;
- *     logged attendance wins
- *   - bulkLogAttendance: cross-project staffIds are dropped (only
- *     project staff are upserted); date normalized to UTC midnight
+ *     logged attendance wins; rows keyed by assignmentId
+ *   - bulkLogAttendance: cross-project assignment ids are dropped;
+ *     date normalized to UTC midnight; upsert against assignmentId_date
  *   - getMusterRoll: effectiveDays = present + ½·half; OT paid at
  *     1.5× (dailyWage/8); monthly staff estimated at monthlySalary
- *   - getStaffAdvances: pending total excludes recovered advances
- *   - createStaffAdvance: staff must belong to the project (cross-project
- *     guard); amount must be positive
- *   - deleteStaffAdvance: IDOR guard (advance must belong to the
- *     authorized project); recovered advances are immutable
+ *   - getStaffAdvances: pending total = Σ (amount − recoveredAmount) over
+ *     outstanding advances
+ *   - createStaffAdvance: person must have an ACTIVE assignment on the
+ *     project (cross-project guard); amount must be positive
+ *   - deleteStaffAdvance: IDOR guard; partially-recovered advances are
+ *     immutable
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildUser, createCaller, expectTRPCError } from "./test-utils";
@@ -41,32 +44,57 @@ function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);
 }
 
+/** Roster row shape returned by the assignment join (see ASSIGNMENT_LIST_SELECT). */
+function assignmentRow(id: string, personId: string, over: Record<string, unknown> = {}) {
+  return {
+    id,
+    personId,
+    designation: "Mason",
+    category: "skilled",
+    employmentType: "daily",
+    dailyWage: 1000,
+    monthlySalary: 0,
+    gangName: null,
+    fromDate: new Date("2026-01-01"),
+    person: {
+      id: personId,
+      displayName: id === "a-1" ? "Ram" : "Shyam",
+      phone: null,
+      bankAccountNo: null,
+      bankName: null,
+      pan: null,
+      idNumber: null,
+      status: "active",
+    },
+    ...over,
+  };
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
 // ─── list ───────────────────────────────────────────────────────────────────
 describe("hr.list", () => {
-  it("scopes the staff query to the project and applies the status filter", async () => {
+  it("scopes the roster query to the project and maps the active filter to assignments", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([]);
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     await caller.list({ projectId: "p-1" }); // status defaults to "active"
 
-    const where = anyDb.staff.findMany.mock.calls[0][0].where;
+    const where = anyDb.projectStaffAssignment.findMany.mock.calls[0][0].where;
     expect(where).toEqual({ projectId: "p-1", status: "active" });
 
     await caller.list({ projectId: "p-1", status: "all", gangName: "Mason Gang A" });
-    const where2 = anyDb.staff.findMany.mock.calls[2][0].where;
+    const where2 = anyDb.projectStaffAssignment.findMany.mock.calls[2][0].where;
     expect(where2).toEqual({ projectId: "p-1", gangName: "Mason Gang A" });
   });
 
   it("derives the gang list from distinct non-null gangNames", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([]);
-    anyDb.staff.findMany.mockResolvedValueOnce([]); // staff query
-    anyDb.staff.findMany.mockResolvedValueOnce([
+    anyDb.projectStaffAssignment.findMany.mockResolvedValueOnce([]); // roster query
+    anyDb.projectStaffAssignment.findMany.mockResolvedValueOnce([
       { gangName: "Mason Gang A" },
       { gangName: null },
       { gangName: "Carpentry Toli" },
@@ -75,9 +103,25 @@ describe("hr.list", () => {
     const caller = createCaller(hrRouter, ENGINEER);
     const res = await caller.list({ projectId: "p-1" });
     expect(res.gangs).toEqual(["Mason Gang A", "Carpentry Toli"]);
-    expect(anyDb.staff.findMany.mock.calls[1][0]).toMatchObject({
+    expect(anyDb.projectStaffAssignment.findMany.mock.calls[1][0]).toMatchObject({
       where: { projectId: "p-1", gangName: { not: null } },
       distinct: ["gangName"],
+    });
+  });
+
+  it("projects roster rows to person identity with assignment id + personId", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      assignmentRow("a-1", "per-1"),
+    ]);
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.list({ projectId: "p-1" });
+    expect(res.staff[0]).toMatchObject({
+      id: "a-1",
+      personId: "per-1",
+      name: "Ram",
+      dailyWage: 1000,
     });
   });
 
@@ -103,14 +147,16 @@ describe("hr.list", () => {
       caller.list({ projectId: "p-1" }),
       "FORBIDDEN",
     );
-    expect(anyDb.staff.findMany).not.toHaveBeenCalled();
+    expect(anyDb.projectStaffAssignment.findMany).not.toHaveBeenCalled();
   });
 });
 
 // ─── create / update / delete ───────────────────────────────────────────────
 describe("hr staff CRUD", () => {
-  it("create persists wages and applies category/employment/joinedDate defaults", async () => {
+  it("create makes a Person + an active assignment with wage defaults", async () => {
     member("engineer");
+    anyDb.person.create.mockResolvedValue({ id: "per-1", displayName: "Ram Bahadur" });
+
     const caller = createCaller(hrRouter, ENGINEER);
     await caller.create({
       projectId: "p-1",
@@ -119,23 +165,30 @@ describe("hr staff CRUD", () => {
       monthlySalary: 0,
     });
 
-    const data = anyDb.staff.create.mock.calls[0][0].data;
-    expect(data.projectId).toBe("p-1");
-    expect(data.name).toBe("Ram Bahadur");
-    expect(data.dailyWage).toBe(1200);
-    expect(data.category).toBe("skilled"); // zod default
-    expect(data.employmentType).toBe("daily"); // zod default
-    expect(data.joinedDate).toBeInstanceOf(Date); // defaulted to now
+    // person row is org-wide and carries the identity fields
+    const personData = anyDb.person.create.mock.calls[0][0].data;
+    expect(personData.organizationId).toBe(ENGINEER.organizationId);
+    expect(personData.displayName).toBe("Ram Bahadur");
+    expect(personData.category).toBe("skilled"); // zod default
+    expect(personData.employmentType).toBe("daily"); // zod default
+
+    // assignment starts immediately with the engagement terms
+    const asgData = anyDb.projectStaffAssignment.create.mock.calls[0][0].data;
+    expect(asgData.projectId).toBe("p-1");
+    expect(asgData.personId).toBe("per-1");
+    expect(asgData.dailyWage).toBe(1200);
+    expect(asgData.fromDate).toBeInstanceOf(Date); // defaulted to now
   });
 
-  it("create FORBIDDENs read-only roles (client)", async () => {
-    member("client");
+  it("create FORBIDDENs read-only roles", async () => {
+    member(null); // no write-capable membership
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
       caller.create({ projectId: "p-1", name: "X", dailyWage: 100, monthlySalary: 0 }),
       "FORBIDDEN",
     );
-    expect(anyDb.staff.create).not.toHaveBeenCalled();
+    expect(anyDb.person.create).not.toHaveBeenCalled();
+    expect(anyDb.projectStaffAssignment.create).not.toHaveBeenCalled();
   });
 
   it("create rejects negative dailyWage (zod nonnegative)", async () => {
@@ -145,65 +198,93 @@ describe("hr staff CRUD", () => {
       caller.create({ projectId: "p-1", name: "X", dailyWage: -100, monthlySalary: 0 }),
       "BAD_REQUEST",
     );
-    expect(anyDb.staff.create).not.toHaveBeenCalled();
+    expect(anyDb.person.create).not.toHaveBeenCalled();
   });
 
-  it("update NOT_FOUNDs unknown staff", async () => {
+  it("update NOT_FOUNDs unknown assignments", async () => {
     member("engineer");
-    anyDb.staff.findUnique.mockResolvedValue(null);
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue(null);
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
       caller.update({ itemId: "nope", name: "Y" }),
       "NOT_FOUND",
     );
-    expect(anyDb.staff.update).not.toHaveBeenCalled();
+    expect(anyDb.projectStaffAssignment.update).not.toHaveBeenCalled();
   });
 
-  it("update rejects staff belonging to ANOTHER project (cross-project IDOR)", async () => {
-    // Staff row lives in p-2; caller is only a member of p-1.
-    anyDb.staff.findUnique.mockResolvedValue({ projectId: "p-2" });
+  it("update rejects assignments belonging to ANOTHER project (cross-project IDOR)", async () => {
+    // assignment lives in p-2; caller is only a member of p-1.
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1",
+      projectId: "p-2",
+      personId: "per-1",
+    });
     member(null); // membership lookup for p-2 → null → FORBIDDEN
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
-      caller.update({ itemId: "st-1", name: "Y" }),
+      caller.update({ itemId: "a-1", name: "Y" }),
       "FORBIDDEN",
     );
-    expect(anyDb.staff.update).not.toHaveBeenCalled();
+    expect(anyDb.projectStaffAssignment.update).not.toHaveBeenCalled();
   });
 
-  it("update converts joinedDate strings to Date and null stays null", async () => {
+  it("update routes identity fields to the person and terms to the assignment", async () => {
     member("engineer");
-    anyDb.staff.findUnique.mockResolvedValue({ projectId: "p-1" });
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1",
+      projectId: "p-1",
+      personId: "per-1",
+    });
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValueOnce({
+      id: "a-1",
+      projectId: "p-1",
+      personId: "per-1",
+    });
+
     const caller = createCaller(hrRouter, ENGINEER);
+    await caller.update({ itemId: "a-1", name: "New Name", dailyWage: 1500, pan: "123" });
 
-    await caller.update({ itemId: "st-1", joinedDate: "2026-01-15" });
-    expect(anyDb.staff.update.mock.calls[0][0].data.joinedDate).toEqual(
-      new Date("2026-01-15"),
-    );
-
-    await caller.update({ itemId: "st-1", joinedDate: null });
-    expect(anyDb.staff.update.mock.calls[1][0].data.joinedDate).toBeNull();
+    expect(anyDb.person.update).toHaveBeenCalledWith({
+      where: { id: "per-1" },
+      data: expect.objectContaining({ displayName: "New Name", pan: "123" }),
+    });
+    expect(anyDb.projectStaffAssignment.update).toHaveBeenCalledWith({
+      where: { id: "a-1" },
+      data: expect.objectContaining({ dailyWage: 1500 }),
+    });
   });
 
-  it("delete removes the staff row only after project-scope verification", async () => {
+  it("delete ENDS the assignment softly (history is never destroyed)", async () => {
     member("engineer");
-    anyDb.staff.findUnique.mockResolvedValue({ projectId: "p-1" });
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1",
+      projectId: "p-1",
+      status: "active",
+    });
     const caller = createCaller(hrRouter, ENGINEER);
-    const res = await caller.delete({ itemId: "st-1" });
+    const res = await caller.delete({ itemId: "a-1" });
     expect(res.ok).toBe(true);
-    expect(anyDb.staff.delete).toHaveBeenCalledWith({ where: { id: "st-1" } });
+    expect(anyDb.projectStaffAssignment.update).toHaveBeenCalledWith({
+      where: { id: "a-1" },
+      data: expect.objectContaining({ status: "ended" }),
+    });
+    expect(anyDb.projectStaffAssignment.delete).not.toHaveBeenCalled();
   });
 
-  it("delete NOT_FOUNDs unknown staff and FORBIDDENs other-project staff", async () => {
+  it("delete NOT_FOUNDs unknown assignments and FORBIDDENs other-project rows", async () => {
     member("engineer");
-    anyDb.staff.findUnique.mockResolvedValue(null);
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue(null);
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(caller.delete({ itemId: "nope" }), "NOT_FOUND");
 
-    anyDb.staff.findUnique.mockResolvedValue({ projectId: "p-2" });
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1",
+      projectId: "p-2",
+      status: "active",
+    });
     member(null);
-    await expectTRPCError(caller.delete({ itemId: "st-1" }), "FORBIDDEN");
-    expect(anyDb.staff.delete).not.toHaveBeenCalled();
+    await expectTRPCError(caller.delete({ itemId: "a-1" }), "FORBIDDEN");
+    expect(anyDb.projectStaffAssignment.update).not.toHaveBeenCalled();
   });
 });
 
@@ -211,12 +292,12 @@ describe("hr staff CRUD", () => {
 describe("hr.getAttendanceByDate", () => {
   it("defaults unlogged workers to present/8h and keeps logged attendance", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([
-      { id: "s-1", name: "Ram", designation: "Mason", category: "skilled", employmentType: "daily", gangName: null, dailyWage: 1000 },
-      { id: "s-2", name: "Shyam", designation: "Helper", category: "unskilled", employmentType: "daily", gangName: null, dailyWage: 800 },
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      assignmentRow("a-1", "per-1"),
+      assignmentRow("a-2", "per-2"),
     ]);
     anyDb.staffAttendance.findMany.mockResolvedValue([
-      { staffId: "s-1", date: new Date("2026-08-01"), status: "absent", hours: 0, overtime: 0, remarks: "sick" },
+      { assignmentId: "a-1", date: new Date("2026-08-01"), status: "absent", hours: 0, overtime: 0, remarks: "sick" },
     ]);
 
     const caller = createCaller(hrRouter, ENGINEER);
@@ -224,11 +305,11 @@ describe("hr.getAttendanceByDate", () => {
 
     expect(res.totalWorkers).toBe(2);
     expect(res.loggedCount).toBe(1);
-    const ram = res.items.find((i: any) => i.staffId === "s-1")!;
+    const ram = res.items.find((i: any) => i.assignmentId === "a-1")!;
     expect(ram.status).toBe("absent");
     expect(ram.hours).toBe(0);
     expect(ram.isLogged).toBe(true);
-    const shyam = res.items.find((i: any) => i.staffId === "s-2")!;
+    const shyam = res.items.find((i: any) => i.assignmentId === "a-2")!;
     expect(shyam.status).toBe("present"); // default for unlogged
     expect(shyam.hours).toBe(8);
     expect(shyam.overtime).toBe(0);
@@ -257,14 +338,14 @@ describe("hr.bulkLogAttendance", () => {
     projectId: "p-1",
     date: "2026-08-01",
     records: [
-      { staffId: "s-1", status: "present" as const, hours: 8, overtime: 2 },
-      { staffId: "s-2", status: "half_day" as const, hours: 4, overtime: 0 },
+      { assignmentId: "a-1", status: "present" as const, hours: 8, overtime: 2 },
+      { assignmentId: "a-2", status: "half_day" as const, hours: 4, overtime: 0 },
     ],
   };
 
-  it("upserts each record against the staffId_date unique key at UTC midnight", async () => {
+  it("upserts each record against the assignmentId_date unique key at UTC midnight", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([{ id: "s-1" }, { id: "s-2" }]);
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     const res = await caller.bulkLogAttendance(input);
@@ -273,42 +354,42 @@ describe("hr.bulkLogAttendance", () => {
     expect(anyDb.staffAttendance.upsert).toHaveBeenCalledTimes(2);
     const targetDate = new Date("2026-08-01T00:00:00.000Z");
     expect(anyDb.staffAttendance.upsert.mock.calls[0][0].where).toEqual({
-      staffId_date: { staffId: "s-1", date: targetDate },
+      assignmentId_date: { assignmentId: "a-1", date: targetDate },
     });
     expect(anyDb.staffAttendance.upsert.mock.calls[0][0].create).toMatchObject({
       projectId: "p-1",
-      staffId: "s-1",
+      assignmentId: "a-1",
       status: "present",
       hours: 8,
       overtime: 2,
     });
     expect(anyDb.staffAttendance.upsert.mock.calls[1][0].create).toMatchObject({
-      staffId: "s-2",
+      assignmentId: "a-2",
       status: "half_day",
       hours: 4,
     });
   });
 
-  it("drops staff IDs that do not belong to the project (cross-project overwrite guard)", async () => {
+  it("drops assignment IDs that do not belong to the project (cross-project overwrite guard)", async () => {
     member("engineer");
-    // only s-1 belongs to p-1; "foreign" belongs to another project/org
-    anyDb.staff.findMany.mockResolvedValue([{ id: "s-1" }]);
+    // only a-1 belongs to p-1; "foreign" belongs to another project/org
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([{ id: "a-1" }]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     await caller.bulkLogAttendance({
       ...input,
       records: [
-        { staffId: "s-1", status: "present", hours: 8, overtime: 0 },
-        { staffId: "foreign", status: "absent", hours: 0, overtime: 0 },
+        { assignmentId: "a-1", status: "present", hours: 8, overtime: 0 },
+        { assignmentId: "foreign", status: "absent", hours: 0, overtime: 0 },
       ],
     });
 
     expect(anyDb.staffAttendance.upsert).toHaveBeenCalledTimes(1);
-    expect(anyDb.staffAttendance.upsert.mock.calls[0][0].where.staffId_date.staffId).toBe("s-1");
+    expect(anyDb.staffAttendance.upsert.mock.calls[0][0].where.assignmentId_date.assignmentId).toBe("a-1");
   });
 
   it("FORBIDDENs read-only roles", async () => {
-    member("client");
+    member(null);
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(caller.bulkLogAttendance(input), "FORBIDDEN");
     expect(anyDb.staffAttendance.upsert).not.toHaveBeenCalled();
@@ -319,7 +400,7 @@ describe("hr.bulkLogAttendance", () => {
 describe("hr.getMusterRoll", () => {
   function att(day: number, status: string, overtime = 0) {
     return {
-      staffId: "s-1",
+      assignmentId: "a-1",
       date: new Date(Date.UTC(2025, 0, day)),
       status,
       hours: status === "half_day" ? 4 : 8,
@@ -329,11 +410,8 @@ describe("hr.getMusterRoll", () => {
 
   it("computes effectiveDays, OT at 1.5× hourly, and gross for a daily worker", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([
-      {
-        id: "s-1", name: "Ram", designation: "Mason", category: "skilled",
-        employmentType: "daily", gangName: null, dailyWage: 1000, monthlySalary: 0,
-      },
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      assignmentRow("a-1", "per-1"),
     ]);
     // 20 present + 2 half days + 1 absent + 1 leave + 1 "overtime" status
     // (counts as present) with 4 OT hours booked on it
@@ -374,11 +452,14 @@ describe("hr.getMusterRoll", () => {
 
   it("estimates monthly staff at their monthlySalary regardless of attendance", async () => {
     member("engineer");
-    anyDb.staff.findMany.mockResolvedValue([
-      {
-        id: "s-2", name: "Sita", designation: "Supervisor", category: "supervisor",
-        employmentType: "monthly", gangName: null, dailyWage: 0, monthlySalary: 45000,
-      },
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      assignmentRow("a-2", "per-2", {
+        employmentType: "monthly",
+        category: "supervisor",
+        designation: "Supervisor",
+        dailyWage: 0,
+        monthlySalary: 45000,
+      }),
     ]);
     anyDb.staffAttendance.findMany.mockResolvedValue([
       att(3, "absent"),
@@ -394,45 +475,47 @@ describe("hr.getMusterRoll", () => {
 
 // ─── staff advances ─────────────────────────────────────────────────────────
 describe("hr staff advances", () => {
-  it("getStaffAdvances sums only UNRECOVERED advances into the pending total", async () => {
+  it("getStaffAdvances sums only OUTSTANDING balances into the pending total", async () => {
     member("engineer");
     anyDb.staffAdvance.findMany.mockResolvedValue([
-      { amount: 5000, isRecovered: false },
-      { amount: 2000, isRecovered: false },
-      { amount: 1000, isRecovered: true },
+      { amount: 5000, recoveredAmount: 0 },
+      { amount: 2000, recoveredAmount: 500 }, // partially recovered
+      { amount: 1000, recoveredAmount: 1000 }, // fully recovered
     ]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     const res = await caller.getStaffAdvances({ projectId: "p-1" });
-    expect(res.totalPendingAdvances).toBe(7000);
+    expect(res.totalPendingAdvances).toBe(6500); // 5000 + 1500
     expect(anyDb.staffAdvance.findMany.mock.calls[0][0].where).toEqual({
       projectId: "p-1",
     });
   });
 
-  it("getStaffAdvances passes staffId/isRecovered filters through", async () => {
+  it("getStaffAdvances filters by personId and recovery state", async () => {
     member("engineer");
-    anyDb.staffAdvance.findMany.mockResolvedValue([]);
+    anyDb.staffAdvance.findMany.mockResolvedValue([
+      { amount: 1000, recoveredAmount: 1000 }, // recovered → passes filter
+    ]);
     const caller = createCaller(hrRouter, ENGINEER);
-    await caller.getStaffAdvances({
+    const res = await caller.getStaffAdvances({
       projectId: "p-1",
-      staffId: "s-1",
-      isRecovered: false,
+      personId: "per-1",
+      isRecovered: true,
     });
     expect(anyDb.staffAdvance.findMany.mock.calls[0][0].where).toEqual({
       projectId: "p-1",
-      staffId: "s-1",
-      isRecovered: false,
+      personId: "per-1",
     });
+    expect(res.advances).toHaveLength(1);
   });
 
   it("createStaffAdvance persists amount, type, creator and default date", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue({ id: "s-1" });
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue({ id: "a-1" });
     const caller = createCaller(hrRouter, ENGINEER);
     await caller.createStaffAdvance({
       projectId: "p-1",
-      staffId: "s-1",
+      personId: "per-1",
       amount: 3000,
       type: "cash_advance",
     });
@@ -440,7 +523,7 @@ describe("hr staff advances", () => {
     const data = anyDb.staffAdvance.create.mock.calls[0][0].data;
     expect(data).toMatchObject({
       projectId: "p-1",
-      staffId: "s-1",
+      personId: "per-1",
       amount: 3000,
       type: "cash_advance",
       createdById: ENGINEER.id,
@@ -450,26 +533,26 @@ describe("hr staff advances", () => {
 
   it("createStaffAdvance rejects zero/negative amounts (zod positive)", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue({ id: "s-1" });
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue({ id: "a-1" });
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
-      caller.createStaffAdvance({ projectId: "p-1", staffId: "s-1", amount: 0 }),
+      caller.createStaffAdvance({ projectId: "p-1", personId: "per-1", amount: 0 }),
       "BAD_REQUEST",
     );
     await expectTRPCError(
-      caller.createStaffAdvance({ projectId: "p-1", staffId: "s-1", amount: -100 }),
+      caller.createStaffAdvance({ projectId: "p-1", personId: "per-1", amount: -100 }),
       "BAD_REQUEST",
     );
     expect(anyDb.staffAdvance.create).not.toHaveBeenCalled();
   });
 
-  it("createStaffAdvance NOT_FOUNDs staff belonging to ANOTHER project (cross-project guard)", async () => {
+  it("createStaffAdvance NOT_FOUNDs persons without an active assignment on the project (cross-project guard)", async () => {
     member("engineer");
-    // staff "foreign" is not a member of p-1 → findFirst returns null
-    anyDb.staff.findFirst.mockResolvedValue(null);
+    // person "foreign" has no active assignment on p-1 → findFirst returns null
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue(null);
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
-      caller.createStaffAdvance({ projectId: "p-1", staffId: "foreign", amount: 5000 }),
+      caller.createStaffAdvance({ projectId: "p-1", personId: "foreign", amount: 5000 }),
       "NOT_FOUND",
     );
     expect(anyDb.staffAdvance.create).not.toHaveBeenCalled();
@@ -486,9 +569,13 @@ describe("hr staff advances", () => {
     expect(anyDb.staffAdvance.delete).not.toHaveBeenCalled();
   });
 
-  it("deleteStaffAdvance refuses to delete recovered advances", async () => {
+  it("deleteStaffAdvance refuses to delete (partially) recovered advances", async () => {
     member("engineer");
-    anyDb.staffAdvance.findFirst.mockResolvedValue({ id: "adv-1", isRecovered: true });
+    anyDb.staffAdvance.findFirst.mockResolvedValue({
+      id: "adv-1",
+      amount: 1000,
+      recoveredAmount: 400,
+    });
     const caller = createCaller(hrRouter, ENGINEER);
     await expectTRPCError(
       caller.deleteStaffAdvance({ projectId: "p-1", advanceId: "adv-1" }),
@@ -497,9 +584,13 @@ describe("hr staff advances", () => {
     expect(anyDb.staffAdvance.delete).not.toHaveBeenCalled();
   });
 
-  it("deleteStaffAdvance deletes a pending advance in the authorized project", async () => {
+  it("deleteStaffAdvance deletes a fully outstanding advance in the authorized project", async () => {
     member("engineer");
-    anyDb.staffAdvance.findFirst.mockResolvedValue({ id: "adv-1", isRecovered: false });
+    anyDb.staffAdvance.findFirst.mockResolvedValue({
+      id: "adv-1",
+      amount: 1000,
+      recoveredAmount: 0,
+    });
     const caller = createCaller(hrRouter, ENGINEER);
     const res = await caller.deleteStaffAdvance({ projectId: "p-1", advanceId: "adv-1" });
     expect(res.success).toBe(true);

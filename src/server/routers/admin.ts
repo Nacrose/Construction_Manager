@@ -17,7 +17,6 @@ import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from 
 import { Prisma } from "@prisma/client";
 import { passwordSchema } from "@/lib/password-policy";
 
-const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspector"] as const;
 
 /** Build impersonation audit metadata for the current admin session. */
 function impersonationMeta(ctx: { user: AuthUser }) {
@@ -125,7 +124,6 @@ export const adminRouter = router({
             email: input.adminEmail.toLowerCase(),
             name: input.adminName,
             passwordHash: await hashPassword(input.adminPassword),
-            role: "project_manager",
             orgRole: "org_admin",
             organizationId: org.id,
           },
@@ -207,7 +205,6 @@ export const adminRouter = router({
             id: true,
             name: true,
             email: true,
-            role: true,
             orgRole: true,
             isSuperAdmin: true,
             deactivatedAt: true,
@@ -226,9 +223,8 @@ export const adminRouter = router({
         name: z.string().min(1),
         email: z.string().email().toLowerCase(),
         password: passwordSchema,
-        role: z.enum(ROLES),
         organizationId: z.string().nullable().optional(),
-        orgRole: z.enum(["org_admin", "member"]).default("member"),
+        orgRole: z.enum(["owner", "org_admin", "member"]).default("member"),
         isSuperAdmin: z.boolean().default(false),
       }),
     )
@@ -246,7 +242,6 @@ export const adminRouter = router({
           email: input.email,
           name: input.name,
           passwordHash: await hashPassword(input.password),
-          role: input.role,
           organizationId: input.organizationId ?? null,
           orgRole: input.orgRole,
           isSuperAdmin: input.isSuperAdmin,
@@ -275,7 +270,8 @@ export const adminRouter = router({
       "BankReconciliation", "OutboxEvent", "LoginAttempt", "PushSubscription",
       "Equipment", "EquipmentRental", "EquipmentTransfer", "InterSiteTransfer",
       "PunchItem", "Submittal", "Correspondence", "ChatChannel", "ChatMessage",
-      "LeaveRequest", "PayrollRun", "PayrollStaffRecord", "StaffAdvance",
+      "Person", "ProjectStaffAssignment", "OrganizationPolicyVersion",
+      "LeaveRequest", "PayrollRun", "PayrollPersonRecord", "PayrollAllocation", "StaffAdvance",
       "VatBill", "HeadOfficeExpense", "CompanyBankAccount", "PaymentCategory",
       "CatalogMaterial", "MaterialSubstitute", "JvPartnerAgreement",
       "JvCommissionPayout", "EquipmentSpotHire", "SubcontractorBill",
@@ -428,8 +424,7 @@ export const adminRouter = router({
       z.object({
         id: z.string(),
         name: z.string().optional(),
-        role: z.enum(ROLES).optional(),
-        orgRole: z.enum(["org_admin", "member"]).optional(),
+        orgRole: z.enum(["owner", "org_admin", "member"]).optional(),
         organizationId: z.string().nullable().optional(),
         isSuperAdmin: z.boolean().optional(),
         deactivatedAt: z.boolean().optional(), // true = deactivate, false = reactivate
@@ -458,7 +453,6 @@ export const adminRouter = router({
 
       const data: Prisma.UserUpdateInput = {};
       if (rest.name !== undefined) data.name = rest.name;
-      if (rest.role !== undefined) data.role = rest.role;
       if (rest.orgRole !== undefined) data.orgRole = rest.orgRole;
       if (rest.organizationId !== undefined) {
         data.organization = rest.organizationId

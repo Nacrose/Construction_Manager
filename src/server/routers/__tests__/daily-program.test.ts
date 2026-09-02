@@ -155,14 +155,14 @@ describe("dailyProgram.getProgramResources", () => {
     anyDb.dailyProgram.findUnique.mockResolvedValue(program({ tasks }));
     anyDb.dailyProgramTask.findMany.mockResolvedValue([]);
     anyDb.resourceAssignment.findMany.mockResolvedValue(assignments);
-    anyDb.staff.findMany.mockResolvedValue([]);
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([]);
     anyDb.equipment.findMany.mockResolvedValue([]);
   }
 
   it("aggregates staff headcount (qty × 8h) and role headcount (qty × role.headcount, min 1)", async () => {
     member("engineer");
     setup([{ id: "t-1", ganttTaskId: "g-1" }], [
-      { staffId: "s-1", staffRoleId: null, staff: { id: "s-1", name: "Ram", designation: "Mason", category: "skilled" }, quantity: 2, endDate: null },
+      { personId: "s-1", staffRoleId: null, person: { id: "s-1", displayName: "Ram", category: "skilled" }, quantity: 2, endDate: null },
       { staffId: null, staffRoleId: "r-1", staffRole: { id: "r-1", name: "Helper", category: "unskilled", headcount: 3 }, quantity: 2, endDate: null },
       { staffId: null, staffRoleId: "r-2", staffRole: { id: "r-2", name: "Operator", category: "skilled", headcount: 0 }, quantity: 0.4, endDate: null },
     ]);
@@ -189,8 +189,8 @@ describe("dailyProgram.getProgramResources", () => {
         { id: "t-2", ganttTaskId: "g-2" },
       ],
       [
-        { staffId: "s-1", staffRoleId: null, staff: { id: "s-1", name: "Ram", designation: "Mason", category: null }, quantity: 2, endDate: null },
-        { staffId: "s-1", staffRoleId: null, staff: { id: "s-1", name: "Ram", designation: "Mason", category: null }, quantity: 2, endDate: null },
+        { personId: "s-1", staffRoleId: null, person: { id: "s-1", displayName: "Ram", category: null }, quantity: 2, endDate: null },
+        { personId: "s-1", staffRoleId: null, person: { id: "s-1", displayName: "Ram", category: null }, quantity: 2, endDate: null },
         { staffId: null, staffRoleId: null, equipmentId: "e-1", equipment: { id: "e-1", name: "Excavator", code: "EX-1", type: "Heavy" }, endDate: null },
         { staffId: null, staffRoleId: null, equipmentId: "e-1", equipment: { id: "e-1", name: "Excavator", code: "EX-1", type: "Heavy" }, endDate: null },
       ],
@@ -208,8 +208,8 @@ describe("dailyProgram.getProgramResources", () => {
   it("excludes assignments that ended before the program date", async () => {
     member("engineer");
     setup([{ id: "t-1", ganttTaskId: "g-1" }], [
-      { staffId: "s-1", staffRoleId: null, staff: { id: "s-1", name: "Ram", designation: "Mason", category: null }, quantity: 2, endDate: "2026-08-10T00:00:00.000Z" },
-      { staffId: "s-2", staffRoleId: null, staff: { id: "s-2", name: "Shyam", designation: "Mason", category: null }, quantity: 2, endDate: "2026-08-20T00:00:00.000Z" },
+      { personId: "s-1", staffRoleId: null, person: { id: "s-1", displayName: "Ram", category: null }, quantity: 2, endDate: "2026-08-10T00:00:00.000Z" },
+      { personId: "s-2", staffRoleId: null, person: { id: "s-2", displayName: "Shyam", category: null }, quantity: 2, endDate: "2026-08-20T00:00:00.000Z" },
     ]);
     const caller = createCaller(dailyProgramRouter, USER);
     const res = await caller.getProgramResources({ projectId: "p-1", programDate: "2026-08-15" });
@@ -225,7 +225,7 @@ describe("dailyProgram.getProgramResources", () => {
     const where = anyDb.resourceAssignment.findMany.mock.calls[0][0].where;
     expect(where.taskId).toEqual({ in: ["g-1"] });
     expect(where.OR).toEqual([{ startDate: null }, { startDate: { lte: new Date("2026-08-15T00:00:00.000Z") } }]);
-    expect(anyDb.staff.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1", status: "active" });
+    expect(anyDb.projectStaffAssignment.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1", status: "active" });
     expect(anyDb.equipment.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1" });
   });
 

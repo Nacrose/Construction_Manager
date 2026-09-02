@@ -116,8 +116,14 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
          VALUES (${D(`mat-${pfx}`)},${D(pid)},'m','kg',NOW()) ON CONFLICT DO NOTHING`,
       );
       await tx.$executeRawUnsafe(
-        `INSERT INTO "Staff" ("id","projectId","name","updatedAt")
-         VALUES (${D(`staff-${pfx}`)},${D(pid)},'s',NOW()) ON CONFLICT DO NOTHING`,
+        `INSERT INTO "Person" ("id","organizationId","displayName","employmentType","status","updatedAt")
+         VALUES (${D(`person-${pfx}`)},${D(pfx === "a" ? ORG_A : ORG_B)},'s','daily','active',NOW())
+         ON CONFLICT DO NOTHING`,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO "ProjectStaffAssignment" ("id","projectId","personId","fromDate","status","updatedAt")
+         VALUES (${D(`assign-${pfx}`)},${D(pid)},${D(`person-${pfx}`)},NOW(),'active',NOW())
+         ON CONFLICT DO NOTHING`,
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO "Rfi" ("id","projectId","number","createdById","subject","description","updatedAt")
@@ -160,11 +166,11 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
             "SELECT set_config('app.is_superadmin','true', true)",
           );
           for (const t of [
-            "AuditLog", "Notification", "Rfi", "Staff", "Material", "Payment",
-            "Project", "User", "Organization",
+            "AuditLog", "Notification", "Rfi", "ProjectStaffAssignment", "Person",
+            "Material", "Payment", "Project", "User", "Organization",
           ]) {
             await tx.$executeRawUnsafe(
-              `DELETE FROM "${t}" WHERE "id" LIKE 'test-%' OR "id" LIKE 'cm_test_%' OR "id" IN ('pay-a','pay-b','mat-a','mat-b','staff-a','staff-b','rfi-a','rfi-b','notif-a','notif-b','aud-a','aud-b','u-a','u-b','u-s')`,
+              `DELETE FROM "${t}" WHERE "id" LIKE 'test-%' OR "id" LIKE 'cm_test_%' OR "id" IN ('pay-a','pay-b','mat-a','mat-b','assign-a','assign-b','person-a','person-b','rfi-a','rfi-b','notif-a','notif-b','aud-a','aud-b','u-a','u-b','u-s')`,
             );
           }
         });
@@ -229,7 +235,8 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
     await asOrg(ORG_A);
     expect(await count(`SELECT count(*) FROM "Payment" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
     expect(await count(`SELECT count(*) FROM "Material" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
-    expect(await count(`SELECT count(*) FROM "Staff" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
+    expect(await count(`SELECT count(*) FROM "ProjectStaffAssignment" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
+    expect(await count(`SELECT count(*) FROM "Person" WHERE "organizationId" = ${D(ORG_B)}`)).toBe(0);
     expect(await count(`SELECT count(*) FROM "Rfi" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
     expect(await count(`SELECT count(*) FROM "Notification" WHERE "userId" = 'u-b'`)).toBe(0);
     expect(await count(`SELECT count(*) FROM "AuditLog" WHERE "projectId" = ${D(P_B)}`)).toBe(0);
@@ -243,7 +250,8 @@ describe.skipIf(!TEST_DATABASE_URL)("RLS integration gate (live database)", () =
     const inserts: Record<string, string> = {
       Payment: `("id","projectId","payeeType","payeeName","amount") VALUES ('x-Payment',${D(P_B)},'vendor','V',1)`,
       Material: `("id","projectId","name","unit") VALUES ('x-Material',${D(P_B)},'m','kg')`,
-      Staff: `("id","projectId","name") VALUES ('x-Staff',${D(P_B)},'s')`,
+      ProjectStaffAssignment: `("id","projectId","personId","fromDate","status") VALUES ('x-Assign',${D(P_B)},'person-a',NOW(),'active')`,
+      Person: `("id","organizationId","displayName","employmentType","status") VALUES ('x-Person',${D(ORG_B)},'s','daily','active')`,
       Rfi: `("id","projectId","number","createdById","subject","description") VALUES ('x-Rfi',${D(P_B)},'R-x','u-a','s','d')`,
     };
     for (const [t, sql] of Object.entries(inserts)) {

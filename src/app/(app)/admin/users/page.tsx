@@ -18,10 +18,9 @@ import { Plus, Loader2, Pencil, Trash2, ShieldCheck, ShieldOff } from "lucide-re
 import { toast } from "sonner";
 import { format } from "date-fns";
 
-const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspector"] as const;
+const ROLES = ["owner", "org_admin", "member"] as const;
 const ROLE_LABELS: Record<string, string> = {
-  project_manager: "Project Manager", engineer: "Engineer", coordinator: "Coordinator",
-  client: "Client", inspector: "Inspector",
+  owner: "Owner", org_admin: "Org Admin", member: "Member",
 };
 
 export default function AdminUsers() {
@@ -94,7 +93,7 @@ export default function AdminUsers() {
                     <TableCell className="font-medium text-sm">{u.name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{u.email}</TableCell>
                     <TableCell className="text-xs">{u.organization?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-[10px]">{ROLE_LABELS[u.role] ?? u.role}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-[10px]">{ROLE_LABELS[u.orgRole] ?? u.orgRole}</Badge></TableCell>
                     <TableCell className="text-xs">{u.orgRole}</TableCell>
                     <TableCell>
                       {u.isSuperAdmin && <Badge className="text-[9px] gap-1"><ShieldCheck className="h-3 w-3" /> Yes</Badge>}
@@ -291,7 +290,7 @@ function CreateUserForm({ orgs, mut }: { orgs: any[]; mut: any }) {
 }
 
 function EditUserForm({ user, orgs, mut, onClose }: { user: any; orgs: any[]; mut: any; onClose: () => void }) {
-  const [role, setRole] = useState(user.role);
+  const [role, setRole] = useState(user.orgRole);
   const [orgRole, setOrgRole] = useState(user.orgRole);
   const [organizationId, setOrganizationId] = useState(user.organizationId ?? "none");
   const [isSuperAdmin, setIsSuperAdmin] = useState(!!user.isSuperAdmin);

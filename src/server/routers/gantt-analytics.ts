@@ -117,6 +117,7 @@ export const ganttAnalyticsRouter = router({
         });
 
         const sourceTasks = await tx.ganttTask.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: { versionId: input.planningVersionId },
           include: { boqLinks: true },
           orderBy: { sortOrder: "asc" },
@@ -433,7 +434,7 @@ export const ganttAnalyticsRouter = router({
       const assignments = await db.resourceAssignment.findMany({
         where: {
           task: { versionId: input.versionId },
-          OR: [{ staffId: { not: null } }, { equipmentId: { not: null } }],
+          OR: [{ personId: { not: null } }, { equipmentId: { not: null } }],
         },
         include: {
           task: {
@@ -446,7 +447,7 @@ export const ganttAnalyticsRouter = router({
               sortOrder: true,
             },
           },
-          staff: { select: { id: true, name: true } },
+          person: { select: { id: true, displayName: true } },
           equipment: { select: { id: true, name: true, code: true } },
           staffRole: { select: { id: true, name: true } },
         },
@@ -669,6 +670,7 @@ export const ganttAnalyticsRouter = router({
 
       const taskIds = input.proposals.map((p) => p.taskId);
       const tasks = await db.ganttTask.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: { id: { in: taskIds }, projectId: input.projectId },
         select: { id: true, versionId: true },
       });
@@ -683,6 +685,7 @@ export const ganttAnalyticsRouter = router({
         ...new Set(tasks.map((t) => t.versionId).filter(Boolean)),
       ] as string[];
       const versions = await db.ganttVersion.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: { id: { in: versionIds } },
         select: { id: true, status: true },
       });
@@ -894,6 +897,7 @@ export const ganttAnalyticsRouter = router({
         });
 
         const sourceTasks = await tx.ganttTask.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: { versionId: input.sourceVersionId },
           include: { boqLinks: true },
           orderBy: { sortOrder: "asc" },

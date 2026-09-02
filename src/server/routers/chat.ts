@@ -265,7 +265,7 @@ export const chatRouter = router({
 
       const messages = await db.chatMessage.findMany({
         where: { channelId: input.channelId },
-        include: { user: { select: { id: true, name: true, role: true } } },
+        include: { user: { select: { id: true, name: true } } },
         orderBy: { createdAt: "desc" },
         take: input.limit + 1,
         ...(input.cursor ? { skip: 1, cursor: { id: input.cursor } } : {}),
@@ -394,7 +394,7 @@ export const chatRouter = router({
           linkedEntityType: input.linkedEntityType || null,
           linkedEntityId: input.linkedEntityId || null,
         },
-        include: { user: { select: { id: true, name: true, role: true } } },
+        include: { user: { select: { id: true, name: true } } },
       });
 
       // Update channel timestamp
@@ -720,7 +720,7 @@ export const chatRouter = router({
             : {}),
         },
         include: {
-          user: { select: { id: true, name: true, role: true } },
+          user: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
         take: input.limit,
@@ -768,7 +768,6 @@ export const chatRouter = router({
           id: true,
           name: true,
           email: true,
-          role: true,
           avatarUrl: true,
           lastActiveAt: true,
         },

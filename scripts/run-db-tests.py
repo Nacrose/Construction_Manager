@@ -79,7 +79,7 @@ def main() -> None:
         "src/server/routers/__tests__/rls-coverage.test.ts",
     ]
     cmd = ["npx", "vitest", "run"] + target
-    proc = subprocess.run(cmd, env=env, cwd="/home/z/my-project/construction-manager")
+    proc = subprocess.run(cmd, env=env, cwd="/home/z/my-project/Construction_Manager")
     subprocess.run([PG_CTL, "-D", PGDATA, "stop", "-m", "immediate", "-t", "5"],
                    capture_output=True)
     sys.exit(proc.returncode)

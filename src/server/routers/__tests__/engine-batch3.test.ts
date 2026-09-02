@@ -31,7 +31,7 @@ import { projectRouter } from "../project";
 import { equipmentRouter } from "../equipment";
 
 const anyDb = db as any;
-const PM = buildUser({ role: "project_manager", orgRole: "member" });
+const PM = buildUser({ orgRole: "member" });
 
 function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);

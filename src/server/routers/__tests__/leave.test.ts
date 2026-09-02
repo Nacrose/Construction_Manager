@@ -1,18 +1,19 @@
 /**
- * Router-layer tests for leave.ts (leave requests + balances).
+ * Router-layer tests for leave.ts (leave requests + balances) —
+ * person grain with org-grain balances (ADR-0005).
  *
  * Pins:
  *   - list: org scoping (projectId in where) + status filter passthrough
  *   - get: IDOR guard — a leave belonging to another project is FORBIDDEN
  *     (HR PII does not leak cross-tenant)
  *   - create: totalDays is INCLUSIVE of both start and end (same day = 1);
- *     end-before-start rejected; read-only roles blocked; staff must belong
- *     to the project (cross-project guard)
+ *     end-before-start rejected; read-only callers blocked; the person must
+ *     have an ACTIVE assignment on the project (cross-project guard)
  *   - approve/reject: PM/coordinator-only (engineer FORBIDDEN); only
- *     PENDING requests can transition; approve updates the LeaveBalance
- *     (taken += days, remaining -= days, current year); reject persists the
- *     rejection reason and leaves balances untouched
- *   - getBalances: scoped to project+staff+year, defaults to current year
+ *     PENDING requests can transition; approve updates the ORG-GRAIN
+ *     LeaveBalance (taken += days, remaining -= days, current year); reject
+ *     persists the rejection reason and leaves balances untouched
+ *   - getBalances: scoped to person+year (org grain), defaults to current
  *   - updateBalances: admin-only; remaining recomputed as allowed − taken;
  *     negative allowances rejected
  */
@@ -40,10 +41,12 @@ function pendingLeave(overrides: Record<string, unknown> = {}) {
   return {
     id: "lv-1",
     projectId: "p-1",
-    staffId: "s-1",
+    personId: "per-1",
     leaveType: "casual",
     status: "pending",
     totalDays: 3,
+    // Org-grain balances derive the org from the requesting project.
+    project: { organizationId: "org-1" },
     // Engine attribution fields — transitionEntityState writes these only
     // when the entity actually carries the columns.
     approvedById: null,
@@ -84,7 +87,7 @@ describe("leave.list", () => {
 
 // ─── get ────────────────────────────────────────────────────────────────────
 describe("leave.get", () => {
-  it("returns the leave with staff/approver includes for project members", async () => {
+  it("returns the leave with person/approver includes for project members", async () => {
     member("engineer");
     anyDb.leaveRequest.findUnique.mockResolvedValue(pendingLeave());
     const caller = createCaller(leaveRouter, ENGINEER);
@@ -114,7 +117,7 @@ describe("leave.get", () => {
 describe("leave.create", () => {
   const baseInput = {
     projectId: "p-1",
-    staffId: "s-1",
+    personId: "per-1",
     startDate: "2026-08-01",
     endDate: "2026-08-03",
     reason: "Dashain",
@@ -122,7 +125,7 @@ describe("leave.create", () => {
 
   it("computes totalDays INCLUSIVE of both start and end dates", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue({ id: "s-1" });
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue({ id: "a-1" });
     const caller = createCaller(leaveRouter, ENGINEER);
     await caller.create(baseInput);
 
@@ -133,11 +136,12 @@ describe("leave.create", () => {
     expect(data.status).toBeUndefined(); // DB default: pending
     expect(data.createdById).toBe(ENGINEER.id);
     expect(data.leaveType).toBe("casual"); // zod default
+    expect(data.personId).toBe("per-1");
   });
 
   it("same-day leave counts as exactly 1 day", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue({ id: "s-1" });
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue({ id: "a-1" });
     const caller = createCaller(leaveRouter, ENGINEER);
     await caller.create({ ...baseInput, endDate: "2026-08-01" });
     expect(anyDb.leaveRequest.create.mock.calls[0][0].data.totalDays).toBe(1);
@@ -145,7 +149,7 @@ describe("leave.create", () => {
 
   it("BAD_REQUESTs an end date before the start date", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue({ id: "s-1" });
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue({ id: "a-1" });
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(
       caller.create({ ...baseInput, endDate: "2026-07-30" }),
@@ -154,19 +158,19 @@ describe("leave.create", () => {
     expect(anyDb.leaveRequest.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles (inspector)", async () => {
-    member("inspector");
+  it("FORBIDDENs callers with no project membership", async () => {
+    member(null);
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
     expect(anyDb.leaveRequest.create).not.toHaveBeenCalled();
   });
 
-  it("NOT_FOUNDs staff belonging to ANOTHER project (cross-project guard)", async () => {
+  it("NOT_FOUNDs persons without an ACTIVE assignment on the project (cross-project guard)", async () => {
     member("engineer");
-    anyDb.staff.findFirst.mockResolvedValue(null); // "foreign" staff not in p-1
+    anyDb.projectStaffAssignment.findFirst.mockResolvedValue(null); // "foreign" person not on p-1
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(
-      caller.create({ ...baseInput, staffId: "foreign" }),
+      caller.create({ ...baseInput, personId: "foreign" }),
       "NOT_FOUND",
     );
     expect(anyDb.leaveRequest.create).not.toHaveBeenCalled();
@@ -175,7 +179,7 @@ describe("leave.create", () => {
 
 // ─── approve ────────────────────────────────────────────────────────────────
 describe("leave.approve", () => {
-  it("approves a pending leave and moves the balance for the CURRENT year", async () => {
+  it("approves a pending leave and moves the ORG-GRAIN balance for the CURRENT year", async () => {
     member("project_manager");
     anyDb.leaveRequest.findUnique.mockResolvedValue(
       pendingLeave({ leaveType: "sick", totalDays: 3 }),
@@ -195,9 +199,9 @@ describe("leave.approve", () => {
     });
 
     const upsert = anyDb.leaveBalance.upsert.mock.calls[0][0];
-    expect(upsert.where.projectId_staffId_leaveType_year).toEqual({
-      projectId: "p-1",
-      staffId: "s-1",
+    expect(upsert.where.organizationId_personId_leaveType_year).toEqual({
+      organizationId: "org-1", // derived from the requesting project's org
+      personId: "per-1",
       leaveType: "sick",
       year: new Date().getFullYear(),
     });
@@ -207,6 +211,8 @@ describe("leave.approve", () => {
     });
     // when no balance row exists yet it is created with taken=3, remaining=-3
     expect(upsert.create).toMatchObject({
+      organizationId: "org-1",
+      personId: "per-1",
       totalAllowed: 0,
       taken: 3,
       remaining: -3,
@@ -300,19 +306,18 @@ describe("leave.reject", () => {
 
 // ─── getBalances / updateBalances ───────────────────────────────────────────
 describe("leave balances", () => {
-  it("getBalances scopes to project+staff+year and defaults to the current year", async () => {
+  it("getBalances scopes to person+year (org grain) and defaults to the current year", async () => {
     member("engineer");
     anyDb.leaveBalance.findMany.mockResolvedValue([]);
     const caller = createCaller(leaveRouter, ENGINEER);
 
-    await caller.getBalances({ projectId: "p-1", staffId: "s-1" });
+    await caller.getBalances({ projectId: "p-1", personId: "per-1" });
     expect(anyDb.leaveBalance.findMany.mock.calls[0][0].where).toEqual({
-      projectId: "p-1",
-      staffId: "s-1",
+      personId: "per-1",
       year: new Date().getFullYear(),
     });
 
-    await caller.getBalances({ projectId: "p-1", staffId: "s-1", year: 2025 });
+    await caller.getBalances({ projectId: "p-1", personId: "per-1", year: 2025 });
     expect(anyDb.leaveBalance.findMany.mock.calls[1][0].where.year).toBe(2025);
   });
 
@@ -322,13 +327,19 @@ describe("leave balances", () => {
     const caller = createCaller(leaveRouter, PM);
     await caller.updateBalances({
       projectId: "p-1",
-      staffId: "s-1",
+      personId: "per-1",
       leaveType: "casual",
       year: 2026,
       totalAllowed: 12,
     });
 
     const upsert = anyDb.leaveBalance.upsert.mock.calls[0][0];
+    expect(upsert.where.organizationId_personId_leaveType_year).toEqual({
+      organizationId: PM.organizationId,
+      personId: "per-1",
+      leaveType: "casual",
+      year: 2026,
+    });
     expect(upsert.update).toEqual({ totalAllowed: 12, remaining: 9 }); // 12 − 3 taken
     expect(upsert.create).toMatchObject({ totalAllowed: 12, taken: 0, remaining: 12 });
   });
@@ -339,15 +350,15 @@ describe("leave balances", () => {
     const caller = createCaller(leaveRouter, PM);
     await caller.updateBalances({
       projectId: "p-1",
-      staffId: "s-1",
+      personId: "per-1",
       leaveType: "sick",
       year: 2026,
       totalAllowed: 15,
     });
     const upsert = anyDb.leaveBalance.upsert.mock.calls[0][0];
     expect(upsert.create).toEqual({
-      projectId: "p-1",
-      staffId: "s-1",
+      organizationId: PM.organizationId,
+      personId: "per-1",
       leaveType: "sick",
       year: 2026,
       totalAllowed: 15,
@@ -361,7 +372,7 @@ describe("leave balances", () => {
     const caller = createCaller(leaveRouter, ENGINEER);
     await expectTRPCError(
       caller.updateBalances({
-        projectId: "p-1", staffId: "s-1", leaveType: "casual", year: 2026, totalAllowed: 5,
+        projectId: "p-1", personId: "per-1", leaveType: "casual", year: 2026, totalAllowed: 5,
       }),
       "FORBIDDEN",
     );
@@ -370,7 +381,7 @@ describe("leave balances", () => {
     member("project_manager");
     await expectTRPCError(
       caller.updateBalances({
-        projectId: "p-1", staffId: "s-1", leaveType: "casual", year: 2026, totalAllowed: -1,
+        projectId: "p-1", personId: "per-1", leaveType: "casual", year: 2026, totalAllowed: -1,
       }),
       "BAD_REQUEST",
     );

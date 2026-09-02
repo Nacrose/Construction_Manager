@@ -1,9 +1,9 @@
 /**
  * tRPC router for Leave Management.
  *
- * Phase E: input-level authorization is declarative via createDomainRouter
- * (proc.member / proc.write / proc.admin). Record-level guards (approve/reject
- * by id — the record's project governs) stay in the handlers by design.
+ * ADR-0005 grain: leave REQUESTS carry the requesting project as context,
+ * but the person is the org-wide workforce identity and balances are
+ * org-grain per person per leave type per year.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -30,7 +30,7 @@ export const leaveRouter = router({
         where,
         orderBy: { createdAt: "desc" },
         include: {
-          staff: { select: { name: true, designation: true, category: true } },
+          person: { select: { displayName: true, category: true } },
           approvedBy: { select: { name: true } },
           createdBy: { select: { name: true } },
         },
@@ -45,12 +45,12 @@ export const leaveRouter = router({
     .query(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
         where: { id: input.id },
-        select: { projectId: true, staffId: true, leaveType: true, startDate: true, endDate: true, totalDays: true, reason: true, status: true, approvedById: true, createdById: true },
+        select: { projectId: true, personId: true, leaveType: true, startDate: true, endDate: true, totalDays: true, reason: true, status: true, approvedById: true, createdById: true },
       });
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
       // IDOR guard: verify the caller is a member of the project the
       // leave belongs to. Previously this procedure returned leave data
-      // to ANY authenticated user — leaking HR-sensitive PII (staff
+      // to ANY authenticated user — leaking HR-sensitive PII (person
       // name, leave type, dates, reason) across tenants.
       await assertProjectMember(ctx.user, leave.projectId);
 
@@ -59,7 +59,7 @@ export const leaveRouter = router({
       const leaveWithIncludes = await db.leaveRequest.findUnique({
         where: { id: input.id },
         include: {
-          staff: { select: { name: true, designation: true, category: true } },
+          person: { select: { displayName: true, category: true } },
           approvedBy: { select: { name: true } },
           createdBy: { select: { name: true } },
         },
@@ -71,23 +71,23 @@ export const leaveRouter = router({
   create: proc.write
     .input(z.object({
       projectId: z.string(),
-      staffId: z.string(),
+      personId: z.string(), // workforce identity (ADR-0005)
       leaveType: z.string().default("casual"),
       startDate: z.string(),
       endDate: z.string(),
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Cross-project guard: the leave must be filed for a staff member
-      // of THIS project — without this, a caller with write access to
-      // project A could file leaves for staff in project B (leaking their
-      // names/dates via the project leave list).
-      const staff = await db.staff.findFirst({
-        where: { id: input.staffId, projectId: input.projectId },
+      // Cross-project guard: the leave must be filed for a person with an
+      // ACTIVE assignment on THIS project — without this, a caller with
+      // write access to project A could file leaves for people in project
+      // B (leaking their names/dates via the project leave list).
+      const assignment = await db.projectStaffAssignment.findFirst({
+        where: { personId: input.personId, projectId: input.projectId, status: "active" },
         select: { id: true },
       });
-      if (!staff) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Staff not found in this project." });
+      if (!assignment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Person has no active assignment on this project." });
       }
 
       const start = new Date(input.startDate);
@@ -102,7 +102,7 @@ export const leaveRouter = router({
       const leave = await db.leaveRequest.create({
         data: {
           projectId: input.projectId,
-          staffId: input.staffId,
+          personId: input.personId,
           leaveType: input.leaveType,
           startDate: start,
           endDate: end,
@@ -120,7 +120,7 @@ export const leaveRouter = router({
     .mutation(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
         where: { id: input.id },
-        select: { projectId: true, status: true, staffId: true, totalDays: true, leaveType: true, createdById: true },
+        select: { projectId: true, status: true, personId: true, totalDays: true, leaveType: true, createdById: true, project: { select: { organizationId: true } } },
       });
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
 
@@ -135,6 +135,12 @@ export const leaveRouter = router({
       await assertProjectAdmin(ctx.user, leave.projectId);
 
       const currentYear = new Date().getFullYear();
+      // Balances are org-grain (ADR-0005) — the owning org comes from the
+      // requesting project.
+      const orgId = leave.project.organizationId;
+      if (!orgId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Project has no organization; leave balances require an org scope." });
+      }
 
       // STATUS UPDATE (engine CAS) + LEAVE BALANCE UPSERT — ONE TRANSACTION.
       // transitionEntityState validates the pending→approved edge and claims
@@ -157,9 +163,9 @@ export const leaveRouter = router({
         // Update LeaveBalance: increment taken, decrement remaining
         await tx.leaveBalance.upsert({
           where: {
-            projectId_staffId_leaveType_year: {
-              projectId: leave.projectId,
-              staffId: leave.staffId,
+            organizationId_personId_leaveType_year: {
+              organizationId: orgId,
+              personId: leave.personId,
               leaveType: leave.leaveType,
               year: currentYear,
             },
@@ -169,8 +175,8 @@ export const leaveRouter = router({
             remaining: { decrement: leave.totalDays },
           },
           create: {
-            projectId: leave.projectId,
-            staffId: leave.staffId,
+            organizationId: orgId,
+            personId: leave.personId,
             leaveType: leave.leaveType,
             year: currentYear,
             totalAllowed: 0,
@@ -213,11 +219,13 @@ export const leaveRouter = router({
       return { leave: result.entity };
     }),
 
-  /** Get leave balances for a staff member (by year). */
+  /** Get leave balances for a person (org-grain, by year).
+   * projectId authorizes (project HR screen) but does NOT scope the
+   * balance — balances are org-grain per person (ADR-0005). */
   getBalances: proc.member
     .input(z.object({
       projectId: z.string(),
-      staffId: z.string(),
+      personId: z.string(),
       year: z.number().optional(),
     }))
     .query(async ({ input }) => {
@@ -225,8 +233,7 @@ export const leaveRouter = router({
 
       const balances = await db.leaveBalance.findMany({
         where: {
-          projectId: input.projectId,
-          staffId: input.staffId,
+          personId: input.personId,
           year,
         },
         orderBy: { leaveType: "asc" },
@@ -235,21 +242,28 @@ export const leaveRouter = router({
       return { balances };
     }),
 
-  /** PM sets annual leave allowances (creates/updates LeaveBalance records). */
+  /** Org admin sets annual leave allowances (creates/updates LeaveBalance records).
+   * projectId authorizes (project HR screen) but does NOT scope the row —
+   * balances are org-grain per person (ADR-0005). */
   updateBalances: proc.admin
     .input(z.object({
       projectId: z.string(),
-      staffId: z.string(),
+      personId: z.string(),
       leaveType: z.string(),
       year: z.number(),
       totalAllowed: z.number().min(0),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You don't belong to an organization." });
+      }
+      const organizationId = ctx.user.organizationId;
+
       const existing = await db.leaveBalance.findUnique({
         where: {
-          projectId_staffId_leaveType_year: {
-            projectId: input.projectId,
-            staffId: input.staffId,
+          organizationId_personId_leaveType_year: {
+            organizationId,
+            personId: input.personId,
             leaveType: input.leaveType,
             year: input.year,
           },
@@ -259,9 +273,9 @@ export const leaveRouter = router({
       const taken = existing?.taken ?? 0;
       const balance = await db.leaveBalance.upsert({
         where: {
-          projectId_staffId_leaveType_year: {
-            projectId: input.projectId,
-            staffId: input.staffId,
+          organizationId_personId_leaveType_year: {
+            organizationId,
+            personId: input.personId,
             leaveType: input.leaveType,
             year: input.year,
           },
@@ -271,8 +285,8 @@ export const leaveRouter = router({
           remaining: input.totalAllowed - taken,
         },
         create: {
-          projectId: input.projectId,
-          staffId: input.staffId,
+          organizationId,
+          personId: input.personId,
           leaveType: input.leaveType,
           year: input.year,
           totalAllowed: input.totalAllowed,

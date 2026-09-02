@@ -88,7 +88,6 @@ export function buildUser(overrides: Partial<AuthUser> = {}): AuthUser {
     id: "user-1",
     email: "test@org1.com",
     name: "Test User",
-    role: "member",
     organizationId: "org-1",
     orgRole: "member",
     isSuperAdmin: false,

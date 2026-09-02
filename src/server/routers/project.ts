@@ -55,13 +55,13 @@ const AddMemberSchema = z.object({
   projectId: z.string(),
   email: z.string().email().toLowerCase(),
   name: z.string().optional(),
-  role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
+  role: z.enum(["project_manager", "engineer", "coordinator"]),
 });
 
 const UpdateMemberSchema = z.object({
   projectId: z.string(),
   memberId: z.string(),
-  role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
+  role: z.enum(["project_manager", "engineer", "coordinator"]),
 });
 
 export const projectRouter = router({
@@ -268,7 +268,7 @@ export const projectRouter = router({
         include: {
           members: {
             include: {
-              user: { select: { id: true, name: true, email: true, role: true } },
+              user: { select: { id: true, name: true, email: true } },
             },
           },
           _count: { select: { rfis: true } },
@@ -441,7 +441,7 @@ export const projectRouter = router({
       const rows = await db.projectMember.findMany({
         where: { projectId: input.projectId },
         include: {
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true } },
         },
         orderBy: page.orderBy,
         take: page.take,
@@ -490,7 +490,6 @@ export const projectRouter = router({
           data: {
             email: input.email,
             name: input.name || input.email.split("@")[0],
-            role: input.role,
             passwordHash: await bcrypt.hash(tempPassword, 12),
             organizationId: project.organizationId, // Inherit project's org
             orgRole: "member",
@@ -541,7 +540,7 @@ export const projectRouter = router({
 
       const membership = await db.projectMember.create({
         data: { projectId: input.projectId, userId: member.id, role: input.role },
-        include: { user: { select: { id: true, name: true, email: true, role: true } } },
+        include: { user: { select: { id: true, name: true, email: true } } },
       });
 
       await audit({
@@ -577,7 +576,7 @@ export const projectRouter = router({
       const updated = await db.projectMember.update({
         where: { id: input.memberId },
         data: { role: input.role },
-        include: { user: { select: { id: true, name: true, email: true, role: true } } },
+        include: { user: { select: { id: true, name: true, email: true } } },
       });
 
       await audit({
@@ -670,7 +669,7 @@ export const projectRouter = router({
         take: page.take,
         ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         select: {
-          id: true, email: true, name: true, role: true,
+          id: true, email: true, name: true,
           orgRole: true, createdAt: true,
         },
       });
@@ -684,7 +683,6 @@ export const projectRouter = router({
       name: z.string().min(1),
       email: z.string().email().toLowerCase(),
       password: passwordSchema,
-      role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
     }))
     .mutation(async ({ ctx, input }) => {
       // Must have an org
@@ -706,7 +704,6 @@ export const projectRouter = router({
           email: input.email,
           name: input.name,
           passwordHash: await bcrypt.hash(input.password, 12),
-          role: input.role,
           organizationId: ctx.user.organizationId,
           orgRole: "member",
         },
@@ -718,17 +715,19 @@ export const projectRouter = router({
         action: "org.user.create",
         entityType: "user",
         entityId: user.id,
-        metadata: { email: input.email, name: input.name, role: input.role },
+        metadata: { email: input.email, name: input.name },
       });
 
-      return { user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+      return { user: { id: user.id, email: user.email, name: user.name } };
     }),
 
-  /** Update a user's role within the org (org admin only) */
+  /** Update a user's org role (owner | org_admin | member) — org admin only.
+   * NOTE (ADR-0005): user-level project roles no longer exist; project access
+   * is granted exclusively via ProjectMember rows. */
   updateOrgUserRole: protectedProcedure
     .input(z.object({
       userId: z.string(),
-      role: z.enum(["project_manager", "engineer", "coordinator", "client", "inspector"]),
+      orgRole: z.enum(["owner", "org_admin", "member"]),
     }))
     .mutation(async ({ ctx, input }) => {
       assertOrgAdmin(ctx.user);
@@ -748,7 +747,7 @@ export const projectRouter = router({
 
       await db.user.update({
         where: { id: input.userId },
-        data: { role: input.role },
+        data: { orgRole: input.orgRole },
       });
 
       await audit({
@@ -757,7 +756,7 @@ export const projectRouter = router({
         action: "org.user.update_role",
         entityType: "user",
         entityId: input.userId,
-        metadata: { oldRole: target.role, newRole: input.role },
+        metadata: { oldOrgRole: target.orgRole, newOrgRole: input.orgRole },
       });
 
       return { ok: true };

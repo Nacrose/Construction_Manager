@@ -253,9 +253,9 @@ export const dailyProgramRouter = router({
             ],
           },
           include: {
-            staff: {
+            person: {
               select: {
-                id: true, name: true, designation: true, category: true, dailyWage: true,
+                id: true, displayName: true, category: true,
               },
             },
             staffRole: {
@@ -281,19 +281,19 @@ export const dailyProgramRouter = router({
       // Aggregate workforce rows
       const workforceMap = new Map<string, any>();
       for (const a of active) {
-        if (a.staffId && a.staff) {
-          const key = `staff:${a.staffId}`;
+        if (a.personId && a.person) {
+          const key = `staff:${a.personId}`;
           const existing = workforceMap.get(key);
           const qty = Math.max(1, Math.round(a.quantity || 1));
           if (existing) {
             existing.headcount += qty;
           } else {
             workforceMap.set(key, {
-              staffId: a.staff.id,
-              staffName: a.staff.name,
-              company: a.staff.designation || "—",
-              trade: a.staff.category || a.staff.designation || "",
-              skill: a.staff.category === "skilled" ? "skilled" : "unskilled",
+              staffId: a.person.id,
+              staffName: a.person.displayName,
+              company: "—",
+              trade: a.person.category || "",
+              skill: a.person.category === "skilled" ? "skilled" : "unskilled",
               headcount: qty,
               regHours: 8 * qty,
               otHours: 0,
@@ -347,12 +347,13 @@ export const dailyProgramRouter = router({
 
       // Also return project-wide master lists for the dropdown picker
       const [staffList, equipmentList] = await Promise.all([
-        db.staff.findMany({
+        db.projectStaffAssignment.findMany({
           where: { projectId: input.projectId, status: "active" },
           select: {
-            id: true, name: true, designation: true, category: true, dailyWage: true,
+            id: true, designation: true, category: true, dailyWage: true,
+            person: { select: { id: true, displayName: true } },
           },
-          orderBy: { name: "asc" },
+          orderBy: { createdAt: "asc" },
            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
          }),
         db.equipment.findMany({
@@ -764,6 +765,7 @@ export const dailyProgramRouter = router({
       await assertProgramBelongsToProject(input.programId, input.projectId);
 
       const tasks = await db.dailyProgramTask.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: { id: { in: input.taskIds } },
         include: { program: { select: { programDate: true, projectId: true } } },
       });
@@ -1066,6 +1068,7 @@ export const dailyProgramRouter = router({
       if (!program) throw new TRPCError({ code: "NOT_FOUND", message: "Program not found." });
 
       const approvedRfis = await db.rfi.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: {
           projectId: input.projectId,
           status: "approved",

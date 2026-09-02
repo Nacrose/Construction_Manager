@@ -505,7 +505,7 @@ export function ChatPiP() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium truncate">{u.name}</p>
                       <p className="text-[10px] text-muted-foreground truncate">
-                        {u.email} · <span className="capitalize">{u.role.replace("_", " ")}</span>
+                        {u.email}
                       </p>
                     </div>
                     {createDMMut.isPending && createDMMut.variables?.otherUserId === u.id && (

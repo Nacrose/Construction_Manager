@@ -1,6 +1,11 @@
 /**
  * tRPC router for Construction HR, Labor Gangs, Time & Attendance,
  * 31-Day Muster Roll Matrix, and Site Advance Ledger.
+ *
+ * ADR-0005 grain: the roster shown here is the project's ACTIVE
+ * ProjectStaffAssignment list joined with the org-wide Person. Row ids are
+ * ASSIGNMENT ids (attendance is logged per assignment per day); advances
+ * and identity fields key on the PERSON.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -9,6 +14,30 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { withOrgContext } from "@/lib/rls";
+
+const ASSIGNMENT_LIST_SELECT = {
+  id: true,
+  personId: true,
+  designation: true,
+  category: true,
+  employmentType: true,
+  dailyWage: true,
+  monthlySalary: true,
+  gangName: true,
+  fromDate: true,
+  person: {
+    select: {
+      id: true,
+      displayName: true,
+      phone: true,
+      bankAccountNo: true,
+      bankName: true,
+      pan: true,
+      idNumber: true,
+      status: true,
+    },
+  },
+} as const;
 
 const CreateStaffSchema = z.object({
   projectId: z.string(),
@@ -28,8 +57,8 @@ const CreateStaffSchema = z.object({
 });
 
 const UpdateStaffSchema = z.object({
-  itemId: z.string(),
-  name: z.string().optional(),
+  itemId: z.string(), // assignment id
+  name: z.string().optional(), // person-level display name
   designation: z.string().nullable().optional(),
   category: z.enum(["skilled", "unskilled", "supervisor", "staff", "operator"]).optional(),
   employmentType: z.enum(["daily", "monthly", "piece_rate"]).optional(),
@@ -42,11 +71,10 @@ const UpdateStaffSchema = z.object({
   pan: z.string().nullable().optional(),
   idNumber: z.string().nullable().optional(),
   status: z.enum(["active", "inactive", "left"]).optional(),
-  joinedDate: z.string().nullable().optional(),
 });
 
 export const hrRouter = router({
-  /** List staff / labor directory with filters. */
+  /** List the project roster (active assignments joined with persons) or attendance. */
   list: protectedProcedure
     .input(
       z.object({
@@ -62,21 +90,31 @@ export const hrRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
 
       if (input.tab === "staff") {
-        const whereClause: any = {
+        // status filter: "active" = currently-engaged assignments; other
+        // values filter on the person's org-wide status.
+        const statusClause =
+          input.status === "all"
+            ? {}
+            : input.status === "active"
+              ? { status: "active" as const }
+              : { person: { status: input.status } };
+
+        const whereClause = {
           projectId: input.projectId,
-          ...(input.status !== "all" ? { status: input.status } : {}),
+          ...statusClause,
           ...(input.gangName ? { gangName: input.gangName } : {}),
           ...(input.category ? { category: input.category } : {}),
           ...(input.employmentType ? { employmentType: input.employmentType } : {}),
         };
 
-        const [staff, allGangs] = await Promise.all([
-          db.staff.findMany({
+        const [assignments, allGangs] = await Promise.all([
+          db.projectStaffAssignment.findMany({
             where: whereClause,
-            orderBy: [{ category: "asc" }, { name: "asc" }],
+            select: ASSIGNMENT_LIST_SELECT,
+            orderBy: [{ category: "asc" }, { person: { displayName: "asc" } }],
              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
            }),
-          db.staff.findMany({
+          db.projectStaffAssignment.findMany({
             where: { projectId: input.projectId, gangName: { not: null } },
             select: { gangName: true },
             distinct: ["gangName"],
@@ -85,6 +123,28 @@ export const hrRouter = router({
         ]);
 
         const gangs = allGangs.map((g) => g.gangName).filter(Boolean) as string[];
+
+        // Project onto the legacy row shape consumed by the HR screens:
+        // roster rows are assignments (id = assignmentId) carrying the
+        // person's identity fields.
+        const staff = assignments.map((a) => ({
+          id: a.id,
+          personId: a.personId,
+          name: a.person.displayName,
+          designation: a.designation,
+          category: a.category,
+          employmentType: a.employmentType,
+          phone: a.person.phone,
+          dailyWage: a.dailyWage,
+          monthlySalary: a.monthlySalary,
+          gangName: a.gangName,
+          bankAccountNo: a.person.bankAccountNo,
+          bankName: a.person.bankName,
+          pan: a.person.pan,
+          idNumber: a.person.idNumber,
+          status: a.person.status,
+          fromDate: a.fromDate,
+        }));
 
         return {
           staff,
@@ -95,68 +155,130 @@ export const hrRouter = router({
         const attendance = await db.staffAttendance.findMany({
           where: { projectId: input.projectId },
           orderBy: { date: "desc" },
-          include: { staff: { select: { name: true, designation: true, category: true, dailyWage: true } } },
+          include: {
+            assignment: {
+              select: {
+                id: true,
+                person: { select: { displayName: true, category: true } },
+                designation: true,
+                dailyWage: true,
+              },
+            },
+          },
           take: 200,
         });
         return { staff: [], gangs: [], attendance };
       }
     }),
 
-  /** Create new staff / labor record. */
+  /** Create a person and start an active assignment on the project. */
   create: protectedProcedure
     .input(CreateStaffSchema)
     .mutation(async ({ ctx, input }) => {
-      const { projectId, ...data } = input;
+      const { projectId, joinedDate, ...data } = input;
       await assertCanWrite(ctx.user, projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
 
-      const staff = await db.staff.create({
+      const person = await db.person.create({
         data: {
-          projectId,
-          name: data.name,
-          designation: data.designation || null,
+          organizationId: ctx.user.organizationId,
+          displayName: data.name,
           category: data.category,
           employmentType: data.employmentType,
           phone: data.phone || null,
-          dailyWage: data.dailyWage,
-          monthlySalary: data.monthlySalary,
-          gangName: data.gangName || null,
           bankAccountNo: data.bankAccountNo || null,
           bankName: data.bankName || null,
           pan: data.pan || null,
           idNumber: data.idNumber || null,
-          joinedDate: data.joinedDate ? new Date(data.joinedDate) : new Date(),
         },
       });
-      return { staff };
+
+      const assignment = await db.projectStaffAssignment.create({
+        data: {
+          projectId,
+          personId: person.id,
+          fromDate: joinedDate ? new Date(joinedDate) : new Date(),
+          designation: data.designation || null,
+          category: data.category,
+          employmentType: data.employmentType,
+          dailyWage: data.dailyWage,
+          monthlySalary: data.monthlySalary,
+          gangName: data.gangName || null,
+        },
+      });
+
+      return { staff: { id: assignment.id, personId: person.id, name: person.displayName } };
     }),
 
-  /** Update staff / labor record. */
+  /** Update assignment terms and/or the person's identity fields. */
   update: protectedProcedure
     .input(UpdateStaffSchema)
     .mutation(async ({ ctx, input }) => {
       const { itemId, ...data } = input;
-      const item = await db.staff.findUnique({ where: { id: itemId }, select: { projectId: true } });
-      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Staff not found." });
-      await assertCanWrite(ctx.user, item.projectId);
+      const assignment = await db.projectStaffAssignment.findUnique({
+        where: { id: itemId },
+        select: { id: true, projectId: true, personId: true },
+      });
+      if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "Staff assignment not found." });
+      await assertCanWrite(ctx.user, assignment.projectId);
 
-      const updateData: any = { ...data };
-      if (data.joinedDate !== undefined) {
-        updateData.joinedDate = data.joinedDate ? new Date(data.joinedDate) : null;
-      }
+      const {
+        name, phone, bankAccountNo, bankName, pan, idNumber, status,
+        ...assignmentData
+      } = data;
 
-      const updated = await db.staff.update({ where: { id: itemId }, data: updateData });
+      await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+
+        // Person-level identity fields
+        const personData: Record<string, unknown> = {};
+        if (name !== undefined) personData.displayName = name;
+        if (phone !== undefined) personData.phone = phone;
+        if (bankAccountNo !== undefined) personData.bankAccountNo = bankAccountNo;
+        if (bankName !== undefined) personData.bankName = bankName;
+        if (pan !== undefined) personData.pan = pan;
+        if (idNumber !== undefined) personData.idNumber = idNumber;
+        if (status !== undefined) personData.status = status;
+        if (Object.keys(personData).length > 0) {
+          await tx.person.update({ where: { id: assignment.personId }, data: personData });
+        }
+
+        // Assignment-level engagement terms
+        if (Object.keys(assignmentData).length > 0) {
+          await tx.projectStaffAssignment.update({
+            where: { id: assignment.id },
+            data: assignmentData,
+          });
+        }
+      });
+
+      const updated = await db.projectStaffAssignment.findUnique({
+        where: { id: itemId },
+        select: ASSIGNMENT_LIST_SELECT,
+      });
       return { staff: updated };
     }),
 
-  /** Delete staff / labor record. */
+  /**
+   * End the assignment (soft). ADR-0005: ending an engagement destroys
+   * nothing — attendance, advances, payroll and leave history survive.
+   */
   delete: protectedProcedure
     .input(z.object({ itemId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const item = await db.staff.findUnique({ where: { id: input.itemId }, select: { projectId: true } });
-      if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Staff not found." });
-      await assertCanWrite(ctx.user, item.projectId);
+      const assignment = await db.projectStaffAssignment.findUnique({
+        where: { id: input.itemId },
+        select: { id: true, projectId: true, status: true },
+      });
+      if (!assignment) throw new TRPCError({ code: "NOT_FOUND", message: "Staff assignment not found." });
+      await assertCanWrite(ctx.user, assignment.projectId);
 
-      await db.staff.delete({ where: { id: input.itemId } });
+      await db.projectStaffAssignment.update({
+        where: { id: input.itemId },
+        data: { status: "ended", toDate: new Date(), endReason: "other" },
+      });
       return { ok: true };
     }),
 
@@ -173,10 +295,11 @@ export const hrRouter = router({
 
       const targetDate = new Date(`${input.date}T00:00:00.000Z`);
 
-      const [staffList, existingAttendance] = await Promise.all([
-        db.staff.findMany({
+      const [assignments, existingAttendance] = await Promise.all([
+        db.projectStaffAssignment.findMany({
           where: { projectId: input.projectId, status: "active" },
-          orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
+          select: ASSIGNMENT_LIST_SELECT,
+          orderBy: [{ gangName: "asc" }, { category: "asc" }, { person: { displayName: "asc" } }],
            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
          }),
         db.staffAttendance.findMany({
@@ -188,18 +311,19 @@ export const hrRouter = router({
          }),
       ]);
 
-      const attendanceMap = new Map(existingAttendance.map((a) => [a.staffId, a]));
+      const attendanceMap = new Map(existingAttendance.map((a) => [a.assignmentId, a]));
 
-      const items = staffList.map((s) => {
-        const att = attendanceMap.get(s.id);
+      const items = assignments.map((a) => {
+        const att = attendanceMap.get(a.id);
         return {
-          staffId: s.id,
-          staffName: s.name,
-          designation: s.designation,
-          category: s.category,
-          employmentType: s.employmentType,
-          gangName: s.gangName,
-          dailyWage: s.dailyWage,
+          assignmentId: a.id,
+          personId: a.personId,
+          name: a.person.displayName,
+          designation: a.designation,
+          category: a.category,
+          employmentType: a.employmentType,
+          gangName: a.gangName,
+          dailyWage: a.dailyWage,
           status: att ? att.status : "present",
           hours: att ? att.hours : 8,
           overtime: att ? att.overtime : 0,
@@ -210,7 +334,7 @@ export const hrRouter = router({
 
       return {
         date: input.date,
-        totalWorkers: staffList.length,
+        totalWorkers: assignments.length,
         loggedCount: existingAttendance.length,
         items,
       };
@@ -224,7 +348,7 @@ export const hrRouter = router({
         date: z.string(), // "YYYY-MM-DD"
         records: z.array(
           z.object({
-            staffId: z.string(),
+            assignmentId: z.string(), // attendance grain is [assignmentId, date] (ADR-0005)
             status: z.enum(["present", "absent", "half_day", "leave", "overtime"]),
             hours: z.number().nonnegative().default(8),
             overtime: z.number().nonnegative().default(0),
@@ -236,14 +360,16 @@ export const hrRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
 
-      // Verify all staff IDs belong to input.projectId to prevent cross-project attendance overwrites
-      const staffIds = input.records.map((r) => r.staffId);
-      const validStaff = await db.staff.findMany({
-        where: { projectId: input.projectId, id: { in: staffIds } },
+      // Verify all assignment ids belong to input.projectId to prevent
+      // cross-project attendance overwrites
+      const assignmentIds = input.records.map((r) => r.assignmentId);
+      const validAssignments = await db.projectStaffAssignment.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+        where: { projectId: input.projectId, id: { in: assignmentIds }, status: "active" },
         select: { id: true },
       });
-      const validStaffIdSet = new Set(validStaff.map((s) => s.id));
-      const validRecords = input.records.filter((r) => validStaffIdSet.has(r.staffId));
+      const validIdSet = new Set(validAssignments.map((a) => a.id));
+      const validRecords = input.records.filter((r) => validIdSet.has(r.assignmentId));
 
       const targetDate = new Date(`${input.date}T00:00:00.000Z`);
 
@@ -252,14 +378,14 @@ export const hrRouter = router({
         for (const record of validRecords) {
           await tx.staffAttendance.upsert({
             where: {
-              staffId_date: {
-                staffId: record.staffId,
+              assignmentId_date: {
+                assignmentId: record.assignmentId,
                 date: targetDate,
               },
             },
             create: {
               projectId: input.projectId,
-              staffId: record.staffId,
+              assignmentId: record.assignmentId,
               date: targetDate,
               status: record.status,
               hours: record.hours,
@@ -299,14 +425,15 @@ export const hrRouter = router({
       const startDate = new Date(Date.UTC(year, month - 1, 1));
       const endDate = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
 
-      const [staffList, attendanceRecords] = await Promise.all([
-        db.staff.findMany({
+      const [assignments, attendanceRecords] = await Promise.all([
+        db.projectStaffAssignment.findMany({
           where: {
             projectId: input.projectId,
             status: "active",
             ...(input.gangName ? { gangName: input.gangName } : {}),
           },
-          orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
+          select: ASSIGNMENT_LIST_SELECT,
+          orderBy: [{ gangName: "asc" }, { category: "asc" }, { person: { displayName: "asc" } }],
            take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
          }),
         db.staffAttendance.findMany({
@@ -318,14 +445,14 @@ export const hrRouter = router({
          }),
       ]);
 
-      // Group attendance by staffId and day (1..31)
-      const staffMap = new Map<string, Map<number, { status: string; hours: number; overtime: number }>>();
+      // Group attendance by assignmentId and day (1..31)
+      const attendanceByAssignment = new Map<string, Map<number, { status: string; hours: number; overtime: number }>>();
       for (const record of attendanceRecords) {
         const day = new Date(record.date).getUTCDate();
-        if (!staffMap.has(record.staffId)) {
-          staffMap.set(record.staffId, new Map());
+        if (!attendanceByAssignment.has(record.assignmentId)) {
+          attendanceByAssignment.set(record.assignmentId, new Map());
         }
-        staffMap.get(record.staffId)!.set(day, {
+        attendanceByAssignment.get(record.assignmentId)!.set(day, {
           status: record.status,
           hours: record.hours,
           overtime: record.overtime,
@@ -333,8 +460,8 @@ export const hrRouter = router({
       }
 
       // Build 31-day matrix rows
-      const rows = staffList.map((staff) => {
-        const dayMap = staffMap.get(staff.id) || new Map();
+      const rows = assignments.map((a) => {
+        const dayMap = attendanceByAssignment.get(a.id) || new Map();
         const days: Record<number, { status: string; overtime: number }> = {};
 
         let presentDays = 0;
@@ -361,20 +488,21 @@ export const hrRouter = router({
         }
 
         const effectiveDays = presentDays + halfDays * 0.5;
-        const hourlyRate = staff.dailyWage > 0 ? staff.dailyWage / 8 : 0;
-        const estimatedRegularWage = staff.employmentType === "monthly" ? staff.monthlySalary : effectiveDays * staff.dailyWage;
+        const hourlyRate = a.dailyWage > 0 ? a.dailyWage / 8 : 0;
+        const estimatedRegularWage = a.employmentType === "monthly" ? a.monthlySalary : effectiveDays * a.dailyWage;
         const estimatedOtWage = totalOvertimeHours * hourlyRate * 1.5;
         const estimatedGross = estimatedRegularWage + estimatedOtWage;
 
         return {
-          staffId: staff.id,
-          name: staff.name,
-          designation: staff.designation,
-          category: staff.category,
-          employmentType: staff.employmentType,
-          gangName: staff.gangName,
-          dailyWage: staff.dailyWage,
-          monthlySalary: staff.monthlySalary,
+          assignmentId: a.id,
+          personId: a.personId,
+          name: a.person.displayName,
+          designation: a.designation,
+          category: a.category,
+          employmentType: a.employmentType,
+          gangName: a.gangName,
+          dailyWage: a.dailyWage,
+          monthlySalary: a.monthlySalary,
           days,
           presentDays,
           halfDays,
@@ -391,7 +519,7 @@ export const hrRouter = router({
         daysInMonth,
         rows,
         summary: {
-          totalStaff: staffList.length,
+          totalStaff: assignments.length,
           totalPresentManDays: rows.reduce((s, r) => s + r.effectiveDays, 0),
           totalOtHours: rows.reduce((s, r) => s + r.totalOvertimeHours, 0),
           totalEstimatedGross: rows.reduce((s, r) => s + r.estimatedGross, 0),
@@ -399,13 +527,13 @@ export const hrRouter = router({
       };
     }),
 
-  /** List cash advances and site mess deductions. */
+  /** List cash advances and site mess deductions (person grain). */
   getStaffAdvances: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
-        staffId: z.string().optional(),
-        isRecovered: z.boolean().optional(),
+        personId: z.string().optional(),
+        isRecovered: z.boolean().optional(), // true = fully recovered, false = outstanding
       })
     )
     .query(async ({ ctx, input }) => {
@@ -413,32 +541,41 @@ export const hrRouter = router({
 
       const where: any = {
         projectId: input.projectId,
-        ...(input.staffId ? { staffId: input.staffId } : {}),
-        ...(input.isRecovered !== undefined ? { isRecovered: input.isRecovered } : {}),
+        ...(input.personId ? { personId: input.personId } : {}),
       };
 
       const advances = await db.staffAdvance.findMany({
         where,
         include: {
-          staff: { select: { id: true, name: true, designation: true, category: true } },
+          person: { select: { id: true, displayName: true, category: true } },
         },
         orderBy: { date: "desc" },
          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
        });
 
-      const totalPendingAdvances = advances
-        .filter((a) => !a.isRecovered)
-        .reduce((sum, a) => sum + a.amount, 0);
+      // Post-filter on recovery state (recoveredAmount >= amount = recovered)
+      const filtered =
+        input.isRecovered === undefined
+          ? advances
+          : advances.filter((a) =>
+              input.isRecovered
+                ? a.recoveredAmount >= a.amount
+                : a.recoveredAmount < a.amount
+            );
 
-      return { advances, totalPendingAdvances };
+      const totalPendingAdvances = advances
+        .filter((a) => a.recoveredAmount < a.amount)
+        .reduce((sum, a) => sum + (a.amount - a.recoveredAmount), 0);
+
+      return { advances: filtered, totalPendingAdvances };
     }),
 
-  /** Issue a cash advance or log a site deduction. */
+  /** Issue a cash advance or log a site deduction (person grain). */
   createStaffAdvance: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
-        staffId: z.string(),
+        personId: z.string(),
         date: z.string().optional(),
         amount: z.number().positive(),
         type: z.enum(["cash_advance", "mess_deduction", "safety_gear", "other"]).default("cash_advance"),
@@ -452,23 +589,23 @@ export const hrRouter = router({
       // back-dated advance distorted a closed fiscal year's actuals.
       await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());
 
-      // Cross-project guard: the advance must be issued to a staff member
-      // of THIS project — without this, a caller with write access to
-      // project A could attach advances to staff in project B (leaking
-      // their names via the advances list and corrupting payroll
-      // recovery inputs).
-      const staff = await db.staff.findFirst({
-        where: { id: input.staffId, projectId: input.projectId },
+      // Cross-project guard: the advance must be issued to a person with an
+      // ACTIVE assignment on THIS project — without this, a caller with
+      // write access to project A could attach advances to people in
+      // project B (leaking their names via the advances list and
+      // corrupting payroll recovery inputs).
+      const assignment = await db.projectStaffAssignment.findFirst({
+        where: { personId: input.personId, projectId: input.projectId, status: "active" },
         select: { id: true },
       });
-      if (!staff) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Staff not found in this project." });
+      if (!assignment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Person has no active assignment on this project." });
       }
 
       const advance = await db.staffAdvance.create({
         data: {
           projectId: input.projectId,
-          staffId: input.staffId,
+          personId: input.personId,
           date: input.date ? new Date(input.date) : new Date(),
           amount: input.amount,
           type: input.type,
@@ -480,7 +617,7 @@ export const hrRouter = router({
       return { advance };
     }),
 
-  /** Delete a pending advance. */
+  /** Delete a pending advance (only while nothing has been recovered). */
   deleteStaffAdvance: protectedProcedure
     .input(z.object({ advanceId: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -493,8 +630,8 @@ export const hrRouter = router({
         where: { id: input.advanceId, projectId: input.projectId },
       });
       if (!adv) throw new TRPCError({ code: "NOT_FOUND", message: "Advance not found." });
-      if (adv.isRecovered) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete an advance that has already been recovered in a payroll run." });
+      if (adv.recoveredAmount > 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot delete an advance that has been (partially) recovered in a payroll run." });
       }
 
       await db.staffAdvance.delete({ where: { id: input.advanceId } });

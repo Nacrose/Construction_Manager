@@ -49,6 +49,7 @@ export const ganttImportRouter = router({
       }
 
       const existingTasks = await db.ganttTask.findMany({
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: { versionId: input.versionId, code: { not: null } },
         select: { id: true, code: true },
       });
@@ -130,6 +131,7 @@ export const ganttImportRouter = router({
       const existingByCode = new Map(
         (
           await db.ganttTask.findMany({
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
             where: { versionId: input.versionId, code: { not: null } },
             select: { id: true, code: true },
           })
@@ -261,6 +263,7 @@ export const ganttImportRouter = router({
       if (input.mode === "replace") {
         const importedIds = new Set(uidToNewId.values());
         const allVersionTasks = await tx.ganttTask.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: { versionId: input.versionId },
           select: { id: true },
         });
@@ -287,16 +290,19 @@ export const ganttImportRouter = router({
       if (result.assignments.length > 0 && result.resources.length > 0) {
         const resourceMap = new Map(result.resources.map((r) => [r.uid, r]));
 
-        const staffList = await db.staff.findMany({
+        // ADR-0005: match people via their ACTIVE assignments on this project
+        const assignmentList = await db.projectStaffAssignment.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: { projectId: version.projectId, status: "active" },
-          select: { id: true, name: true, category: true },
+          select: { person: { select: { id: true, displayName: true, category: true } } },
         });
         const staffByName = new Map<string, string>();
-        for (const s of staffList) {
-          staffByName.set(s.name.toLowerCase().trim(), s.id);
+        for (const a of assignmentList) {
+          staffByName.set(a.person.displayName.toLowerCase().trim(), a.person.id);
         }
 
         const staffRoles = await db.staffRole.findMany({
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
           where: { projectId: version.projectId },
           select: { id: true, name: true, category: true },
         });
@@ -307,7 +313,7 @@ export const ganttImportRouter = router({
 
         const assignmentRecords: Array<{
           taskId: string;
-          staffId?: string;
+          personId?: string;
           staffRoleId?: string;
           quantity: number;
           unit: string;
@@ -327,17 +333,17 @@ export const ganttImportRouter = router({
           }
 
           const resourceName = resource.name.toLowerCase().trim();
-          const staffId = staffByName.get(resourceName);
-          const staffRoleId = staffId ? undefined : roleByName.get(resourceName);
+          const personId = staffByName.get(resourceName);
+          const staffRoleId = personId ? undefined : roleByName.get(resourceName);
 
-          if (!staffId && !staffRoleId) {
+          if (!personId && !staffRoleId) {
             assignmentsSkipped++;
             continue;
           }
 
           assignmentRecords.push({
             taskId,
-            staffId,
+            personId,
             staffRoleId,
             quantity: asg.units,
             unit:
@@ -363,7 +369,7 @@ export const ganttImportRouter = router({
           await db.resourceAssignment.createMany({
             data: assignmentRecords.map((r) => ({
               taskId: r.taskId,
-              staffId: r.staffId ?? null,
+              personId: r.personId ?? null,
               staffRoleId: r.staffRoleId ?? null,
               equipmentId: null,
               quantity: r.quantity,
