@@ -104,13 +104,15 @@ export const subcontractorBillRouter = router({
           items: true,
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Aggregate stats
       const allBills = await db.subcontractorBill.findMany({
         where: { projectId: input.projectId },
         select: { grossAmount: true, netPayable: true, paidAmount: true, status: true, subcontractorId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalBilled = allBills.reduce((acc, b) => acc + b.netPayable, 0);
       const totalPaid = allBills.reduce((acc, b) => acc + b.paidAmount, 0);
@@ -134,7 +136,8 @@ export const subcontractorBillRouter = router({
         const subs = await db.subcontractor.findMany({
           where: { id: { in: subIds } },
           select: { id: true, name: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         for (const s of subs) {
           if (subBreakdown[s.id]) subBreakdown[s.id].name = s.name;
         }
@@ -435,7 +438,10 @@ export const subcontractorBillRouter = router({
         }
         itemsForCalc = input.items;
       } else {
-        const existingItems = await tx.subcontractorBillItem.findMany({ where: { billId: input.billId } });
+        const existingItems = await tx.subcontractorBillItem.findMany({
+          where: { billId: input.billId },
+          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+        });
         itemsForCalc = existingItems.map((i) => ({ thisQty: i.thisQty, rate: i.rate }));
       }
 
@@ -728,12 +734,14 @@ export const subcontractorBillRouter = router({
             rate: true,
             amount: true,
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.subcontractor.findMany({
           where: { projectId: input.projectId, status: "active" },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.subcontractorBillItem.findMany({
           where: {
             bill: {
@@ -751,7 +759,8 @@ export const subcontractorBillRouter = router({
               },
             },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.ipcItem.findMany({
           where: {
             ipc: {
@@ -767,7 +776,8 @@ export const subcontractorBillRouter = router({
             rate: true,
             amount: true,
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       // Map IPC latest certified cumulative quantities by boqCode / description
@@ -1034,7 +1044,8 @@ export const subcontractorBillRouter = router({
             material: { select: { id: true, name: true, unit: true, currentStock: true } },
           },
           orderBy: { date: "asc" },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.subcontractorBill.findMany({
           where: {
             projectId: input.projectId,
@@ -1044,11 +1055,13 @@ export const subcontractorBillRouter = router({
           include: {
             items: true,
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.material.findMany({
           where: { projectId: input.projectId },
           select: { id: true, name: true, unit: true, currentStock: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       // Aggregate issues and returns per material
@@ -1119,7 +1132,8 @@ export const subcontractorBillRouter = router({
             where: { type: "material" },
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const theoreticalMap = new Map<string, number>();
       for (const billItem of allBilledItems) {

@@ -246,7 +246,8 @@ export const equipmentSpotHireProcedures = {
       const tickets = await db.equipmentSpotHire.findMany({
         where: { projectId: input.projectId },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const vendorMap = new Map<
         string,

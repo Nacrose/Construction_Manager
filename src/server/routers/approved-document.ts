@@ -56,7 +56,8 @@ export const approvedDocumentRouter = router({
         include: {
           uploadedBy: { select: { id: true, name: true, role: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { documents };
     }),

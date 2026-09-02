@@ -64,6 +64,7 @@ const paymentRouter = router({
           },
         },
         orderBy: { paymentDate: "desc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
       return { payments };
     }),
@@ -503,6 +504,7 @@ const paymentRouter = router({
           allocationType: true,
           accountingSoftware: true,
         },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       const categories: Record<
@@ -592,6 +594,7 @@ const paymentRouter = router({
         const linkedEntries = await tx.journalEntry.findMany({
           where: { sourceRefId: input.id, sourceRefType: "Payment" },
           select: { id: true },
+                  take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
         });
 
         for (const je of linkedEntries) {
@@ -669,7 +672,9 @@ const paymentRouter = router({
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const payments = await db.payment.findMany({ where: { projectId: input.projectId, status: "paid" }, select: { amount: true, tdsDeducted: true, payeeType: true, retentionReleased: true, category: true, accountingSoftware: true } });
+      const payments = await db.payment.findMany({ where: { projectId: input.projectId, status: "paid" }, select: { amount: true, tdsDeducted: true, payeeType: true, retentionReleased: true, category: true, accountingSoftware: true } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
       const totalTds = payments.reduce((s, p) => s + p.tdsDeducted, 0);
       const totalRetentionReleased = payments.reduce((s, p) => s + p.retentionReleased, 0);
@@ -703,6 +708,7 @@ const paymentRouter = router({
           purchaseOrder: { select: { id: true, number: true } },
         },
         orderBy: { billDate: "desc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       // 2. Certified / Submitted Subcontractor Bills with unpaid balances
@@ -715,6 +721,7 @@ const paymentRouter = router({
           subcontractor: { select: { id: true, name: true, pan: true, phone: true } },
         },
         orderBy: { billDate: "desc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       const activeSubBills = subBills.filter((b) => b.netPayable > (b.paidAmount || 0) + 0.01);
@@ -726,6 +733,7 @@ const paymentRouter = router({
           category: { in: ["site_expense", "office_overhead", "food_mess", "travel_fuel", "staff_claim"] },
         },
         orderBy: { billDate: "desc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       // Find matching payments for staff bills
@@ -734,6 +742,7 @@ const paymentRouter = router({
           projectId: input.projectId,
         },
         select: { payeeName: true, amount: true },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       const staffPayables = staffBills.map((sb) => {
@@ -848,6 +857,7 @@ const paymentRouter = router({
           totalRetentionHeld: true, totalRetentionReleased: true,
         },
         orderBy: { name: "asc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       // Get Subcontractor Bill & IPC retention amounts per subcontractor
@@ -855,6 +865,7 @@ const paymentRouter = router({
         db.ipc.findMany({
           where: { projectId: input.projectId, subcontractorId: { not: null } },
           select: { subcontractorId: true, retentionAmount: true, status: true },
+                  take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
         }),
         db.subcontractorBill.findMany({
           where: {
@@ -862,6 +873,7 @@ const paymentRouter = router({
             status: { in: ["submitted", "verified", "certified", "paid"] },
           },
           select: { subcontractorId: true, retentionAmount: true },
+                  take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
         }),
       ]);
 
@@ -885,6 +897,7 @@ const paymentRouter = router({
       const releasePayments = await db.payment.findMany({
         where: { projectId: input.projectId, payeeType: "subcontractor", retentionReleased: { gt: 0 } },
         select: { payeeId: true, retentionReleased: true, paymentDate: true },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
       const releasedBySub = new Map<string, number>();
       for (const p of releasePayments) {
@@ -1066,6 +1079,7 @@ const paymentRouter = router({
           subcontractor: { select: { id: true, name: true } },
         },
         orderBy: { issueDate: "asc" },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
       // Get payments linked to IPCs (to subtract what's already paid)
@@ -1076,6 +1090,7 @@ const paymentRouter = router({
           status: "paid",
         },
         select: { ipcId: true, amount: true },
+              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
       const paidByIpc = new Map<string, number>();
       for (const p of ipcPayments) {
@@ -1145,7 +1160,9 @@ const safetyRouter = router({
       const where: any = { projectId: input.projectId };
       if (input.type) where.type = input.type;
       if (input.status) where.status = input.status;
-      const incidents = await db.safetyIncident.findMany({ where, orderBy: { date: "desc" } });
+      const incidents = await db.safetyIncident.findMany({ where, orderBy: { date: "desc" } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return { incidents };
     }),
 
@@ -1201,7 +1218,9 @@ const safetyRouter = router({
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const incidents = await db.safetyIncident.findMany({ where: { projectId: input.projectId }, select: { type: true, severity: true, status: true } });
+      const incidents = await db.safetyIncident.findMany({ where: { projectId: input.projectId }, select: { type: true, severity: true, status: true } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return {
         total: incidents.length,
         incidents: incidents.filter(i => i.type === "incident").length,
@@ -1224,7 +1243,9 @@ const qualityRouter = router({
       const where: any = { projectId: input.projectId };
       if (input.status) where.status = input.status;
       if (input.type) where.inspectionType = input.type;
-      const inspections = await db.qualityInspection.findMany({ where, orderBy: { requestedDate: "desc" } });
+      const inspections = await db.qualityInspection.findMany({ where, orderBy: { requestedDate: "desc" } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return { inspections };
     }),
 
@@ -1282,7 +1303,9 @@ const qualityRouter = router({
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const inspections = await db.qualityInspection.findMany({ where: { projectId: input.projectId }, select: { status: true, result: true } });
+      const inspections = await db.qualityInspection.findMany({ where: { projectId: input.projectId }, select: { status: true, result: true } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return {
         total: inspections.length,
         pending: inspections.filter(i => i.status === "requested" || i.status === "scheduled").length,
@@ -1302,7 +1325,9 @@ const meetingRouter = router({
       await assertProjectMember(ctx.user, input.projectId);
       const where: any = { projectId: input.projectId };
       if (input.status) where.status = input.status;
-      const meetings = await db.meeting.findMany({ where, orderBy: { date: "desc" }, include: { _count: { select: { actionItems: true } } } });
+      const meetings = await db.meeting.findMany({ where, orderBy: { date: "desc" }, include: { _count: { select: { actionItems: true } } } ,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return { meetings };
     }),
 

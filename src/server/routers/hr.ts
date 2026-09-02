@@ -73,12 +73,14 @@ export const hrRouter = router({
           db.staff.findMany({
             where: whereClause,
             orderBy: [{ category: "asc" }, { name: "asc" }],
-          }),
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           }),
           db.staff.findMany({
             where: { projectId: input.projectId, gangName: { not: null } },
             select: { gangName: true },
             distinct: ["gangName"],
-          }),
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           }),
         ]);
 
         const gangs = allGangs.map((g) => g.gangName).filter(Boolean) as string[];
@@ -174,13 +176,15 @@ export const hrRouter = router({
         db.staff.findMany({
           where: { projectId: input.projectId, status: "active" },
           orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.staffAttendance.findMany({
           where: {
             projectId: input.projectId,
             date: targetDate,
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       const attendanceMap = new Map(existingAttendance.map((a) => [a.staffId, a]));
@@ -302,13 +306,15 @@ export const hrRouter = router({
             ...(input.gangName ? { gangName: input.gangName } : {}),
           },
           orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.staffAttendance.findMany({
           where: {
             projectId: input.projectId,
             date: { gte: startDate, lte: endDate },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       // Group attendance by staffId and day (1..31)
@@ -416,7 +422,8 @@ export const hrRouter = router({
           staff: { select: { id: true, name: true, designation: true, category: true } },
         },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalPendingAdvances = advances
         .filter((a) => !a.isRecovered)

@@ -978,7 +978,8 @@ export const accountingRouter = router({
           credit: true,
         },
         orderBy: { accountCode: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const result = aggregateTrialBalance(lines);
       assertGlBalanced(result, { organizationId: ctx.user.organizationId });

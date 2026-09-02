@@ -63,7 +63,8 @@ export const staffRoleRouter = router({
           _count: { select: { assignments: true } },
         },
         orderBy: [{ chainageFrom: "asc" }, { name: "asc" }],
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Build tree: top-level roles (parentId is null) with children nested recursively.
       // Step 1: Create a map of all roles with empty children arrays (overwriting Prisma's flat children)
@@ -285,7 +286,8 @@ export const staffRoleRouter = router({
           staff: { select: { id: true, name: true, designation: true, category: true, phone: true } },
         },
         orderBy: { startDate: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { assignments };
     }),

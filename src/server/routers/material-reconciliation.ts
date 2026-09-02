@@ -15,7 +15,8 @@ export const materialReconciliationProcedures = {
       const materials = await db.material.findMany({
         where: { projectId: input.projectId },
         orderBy: { name: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const defaultLibId = await getDefaultLibraryId(input.projectId);
       const ingredientFilter = defaultLibId
@@ -29,7 +30,8 @@ export const materialReconciliationProcedures = {
             where: ingredientFilter as any,
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const plannedMap = new Map<string, number>();
       for (const item of boqItems) {
@@ -42,7 +44,8 @@ export const materialReconciliationProcedures = {
       const issuedMap = new Map<string, number>();
       const transactions = await db.materialTransaction.findMany({
         where: { projectId: input.projectId, type: "issue" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       for (const t of transactions) {
         issuedMap.set(t.materialId, (issuedMap.get(t.materialId) ?? 0) + t.quantity);
       }
@@ -93,7 +96,8 @@ export const materialReconciliationProcedures = {
           reorderLevel: true,
           minStock: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const lowStockMaterials = materials.map(m => ({
         ...m,
@@ -128,7 +132,8 @@ export const materialReconciliationProcedures = {
           minStock: true,
           reorderLevel: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       if (materials.length === 0) {
         return { materials: [], summary: { totalReceived: 0, totalIssued: 0, totalVariance: 0, materialsWithVariance: 0 } };
@@ -148,7 +153,8 @@ export const materialReconciliationProcedures = {
           remarks: true,
         },
         orderBy: { date: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Opening stock = stock at startDate, derived by walking the period's
       // movements backwards from today's closing stock. Transfers are
@@ -293,7 +299,8 @@ export const materialReconciliationProcedures = {
             where: ingredientFilter as any,
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const boqMap = new Map(boqItems.map((b) => [b.id, b]));
       const boqCodeMap = new Map(boqItems.map((b) => [b.code, b]));
@@ -322,7 +329,8 @@ export const materialReconciliationProcedures = {
           report: { select: { id: true, number: true, reportDate: true } },
         },
         orderBy: { report: { reportDate: "desc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Group by BOQ item / work item
       const itemSummaries = new Map<
@@ -469,7 +477,8 @@ export const materialReconciliationProcedures = {
           reorderLevel: true,
           minStock: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -484,7 +493,8 @@ export const materialReconciliationProcedures = {
               date: { gte: thirtyDaysAgo },
             },
             select: { materialId: true, quantity: true, date: true },
-          })
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           })
         : [];
 
       const consumptionByMaterial = new Map<string, { totalIssued: number; days: number }>();

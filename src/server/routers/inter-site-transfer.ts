@@ -50,7 +50,8 @@ export const interSiteTransferRouter = router({
           receivedBy: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { transfers };
     }),
@@ -569,7 +570,8 @@ export const interSiteTransferRouter = router({
           receivedBy: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { transfers };
     }),

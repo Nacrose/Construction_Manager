@@ -27,7 +27,8 @@ export const ganttAnalyticsRouter = router({
           _count: { select: { tasks: true } },
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const planning = versions.filter((v) => v.scheduleType === "PLANNING");
       const execution = versions.filter((v) => v.scheduleType === "EXECUTION");
@@ -245,7 +246,8 @@ export const ganttAnalyticsRouter = router({
           },
         },
         orderBy: { sortOrder: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // If any tasks lack direct planningTask FK, match against base version by code or unique name
       const fallbackPlanMap = new Map<string, any>();
@@ -262,7 +264,8 @@ export const ganttAnalyticsRouter = router({
             duration: true,
             progress: true,
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
 
         // Count name frequencies to prevent collisions across multiple floors/blocks
         const nameFrequency = new Map<string, number>();
@@ -448,7 +451,8 @@ export const ganttAnalyticsRouter = router({
           staffRole: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const { detectConflicts, proposeLeveling } = await import(
         "@/server/utils/resource-leveling"
@@ -477,7 +481,8 @@ export const ganttAnalyticsRouter = router({
               isMilestone: true,
               ignoreResourceCalendar: true,
             },
-          }),
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           }),
           db.taskDependency.findMany({
             where: { successor: { versionId: input.versionId } },
             select: {
@@ -486,7 +491,8 @@ export const ganttAnalyticsRouter = router({
               type: true,
               offset: true,
             },
-          }),
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           }),
         ]);
         const { metrics } = computeCpmSchedule(
           schedTasks,
@@ -563,7 +569,8 @@ export const ganttAnalyticsRouter = router({
           },
         },
         orderBy: { sortOrder: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const taskBoqItemIds = new Set<string>();
       for (const task of tasks) {
@@ -768,7 +775,8 @@ export const ganttAnalyticsRouter = router({
           boqLinks: { include: { boqItem: { select: { rate: true } } } },
         },
         orderBy: { sortOrder: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const monthlyPlanned = new Map<string, number>();
       let totalPlanned = 0;
@@ -805,7 +813,8 @@ export const ganttAnalyticsRouter = router({
         .findMany({
           where: { projectId: input.projectId, status: "approved" },
           select: { period: true, grossAmount: true, issueDate: true },
-        })
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         })
         .catch(() => []);
 
       const monthlyBilled = new Map<string, number>();

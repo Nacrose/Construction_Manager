@@ -66,7 +66,8 @@ export const ganttDependenciesRouter = router({
           },
         },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { links };
     }),
@@ -428,7 +429,8 @@ export const ganttDependenciesRouter = router({
           },
         },
         select: { predecessorId: true, successorId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const result = detectCycle(allDeps, [
         { predecessorId: input.predecessorId, successorId: input.successorId },

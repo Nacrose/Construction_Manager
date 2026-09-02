@@ -622,7 +622,8 @@ export const plantProductionRouter = router({
       const silos = await db.plantSilo.findMany({
         where: { plantId: input.plantId },
         orderBy: { name: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { silos };
     }),
@@ -774,7 +775,8 @@ export const plantProductionRouter = router({
       const plants = await db.plant.findMany({
         where: { projectId: input.projectId },
         select: { id: true, name: true, type: true, status: true, capacityValue: true, capacityUnit: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // 2. Today's Tickets
       const todayTickets = await db.plantBatchTicket.findMany({
@@ -786,7 +788,8 @@ export const plantProductionRouter = router({
           mixDesign: { select: { code: true, name: true, type: true } },
           plant: { select: { name: true, type: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       let concreteToday = 0;
       let asphaltToday = 0;
@@ -842,7 +845,8 @@ export const plantProductionRouter = router({
           minAlertLevel: { not: null },
         },
         include: { plant: { select: { name: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const activeAlerts = lowStockSilos.filter(
         (s) => s.minAlertLevel !== null && s.currentStock <= s.minAlertLevel

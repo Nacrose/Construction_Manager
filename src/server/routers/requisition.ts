@@ -77,7 +77,8 @@ async function executeGeneratePOs(
         },
       },
     },
-  });
+     take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+   });
 
   if (reqItems.length === 0) {
     throw new TRPCError({
@@ -298,7 +299,8 @@ export const requisitionRouter = router({
             },
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const formattedRequisitions = requisitions.map((pr) => {
         const totalItems = pr.items.length;
@@ -444,7 +446,8 @@ export const requisitionRouter = router({
           },
         },
         orderBy: { requisition: { createdAt: "desc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const pendingItems = items
         .map((item) => {
@@ -625,7 +628,8 @@ export const requisitionRouter = router({
 
       const materials = await db.material.findMany({
         where: { id: { in: input.items.map((i) => i.materialId) }, projectId: input.projectId },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Get BOQ planned demands
       const boqItems = await db.boqItem.findMany({
@@ -633,7 +637,8 @@ export const requisitionRouter = router({
         include: {
           ingredients: { where: { type: "material" } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const boqIngredientsList: { name: string; totalPlanned: number }[] = [];
       const plannedDemandMap = new Map<string, number>();
@@ -657,7 +662,8 @@ export const requisitionRouter = router({
           requisition: { projectId: input.projectId, status: { in: ["approved", "ordered", "pending_approval"] } },
         },
         select: { materialId: true, quantity: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const alreadyProcuredMap = new Map<string, number>();
       for (const req of existingReqItems) {
@@ -831,7 +837,8 @@ export const requisitionRouter = router({
       const boqItems = await db.boqItem.findMany({
         where: { projectId: input.projectId },
         include: { ingredients: { where: { type: "material" } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const plannedDemandMap = new Map<string, number>();
       for (const item of boqItems) {
@@ -853,7 +860,8 @@ export const requisitionRouter = router({
           },
         },
         select: { materialId: true, quantity: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const alreadyProcuredMap = new Map<string, number>();
       for (const req of existingReqItems) {
@@ -864,7 +872,8 @@ export const requisitionRouter = router({
       const materials = await db.material.findMany({
         where: { id: { in: pr.items.map((i) => i.materialId) } },
         select: { id: true, name: true, unit: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const results = pr.items.map((reqItem) => {
         const mat = materials.find((m) => m.id === reqItem.materialId);

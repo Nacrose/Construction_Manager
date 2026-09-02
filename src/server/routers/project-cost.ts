@@ -108,7 +108,8 @@ export const projectCostRouter = router({
           date: true,
           boqItemId: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Total
       const total = costs.reduce((s, c) => s + c.amount, 0);
@@ -261,7 +262,8 @@ export const projectCostRouter = router({
           ganttTask: { select: { code: true, name: true } },
           subcontractor: { select: { name: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Build CSV
       const headers = [

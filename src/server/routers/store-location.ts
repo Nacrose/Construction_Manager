@@ -76,7 +76,8 @@ export const storeLocationRouter = router({
           },
         },
         orderBy: [{ isDefault: "desc" }, { name: "asc" }],
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { locations };
     }),
@@ -96,7 +97,8 @@ export const storeLocationRouter = router({
           storeLocation: true,
         },
         orderBy: { storeLocation: { name: "asc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { storeStocks };
     }),

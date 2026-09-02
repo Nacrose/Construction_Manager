@@ -667,7 +667,8 @@ export const rfiRouter = router({
         where: { projectId: input.projectId, role: { in: ["project_manager", "coordinator", "engineer"] } },
         select: { id: true, role: true, user: { select: { id: true, name: true, email: true, role: true } } },
         orderBy: { user: { name: "asc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { members };
     }),
 

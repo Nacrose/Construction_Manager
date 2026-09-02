@@ -30,7 +30,11 @@ export const punchListRouter = router({
           { description: { contains: input.q, mode: "insensitive" } },
         ];
       }
-      const items = await db.punchItem.findMany({ where, orderBy: { createdAt: "desc" } });
+      const items = await db.punchItem.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
       return { items };
     }),
 
@@ -129,7 +133,8 @@ export const punchListRouter = router({
       const items = await db.punchItem.findMany({
         where: { projectId: input.projectId },
         select: { status: true, severity: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return {
         total: items.length,
         open: items.filter(i => i.status === "open").length,

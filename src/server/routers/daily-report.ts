@@ -217,7 +217,8 @@ const dailyReportCoreRouter = router({
           ganttTask: { select: { id: true, code: true, name: true } },
           program: { select: { programDate: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const dailyProgramWithCarryover = dailyProgram
         ? {

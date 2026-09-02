@@ -498,7 +498,8 @@ export const documentRouter = router({
           issuedBy: true, approvalStatus: true, fileName: true, fileType: true,
           createdAt: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Suggest next revision letter
       const usedLetters = revisions.map(r => r.revision.toUpperCase());

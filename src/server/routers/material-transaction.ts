@@ -346,7 +346,8 @@ export const materialTransactionProcedures = {
 
             const allItems = await tx.purchaseOrderItem.findMany({
               where: { purchaseOrderId: input.purchaseOrderId },
-            });
+               take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+             });
 
             const allFullyReceived = allItems.every((item) => {
               const currentQty = item.materialId === input.materialId ? newReceivedQty : item.receivedQty;
@@ -575,7 +576,8 @@ export const materialTransactionProcedures = {
           material: { select: { name: true, code: true, unit: true } },
         },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalBaseAmount = txns.reduce((s, t) => s + t.quantity * t.rate, 0);
       const totalVatAmount = txns.reduce((s, t) => s + (t.vatAmount ?? 0), 0);

@@ -34,7 +34,8 @@ export const leaveRouter = router({
           approvedBy: { select: { name: true } },
           createdBy: { select: { name: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { leaves };
     }),
 
@@ -229,7 +230,8 @@ export const leaveRouter = router({
           year,
         },
         orderBy: { leaveType: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { balances };
     }),
 

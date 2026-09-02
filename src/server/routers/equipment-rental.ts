@@ -355,7 +355,8 @@ export const equipmentRentalProcedures = {
       const rentals = await db.equipmentRental.findMany({
         where: { projectId: input.projectId },
         include: { equipment: { select: { name: true, code: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const now = new Date();
       let totalRentalCost = 0;

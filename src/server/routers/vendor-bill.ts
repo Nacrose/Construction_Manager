@@ -77,13 +77,15 @@ export const vendorBillRouter = router({
           },
         },
         orderBy: { billDate: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Compute AP Summary
       const allBills = await db.vendorBill.findMany({
         where: { projectId: input.projectId },
         select: { grossAmount: true, netPayable: true, paidAmount: true, status: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalBilled = allBills.reduce((acc, b) => acc + b.netPayable, 0);
       const totalPaid = allBills.reduce((acc, b) => acc + b.paidAmount, 0);

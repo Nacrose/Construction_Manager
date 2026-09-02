@@ -19,7 +19,8 @@ export const rateProfileRouter = router({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "asc" },
         include: { _count: { select: { items: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { profiles };
     }),
 
@@ -32,7 +33,8 @@ export const rateProfileRouter = router({
         where: { projectId: input.projectId },
         include: { items: { orderBy: { materialName: "asc" } } },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const items = profiles.flatMap((p) =>
         p.items.map((item) => ({
           materialName: item.materialName,

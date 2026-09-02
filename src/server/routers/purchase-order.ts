@@ -59,7 +59,8 @@ export const purchaseOrderRouter = router({
             select: { id: true, billNumber: true, status: true, paidAmount: true, netPayable: true },
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { purchaseOrders };
     }),
 

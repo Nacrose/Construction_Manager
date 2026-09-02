@@ -133,6 +133,7 @@ describe("correspondence.list", () => {
         project: { select: { id: true, name: true, code: true } },
       },
       orderBy: { date: "desc" },
+      take: 1000, // bounded (pagination sweep)
     });
   });
 });

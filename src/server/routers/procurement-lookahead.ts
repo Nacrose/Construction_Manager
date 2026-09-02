@@ -67,7 +67,8 @@ export const procurementLookaheadRouter = router({
           },
         },
         orderBy: { startDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // 2. Fetch all project materials with stock
       const materials = await db.material.findMany({
@@ -83,7 +84,8 @@ export const procurementLookaheadRouter = router({
           minStock: true,
           reorderLevel: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // 3. Fetch default Rate Analysis library ingredients
       const defaultLibId = await getDefaultLibraryId(input.projectId);
@@ -98,7 +100,8 @@ export const procurementLookaheadRouter = router({
             where: ingredientFilter as any,
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const boqIngredientMap = new Map<string, { name: string; quantityPerUnit: number; unit: string }[]>();
       for (const boq of boqItemsWithIngredients) {

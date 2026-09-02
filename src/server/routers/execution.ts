@@ -258,7 +258,8 @@ export const executionRouter = router({
           },
         },
         orderBy: { startDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Build a map: resourceId → list of (taskId, taskName, startDate, endDate)
       type Allocation = {
@@ -446,7 +447,8 @@ export const executionRouter = router({
           },
         },
         orderBy: { startDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Aggregate material requirements
       type MaterialReq = {

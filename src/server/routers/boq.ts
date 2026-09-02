@@ -62,7 +62,8 @@ export const boqRouter = router({
         where: { projectId: input.projectId },
         orderBy: { sortOrder: "asc" },
         include: { ingredients: { orderBy: { type: "asc" } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Aggregate executed quantities from linked daily program tasks
       const taskActuals = await db.dailyProgramTask.groupBy({

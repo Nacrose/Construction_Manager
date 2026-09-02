@@ -83,7 +83,10 @@ async function recalculateIpc(tx: any, ipcId: string) {
   });
   if (!ipc) return;
 
-  const items = await tx.ipcItem.findMany({ where: { ipcId } });
+  const items = await tx.ipcItem.findMany({
+    where: { ipcId },
+    take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+  });
   const gross = items.reduce((s: number, i: any) => s + i.amount, 0);
   const retentionAmount = (gross * ipc.retention) / 100;
 
@@ -100,7 +103,8 @@ async function recalculateIpc(tx: any, ipcId: string) {
         isDebitable: true,
         deductedInIpcId: null,
       },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
     materialDeductions = txns.reduce((sum: number, t: any) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
   }
 
@@ -132,7 +136,8 @@ export const ipcRouter = router({
           _count: { select: { items: true } },
           subcontractor: { select: { name: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { ipcs };
     }),
 
@@ -386,7 +391,8 @@ export const ipcRouter = router({
           status: { in: ["approved", "paid", "certified"] },
         },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const autoPrevGross = prevIpcs.reduce((s, p) => s + p.grossAmount, 0);
       const autoPrevVat = prevIpcs.reduce((s, p) => s + (p.vatAmount || 0), 0);
@@ -417,7 +423,8 @@ export const ipcRouter = router({
             isDebitable: true,
             deductedInIpcId: null,
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         thisMaterialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }
 
@@ -708,7 +715,8 @@ export const ipcRouter = router({
           _count: { select: { items: true } },
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalGross = ipcs.reduce((s, i) => s + i.grossAmount, 0);
       const totalVat = ipcs.reduce((s, i) => s + (i.vatAmount ?? 0), 0);

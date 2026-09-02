@@ -70,7 +70,8 @@ export const reportTemplateRouter = router({
         include: {
           owner: { select: { id: true, name: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { templates };
     }),
@@ -227,7 +228,8 @@ export const reportTemplateRouter = router({
         where: { scope: "global" },
         orderBy: [{ isDefault: "desc" }, { name: "asc" }],
         include: { owner: { select: { id: true, name: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { templates };
     }),
 });

@@ -158,7 +158,8 @@ export const dailyProgramRouter = router({
           subcontractor: { select: { id: true, name: true } },
           program: { select: { programDate: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Attach carried-over tasks
       const programWithCarryover = program ? {
@@ -232,7 +233,8 @@ export const dailyProgramRouter = router({
           boqCode: true,
           boqDesc: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const allTasks = [...(program?.tasks ?? []), ...carriedOverTasks];
       const ganttTaskIds = Array.from(
@@ -269,7 +271,8 @@ export const dailyProgramRouter = router({
             },
             task: { select: { id: true, code: true, name: true } },
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       // Filter to assignments whose endDate is null or >= date
@@ -350,7 +353,8 @@ export const dailyProgramRouter = router({
             id: true, name: true, designation: true, category: true, dailyWage: true,
           },
           orderBy: { name: "asc" },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.equipment.findMany({
           where: { projectId: input.projectId },
           select: {
@@ -358,7 +362,8 @@ export const dailyProgramRouter = router({
             status: true, fuelRate: true,
           },
           orderBy: { name: "asc" },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       return {
@@ -1286,7 +1291,8 @@ export const dailyProgramRouter = router({
           program: { select: { id: true, programDate: true } },
           rfi: { select: { id: true, number: true, subject: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { tasks };
     }),
 

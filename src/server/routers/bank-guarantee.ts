@@ -133,7 +133,8 @@ export const bankGuaranteeRouter = router({
             },
           },
           orderBy: { expiryDate: "asc" },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       } catch (err) {
         console.error("[bankGuarantee.list] List failed, ensuring table and retrying:", err);
         await ensureBankGuaranteeTable();
@@ -145,7 +146,8 @@ export const bankGuaranteeRouter = router({
             },
           },
           orderBy: { expiryDate: "asc" },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       const now = new Date();
@@ -201,7 +203,8 @@ export const bankGuaranteeRouter = router({
     const memberships = await db.projectMember.findMany({
       where: { userId: ctx.user.id },
       select: { projectId: true },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
     const projectIds = memberships.map((m) => m.projectId);
     const hasOrg = Boolean(ctx.user.organizationId);
     if (projectIds.length === 0 && !hasOrg) {
@@ -222,7 +225,8 @@ export const bankGuaranteeRouter = router({
         },
       },
       orderBy: { expiryDate: "asc" },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
 
     const now = new Date();
     const expiringSoon = activeGuarantees

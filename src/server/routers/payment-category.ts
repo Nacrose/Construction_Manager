@@ -145,7 +145,8 @@ export const paymentCategoryRouter = router({
           },
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Auto-seed if none exist for project
       if (categories.length === 0) {
@@ -188,7 +189,8 @@ export const paymentCategoryRouter = router({
             },
           },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       // Filter top-level parents with their nested children

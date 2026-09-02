@@ -51,7 +51,8 @@ export const dailyReportAttachmentsRouter = router({
           takenAt: true,
           uploadedAt: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { attachments };
     }),
 

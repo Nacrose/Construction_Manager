@@ -168,7 +168,8 @@ export const ganttTasksRouter = router({
             },
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       if (tasks.length > 0 && tasks.some((t) => !t.code)) {
         // RLS: GanttTask is FORCE-scoped — lazy WBS recode runs on a
@@ -210,7 +211,8 @@ export const ganttTasksRouter = router({
               },
             },
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       return { tasks };

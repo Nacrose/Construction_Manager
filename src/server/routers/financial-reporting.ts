@@ -68,7 +68,8 @@ export const financialReportingRouter = router({
           status: { in: ["certified", "approved", "paid"] },
         },
         select: { grossAmount: true, vatAmount: true, netPayable: true, status: true, createdAt: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       // Filter by the IPC's effective date (createdAt as proxy for
       // certification date — there's no separate certifiedAt field).
       const filteredIpcs = hasDate
@@ -92,7 +93,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { billDate: dateFilter } : {}),
         },
         select: { grossAmount: true, vatAmount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const materialCost = vendorBills.reduce((s, b) => s + b.grossAmount, 0);
 
       // ── Direct Cost: Subcontractor Bills (non-draft only) ──
@@ -103,7 +105,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { billDate: dateFilter } : {}),
         },
         select: { grossAmount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const subcontractCost = subBills.reduce((s, b) => s + b.grossAmount, 0);
 
       // ── Direct Cost: Material Consumed (from projectCost) ──
@@ -138,7 +141,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { date: dateFilter } : {}),
         },
         select: { amount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const materialConsumed = materialIssues.reduce((s, c) => s + c.amount, 0);
 
       // Does this project use daily reports? If so, its accounting model
@@ -157,7 +161,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { date: dateFilter } : {}),
         },
         select: { amount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const laborCost = laborCosts.reduce((s, c) => s + c.amount, 0);
 
       // ── Direct Cost: Equipment ────────────────────────────
@@ -168,7 +173,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { date: dateFilter } : {}),
         },
         select: { amount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const equipmentCost = equipCosts.reduce((s, c) => s + c.amount, 0);
 
       // ── Overhead: Site Expenses ───────────────────────────
@@ -179,7 +185,8 @@ export const financialReportingRouter = router({
           ...(hasDate ? { date: dateFilter } : {}),
         },
         select: { totalAmount: true, category: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const siteOverhead = siteExpenses.reduce((s, e) => s + e.totalAmount, 0);
 
       // ── Allocated Head Office Overhead ────────────────────
@@ -282,7 +289,8 @@ export const financialReportingRouter = router({
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 
@@ -300,7 +308,8 @@ export const financialReportingRouter = router({
         include: {
           project: { select: { id: true, name: true, code: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const receivables = ipcs
         .filter((i) => (i.retentionAmount || 0) > 0)
@@ -332,7 +341,8 @@ export const financialReportingRouter = router({
             project: { select: { id: true, name: true, code: true } },
             subcontractor: { select: { id: true, name: true, pan: true } },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.ipc.findMany({
           where: {
             projectId: { in: projectIds },
@@ -343,7 +353,8 @@ export const financialReportingRouter = router({
             project: { select: { id: true, name: true, code: true } },
             subcontractor: { select: { id: true, name: true, pan: true } },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       const payables = [
@@ -483,7 +494,8 @@ export const financialReportingRouter = router({
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 
@@ -503,7 +515,8 @@ export const financialReportingRouter = router({
           project: { select: { id: true, name: true, code: true } },
         },
         orderBy: { paymentDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Group by payee
       const partnerMap = new Map<string, {
@@ -583,7 +596,8 @@ export const financialReportingRouter = router({
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 
@@ -595,7 +609,8 @@ export const financialReportingRouter = router({
           tdsDeducted: { gt: 0 },
         },
         select: { tdsDeducted: true, paymentDate: true, payeeName: true, amount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const tdsDeducted = payments.reduce((s, p) => s + p.tdsDeducted, 0);
 
       // TDS deposited: look for payments with category containing "TDS"
@@ -625,7 +640,8 @@ export const financialReportingRouter = router({
           ],
         },
         select: { amount: true, paymentDate: true, payeeName: true, notes: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const tdsDeposited = tdsDeposits.reduce((s, p) => s + p.amount, 0);
 
       const variance = tdsDeducted - tdsDeposited;
@@ -688,7 +704,8 @@ export const financialReportingRouter = router({
       const bankAccounts = await db.companyBankAccount.findMany({
         where: { organizationId: user.organizationId, status: "active" },
         select: { currentBalance: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const cashBalance = bankAccounts.reduce((s, b) => s + b.currentBalance, 0);
 
       // ── Burn rate: average monthly actual costs (last N months) ─
@@ -698,7 +715,8 @@ export const financialReportingRouter = router({
       const memberships = await db.projectMember.findMany({
         where: { userId: ctx.user.id },
         select: { projectId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const projectIds = memberships.map((m) => m.projectId);
 
       const recentCosts = await db.projectCost.findMany({
@@ -707,7 +725,8 @@ export const financialReportingRouter = router({
           date: { gte: cutoffDate },
         },
         select: { amount: true, date: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const totalRecentCosts = recentCosts.reduce((s, c) => s + c.amount, 0);
       const monthlyBurnRate = totalRecentCosts / input.monthsToAverage;
       // JSON.stringify(Infinity) returns null — use a large number + flag
@@ -728,11 +747,13 @@ export const financialReportingRouter = router({
         db.vendorBill.findMany({
           where: { projectId: { in: projectIds }, status: { in: ["unpaid", "partially_paid"] } },
           select: { netPayable: true, paidAmount: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.subcontractorBill.findMany({
           where: { projectId: { in: projectIds }, status: { in: ["certified"] } },
           select: { netPayable: true, paidAmount: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.ipc.findMany({
           where: {
             projectId: { in: projectIds },
@@ -740,7 +761,8 @@ export const financialReportingRouter = router({
             status: { in: ["certified", "approved"] },
           },
           select: { netPayable: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       const totalPayables =
@@ -756,7 +778,8 @@ export const financialReportingRouter = router({
           status: { in: ["certified", "approved"] },
         },
         select: { netPayable: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const expectedInflows = pendingIpcs.reduce((s, i) => s + i.netPayable, 0);
 
       // ── Cash gap: payables - cash on hand ──────────────────
@@ -824,7 +847,8 @@ export const financialReportingRouter = router({
           parent: { select: { code: true, name: true } },
           _count: { select: { children: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { codes };
     }),
 
@@ -1138,13 +1162,15 @@ export const financialReportingRouter = router({
           const orgProjects = await db.project.findMany({
             where: { organizationId: user.organizationId },
             select: { id: true },
-          });
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           });
           projectIds = orgProjects.map((p) => p.id);
         } else {
           const memberships = await db.projectMember.findMany({
             where: { userId: ctx.user.id },
             select: { projectId: true },
-          });
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           });
           projectIds = memberships.map((m) => m.projectId);
         }
       }
@@ -1261,7 +1287,8 @@ export const financialReportingRouter = router({
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 

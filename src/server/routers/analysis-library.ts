@@ -36,7 +36,8 @@ export const analysisLibraryRouter = router({
         const boqItems = await db.boqItem.findMany({
           where: { projectId: input.projectId },
           select: { id: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
 
         for (const std of standard) {
           const exists = libraries.some((l) => l.purpose === std.purpose);
@@ -83,7 +84,8 @@ export const analysisLibraryRouter = router({
           where: { projectId: input.projectId },
           include: { _count: { select: { analyses: true } } },
           orderBy: { createdAt: "asc" },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       // Include the project's explicit default-library FK so the UI can

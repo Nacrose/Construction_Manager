@@ -88,7 +88,8 @@ export const financeRouter = router({
         include: {
           boqLinks: { include: { boqItem: { select: { rate: true } } } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       for (const task of tasks) {
         const taskCost = task.boqLinks.reduce(
@@ -131,7 +132,8 @@ export const financeRouter = router({
           date: { gte: startMonth },
         },
         select: { amount: true, date: true, category: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       for (const cost of costs) {
         const monthKey = `${cost.date.getFullYear()}-${String(cost.date.getMonth() + 1).padStart(2, "0")}`;
@@ -166,7 +168,8 @@ export const financeRouter = router({
           issueDate: { gte: startMonth, not: null },
         },
         select: { netPayable: true, issueDate: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       for (const ipc of paidIpcs) {
         if (!ipc.issueDate) continue;
@@ -225,7 +228,8 @@ export const financeRouter = router({
           quantity: true, rate: true, section: true,
         },
         orderBy: { code: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Get cumulative actual quantities from daily program tasks
       // (executionStatus = "done" or "partially_completed")
@@ -239,7 +243,8 @@ export const financeRouter = router({
           boqItemId: true,
           actualQty: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const actualQtyByBoq = new Map<string, number>();
       for (const t of programTasks) {
@@ -258,7 +263,8 @@ export const financeRouter = router({
           category: "material",
         },
         select: { boqItemId: true, amount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const materialCostByBoq = new Map<string, number>();
       for (const c of materialCosts) {
         if (!c.boqItemId) continue;
@@ -282,7 +288,8 @@ export const financeRouter = router({
           amount: true,
           receivedQty: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Build committed cost map by material (not BOQ — committed costs
       // are per-material, not per-BOQ-item). We'll aggregate at the
@@ -403,13 +410,15 @@ export const financeRouter = router({
       const orgProjects = await db.project.findMany({
         where: { organizationId: user.organizationId },
         select: { id: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       projectIds = orgProjects.map((p) => p.id);
     } else {
       const memberships = await db.projectMember.findMany({
         where: { userId: ctx.user.id },
         select: { projectId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       projectIds = memberships.map((m) => m.projectId);
     }
 
@@ -520,14 +529,16 @@ export const financeRouter = router({
         const orgProjects = await db.project.findMany({
           where: { organizationId: user.organizationId },
           select: { id: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = orgProjects.map((p) => p.id);
       } else {
         // No org — fall back to membership-based scoping.
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 
@@ -735,14 +746,16 @@ export const financeRouter = router({
           const orgProjects = await db.project.findMany({
             where: { organizationId: user.organizationId },
             select: { id: true },
-          });
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           });
           projectIds = orgProjects.map((p) => p.id);
         } else {
           // No org — fall back to membership-based scoping.
           const memberships = await db.projectMember.findMany({
             where: { userId: ctx.user.id },
             select: { projectId: true },
-          });
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           });
           projectIds = memberships.map((m) => m.projectId);
         }
       }
@@ -1006,13 +1019,15 @@ export const financeRouter = router({
         const orgProjects = await db.project.findMany({
           where: { organizationId: user.organizationId },
           select: { id: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = orgProjects.map((p) => p.id);
       } else {
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         projectIds = memberships.map((m) => m.projectId);
       }
 

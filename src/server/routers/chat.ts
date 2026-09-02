@@ -60,7 +60,8 @@ export const chatRouter = router({
             projectId: null, // org orders have no project
           },
           select: { id: true, createdById: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         // Filter to channels whose creator belongs to the caller's org.
         // Channels with null createdById are legacy/orphan — exclude them
         // from the user's view (they can still be reached explicitly via
@@ -72,7 +73,8 @@ export const chatRouter = router({
           ? await db.user.findMany({
               where: { id: { in: creatorIds } },
               select: { id: true, organizationId: true },
-            })
+               take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+             })
           : [];
         const sameOrgCreatorIds = new Set(
           creatorOrgs.filter((u) => u.organizationId === userOrgId).map((u) => u.id),
@@ -289,7 +291,8 @@ export const chatRouter = router({
       const members = await db.chatMember.findMany({
         where: { channelId: input.channelId },
         include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { members: members.map((m) => m.user) };
     }),
 
@@ -469,7 +472,8 @@ export const chatRouter = router({
       const receipts = await db.chatReadReceipt.findMany({
         where: { channelId: input.channelId },
         include: { user: { select: { id: true, name: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { receipts };
     }),
@@ -826,7 +830,8 @@ export const chatRouter = router({
       const users = await db.user.findMany({
         where: { id: { in: input.userIds } },
         select: { id: true, lastActiveAt: true, name: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const now = new Date();
       const twoMinAgo = new Date(now.getTime() - 2 * 60 * 1000);

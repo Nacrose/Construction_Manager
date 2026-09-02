@@ -114,7 +114,8 @@ export const correspondenceRouter = router({
           project: { select: { id: true, name: true, code: true } },
         },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { letters };
     }),
@@ -305,7 +306,8 @@ export const correspondenceRouter = router({
           replyDueDate: true,
           category: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const now = new Date();
       const actionable = letters.filter(l => l.letterType === "actionable");

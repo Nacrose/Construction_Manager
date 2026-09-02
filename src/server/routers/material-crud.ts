@@ -65,12 +65,14 @@ export const materialCrudProcedures = {
             catalogMaterial: { select: { id: true, name: true, category: true, defaultUnit: true, resourceType: true } },
             _count: { select: { transactions: true } },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.supplier.findMany({
           where: { projectId: input.projectId },
           orderBy: { name: "asc" },
           include: { _count: { select: { purchaseOrders: true } } },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.purchaseOrder.findMany({
           where: { projectId: input.projectId },
           orderBy: { orderDate: "desc" },
@@ -80,7 +82,8 @@ export const materialCrudProcedures = {
             items: { include: { material: { select: { name: true, unit: true, code: true } } } },
             _count: { select: { items: true } },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
       return { materials, suppliers, purchaseOrders };
     }),
@@ -233,7 +236,8 @@ export const materialCrudProcedures = {
       const materials = await db.material.findMany({
         where: { id: { in: input.itemIds } },
         select: { id: true, projectId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const projectIds = new Set(materials.map((m) => m.projectId));
       for (const pId of projectIds) {
         await assertProjectMember(ctx.user, pId);

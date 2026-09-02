@@ -32,7 +32,8 @@ export const submittalRouter = router({
       }
       const submittals = await db.submittal.findMany({
         where, orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { submittals };
     }),
 
@@ -164,7 +165,8 @@ export const submittalRouter = router({
       const submittals = await db.submittal.findMany({
         where: { projectId: input.projectId },
         select: { status: true, type: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return {
         total: submittals.length,
         draft: submittals.filter(s => s.status === "draft").length,

@@ -140,7 +140,8 @@ export const projectRouter = router({
           organization: { select: { id: true, name: true, code: true } },
         },
         orderBy: { updatedAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return {
         projects: orgProjects.map((p) => ({
           ...p,
@@ -160,7 +161,8 @@ export const projectRouter = router({
           organization: { select: { id: true, name: true, code: true } },
         },
         orderBy: { updatedAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return {
         projects: allProjects.map((p) => ({
           ...p,
@@ -181,7 +183,8 @@ export const projectRouter = router({
           organization: { select: { id: true, name: true, code: true } },
         },
         orderBy: { updatedAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return {
         projects: allProjects.map((p) => ({
           ...p,
@@ -212,7 +215,8 @@ export const projectRouter = router({
         },
       },
       orderBy: { project: { updatedAt: "desc" } },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
 
     // Also get projects the user created (in case they created one but
     // weren't auto-added as a member)
@@ -226,7 +230,8 @@ export const projectRouter = router({
         _count: { select: { rfis: true, members: true } },
       },
       orderBy: { updatedAt: "desc" },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
 
     const memberProjects = memberships.map((m) => ({
       ...m.project,
@@ -926,7 +931,8 @@ export const projectRouter = router({
     const memberships = await db.projectMember.findMany({
       where: { userId: ctx.user.id },
       select: { projectId: true },
-    });
+       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+     });
     const projectIds = memberships.map((m) => m.projectId);
 
     if (projectIds.length === 0) {
@@ -969,7 +975,8 @@ export const projectRouter = router({
           endDate: true,
         },
         orderBy: { name: "asc" },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.ipc.findMany({
         where: { projectId: { in: projectIds } },
         select: {
@@ -978,7 +985,8 @@ export const projectRouter = router({
           netPayable: true,
           status: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.vendorBill.findMany({
         where: { projectId: { in: projectIds } },
         select: {
@@ -988,7 +996,8 @@ export const projectRouter = router({
           paidAmount: true,
           status: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.subcontractorBill.findMany({
         where: { projectId: { in: projectIds } },
         select: {
@@ -998,7 +1007,8 @@ export const projectRouter = router({
           paidAmount: true,
           status: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.payment.findMany({
         where: { projectId: { in: projectIds }, status: "paid" },
         select: {
@@ -1009,7 +1019,8 @@ export const projectRouter = router({
           category: true,
           payeeType: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.siteExpense.findMany({
         where: { projectId: { in: projectIds } },
         select: {
@@ -1017,7 +1028,8 @@ export const projectRouter = router({
           amount: true,
           category: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
       db.equipmentSpotHire.findMany({
         where: { projectId: { in: projectIds } },
         select: {
@@ -1025,7 +1037,8 @@ export const projectRouter = router({
           totalGross: true,
           paymentStatus: true,
         },
-      }),
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       }),
     ]);
 
     const projectFinancials = projects.map((p) => {

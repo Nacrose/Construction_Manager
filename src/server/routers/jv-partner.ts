@@ -52,7 +52,8 @@ export const jvPartnerRouter = router({
           issueDate: true,
         },
         orderBy: { number: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalCertifiedTurnover = ipcs.reduce((sum, ipc) => sum + ipc.grossAmount, 0);
       const commissionRate = agreement?.commissionRate ?? 1.5;

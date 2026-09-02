@@ -454,7 +454,8 @@ export const adminRouter = router({
       const rules = await db.delegationRule.findMany({
         where: { organizationId: input.organizationId },
         orderBy: { action: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return {
         operatingModel: org.operatingModel,

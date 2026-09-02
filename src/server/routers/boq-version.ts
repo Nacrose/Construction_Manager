@@ -20,7 +20,8 @@ export const boqVersionRouter = router({
         where: { projectId: input.projectId },
         orderBy: { versionNumber: "desc" },
         include: { _count: { select: { items: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { versions };
     }),
 
@@ -218,7 +219,8 @@ export const boqVersionRouter = router({
         const current = await db.boqItem.findMany({
           where: { projectId: input.projectId },
           orderBy: { sortOrder: "asc" },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         rightItems = current;
         rightLabel = "Current";
       }

@@ -44,7 +44,8 @@ export async function cloneDependencies(
   if (oldIds.length === 0) return result;
   const deps = await tx.taskDependency.findMany({
     where: { OR: [{ predecessorId: { in: oldIds } }, { successorId: { in: oldIds } }] },
-  });
+     take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+   });
   for (const dep of deps) {
     const newPred = idMap.get(dep.predecessorId);
     const newSucc = idMap.get(dep.successorId);
@@ -89,7 +90,8 @@ export async function cloneResourceAssignments(
   if (oldIds.length === 0) return;
   const assignments = await tx.resourceAssignment.findMany({
     where: { taskId: { in: oldIds } },
-  });
+     take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+   });
   for (const a of assignments) {
     const newTaskId = idMap.get(a.taskId);
     if (!newTaskId) continue;
@@ -818,7 +820,8 @@ export const ganttVersionsRouter = router({
           duration: true,
           progress: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       let previousTasks: Array<{
         id: string;
@@ -840,7 +843,8 @@ export const ganttVersionsRouter = router({
             endDate: true,
             duration: true,
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
       }
 
       const prevStartDates = previousTasks

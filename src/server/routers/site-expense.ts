@@ -46,7 +46,8 @@ export const siteExpenseRouter = router({
           approvedBy: { select: { name: true } },
           createdBy: { select: { name: true } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { expenses };
     }),
 
@@ -412,7 +413,8 @@ export const siteExpenseRouter = router({
       const allExpenses = await db.siteExpense.findMany({
         where: { projectId: input.projectId },
         select: { category: true, status: true, totalAmount: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const byCategory: Record<string, number> = {};
       let totalPending = 0;

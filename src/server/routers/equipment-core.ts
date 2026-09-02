@@ -353,7 +353,8 @@ export const equipmentCoreProcedures = {
           boqItem: { select: { id: true, code: true, description: true, unit: true } },
         },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const taskMap = new Map<string, {
         taskId: string;
@@ -417,7 +418,8 @@ export const equipmentCoreProcedures = {
       const equipment = await db.equipment.findMany({
         where: { projectId: input.projectId },
         select: { id: true, name: true, code: true, factoryFuelRate: true, fuelRate: true, unit: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -485,7 +487,8 @@ export const equipmentCoreProcedures = {
       const equipment = await db.equipment.findMany({
         where: { projectId: input.projectId },
         select: { id: true, name: true, code: true, type: true, unit: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const logs = await db.equipmentLog.findMany({
         where: {
@@ -498,7 +501,8 @@ export const equipmentCoreProcedures = {
           fuelFilled: true,
           date: true,
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const equipMap = new Map<string, {
         id: string;

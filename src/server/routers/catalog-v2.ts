@@ -178,7 +178,8 @@ export const catalogV2Router = router({
           defaultRate: true,
         },
         orderBy: [{ category: "asc" }, { subCategory: "asc" }, { name: "asc" }],
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Build hierarchical tree:
       // Tier 1: Category (e.g. "Cement", "Steel & Reinforcement", "Aggregates & Sand")
@@ -598,7 +599,8 @@ export const catalogV2Router = router({
       const materials = await db.catalogMaterial.findMany({
         where: { id: { in: inputIds } },
         select: { id: true, scope: true, organizationId: true, projectId: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       for (const m of materials) {
         if (m.scope === "org") {
           assertOrgMember(ctx, m.organizationId);
@@ -671,7 +673,8 @@ export const catalogV2Router = router({
         const memberships = await db.projectMember.findMany({
           where: { userId: ctx.user.id },
           select: { projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         where.OR = [
           { scope: "global" },
           { organizationId: ctx.user.organizationId ?? "__none__" },
@@ -682,7 +685,8 @@ export const catalogV2Router = router({
       const materials = await db.catalogMaterial.findMany({
         where,
         select: { id: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const ids = materials.map((m) => m.id);
       if (ids.length === 0) {
         return { totalCount: 0, referencedCount: 0, safeCount: 0, ids: [] };
@@ -752,7 +756,8 @@ export const catalogV2Router = router({
           },
         },
         orderBy: { material: { name: "asc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Optional search filter
       let filtered = rates;
@@ -1163,7 +1168,10 @@ export const catalogV2Router = router({
         sourceWhere.projectId = null;
       }
 
-      const sourceMaterials = await db.catalogMaterial.findMany({ where: sourceWhere });
+      const sourceMaterials = await db.catalogMaterial.findMany({
+        where: sourceWhere,
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
+      });
 
       const newMaterials: Array<{ id: string; name: string; scope: string; [k: string]: any }> = [];
       const existingMaterials: Array<{ source: any; target: any }> = [];
@@ -1290,7 +1298,8 @@ export const catalogV2Router = router({
           _count: { select: { catalogRates: true } },
         },
         orderBy: [{ fiscalYear: "desc" }, { name: "asc" }],
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { catalogs };
     }),
@@ -1418,7 +1427,8 @@ export const catalogV2Router = router({
         const catalogs = await db.rateBook.findMany({
           where: { id: { in: catalogIds } },
           select: { id: true, scope: true, organizationId: true, projectId: true },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         for (const c of catalogs) {
           if (c.scope === "org" && c.organizationId) assertOrgMember(ctx, c.organizationId);
           else if (c.scope === "project" && c.projectId) await assertProjectMember(ctx, c.projectId);
@@ -1441,7 +1451,8 @@ export const catalogV2Router = router({
                 },
               },
             },
-          })
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           })
         : [];
 
       type EffectiveRateItem = {
@@ -1500,7 +1511,8 @@ export const catalogV2Router = router({
               },
             },
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         for (const r of orgRates) {
           const existing = findExisting(r.material);
           if (existing) {
@@ -1537,7 +1549,8 @@ export const catalogV2Router = router({
               },
             },
           },
-        });
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         });
         for (const r of projRates) {
           const existing = findExisting(r.material);
           if (existing) {
@@ -1619,7 +1632,8 @@ export const catalogV2Router = router({
           substitute: { select: { id: true, name: true, category: true, defaultUnit: true, defaultRate: true } },
         },
         orderBy: { priority: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       return { substitutes: subs };
     }),
 

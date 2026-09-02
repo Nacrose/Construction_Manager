@@ -32,7 +32,8 @@ export const resourceAssignmentRouter = router({
           equipment: { select: { id: true, name: true, code: true, type: true, status: true } },
         },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { assignments };
     }),
@@ -256,7 +257,8 @@ export const resourceAssignmentRouter = router({
           equipment: { select: { id: true, name: true, code: true, type: true } },
         },
         orderBy: { createdAt: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { assignments };
     }),

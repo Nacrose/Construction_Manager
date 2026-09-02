@@ -78,7 +78,8 @@ export const partnerRouter = router({
           material: { select: { name: true, code: true, unit: true } },
         },
         orderBy: { date: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const totalDebitAmount = debits.reduce((acc, curr) => {
         const rate = curr.recoveryRate ?? curr.rate;
@@ -115,7 +116,8 @@ export const partnerRouter = router({
           boqItem: { select: { id: true, code: true, description: true, unit: true } },
         },
         orderBy: { program: { programDate: "desc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Aggregate stats
       const totalTasks = tasks.length;
@@ -143,7 +145,8 @@ export const partnerRouter = router({
         ? await db.rfi.findMany({
             where: { id: { in: Array.from(rfiIds) } },
             select: { id: true, number: true, subject: true, status: true, workDate: true },
-          })
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           })
         : [];
 
       return {
@@ -529,7 +532,8 @@ export const partnerRouter = router({
             select: { materialName: true },
           },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const partnerIds = partners.map(p => p.id);
       const transactions = partnerIds.length > 0
@@ -543,7 +547,8 @@ export const partnerRouter = router({
               quantity: true,
               rate: true,
             },
-          })
+             take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+           })
         : [];
 
       const poIdToPartnerId = new Map<string, string>();

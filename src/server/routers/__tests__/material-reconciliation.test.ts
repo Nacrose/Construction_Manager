@@ -123,6 +123,7 @@ describe("materialReconciliation.getRequirements", () => {
 
     expect(anyDb.materialTransaction.findMany).toHaveBeenCalledWith({
       where: { projectId: "p-1", type: "issue" },
+      take: 1000, // bounded (pagination sweep)
     });
     expect(anyDb.material.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1" });
     expect(anyDb.boqItem.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1" });

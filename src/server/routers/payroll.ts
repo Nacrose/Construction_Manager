@@ -37,19 +37,22 @@ export const payrollRouter = router({
         db.staff.findMany({
           where: { projectId: input.projectId, status: "active" },
           orderBy: [{ gangName: "asc" }, { category: "asc" }, { name: "asc" }],
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.staffAttendance.findMany({
           where: {
             projectId: input.projectId,
             date: { gte: startDate, lte: endDate },
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.staffAdvance.findMany({
           where: {
             projectId: input.projectId,
             isRecovered: false,
           },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.payrollRun.findUnique({
           where: {
             projectId_month: {
@@ -421,7 +424,8 @@ export const payrollRouter = router({
                 isRecovered: false,
               },
               orderBy: { date: "asc" },
-            });
+               take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+             });
 
             // Apply the deduction in FIFO order, marking advances as
             // recovered only when their full amount is consumed.
@@ -552,7 +556,8 @@ export const payrollRouter = router({
       const runs = await db.payrollRun.findMany({
         where: { projectId: input.projectId },
         orderBy: { month: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       return { runs };
     }),

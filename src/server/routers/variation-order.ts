@@ -21,7 +21,8 @@ export const variationOrderRouter = router({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
         include: { _count: { select: { items: true } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
     }),
 
   /** Get a single Variation Order by ID */

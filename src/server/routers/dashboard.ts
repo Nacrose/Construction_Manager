@@ -57,7 +57,8 @@ export const dashboardRouter = router({
       const costs = await db.projectCost.findMany({
         where: { projectId: input.projectId },
         select: { amount: true, category: true, date: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const byCategory: Record<string, number> = {};
       for (const c of costs) {
@@ -69,7 +70,8 @@ export const dashboardRouter = router({
       const boqItems = await db.boqItem.findMany({
         where: { projectId: input.projectId },
         select: { amount: true, category: true, section: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const totalBudget = boqItems.reduce((s, b) => s + b.amount, 0);
 
       // Group BOQ by section for section-level variance
@@ -131,7 +133,8 @@ export const dashboardRouter = router({
           createdAt: true,
         },
         orderBy: { createdAt: "desc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Status breakdown
       const byStatus: Record<string, number> = {};
@@ -209,7 +212,8 @@ export const dashboardRouter = router({
           plannedValue: true,
           boqLinks: { select: { quantity: true, boqItem: { select: { amount: true } } } },
         },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       if (tasks.length === 0) {
         return { planned: [], actual: [], summary: { totalPlanned: 0, totalActual: 0, avgProgress: 0 } };
@@ -277,14 +281,16 @@ export const dashboardRouter = router({
           },
         },
         orderBy: { reportDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // For each report, calculate the material cost (as proxy for earned value)
       // We use the BOQ ingredient cost × actualQty as "earned value"
       const boqItems = await db.boqItem.findMany({
         where: { projectId: input.projectId },
         include: { ingredients: { where: { type: "material" } } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
       const boqMap = new Map(boqItems.map(b => [b.code, b]));
 
       let cumulativeActual = 0;
@@ -537,13 +543,15 @@ export const dashboardRouter = router({
           issueDate: true,
         },
         orderBy: { issueDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Get all project costs by month
       const costs = await db.projectCost.findMany({
         where: { projectId: input.projectId },
         select: { amount: true, date: true, category: true },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       // Group costs by month
       const costsByMonth: Record<string, number> = {};
@@ -626,7 +634,8 @@ export const dashboardRouter = router({
           rainfallMm: true,
         },
         orderBy: { reportDate: "asc" },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       if (reports.length === 0) {
         return { conditions: [], scatter: [], summary: { clearPct: 0, rainPct: 0, productivityDropPct: 0 } };
@@ -638,15 +647,18 @@ export const dashboardRouter = router({
         db.dailyReportWorkforce.findMany({
           where: { reportId: { in: reportIds } },
           select: { reportId: true, headcount: true, regHours: true, otHours: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.dailyReportProgress.findMany({
           where: { reportId: { in: reportIds } },
           select: { reportId: true, executionStatus: true, plannedQty: true, actualQty: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
         db.dailyReportEquipment.findMany({
           where: { reportId: { in: reportIds } },
           select: { reportId: true, workingHours: true, fuel: true },
-        }),
+           take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         }),
       ]);
 
       const workforceByReport = new Map<string, { headcount: number; hours: number }>();
@@ -771,7 +783,8 @@ export const dashboardRouter = router({
           program: { select: { id: true, programDate: true } },
         },
         orderBy: { program: { programDate: "desc" } },
-      });
+         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       });
 
       const now = new Date();
 
