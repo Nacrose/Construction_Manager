@@ -43,8 +43,8 @@ git push -u origin main
 5. Under **Environment Variables**, add:
    - `DATABASE_URL` = (your Neon connection string from step 2)
    - `AUTH_SECRET` = (any random 32+ char string — use `openssl rand -hex 32`)
-   - `SETUP_SECRET` = (any random string — REQUIRED to call `/api/setup` and
-     `/api/seed`; without it first-run setup will refuse to run)
+   - `SETUP_SECRET` = (any random string — REQUIRED to call `/api/setup`
+     and `/api/seed`; without them first-run bootstrap will refuse to run)
    - Optionally, storage variables — see `.env.example` for the full list
      (`STORAGE_PROVIDER`, R2/S3 keys). Default `local` provider keeps files
      private and streams them via the authenticated `/api/files/[key]` route.
@@ -57,13 +57,34 @@ git push -u origin main
 
 ## 4. First-run setup
 
-When you first visit the deployment URL (e.g.
-`https://construction-manager.vercel.app`), the app will:
+Before the first request can succeed, apply the database schema once
+from your machine (or a Vercel shell) against the production
+`DATABASE_URL`:
 
-1. Call `/api/setup` to create all database tables (one-time)
-2. Redirect you to `/login`
-3. Click "Seed Demo Data" on the login page to populate sample users,
+```bash
+npx prisma migrate deploy
+```
+
+Then, to create the first superadmin, either call the bootstrap
+endpoint (with `SETUP_SECRET` set):
+
+```bash
+curl -X POST https://<deployment>/api/setup \
+  -H "x-setup-secret: $SETUP_SECRET" \
+  -H "content-type: application/json" \
+  -d '{"email":"admin@example.com","name":"Admin","password":"..."}'
+```
+
+…or run `scripts/setup-superadmin.ts` with `SUPERADMIN_EMAIL` /
+`SUPERADMIN_PASSWORD` env vars set. Then seed demo data and log in:
+
+1. Click "Seed Demo Data" on the login page to populate sample users,
    a sample project, BOQ items, Gantt tasks, and RFIs
+2. Log in with any of the demo accounts shown on the login page
+
+> **Troubleshooting:** if `_prisma_migrations` reports a checksum
+> mismatch for `0_init` (a database previously touched by the retired
+> runtime DDL), run `npx prisma migrate resolve --applied 0_init`.
 
 You'll then be able to log in with any of the demo accounts shown on
 the login page.

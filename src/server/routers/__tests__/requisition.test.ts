@@ -181,6 +181,12 @@ describe("requisition.updateStatus", () => {
       projectId: "p-1",
       status: "ordered",
     });
+    // engine re-read (transitionEntityState resolves the entity itself)
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue({
+      id: "pr-1",
+      projectId: "p-1",
+      status: "ordered",
+    });
     const caller = createCaller(requisitionRouter, PM);
     await expectTRPCError(
       caller.updateStatus({
@@ -190,6 +196,7 @@ describe("requisition.updateStatus", () => {
       }),
       "BAD_REQUEST",
     );
+    expect(anyDb.purchaseRequisition.updateMany).not.toHaveBeenCalled();
   });
 
   it("requires a rejection reason", async () => {
@@ -210,13 +217,18 @@ describe("requisition.updateStatus", () => {
     );
   });
 
-  it("stores the trimmed rejection reason and approver", async () => {
+  it("stores the trimmed rejection reason via the engine (CAS + attribution)", async () => {
     member("project_manager");
-    anyDb.purchaseRequisition.findFirst.mockResolvedValue({
+    const prFixture = {
       id: "pr-1",
       projectId: "p-1",
       status: "pending_approval",
-    });
+      approvedById: null,
+      rejectionReason: null,
+      rejectedAt: null,
+    };
+    anyDb.purchaseRequisition.findFirst.mockResolvedValue(prFixture);
+    anyDb.purchaseRequisition.findUnique.mockResolvedValue(prFixture); // engine re-read
     const caller = createCaller(requisitionRouter, PM);
     await caller.updateStatus({
       projectId: "p-1",
@@ -224,15 +236,18 @@ describe("requisition.updateStatus", () => {
       status: "rejected",
       rejectionReason: "  Budget exceeded  ",
     });
-    expect(anyDb.purchaseRequisition.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: "rejected",
-          rejectionReason: "Budget exceeded",
-          approvedById: "pm-1",
-        }),
+    // Engine contract: CAS claim on the status just read; the trimmed
+    // reason rides notes → rejectionReason; rejection attribution is
+    // rejectedAt (same as the rejectPr sibling — approvedById is only
+    // stamped on approval).
+    expect(anyDb.purchaseRequisition.updateMany).toHaveBeenCalledWith({
+      where: { id: "pr-1", status: "pending_approval" },
+      data: expect.objectContaining({
+        status: "rejected",
+        rejectionReason: "Budget exceeded",
+        rejectedAt: expect.any(Date),
       }),
-    );
+    });
   });
 });
 

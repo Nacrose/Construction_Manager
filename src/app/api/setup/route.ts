@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { ensureSchema } from "@/lib/ensure-schema";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createAdminSession } from "@/lib/auth";
 
 /**
- * GET /api/setup — applies the baseline Prisma migration to the database.
+ * POST /api/setup — bootstrap the platform superadmin.
  *
- * SECURITY:
- * - In development (NODE_ENV=development): runs without authentication
- * - In production: requires SETUP_SECRET env var, passed as
- *   ?secret=xxx query param or x-setup-secret header
+ * Requires the x-setup-secret header (SETUP_SECRET env var). Idempotent:
+ * if a superadmin already exists, it returns a message instead of
+ * creating a duplicate.
  *
- * Also: if no super admin exists, promotes the first user to super admin.
+ * SCHEMA NOTE (v1.2): this route no longer applies DDL. The runtime
+ * ensure-schema system was retired — Prisma migrations are the single
+ * source of truth. Bootstrap a database with:
+ *
+ *     npx prisma migrate deploy
+ *
+ * If the User table is missing (schema never applied), this endpoint
+ * fails loudly with the instruction instead of silently patching the
+ * schema at runtime.
  */
-
-// Re-export splitSqlStatements so the test file can import it from this module
-export { splitSqlStatements } from "@/lib/split-sql";
 
 function checkSetupAuth(req: NextRequest): boolean {
   // Always require SETUP_SECRET (no dev bypass)
@@ -34,51 +38,10 @@ function checkSetupAuth(req: NextRequest): boolean {
   return false;
 }
 
-export async function GET(req: NextRequest) {
-  // Auth check
-  if (!checkSetupAuth(req)) {
-    return NextResponse.json({
-      error: "Setup requires SETUP_SECRET. Pass x-setup-secret header.",
-    }, { status: 403 });
-  }
+// Prisma error surfaced when the schema was never applied (no User table).
+const SCHEMA_INSTRUCTION =
+  "Database schema is not applied. Run `npx prisma migrate deploy` against this database (see DEPLOY.md), then retry.";
 
-  try {
-    const logs: string[] = [];
-    const result = await ensureSchema();
-
-    logs.push(`✅ ${result.executed} statements executed`);
-    if (result.skipped > 0) {
-      logs.push(`ℹ️  ${result.skipped} skipped (already existed)`);
-    }
-    if (result.failed > 0) {
-      logs.push(`⚠️  ${result.failed} failed — check errors below`);
-    }
-
-
-    logs.push("✅ Database setup complete. Visit /login to sign in.");
-
-    return NextResponse.json({
-      message: result.executed > 0
-        ? "Database setup complete. New tables/columns created."
-        : "Database already up to date.",
-      logs,
-      executed: result.executed,
-      skipped: result.skipped,
-      failed: result.failed,
-      errors: result.errors,
-    });
-  } catch (err) {
-    console.error("Setup failed:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Setup failed" },
-      { status: 500 }
-    );
-  }
-}
-
-// POST /api/setup — bootstrap the platform superadmin.
-// Requires x-setup-secret header (SETUP_SECRET). Idempotent: if a superadmin
-// already exists, it returns a message instead of creating a duplicate.
 export async function POST(req: NextRequest) {
   if (!checkSetupAuth(req)) {
     return NextResponse.json(
@@ -88,13 +51,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const schemaResult = await ensureSchema();
-    if (schemaResult.failed > 0) {
-      // Surface silent schema failures (e.g. unique-index creation issues)
-      // instead of swallowing them into an unread result object.
-      console.error("ensureSchema reported failures:", schemaResult.errors);
-    }
-
     const body = (await req.json().catch(() => ({}))) as {
       email?: string;
       name?: string;
@@ -148,7 +104,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: "Superadmin created. Log in with these credentials.",
       token,
-      schemaWarnings: schemaResult.failed > 0 ? schemaResult.errors : [],
       user: {
         id: superadmin.id,
         email: superadmin.email,
@@ -161,6 +116,16 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
+    // Fail loudly with actionable guidance when the schema is missing
+    // (P2021: table does not exist; P2022: column does not exist) —
+    // previously this endpoint "fixed" such DBs with unversioned runtime
+    // DDL, which is the drift machine that broke fresh environments.
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      (err.code === "P2021" || err.code === "P2022")
+    ) {
+      return NextResponse.json({ error: SCHEMA_INSTRUCTION }, { status: 503 });
+    }
     console.error("Setup failed:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Setup failed" },
