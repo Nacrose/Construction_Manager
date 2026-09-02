@@ -202,6 +202,12 @@ let workerTimer: ReturnType<typeof setInterval> | null = null;
  * Start the outbox worker loop (single-flight per process). Reaps stuck
  * rows and dispatches pending batches on the configured interval. Safe to
  * call repeatedly — subsequent calls are no-ops.
+ *
+ * DEPLOYMENT NOTE: on Vercel serverless this MUST NOT be relied on —
+ * functions freeze between requests, so the interval never ticks. The
+ * production dispatch path is the /api/cron/outbox endpoint (vercel.json,
+ * every 5 minutes). This in-process loop remains for long-running
+ * self-hosted deployments and local dev convenience.
  */
 export function startOutboxWorker(opts: { intervalMs?: number } = {}): void {
   if (workerTimer) return;
