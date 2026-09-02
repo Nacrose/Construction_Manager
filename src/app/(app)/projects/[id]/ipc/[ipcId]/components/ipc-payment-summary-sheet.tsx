@@ -230,11 +230,11 @@ function IpcPaymentSummaryContent({
       />
 
       {/* Official Nepal Summary of Payment Sheet Container */}
-      <Card className="border-2 border-blue-900/30 dark:border-blue-700/50 shadow-md bg-card p-6 overflow-x-auto text-foreground">
+      <Card className="border-2 border-[var(--ink)]/30 dark:border-info/40/50 shadow-md bg-card p-6 overflow-x-auto text-foreground">
         <div className="min-w-[760px] space-y-4">
           {/* Header Title Block */}
-          <div className="text-center space-y-1 border-b-2 border-blue-900 pb-3">
-            <h1 className="text-lg font-bold text-blue-950 dark:text-blue-200 tracking-wide uppercase">
+          <div className="text-center space-y-1 border-b-2 border-[var(--ink)] pb-3">
+            <h1 className="text-lg font-bold text-[var(--ink)] dark:text-info/80 tracking-wide uppercase">
               {isEditing ? (
                 <Input
                   value={approvedBy}
@@ -263,7 +263,7 @@ function IpcPaymentSummaryContent({
               <div className="inline-block border-b-2 border-foreground pb-0.5 font-bold text-sm uppercase tracking-wider">
                 INTERIM PAYMENT CERTIFICATE NO.: IPC -{ipc.number}
               </div>
-              <p className="text-xs font-bold text-blue-900 dark:text-blue-300 underline mt-0.5">
+              <p className="text-xs font-bold text-info dark:text-info/80 underline mt-0.5">
                 Summary of Payment
               </p>
             </div>
@@ -286,7 +286,7 @@ function IpcPaymentSummaryContent({
               </div>
               <div className="flex justify-between border-b pb-0.5">
                 <span className="text-muted-foreground">Client Tax Invoice #:</span>
-                <span className="font-bold text-blue-600">{ipc.taxInvoiceNo || `IPC-${ipc.number}`}</span>
+                <span className="font-bold text-info">{ipc.taxInvoiceNo || `IPC-${ipc.number}`}</span>
               </div>
             </div>
 
@@ -322,7 +322,7 @@ function IpcPaymentSummaryContent({
                   <th className="border-r border-foreground p-2 w-12 text-center">S.No.</th>
                   <th className="border-r border-foreground p-2 text-left min-w-[220px]">Description</th>
                   <th className="border-r border-foreground p-2 w-36 text-right">Upto Previous IPC Amount (NRs.)</th>
-                  <th className="border-r border-foreground p-2 w-36 text-right bg-blue-50/50 dark:bg-blue-950/20">This IPC Amount (NRs.)</th>
+                  <th className="border-r border-foreground p-2 w-36 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20">This IPC Amount (NRs.)</th>
                   <th className="border-r border-foreground p-2 w-36 text-right">Total Amount (NRs.)</th>
                   <th className="p-2 w-24 text-center">Progress %</th>
                 </tr>
@@ -333,7 +333,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center font-bold">A</td>
                   <td className="border-r border-foreground p-2 text-left font-bold">Bill Amount with out VAT</td>
                   <td className="border-r border-foreground p-2 text-right">{fmt(summary.prev.gross)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 font-extrabold text-blue-700 dark:text-blue-300">
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 font-extrabold text-info dark:text-info/80">
                     {fmt(summary.thisPeriod.gross)}
                   </td>
                   <td className="border-r border-foreground p-2 text-right font-extrabold">{fmt(summary.cumulative.gross)}</td>
@@ -347,7 +347,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center font-bold">B</td>
                   <td className="border-r border-foreground p-2 text-left">Vat 13% of A</td>
                   <td className="border-r border-foreground p-2 text-right text-muted-foreground">{fmt(summary.prev.vat)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 font-semibold">{fmt(summary.thisPeriod.vat)}</td>
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 font-semibold">{fmt(summary.thisPeriod.vat)}</td>
                   <td className="border-r border-foreground p-2 text-right font-semibold">{fmt(summary.cumulative.vat)}</td>
                   <td className="p-2 text-center"></td>
                 </tr>
@@ -377,7 +377,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center font-bold">E</td>
                   <td className="border-r border-foreground p-2 text-left">Mobilization Advance (@ % of work done)</td>
                   <td className="border-r border-foreground p-2 text-right">{fmt(summary.prev.advance)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 font-semibold text-amber-700 dark:text-amber-300">
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 font-semibold text-amber-700 dark:text-amber-300">
                     {fmt(summary.thisPeriod.advance)}
                   </td>
                   <td className="border-r border-foreground p-2 text-right font-semibold">{fmt(summary.cumulative.advance)}</td>
@@ -389,7 +389,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center font-bold">F</td>
                   <td className="border-r border-foreground p-2 text-left">Retention Amount @ 5% of A</td>
                   <td className="border-r border-foreground p-2 text-right">{fmt(summary.prev.retention)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 font-semibold">{fmt(summary.thisPeriod.retention)}</td>
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 font-semibold">{fmt(summary.thisPeriod.retention)}</td>
                   <td className="border-r border-foreground p-2 text-right font-semibold">{fmt(summary.cumulative.retention)}</td>
                   <td className="p-2 text-center"></td>
                 </tr>
@@ -399,7 +399,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center font-bold">G</td>
                   <td className="border-r border-foreground p-2 text-left">TDS @ 1.5% of A (Nepal Sec 89)</td>
                   <td className="border-r border-foreground p-2 text-right text-red-600">{fmt(summary.prev.tds)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 font-semibold text-red-600">{fmt(summary.thisPeriod.tds)}</td>
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 font-semibold text-red-600">{fmt(summary.thisPeriod.tds)}</td>
                   <td className="border-r border-foreground p-2 text-right font-semibold text-red-600">{fmt(summary.cumulative.tds)}</td>
                   <td className="p-2 text-center"></td>
                 </tr>
@@ -409,7 +409,7 @@ function IpcPaymentSummaryContent({
                   <td className="border-r border-foreground p-2 text-center">H</td>
                   <td className="border-r border-foreground p-2 text-left uppercase">Total Deduction Amount (E+F+G)</td>
                   <td className="border-r border-foreground p-2 text-right text-red-700">{fmt(summary.prev.totalDeductions)}</td>
-                  <td className="border-r border-foreground p-2 text-right bg-blue-50/50 dark:bg-blue-950/20 text-red-700 font-bold">
+                  <td className="border-r border-foreground p-2 text-right bg-info/50 dark:bg-[var(--navy-deep)]/20 text-red-700 font-bold">
                     {fmt(summary.thisPeriod.totalDeductions)}
                   </td>
                   <td className="border-r border-foreground p-2 text-right font-bold text-red-700">{fmt(summary.cumulative.totalDeductions)}</td>
@@ -423,7 +423,7 @@ function IpcPaymentSummaryContent({
                     Net Payable Amount Including VAT (C-H)
                   </td>
                   <td className="border-r border-foreground p-2 text-right">{fmt(summary.prev.netPayable)}</td>
-                  <td className="border-r border-foreground p-2 text-right font-black text-blue-950 dark:text-blue-200">
+                  <td className="border-r border-foreground p-2 text-right font-black text-[var(--ink)] dark:text-info/80">
                     NRs. {fmt(summary.thisPeriod.netPayable)}
                   </td>
                   <td className="border-r border-foreground p-2 text-right font-black">

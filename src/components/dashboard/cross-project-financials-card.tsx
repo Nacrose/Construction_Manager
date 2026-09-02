@@ -60,21 +60,21 @@ export function CrossProjectFinancialsCard() {
 
   return (
     <Card className="shadow-lg border-border/80 overflow-hidden font-sans">
-      <CardHeader className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-6 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <CardHeader className="bg-gradient-to-r from-[var(--navy-mid)] via-slate-800 to-[var(--navy-mid)] text-white p-6 dark:from-[var(--navy-deep)] dark:via-slate-900 dark:to-[var(--navy-deep)]">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-white/10 text-emerald-400 font-semibold tracking-wider">
                 Multi-Project P&amp;L
               </span>
-              <span className="text-xs text-slate-300 font-mono">
+              <span className="text-xs text-muted-foreground font-mono">
                 {projects.length} Active Project{projects.length > 1 ? "s" : ""}
               </span>
             </div>
             <CardTitle className="text-xl font-bold mt-1 text-white tracking-tight">
               Cross-Project Financial Overview &amp; Payables
             </CardTitle>
-            <CardDescription className="text-xs text-slate-300 mt-0.5">
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
               Consolidated contract revenue, actual costs incurred, gross profit margins, and outstanding payables.
             </CardDescription>
           </div>
@@ -96,38 +96,38 @@ export function CrossProjectFinancialsCard() {
         {/* Portfolio Summary Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6 pt-5 border-t border-white/10 font-mono">
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">Contract Value</div>
+            <div className="text-[10px] text-muted-foreground/80 uppercase">Contract Value</div>
             <div className="text-base font-bold text-white mt-0.5">
               {formatNpr(totals.totalContractValue)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">Certified Revenue</div>
+            <div className="text-[10px] text-muted-foreground/80 uppercase">Certified Revenue</div>
             <div className="text-base font-bold text-emerald-400 mt-0.5">
               {formatNpr(totals.totalRevenueCertified)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">Costs Incurred</div>
-            <div className="text-base font-bold text-slate-200 mt-0.5">
+            <div className="text-[10px] text-muted-foreground/80 uppercase">Costs Incurred</div>
+            <div className="text-base font-bold text-foreground mt-0.5">
               {formatNpr(totals.totalCostIncurred)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">Net Profit / (Loss)</div>
+            <div className="text-[10px] text-muted-foreground/80 uppercase">Net Profit / (Loss)</div>
             <div className={cn("text-base font-bold mt-0.5", isProfit ? "text-emerald-400" : "text-red-400")}>
               {isProfit ? "+" : ""}{formatNpr(totals.totalGrossProfit)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">What We Owe (Payables)</div>
+            <div className="text-[10px] text-muted-foreground/80 uppercase">What We Owe (Payables)</div>
             <div className="text-base font-bold text-amber-400 mt-0.5">
               {formatNpr(totals.totalPayables)}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-400 uppercase">Client Due (Receivables)</div>
-            <div className="text-base font-bold text-cyan-400 mt-0.5">
+            <div className="text-[10px] text-muted-foreground/80 uppercase">Client Due (Receivables)</div>
+            <div className="text-base font-bold text-info mt-0.5">
               {formatNpr(totals.totalClientReceivables)}
             </div>
           </div>
@@ -229,7 +229,7 @@ export function CrossProjectFinancialsCard() {
                     </td>
 
                     {/* Client Due */}
-                    <td className="px-3 py-3 text-right font-medium text-cyan-600 dark:text-cyan-400">
+                    <td className="px-3 py-3 text-right font-medium text-info dark:text-info">
                       {p.clientReceivables > 0 ? formatNpr(p.clientReceivables) : "—"}
                     </td>
 

@@ -60,11 +60,11 @@ export function SiteTelemetryTicker() {
   }
 
   return (
-    <div className="w-full bg-[#e5eef7] border-b border-[#c7d8e8] px-3 py-1 text-[11px] font-mono text-slate-600 flex items-center justify-between gap-4 select-none shrink-0 z-20">
+    <div className="w-full bg-[var(--background)] border-b border-[var(--border)] px-3 py-1 text-[11px] font-mono text-muted-foreground flex items-center justify-between gap-4 select-none shrink-0 z-20">
       {/* Left: Project / Site Context */}
       <div className="flex items-center gap-2 truncate min-w-0">
-        <span className="font-bold text-[#0284c7] font-mono">SITE:</span>
-        <span className="truncate text-slate-800 font-bold">
+        <span className="font-bold text-[var(--primary)] font-mono">SITE:</span>
+        <span className="truncate text-foreground/90 font-bold">
           {projectData?.project?.code} — {projectData?.project?.name}
         </span>
       </div>
@@ -100,15 +100,15 @@ export function SiteTelemetryTicker() {
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <button
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#c5d7e8] bg-white hover:bg-sky-50 text-[#0369a1] text-[10px] font-semibold transition-all cursor-pointer font-mono shadow-xs"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-[#c5d7e8] bg-card hover:bg-info/10 text-[var(--primary)] text-[10px] font-semibold transition-all cursor-pointer font-mono shadow-xs"
               title="Bikram Sambat Nepali Calendar"
             >
-              <CalendarIcon className="h-3 w-3 text-[#0284c7]" />
+              <CalendarIcon className="h-3 w-3 text-[var(--primary)]" />
               <span className="font-bold font-matrix">{bsDate.displayNp}</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-sky-100 text-[#0369a1] font-mono font-bold">BS</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-info/15 text-[var(--primary)] font-mono font-bold">BS</span>
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 border border-[#c7d8e8] shadow-2xl z-50 bg-white" align="end">
+          <PopoverContent className="w-auto p-0 border border-[var(--border)] shadow-2xl z-50 bg-card" align="end">
             <NepaliCalendar
               value={new Date()}
               showDualAdDate={true}
@@ -117,7 +117,7 @@ export function SiteTelemetryTicker() {
           </PopoverContent>
         </Popover>
 
-        <span className="text-[10px] font-mono text-slate-500 font-matrix">
+        <span className="text-[10px] font-mono text-muted-foreground font-matrix">
           {timeStr}
         </span>
       </div>

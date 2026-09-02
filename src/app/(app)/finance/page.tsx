@@ -32,20 +32,20 @@ export default function OrganizationFinancePage() {
             {/* Tab 1: Day Book & Cashbook */}
             <TabsTrigger value="accounting" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
               <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
-                <path d="M4 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="url(#finBookGrad)" stroke="#0369a1" stroke-width="1.2"/>
-                <path d="M3 5v16a1 1 0 0 0 1 1h2V4H4a1 1 0 0 0-1 1z" fill="#0284c7"/>
+                <path d="M4 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" fill="url(#finBookGrad)" stroke="#b45309" stroke-width="1.2"/>
+                <path d="M3 5v16a1 1 0 0 0 1 1h2V4H4a1 1 0 0 0-1 1z" fill="#d97706"/>
                 <path d="M12 4v7l2-1.5 2 1.5V4h-4z" fill="#facc15" stroke="#ca8a04" stroke-width="0.8"/>
                 <defs>
                   <linearGradient id="finBookGrad" x1="3" y1="4" x2="20" y2="22" gradientUnits="userSpaceOnUse">
                     <stop stop-color="#38bdf8"/>
-                    <stop offset="1" stop-color="#0284c7"/>
+                    <stop offset="1" stop-color="#d97706"/>
                   </linearGradient>
                 </defs>
               </svg>
               <span>Day Book & Cashbook</span>
             </TabsTrigger>
 
-            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+            <div className="w-[1px] h-3.5 bg-[var(--navy-mid)]/10 shrink-0"></div>
 
             {/* Tab 2: Bank Accounts & OD */}
             <TabsTrigger value="bank-accounts" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
@@ -70,7 +70,7 @@ export default function OrganizationFinancePage() {
               <span>Bank Accounts & OD</span>
             </TabsTrigger>
 
-            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+            <div className="w-[1px] h-3.5 bg-[var(--navy-mid)]/10 shrink-0"></div>
 
             {/* Tab 3: Guarantees & Bid Bonds */}
             <TabsTrigger value="guarantees" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
@@ -91,24 +91,24 @@ export default function OrganizationFinancePage() {
               <span>Guarantees & Bid Bonds</span>
             </TabsTrigger>
 
-            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+            <div className="w-[1px] h-3.5 bg-[var(--navy-mid)]/10 shrink-0"></div>
 
             {/* Tab 4: Parties & Payables */}
             <TabsTrigger value="payments" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
               <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="6" width="18" height="14" rx="3" fill="url(#finPayGrad)" stroke="#0369a1" stroke-width="1.2"/>
+                <rect x="3" y="6" width="18" height="14" rx="3" fill="url(#finPayGrad)" stroke="#b45309" stroke-width="1.2"/>
                 <circle cx="12" cy="13" r="2.5" fill="#facc15" stroke="#b45309" stroke-width="0.8"/>
                 <defs>
                   <linearGradient id="finPayGrad" x1="3" y1="6" x2="21" y2="20" gradientUnits="userSpaceOnUse">
                     <stop stop-color="#38bdf8"/>
-                    <stop offset="1" stop-color="#0284c7"/>
+                    <stop offset="1" stop-color="#d97706"/>
                   </linearGradient>
                 </defs>
               </svg>
               <span>Parties & Payables</span>
             </TabsTrigger>
 
-            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+            <div className="w-[1px] h-3.5 bg-[var(--navy-mid)]/10 shrink-0"></div>
 
             {/* Tab 5: JV Commissions */}
             <TabsTrigger value="jv-commission" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
@@ -126,7 +126,7 @@ export default function OrganizationFinancePage() {
               <span>JV Commissions</span>
             </TabsTrigger>
 
-            <div className="w-[1px] h-3.5 bg-sky-900/10 shrink-0"></div>
+            <div className="w-[1px] h-3.5 bg-[var(--navy-mid)]/10 shrink-0"></div>
 
             {/* Tab 6: Reports & Compliance */}
             <TabsTrigger value="tax-summary" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">
@@ -165,7 +165,7 @@ export default function OrganizationFinancePage() {
           {projects.length > 0 && projectSpecificId ? (
             <PaymentsPage params={Promise.resolve({ id: projectSpecificId })} />
           ) : (
-            <div className="p-8 text-center bg-white rounded-xl border border-border text-xs text-muted-foreground">
+            <div className="p-8 text-center bg-card rounded-xl border border-border text-xs text-muted-foreground">
               Select an active project site from the dropdown to view party ledgers and payables.
             </div>
           )}
@@ -176,7 +176,7 @@ export default function OrganizationFinancePage() {
           {projectSpecificId ? (
             <ProjectJvTab projectId={projectSpecificId} />
           ) : (
-            <div className="p-8 text-center bg-white rounded-xl border border-border text-xs text-muted-foreground">
+            <div className="p-8 text-center bg-card rounded-xl border border-border text-xs text-muted-foreground">
               Select an active project site from the dropdown to view JV partner commission agreements.
             </div>
           )}
@@ -187,7 +187,7 @@ export default function OrganizationFinancePage() {
           {projects.length > 0 && projectSpecificId ? (
             <TaxSummaryPage params={Promise.resolve({ id: projectSpecificId })} />
           ) : (
-            <div className="p-8 text-center bg-white rounded-xl border border-border text-xs text-muted-foreground">
+            <div className="p-8 text-center bg-card rounded-xl border border-border text-xs text-muted-foreground">
               Select an active project site from the dropdown to view VAT and TDS tax reports.
             </div>
           )}

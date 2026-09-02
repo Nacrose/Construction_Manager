@@ -180,7 +180,7 @@ export function OrgPayablesTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500 shadow-sm bg-card">
+        <Card className="border-l-4 border-l-info shadow-sm bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="text-[10px] font-mono text-muted-foreground uppercase">
               Total Unsettled Bills (कुल बाँकी बिलहरू)
@@ -309,7 +309,7 @@ export function OrgPayablesTab() {
                           className={cn(
                             "text-[9px] px-1.5 py-0 capitalize font-mono",
                             sup.type === "vendor"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              ? "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80"
                               : "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
                           )}
                         >

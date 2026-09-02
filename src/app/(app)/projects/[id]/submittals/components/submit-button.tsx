@@ -9,5 +9,5 @@ export function SubmitButton({ submittalId, projectId }: { submittalId: string; 
     onSuccess: () => { utils.submittal.list.invalidate({ projectId }); utils.submittal.stats.invalidate({ projectId }); toast.success("Submittal submitted"); },
     onError: (e) => toast.error(e.message),
   });
-  return <button onClick={() => mut.mutate({ id: submittalId })} disabled={mut.isPending} className="text-[9px] text-blue-600 hover:underline">Submit</button>;
+  return <button onClick={() => mut.mutate({ id: submittalId })} disabled={mut.isPending} className="text-[9px] text-info hover:underline">Submit</button>;
 }

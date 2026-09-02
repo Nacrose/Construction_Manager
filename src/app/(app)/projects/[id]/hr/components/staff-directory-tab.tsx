@@ -99,9 +99,9 @@ export function StaffDirectoryTab({
           className={cn("text-[9px] px-1.5 py-0 capitalize", {
             "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":
               worker.category === "skilled",
-            "bg-slate-100 text-slate-700 dark:bg-slate-800": worker.category === "unskilled",
+            "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)]": worker.category === "unskilled",
             "bg-amber-100 text-amber-800 dark:bg-amber-950": worker.category === "supervisor",
-            "bg-sky-100 text-sky-800 dark:bg-sky-950": worker.category === "staff",
+            "bg-info/15 text-info dark:bg-[var(--navy-deep)]": worker.category === "staff",
             "bg-purple-100 text-purple-800 dark:bg-purple-950": worker.category === "operator",
           })}
         >
@@ -286,11 +286,11 @@ export function StaffDirectoryTab({
           <span className="text-muted-foreground/40">│</span>
           <span className="text-emerald-600 dark:text-emerald-400">Skilled: {skilledCount}</span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-slate-600 dark:text-slate-400">Unskilled: {unskilledCount}</span>
+          <span className="text-muted-foreground dark:text-muted-foreground/80">Unskilled: {unskilledCount}</span>
           <span className="text-muted-foreground/40">│</span>
           <span className="text-purple-600 dark:text-purple-400">Operators: {operatorCount}</span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-sky-600 dark:text-sky-400">Salaried: {monthlyCount}</span>
+          <span className="text-info dark:text-info/80">Salaried: {monthlyCount}</span>
         </div>
 
         <div>

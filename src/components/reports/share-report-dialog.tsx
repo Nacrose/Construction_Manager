@@ -185,14 +185,14 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
 
             <Button
               variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950"
+              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-info/10 hover:border-info/40 dark:hover:bg-[var(--navy-deep)]"
               onClick={handleSendEmail}
               disabled={emailMut.isPending}
             >
               {emailMut.isPending ? (
-                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                <Loader2 className="h-5 w-5 text-info animate-spin" />
               ) : (
-                <Mail className="h-5 w-5 text-blue-600" />
+                <Mail className="h-5 w-5 text-info" />
               )}
               <div className="text-xs font-medium">Email</div>
               <div className="text-[10px] text-muted-foreground">Send via SMTP</div>
@@ -201,9 +201,9 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
             <Link href={designerHref} onClick={() => onOpenChange(false)}>
               <Button
                 variant="outline"
-                className="h-auto py-3 w-full flex flex-col items-center gap-1.5 hover:bg-slate-50 hover:border-slate-300 dark:hover:bg-slate-800"
+                className="h-auto py-3 w-full flex flex-col items-center gap-1.5 hover:bg-muted/60 hover:border-border dark:hover:bg-[var(--navy-mid)]"
               >
-                <FileText className="h-5 w-5 text-slate-600" />
+                <FileText className="h-5 w-5 text-muted-foreground" />
                 <div className="text-xs font-medium">PDF Designer</div>
                 <div className="text-[10px] text-muted-foreground">Custom layout editor</div>
               </Button>
@@ -211,10 +211,10 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
 
             <Button
               variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-slate-50 hover:border-slate-300 dark:hover:bg-slate-800"
+              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-muted/60 hover:border-border dark:hover:bg-[var(--navy-mid)]"
               onClick={handleOpenPrint}
             >
-              <Printer className="h-5 w-5 text-slate-600" />
+              <Printer className="h-5 w-5 text-muted-foreground" />
               <div className="text-xs font-medium">Quick Print</div>
               <div className="text-[10px] text-muted-foreground">Default template</div>
             </Button>

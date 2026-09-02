@@ -22,9 +22,9 @@ type Doc = {
 
 const TYPE_COLORS: Record<string, string> = {
   drawing: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  spec: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  spec: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   contract: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  report: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  report: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   letter: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
 };
 

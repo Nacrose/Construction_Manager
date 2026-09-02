@@ -58,7 +58,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 font-mono">
             <Card className="p-4">
               <p className="text-xs text-muted-foreground uppercase">Total Budget</p>
-              <p className="mt-1 text-lg font-semibold text-blue-600">
+              <p className="mt-1 text-lg font-semibold text-info">
                 {formatNpr(data.totals.totalBudget)}
               </p>
             </Card>
@@ -121,7 +121,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                   {data.sections.map((s) => (
                     <TableRow key={s.section}>
                       <TableCell className="font-medium text-xs">{s.section}</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-blue-600">{formatNpr(s.budgetAmount)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-info">{formatNpr(s.budgetAmount)}</TableCell>
                       <TableCell className="text-right font-mono text-xs text-amber-600">{formatNpr(s.actualAmount)}</TableCell>
                       <TableCell className={cn(
                         "text-right font-mono text-xs font-semibold",
@@ -212,7 +212,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                                 <TableCell className="text-right text-xs font-mono">{item.budgetQty} {item.unit}</TableCell>
                                 <TableCell className="text-right text-xs font-mono">{item.actualQty} {item.unit}</TableCell>
                                 <TableCell className="text-right text-xs font-mono">{formatNpr(item.rate)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono text-blue-600">{formatNpr(item.budgetAmount)}</TableCell>
+                                <TableCell className="text-right text-xs font-mono text-info">{formatNpr(item.budgetAmount)}</TableCell>
                                 <TableCell className="text-right text-xs font-mono text-amber-600">{formatNpr(item.actualAmount)}</TableCell>
                                 <TableCell className={cn(
                                   "text-right text-xs font-mono font-semibold",

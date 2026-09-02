@@ -130,7 +130,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
   };
 
   const CATEGORY_COLORS: Record<string, string> = {
-    district_rate: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+    district_rate: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
     supplier_quotation: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
     contractor_negotiated: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
   };
@@ -223,7 +223,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
           {canWrite && (
             <div className="bg-muted/20 border p-3 rounded-lg space-y-2">
               <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <Plus className="h-3.5 w-3.5 text-blue-500" /> Add Material Rate to Profile
+                <Plus className="h-3.5 w-3.5 text-info" /> Add Material Rate to Profile
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-center">
                 <div>
@@ -345,7 +345,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
                                 </td>
                                 <td className="p-2.5">
                                   {item.subCategory ? (
-                                    <Badge variant="outline" className="bg-blue-50/60 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 text-[9px] font-mono">
+                                    <Badge variant="outline" className="bg-info/60 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 text-[9px] font-mono">
                                       {item.subCategory}
                                     </Badge>
                                   ) : (

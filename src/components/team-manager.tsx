@@ -37,10 +37,10 @@ const ROLES = ["project_manager", "engineer", "coordinator", "client", "inspecto
 
 const ROLE_STYLES: Record<string, string> = {
   project_manager: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  engineer: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  engineer: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   client: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  inspector: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  inspector: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
 };
 
 export function TeamManager({

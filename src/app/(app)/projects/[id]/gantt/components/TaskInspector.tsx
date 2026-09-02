@@ -227,9 +227,9 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
   };
 
   return (
-    <div className="w-[240px] shrink-0 border-l border-border/80 bg-slate-950/95 backdrop-blur-md flex flex-col font-mono z-20 shadow-2xl">
+    <div className="w-[240px] shrink-0 border-l border-border/80 bg-[var(--navy-deep)]/95 backdrop-blur-md flex flex-col font-mono z-20 shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/60 px-2.5 py-1.5 bg-slate-900/80">
+      <div className="flex items-center justify-between border-b border-border/60 px-2.5 py-1.5 bg-[var(--navy-mid)]/80">
         <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
           <Info className="h-3 w-3" />
           Task Inspector
@@ -252,10 +252,10 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
               <InlineEdit
                 value={task.name}
                 onSave={(v) => updateMutation.mutate({ taskId: task.id, name: v })}
-                className="text-xs font-semibold leading-tight text-slate-100"
+                className="text-xs font-semibold leading-tight text-foreground"
               />
             ) : (
-              <p className="text-xs font-semibold leading-tight text-slate-100">{task.name}</p>
+              <p className="text-xs font-semibold leading-tight text-foreground">{task.name}</p>
             )}
           </div>
         </div>
@@ -271,7 +271,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                     onClick={() => reorderMutation.mutate({ projectId, taskId: task.id, direction: "outdent" })}
                     disabled={reorderMutation.isPending}
                     title="Outdent (Move up 1 level)"
-                    className="rounded px-1 py-0.2 bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-emerald-400 text-[8px] font-mono cursor-pointer"
+                    className="rounded px-1 py-0.2 bg-[var(--navy-mid)] border border-border hover:border-emerald-500 text-muted-foreground hover:text-emerald-400 text-[8px] font-mono cursor-pointer"
                   >
                     ← Outdent
                   </button>
@@ -280,7 +280,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                   onClick={() => reorderMutation.mutate({ projectId, taskId: task.id, direction: "indent" })}
                   disabled={reorderMutation.isPending}
                   title="Indent (Nest under previous task)"
-                  className="rounded px-1 py-0.2 bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-emerald-400 text-[8px] font-mono cursor-pointer"
+                  className="rounded px-1 py-0.2 bg-[var(--navy-mid)] border border-border hover:border-emerald-500 text-muted-foreground hover:text-emerald-400 text-[8px] font-mono cursor-pointer"
                 >
                   Indent →
                 </button>
@@ -295,7 +295,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                 const pId = e.target.value || null;
                 updateMutation.mutate({ taskId: task.id, parentId: pId });
               }}
-              className="w-full h-5 rounded border border-border/60 bg-background/90 px-1 text-[9px] font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 truncate"
+              className="w-full h-5 rounded border border-border/60 bg-background/90 px-1 text-[9px] font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 truncate"
             >
               <option value="">(None - Root Task)</option>
               {allTasks
@@ -307,7 +307,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                 ))}
             </select>
           ) : (
-            <div className="text-[9px] font-mono text-slate-300 truncate">
+            <div className="text-[9px] font-mono text-muted-foreground truncate">
               {task.parentId
                 ? (allTasks.find(t => t.id === task.parentId)?.name ?? "Parent task")
                 : "(Root Task)"}
@@ -399,13 +399,13 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
         </div>
 
         {/* Work Calendar & Advance Rate Modeling */}
-        <div className="space-y-1.5 rounded border border-slate-800/80 bg-slate-900/40 p-1.5">
+        <div className="space-y-1.5 rounded border border-border/80 bg-[var(--navy-mid)]/40 p-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[8.5px] font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1 font-mono">
+            <span className="text-[8.5px] font-bold text-info uppercase tracking-wider flex items-center gap-1 font-mono">
               ⚡ Shift Calendar & Model
             </span>
             {task.taskType === "24_7_shift" && (
-              <span className="px-1 py-0.2 rounded bg-cyan-950/80 border border-cyan-800/60 text-[8px] text-cyan-300 font-bold">24/7</span>
+              <span className="px-1 py-0.2 rounded bg-cyan-950/80 border border-info/40 text-[8px] text-info font-bold">24/7</span>
             )}
             {task.taskType === "buffer" && (
               <span className="px-1 py-0.2 rounded bg-amber-950/80 border border-amber-800/60 text-[8px] text-amber-300 font-bold">Buffer</span>
@@ -414,7 +414,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
 
           {/* Calendar Shift Selector */}
           <div className="flex items-center gap-1">
-            <span className="text-[8px] text-slate-400 font-mono shrink-0">Calendar:</span>
+            <span className="text-[8px] text-muted-foreground/80 font-mono shrink-0">Calendar:</span>
             {canWrite ? (
               <select
                 value={task.taskType || "fixed_duration"}
@@ -426,7 +426,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                     ignoreResourceCalendar: val === "24_7_shift",
                   });
                 }}
-                className="flex-1 h-5 text-[9px] font-mono bg-slate-950/90 border border-slate-800 rounded px-1 text-slate-200 focus:border-cyan-500 focus:outline-none"
+                className="flex-1 h-5 text-[9px] font-mono bg-[var(--navy-deep)]/90 border border-border rounded px-1 text-foreground focus:border-cyan-500 focus:outline-none"
               >
                 <option value="fixed_duration">Standard (6d/wk, 8h)</option>
                 <option value="24_7_shift">24/7 Continuous (3 Shifts)</option>
@@ -434,7 +434,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                 <option value="buffer">Risk Buffer (Float Reserve)</option>
               </select>
             ) : (
-              <span className="text-[9px] font-mono text-slate-300">
+              <span className="text-[9px] font-mono text-muted-foreground">
                 {task.taskType === "24_7_shift" ? "24/7 Continuous" : task.taskType === "buffer" ? "Risk Buffer" : "Standard"}
               </span>
             )}
@@ -442,22 +442,22 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
 
           {/* Linear Advance Rate Calculator */}
           {canWrite && (
-            <div className="pt-1 border-t border-slate-800/60 space-y-1">
-              <span className="text-[8px] text-slate-400 uppercase font-mono block">Linear Advance Rate (m/day):</span>
+            <div className="pt-1 border-t border-border/60 space-y-1">
+              <span className="text-[8px] text-muted-foreground/80 uppercase font-mono block">Linear Advance Rate (m/day):</span>
               <div className="grid grid-cols-2 gap-1">
                 <input
                   type="number"
                   placeholder="Total Qty (m)"
                   value={advQty}
                   onChange={(e) => setAdvQty(e.target.value)}
-                  className="h-5 text-[9px] font-mono bg-slate-950 border border-slate-800 rounded px-1 text-slate-200 text-center"
+                  className="h-5 text-[9px] font-mono bg-[var(--navy-deep)] border border-border rounded px-1 text-foreground text-center"
                 />
                 <input
                   type="number"
                   placeholder="Rate (m/day)"
                   value={advRate}
                   onChange={(e) => setAdvRate(e.target.value)}
-                  className="h-5 text-[9px] font-mono bg-slate-950 border border-slate-800 rounded px-1 text-slate-200 text-center"
+                  className="h-5 text-[9px] font-mono bg-[var(--navy-deep)] border border-border rounded px-1 text-foreground text-center"
                 />
               </div>
               <button
@@ -471,7 +471,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                   }
                 }}
                 disabled={!advQty || !advRate}
-                className="w-full h-4.5 flex items-center justify-center rounded bg-cyan-950/50 border border-cyan-800/40 hover:bg-cyan-900/60 text-cyan-300 text-[8px] font-mono disabled:opacity-40 transition-colors cursor-pointer"
+                className="w-full h-4.5 flex items-center justify-center rounded bg-cyan-950/50 border border-info/40 hover:bg-cyan-900/60 text-info text-[8px] font-mono disabled:opacity-40 transition-colors cursor-pointer"
               >
                 Apply Advance Rate ➔ Days
               </button>
@@ -504,7 +504,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
               ))}
               {totalBoqValue > 0 && (
                 <div className="text-right text-[9px] text-muted-foreground">
-                  Total: <span className="font-semibold text-slate-200">NPR {totalBoqValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+                  Total: <span className="font-semibold text-foreground">NPR {totalBoqValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
                 </div>
               )}
             </div>
@@ -747,26 +747,26 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
               <button
                 type="button"
                 onClick={() => onReplicate?.(task)}
-                className="flex items-center gap-1.5 w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-200 hover:text-emerald-400 text-[9px] font-mono cursor-pointer transition-colors text-left"
+                className="flex items-center gap-1.5 w-full px-2 py-1 rounded bg-[var(--navy-mid)] border border-border hover:border-emerald-500 text-foreground hover:text-emerald-400 text-[9px] font-mono cursor-pointer transition-colors text-left"
               >
                 <Copy className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
                 <span>⎘ Replicate Structure...</span>
               </button>
 
               {isSavingTemplate ? (
-                <div className="mt-1 space-y-1 p-1 rounded bg-slate-900/90 border border-slate-700">
+                <div className="mt-1 space-y-1 p-1 rounded bg-[var(--navy-mid)]/90 border border-border">
                   <input
                     type="text"
                     value={templateNameInput}
                     onChange={(e) => setTemplateNameInput(e.target.value)}
                     placeholder="Template Name..."
-                    className="w-full rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-[9px] text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full rounded border border-border bg-[var(--navy-mid)] px-1.5 py-0.5 text-[9px] text-white focus:outline-none focus:border-emerald-500"
                   />
                   <div className="flex items-center justify-end gap-1">
                     <button
                       type="button"
                       onClick={() => setIsSavingTemplate(false)}
-                      className="px-1.5 py-0.5 text-[8px] rounded border border-slate-700 text-slate-400 hover:text-slate-200"
+                      className="px-1.5 py-0.5 text-[8px] rounded border border-border text-muted-foreground/80 hover:text-foreground"
                     >
                       Cancel
                     </button>
@@ -793,7 +793,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
                     setTemplateNameInput(task.name);
                     setIsSavingTemplate(true);
                   }}
-                  className="flex items-center gap-1.5 w-full px-2 py-1 rounded bg-slate-900 border border-slate-700 hover:border-emerald-500 text-slate-200 hover:text-emerald-400 text-[9px] font-mono cursor-pointer transition-colors text-left"
+                  className="flex items-center gap-1.5 w-full px-2 py-1 rounded bg-[var(--navy-mid)] border border-border hover:border-emerald-500 text-foreground hover:text-emerald-400 text-[9px] font-mono cursor-pointer transition-colors text-left"
                 >
                   <Sparkles className="h-2.5 w-2.5 text-amber-400 shrink-0" />
                   <span>⭐ Save as Template</span>

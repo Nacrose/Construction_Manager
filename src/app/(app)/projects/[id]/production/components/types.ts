@@ -11,11 +11,11 @@ export const RES_TABS = [
 ];
 
 export const TICKET_STATUS_STYLES: Record<string, string> = {
-  dispatched: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
+  dispatched: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
   in_transit: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   delivered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
   rejected: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
-  cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+  cancelled: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
 
 export const PLANT_TYPE_LABELS: Record<
@@ -25,7 +25,7 @@ export const PLANT_TYPE_LABELS: Record<
   concrete_batching: {
     label: "Concrete Batching Plant",
     icon: Factory,
-    color: "text-blue-600 dark:text-blue-400",
+    color: "text-info dark:text-info/80",
   },
   asphalt_hot_mix: {
     label: "Asphalt Hot Mix Plant",

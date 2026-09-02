@@ -222,7 +222,7 @@ export function SyncCatalogDialog({
                   {newItemCount} Available
                 </Badge>
                 {selectedIds.size > 0 && (
-                  <Badge className="bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-300/30 text-[10px] font-medium">
+                  <Badge className="bg-info/10 text-info dark:text-info/80 border-info/40/30 text-[10px] font-medium">
                     {selectedIds.size} Selected
                   </Badge>
                 )}

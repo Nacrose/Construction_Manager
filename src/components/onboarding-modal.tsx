@@ -199,7 +199,7 @@ export function OnboardingModal() {
           {step === "offline" && (
             <div className="space-y-3">
               <div className="flex items-center gap-3 rounded-lg border p-3">
-                <Wifi className="h-5 w-5 text-blue-500 shrink-0" />
+                <Wifi className="h-5 w-5 text-info shrink-0" />
                 <div className="flex-1 text-sm">
                   <p className="font-medium">Open key pages once while online</p>
                   <p className="text-xs text-muted-foreground mt-0.5">

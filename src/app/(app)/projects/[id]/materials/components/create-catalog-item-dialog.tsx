@@ -147,7 +147,7 @@ export function RateSourceCombobox({
                   onChange(search);
                   setOpen(false);
                 }}
-                className="cursor-pointer rounded px-2 py-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-xs font-medium border-t mt-1"
+                className="cursor-pointer rounded px-2 py-1.5 text-info hover:bg-info/10 dark:hover:bg-[var(--navy-deep)]/30 text-xs font-medium border-t mt-1"
               >
                 + Use custom: &quot;{search}&quot;
               </div>
@@ -308,7 +308,7 @@ export function CreateCatalogItemDialog({
           {currentPresets.length > 0 && (
             <div className="space-y-1 bg-muted/20 p-2.5 rounded-lg border text-xs">
               <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                <Layers className="h-3 w-3 text-blue-500" /> Quick Size Presets for{" "}
+                <Layers className="h-3 w-3 text-info" /> Quick Size Presets for{" "}
                 {activeCategory}:
               </span>
               <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -320,7 +320,7 @@ export function CreateCatalogItemDialog({
                     className={cn(
                       "px-2 py-0.5 text-[10px] font-medium rounded-full border transition-all",
                       subCategory === preset
-                        ? "bg-blue-600 text-white border-blue-600"
+                        ? "bg-info text-white border-info"
                         : "bg-card hover:bg-muted text-foreground border-border"
                     )}
                   >
@@ -385,7 +385,7 @@ export function CreateCatalogItemDialog({
               id="addToProjectCheck"
               checked={addToProject}
               onChange={(e) => setAddToProject(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+              className="rounded border-border text-info focus:ring-info/50 h-4 w-4"
             />
             <Label htmlFor="addToProjectCheck" className="text-xs font-medium cursor-pointer">
               Also add immediately to current project directory

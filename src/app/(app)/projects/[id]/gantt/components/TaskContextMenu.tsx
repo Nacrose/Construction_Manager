@@ -106,11 +106,11 @@ export function TaskContextMenu({
     <div
       ref={menuRef}
       style={{ left: `${left}px`, top: `${top}px` }}
-      className="fixed z-50 w-60 rounded-xl border border-slate-700/80 bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 font-sans text-xs text-slate-200 select-none ring-1 ring-white/10"
+      className="fixed z-50 w-60 rounded-xl border border-border/80 bg-[var(--navy-mid)]/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 font-sans text-xs text-foreground select-none ring-1 ring-white/10"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header with task name */}
-      <div className="px-2.5 py-1.5 border-b border-slate-800/80 mb-1 flex items-center justify-between">
+      <div className="px-2.5 py-1.5 border-b border-border/80 mb-1 flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {task.code && (
@@ -118,7 +118,7 @@ export function TaskContextMenu({
                 WBS {task.code}
               </span>
             )}
-            <span className="text-[11px] font-medium text-slate-100 truncate block">
+            <span className="text-[11px] font-medium text-foreground truncate block">
               {task.name}
             </span>
           </div>
@@ -133,11 +133,11 @@ export function TaskContextMenu({
             onOpenInspector(task);
             onClose();
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800 text-slate-200 hover:text-white transition-colors"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--navy-mid)] text-foreground hover:text-white transition-colors"
         >
-          <Edit3 className="h-3.5 w-3.5 text-blue-400" />
+          <Edit3 className="h-3.5 w-3.5 text-info/80" />
           <span className="flex-1">Task Inspector</span>
-          <kbd className="text-[9px] font-mono text-slate-500 bg-slate-800 px-1 py-0.5 rounded">Space</kbd>
+          <kbd className="text-[9px] font-mono text-muted-foreground bg-[var(--navy-mid)] px-1 py-0.5 rounded">Space</kbd>
         </button>
 
         {canWrite && (
@@ -148,11 +148,11 @@ export function TaskContextMenu({
                 onAddTaskBelow(task);
                 onClose();
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800 text-slate-200 hover:text-white transition-colors"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--navy-mid)] text-foreground hover:text-white transition-colors"
             >
               <Plus className="h-3.5 w-3.5 text-emerald-400" />
               <span className="flex-1">Insert Task Below</span>
-              <kbd className="text-[9px] font-mono text-slate-500 bg-slate-800 px-1 py-0.5 rounded">Enter</kbd>
+              <kbd className="text-[9px] font-mono text-muted-foreground bg-[var(--navy-mid)] px-1 py-0.5 rounded">Enter</kbd>
             </button>
 
             <button
@@ -161,7 +161,7 @@ export function TaskContextMenu({
                 onAddSubtask(task);
                 onClose();
               }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800 text-slate-200 hover:text-white transition-colors"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--navy-mid)] text-foreground hover:text-white transition-colors"
             >
               <CornerDownRight className="h-3.5 w-3.5 text-indigo-400" />
               <span className="flex-1">Add Child Subtask</span>
@@ -171,14 +171,14 @@ export function TaskContextMenu({
       </div>
 
       {/* Templates & Replication */}
-      <div className="my-1 border-t border-slate-800/80 pt-1 space-y-0.5">
+      <div className="my-1 border-t border-border/80 pt-1 space-y-0.5">
         <button
           type="button"
           onClick={() => {
             onReplicate(task);
             onClose();
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800 text-slate-200 hover:text-white transition-colors"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--navy-mid)] text-foreground hover:text-white transition-colors"
         >
           <Copy className="h-3.5 w-3.5 text-purple-400" />
           <span>Replicate Structure...</span>
@@ -190,7 +190,7 @@ export function TaskContextMenu({
             onSaveTemplate(task);
             onClose();
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-slate-800 text-slate-200 hover:text-white transition-colors"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--navy-mid)] text-foreground hover:text-white transition-colors"
         >
           <Star className="h-3.5 w-3.5 text-amber-400" />
           <span>Save as Template...</span>
@@ -199,7 +199,7 @@ export function TaskContextMenu({
 
       {/* Indentation & Hierarchy */}
       {canWrite && (
-        <div className="my-1 border-t border-slate-800/80 pt-1 space-y-0.5">
+        <div className="my-1 border-t border-border/80 pt-1 space-y-0.5">
           <button
             type="button"
             disabled={!canIndent}
@@ -210,13 +210,13 @@ export function TaskContextMenu({
             className={cn(
               "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors",
               canIndent
-                ? "hover:bg-slate-800 text-slate-200 hover:text-white"
-                : "opacity-40 cursor-not-allowed text-slate-500"
+                ? "hover:bg-[var(--navy-mid)] text-foreground hover:text-white"
+                : "opacity-40 cursor-not-allowed text-muted-foreground"
             )}
           >
-            <ArrowRight className="h-3.5 w-3.5 text-cyan-400" />
+            <ArrowRight className="h-3.5 w-3.5 text-info" />
             <span className="flex-1">Indent (Subtask)</span>
-            <kbd className="text-[9px] font-mono text-slate-500 bg-slate-800 px-1 py-0.5 rounded">Tab</kbd>
+            <kbd className="text-[9px] font-mono text-muted-foreground bg-[var(--navy-mid)] px-1 py-0.5 rounded">Tab</kbd>
           </button>
 
           <button
@@ -229,21 +229,21 @@ export function TaskContextMenu({
             className={cn(
               "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors",
               canOutdent
-                ? "hover:bg-slate-800 text-slate-200 hover:text-white"
-                : "opacity-40 cursor-not-allowed text-slate-500"
+                ? "hover:bg-[var(--navy-mid)] text-foreground hover:text-white"
+                : "opacity-40 cursor-not-allowed text-muted-foreground"
             )}
           >
             <ArrowLeft className="h-3.5 w-3.5 text-teal-400" />
             <span className="flex-1">Outdent (Promote)</span>
-            <kbd className="text-[9px] font-mono text-slate-500 bg-slate-800 px-1 py-0.5 rounded">⇧ Tab</kbd>
+            <kbd className="text-[9px] font-mono text-muted-foreground bg-[var(--navy-mid)] px-1 py-0.5 rounded">⇧ Tab</kbd>
           </button>
         </div>
       )}
 
       {/* Task Type Quick Toggle */}
       {canWrite && (
-        <div className="my-1 border-t border-slate-800/80 pt-1">
-          <div className="px-2.5 py-0.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="my-1 border-t border-border/80 pt-1">
+          <div className="px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground/80 uppercase tracking-wider">
             Task Type
           </div>
           <div className="grid grid-cols-2 gap-1 px-1 py-1">
@@ -257,7 +257,7 @@ export function TaskContextMenu({
                 "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border text-left",
                 !task.taskType
                   ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300"
-                  : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-800 text-slate-300"
+                  : "bg-[var(--navy-mid)]/60 border-border/50 hover:bg-[var(--navy-mid)] text-muted-foreground"
               )}
             >
               <CheckCircle2 className="h-3 w-3" />
@@ -274,7 +274,7 @@ export function TaskContextMenu({
                 "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border text-left",
                 task.taskType === "continuous_24_7"
                   ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                  : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-800 text-slate-300"
+                  : "bg-[var(--navy-mid)]/60 border-border/50 hover:bg-[var(--navy-mid)] text-muted-foreground"
               )}
             >
               <Clock className="h-3 w-3" />
@@ -290,8 +290,8 @@ export function TaskContextMenu({
               className={cn(
                 "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border text-left",
                 task.taskType === "elapsed_curing"
-                  ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-300"
-                  : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-800 text-slate-300"
+                  ? "bg-cyan-500/20 border-info/40 text-info"
+                  : "bg-[var(--navy-mid)]/60 border-border/50 hover:bg-[var(--navy-mid)] text-muted-foreground"
               )}
             >
               <Droplets className="h-3 w-3" />
@@ -308,7 +308,7 @@ export function TaskContextMenu({
                 "flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border text-left",
                 task.taskType === "buffer"
                   ? "bg-orange-500/20 border-orange-500/50 text-orange-300"
-                  : "bg-slate-800/60 border-slate-700/50 hover:bg-slate-800 text-slate-300"
+                  : "bg-[var(--navy-mid)]/60 border-border/50 hover:bg-[var(--navy-mid)] text-muted-foreground"
               )}
             >
               <ShieldAlert className="h-3 w-3" />
@@ -326,7 +326,7 @@ export function TaskContextMenu({
               "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors mt-0.5",
               task.isMilestone
                 ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-                : "hover:bg-slate-800 text-slate-200 hover:text-white"
+                : "hover:bg-[var(--navy-mid)] text-foreground hover:text-white"
             )}
           >
             <Diamond className="h-3.5 w-3.5 text-amber-400" />
@@ -337,7 +337,7 @@ export function TaskContextMenu({
 
       {/* Delete Action */}
       {canWrite && (
-        <div className="my-1 border-t border-slate-800/80 pt-1">
+        <div className="my-1 border-t border-border/80 pt-1">
           <button
             type="button"
             onClick={() => {

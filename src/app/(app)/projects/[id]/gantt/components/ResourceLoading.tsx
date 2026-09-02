@@ -228,7 +228,7 @@ export function ResourceLoading({
         <Card>
           <div className="border-b p-3 space-y-2">
             <h3 className="flex items-center gap-2 text-sm font-medium">
-              <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <Package className="h-4 w-4 text-info dark:text-info/80" />
               Material Requirements
             </h3>
             <div className="flex items-center gap-2">

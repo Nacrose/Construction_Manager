@@ -81,7 +81,7 @@ export function ModuleTabs({
             className={cn(
               "rounded px-3 py-1 text-xs font-mono transition-all duration-150 shrink-0",
               active
-                ? "bg-primary/15 text-primary border border-primary/40 font-semibold shadow-[0_0_8px_rgba(0,255,102,0.15)]"
+                ? "bg-primary/15 text-primary border border-primary/40 font-semibold shadow-[0_0_8px_rgba(245,158,11,0.15)]"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
             )}
           >

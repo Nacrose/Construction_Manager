@@ -300,7 +300,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                           className={cn(
                             "text-[9px] px-1 py-0 uppercase font-mono shrink-0",
                             isSupplier
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                              ? "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80"
                               : isSub
                               ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
                               : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"

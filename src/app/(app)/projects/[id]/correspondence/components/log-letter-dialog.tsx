@@ -88,13 +88,13 @@ export function LogLetterDialog({ projectId, onDone }: { projectId?: string; onD
       </DialogHeader>
       <div className="space-y-3 py-2">
         {!projectId && (
-          <div className="space-y-1.5 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <Label className="text-xs font-semibold text-blue-300">Target Project (आयोजना) *</Label>
+          <div className="space-y-1.5 p-2.5 rounded-xl bg-info/10 border border-info/20">
+            <Label className="text-xs font-semibold text-info/80">Target Project (आयोजना) *</Label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900">
+              <SelectTrigger className="h-9 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground">
                 <SelectValue placeholder="Select target project..." />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} ({p.code})

@@ -151,7 +151,7 @@ export function MaterialsTabHeader({
             <DropdownMenuTrigger asChild>
               <Button
                 size="sm"
-                className="h-6.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] shadow-xs gap-1 rounded-md shrink-0"
+                className="h-6.5 px-2.5 bg-info hover:bg-info text-white font-semibold text-[11px] shadow-xs gap-1 rounded-md shrink-0"
               >
                 <Zap className="h-3 w-3" />
                 + Action
@@ -170,7 +170,7 @@ export function MaterialsTabHeader({
                   <Plus className="h-4 w-4 text-emerald-400" />
                   <div>
                     <div className="font-bold text-white">⚡ Quick Buy Material (खरिद)</div>
-                    <div className="text-[10px] text-gray-400">
+                    <div className="text-[10px] text-muted-foreground/80">
                       Direct purchase &amp; auto-post to Day Book
                     </div>
                   </div>
@@ -179,12 +179,12 @@ export function MaterialsTabHeader({
               {onOpenTransfer && (
                 <DropdownMenuItem
                   onClick={onOpenTransfer}
-                  className="cursor-pointer gap-2 text-xs py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold rounded-lg"
+                  className="cursor-pointer gap-2 text-xs py-2 bg-info/10 hover:bg-info/20 text-info/80 font-bold rounded-lg"
                 >
-                  <ArrowUpDown className="h-4 w-4 text-blue-400" />
+                  <ArrowUpDown className="h-4 w-4 text-info/80" />
                   <div>
                     <div className="font-bold text-white">🔄 Inter-Site Transfer (स्थानान्तरण)</div>
-                    <div className="text-[10px] text-gray-400">
+                    <div className="text-[10px] text-muted-foreground/80">
                       Move surplus stock to/from another site
                     </div>
                   </div>
@@ -229,7 +229,7 @@ export function MaterialsTabHeader({
                 onClick={onOpenCreateReq}
                 className="cursor-pointer gap-2 text-xs py-2"
               >
-                <FileSpreadsheet className="h-4 w-4 text-blue-500" />
+                <FileSpreadsheet className="h-4 w-4 text-info" />
                 <div>
                   <div className="font-semibold">New Requisition (PR)</div>
                   <div className="text-[10px] text-muted-foreground">

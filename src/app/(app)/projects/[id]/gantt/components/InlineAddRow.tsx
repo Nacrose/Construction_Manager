@@ -119,9 +119,9 @@ export function InlineAddRow({
 
   if (!show) {
     return (
-      <div className="flex items-center h-[38px] border-b border-slate-800/70 bg-slate-950/90">
-        <div className="w-12 shrink-0 flex items-center justify-center border-r border-slate-800/70 h-full text-emerald-400 font-bold">
-          {parentId ? <CornerDownRight className="h-3.5 w-3.5 text-slate-500" /> : <Plus className="h-3.5 w-3.5" />}
+      <div className="flex items-center h-[38px] border-b border-border/70 bg-[var(--navy-deep)]/90">
+        <div className="w-12 shrink-0 flex items-center justify-center border-r border-border/70 h-full text-emerald-400 font-bold">
+          {parentId ? <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" /> : <Plus className="h-3.5 w-3.5" />}
         </div>
         <button
           type="button"

@@ -364,13 +364,13 @@ export function Gantt({
         {/* LEFT PANEL — fixed width, dark slate table pane */}
         {taskListVisible && (
           <div
-            className="flex flex-col shrink-0 border-r border-slate-800/90 bg-slate-950 z-10 shadow-sm"
+            className="flex flex-col shrink-0 border-r border-border/90 bg-[var(--navy-deep)] z-10 shadow-sm"
             style={{ width: leftPanelWidth }}
           >
             {/* Left header */}
-            <div className="sticky top-0 z-20 shrink-0 flex flex-col h-[68px] text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 bg-slate-900/95 border-b border-slate-800/80 backdrop-blur-xs">
-              <div className="flex items-center h-[44px] border-b border-slate-800/60 px-1">
-                <div className="w-8 shrink-0 flex items-center justify-center border-r border-slate-800/80 h-full text-primary/80 text-[9px]">
+            <div className="sticky top-0 z-20 shrink-0 flex flex-col h-[68px] text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground/80 bg-[var(--navy-mid)]/95 border-b border-border/80 backdrop-blur-xs">
+              <div className="flex items-center h-[44px] border-b border-border/60 px-1">
+                <div className="w-8 shrink-0 flex items-center justify-center border-r border-border/80 h-full text-primary/80 text-[9px]">
                   WBS
                 </div>
                 <div className="flex-1 flex items-center justify-between px-2 h-full">
@@ -381,7 +381,7 @@ export function Gantt({
                       type="button"
                       onClick={handleExpandAll}
                       title="Expand All (⌘+E)"
-                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                      className="p-1 rounded hover:bg-[var(--navy-mid)] text-muted-foreground/80 hover:text-white transition-colors"
                     >
                       <ChevronsUpDown className="h-3 w-3" />
                     </button>
@@ -389,7 +389,7 @@ export function Gantt({
                       type="button"
                       onClick={handleCollapseAll}
                       title="Collapse All"
-                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                      className="p-1 rounded hover:bg-[var(--navy-mid)] text-muted-foreground/80 hover:text-white transition-colors"
                     >
                       <ChevronsDownUp className="h-3 w-3" />
                     </button>
@@ -397,7 +397,7 @@ export function Gantt({
                       type="button"
                       onClick={() => handleExpandLevel(1)}
                       title="Show WBS Level 1 (Major Deliverables)"
-                      className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
+                      className="px-1 py-0.5 text-[9px] font-mono rounded bg-[var(--navy-mid)]/80 hover:bg-[var(--navy-mid)] text-muted-foreground transition-colors"
                     >
                       L1
                     </button>
@@ -405,18 +405,18 @@ export function Gantt({
                       type="button"
                       onClick={() => handleExpandLevel(2)}
                       title="Show WBS Level 2 (Work Packages)"
-                      className="px-1 py-0.5 text-[9px] font-mono rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors"
+                      className="px-1 py-0.5 text-[9px] font-mono rounded bg-[var(--navy-mid)]/80 hover:bg-[var(--navy-mid)] text-muted-foreground transition-colors"
                     >
                       L2
                     </button>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between px-2 h-[24px] bg-slate-950/80 text-[9px] text-emerald-400">
+              <div className="flex items-center justify-between px-2 h-[24px] bg-[var(--navy-deep)]/80 text-[9px] text-emerald-400">
                 <span className="flex items-center gap-1 font-semibold">
                   👥 Manpower / Day
                 </span>
-                <span className="text-[8.5px] text-slate-400 font-mono">
+                <span className="text-[8.5px] text-muted-foreground/80 font-mono">
                   {tasks.reduce((sum, t) => sum + (t.laborCount || 0), 0)} Total
                 </span>
               </div>
@@ -424,7 +424,7 @@ export function Gantt({
             {/* Left body — scrolls only vertically */}
             <div
               ref={leftBodyRef}
-              className="flex-1 overflow-y-auto overflow-x-hidden relative bg-slate-950/90"
+              className="flex-1 overflow-y-auto overflow-x-hidden relative bg-[var(--navy-deep)]/90"
               onScroll={onLeftScroll}
               style={{ scrollbarWidth: "none" }}
             >
@@ -459,11 +459,11 @@ export function Gantt({
                 className="absolute right-0 top-0 bottom-0 w-[6px] cursor-col-resize z-20 flex items-center justify-center group"
               >
                 {/* Visual track */}
-                <div className="absolute inset-y-0 left-[2px] w-[1px] bg-slate-800 group-hover:bg-primary group-active:bg-primary transition-colors" />
+                <div className="absolute inset-y-0 left-[2px] w-[1px] bg-[var(--navy-mid)] group-hover:bg-primary group-active:bg-primary transition-colors" />
                 {/* Centered grip dots */}
                 <div className="relative flex flex-col gap-[3px] items-center z-10">
                   {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-[3px] h-[3px] rounded-full bg-slate-600 group-hover:bg-primary transition-colors" />
+                    <div key={i} className="w-[3px] h-[3px] rounded-full bg-[var(--navy-mid)] group-hover:bg-primary transition-colors" />
                   ))}
                 </div>
               </div>
@@ -474,12 +474,12 @@ export function Gantt({
         {/* RIGHT PANEL — lighter distinct background for the timeline canvas */}
         <div
           ref={rightPanelRef}
-          className="flex-1 min-w-0 overflow-auto bg-slate-900/60 matrix-scrollbar overscroll-none"
+          className="flex-1 min-w-0 overflow-auto bg-[var(--navy-mid)]/60 matrix-scrollbar overscroll-none"
           onScroll={onRightScroll}
           onWheel={handleWheel}
         >
           {/* Timeline header — sticky to top */}
-          <div className="sticky top-0 z-20 bg-slate-900/95 border-b border-slate-800/80 backdrop-blur-xs shadow-xs" style={{ width: svgWidth }}>
+          <div className="sticky top-0 z-20 bg-[var(--navy-mid)]/95 border-b border-border/80 backdrop-blur-xs shadow-xs" style={{ width: svgWidth }}>
             <svg height={headerHeight} width={svgWidth} className="block">
               <TimelineHeader
                 dayLabels={dayLabels}

@@ -45,7 +45,7 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
 
       {/* Ultra-Clean Single-Line Sub-Tab Switcher & Action Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#c7d8e8] pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-1">
         <div className="flex items-center gap-1 text-xs font-semibold overflow-x-auto">
           <button
             type="button"
@@ -53,14 +53,14 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "purchase"
-                ? "bg-[#f8fbfe] text-[#0284c7] border border-emerald-500/30 font-bold"
-                : "text-slate-500 hover:text-slate-900"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Layers className="h-3.5 w-3.5" />
             खरिद खाता (Purchase Sch-8)
             {pData?.rows.length ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[#0284c7] font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[var(--primary)] font-mono">
                 {pData.rows.length}
               </span>
             ) : null}
@@ -72,14 +72,14 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "sales"
-                ? "bg-[#f8fbfe] text-[#0284c7] border border-emerald-500/30 font-bold"
-                : "text-slate-500 hover:text-slate-900"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Receipt className="h-3.5 w-3.5" />
             बिक्री खाता (Sales Sch-9)
             {sData?.rows.length ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[#0284c7] font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[var(--primary)] font-mono">
                 {sData.rows.length}
               </span>
             ) : null}
@@ -91,8 +91,8 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "vat_return"
-                ? "bg-[#f8fbfe] text-[#0284c7] border border-emerald-500/30 font-bold"
-                : "text-slate-500 hover:text-slate-900"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Scale className="h-3.5 w-3.5" />
@@ -118,7 +118,7 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
           <Button
             size="sm"
             onClick={() => setLogDialogOpen(true)}
-            className="h-8 px-3.5 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_15px_rgba(0,255,102,0.3)] transition gap-1.5"
+            className="h-8 px-3.5 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)] transition gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" /> + Log Direct VAT Bill
           </Button>

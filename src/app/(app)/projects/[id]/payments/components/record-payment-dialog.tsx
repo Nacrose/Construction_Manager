@@ -278,34 +278,34 @@ export function RecordPaymentDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+        <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
             <div>
-              <DialogTitle className="text-base font-bold text-slate-900 tracking-tight font-sans">
+              <DialogTitle className="text-base font-bold text-foreground tracking-tight font-sans">
                 Record Payment (भुक्तानी दर्ता)
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                 Log daily site expenses, vendor payments, or contractor advances.
               </DialogDescription>
             </div>
             {miti && (
-              <span className="text-xs font-mono font-bold text-[#0284c7] px-2.5 py-0.5 rounded-full bg-sky-50 border border-[#bae6fd]">
+              <span className="text-xs font-mono font-bold text-[var(--primary)] px-2.5 py-0.5 rounded-full bg-info/10 border border-[#bae6fd]">
                 {miti} BS
               </span>
             )}
           </div>
 
           {/* Scrollable Form Body */}
-          <div className="p-6 space-y-4 text-xs bg-white">
+          <div className="p-6 space-y-4 text-xs bg-card">
             {/* Row 0: Target Project */}
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-[11px] font-semibold text-slate-700">Target Project (प्रोजेक्ट)</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Target Project (प्रोजेक्ट)</Label>
               <Select value={targetProjectId} onValueChange={setTargetProjectId}>
-                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
+                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]">
                   <SelectValue placeholder="Select Project" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 shadow-xl rounded-xl">
+                <SelectContent className="bg-card border border-[var(--border)] text-xs text-foreground shadow-xl rounded-xl">
                   <SelectItem value="head_office" className="text-amber-600 font-semibold">
                     🏢 Head Office (कार्यालय खर्च)
                   </SelectItem>
@@ -322,7 +322,7 @@ export function RecordPaymentDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Date (First Field) */}
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-[11px] font-semibold text-slate-700">Date (मिति)</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Date (मिति)</Label>
                 <NepaliDatePicker
                   value={date}
                   onChange={(_d, dateStr) => {
@@ -334,16 +334,16 @@ export function RecordPaymentDialog({
                     }
                   }}
                   placeholder="Select Nepali date (BS)"
-                  className="w-full h-9 text-xs font-mono rounded-lg border border-[#c7d8e8] bg-white text-slate-900"
+                  className="w-full h-9 text-xs font-mono rounded-lg border border-[var(--border)] bg-card text-foreground"
                 />
               </div>
 
               {/* Paid To (Payee) */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-slate-700">Paid To</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Paid To</Label>
                   {partyPan && (
-                    <span className="text-[10px] font-mono text-slate-500 font-matrix">
+                    <span className="text-[10px] font-mono text-muted-foreground font-matrix">
                       PAN: {partyPan}
                     </span>
                   )}
@@ -361,7 +361,7 @@ export function RecordPaymentDialog({
                         }}
                         onFocus={() => setPayeePopoverOpen(true)}
                         placeholder="Search payee or type..."
-                        className="w-full h-9 text-xs pr-8 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900 truncate"
+                        className="w-full h-9 text-xs pr-8 rounded-lg border border-[var(--border)] focus:border-[var(--primary)] bg-card text-foreground truncate"
                       />
                       <Button
                         type="button"
@@ -371,7 +371,7 @@ export function RecordPaymentDialog({
                           e.preventDefault();
                           setPayeePopoverOpen(!payeePopoverOpen);
                         }}
-                        className="absolute right-0 h-9 w-8 p-0 text-slate-400 hover:text-slate-700"
+                        className="absolute right-0 h-9 w-8 p-0 text-muted-foreground/80 hover:text-foreground/80"
                       >
                         <ChevronsUpDown className="h-3.5 w-3.5" />
                       </Button>
@@ -379,7 +379,7 @@ export function RecordPaymentDialog({
                   </PopoverTrigger>
 
                   <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-xl border border-[#c7d8e8] bg-white rounded-xl"
+                    className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-xl border border-[var(--border)] bg-card rounded-xl"
                     align="start"
                     sideOffset={6}
                     onOpenAutoFocus={(e) => e.preventDefault()}
@@ -401,18 +401,18 @@ export function RecordPaymentDialog({
                               setPayeeType(p.type);
                               setPayeePopoverOpen(false);
                             }}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-sky-50 hover:text-[#0284c7] transition cursor-pointer group"
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-info/10 hover:text-[var(--primary)] transition cursor-pointer group"
                           >
                             <div className="truncate">
-                              <p className="font-medium text-slate-900 group-hover:text-[#0284c7] truncate">
+                              <p className="font-medium text-foreground group-hover:text-[var(--primary)] truncate">
                                 {p.name}
                               </p>
-                              <p className="text-[10px] text-slate-400">
+                              <p className="text-[10px] text-muted-foreground/80">
                                 {p.typeLabel} {p.pan ? `• PAN: ${p.pan}` : ""}
                               </p>
                             </div>
                             {payeeName === p.name && (
-                              <Check className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />
+                              <Check className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />
                             )}
                           </button>
                         ))}
@@ -422,8 +422,8 @@ export function RecordPaymentDialog({
                         p.name.toLowerCase().includes(payeeSearchQuery.toLowerCase()) ||
                         (p.pan && p.pan.includes(payeeSearchQuery))
                       ).length === 0 && (
-                        <div className="py-2 px-3 text-center text-xs text-slate-500">
-                          Use <span className="text-[#0284c7] font-semibold">"{payeeName}"</span> as one-time payee
+                        <div className="py-2 px-3 text-center text-xs text-muted-foreground">
+                          Use <span className="text-[var(--primary)] font-semibold">"{payeeName}"</span> as one-time payee
                         </div>
                       )}
                     </div>
@@ -437,11 +437,11 @@ export function RecordPaymentDialog({
               {/* Category */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-slate-700">Category</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Category</Label>
                   <button
                     type="button"
                     onClick={() => setCatManagerOpen(true)}
-                    className="text-[10px] text-[#0284c7] hover:underline font-medium"
+                    className="text-[10px] text-[var(--primary)] hover:underline font-medium"
                   >
                     + Manage
                   </button>
@@ -453,12 +453,12 @@ export function RecordPaymentDialog({
                     setSelectedSubId("");
                   }}
                 >
-                  <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900">
+                  <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[var(--border)] focus:border-[var(--primary)] bg-card text-foreground">
                     <SelectValue placeholder="Select Category" className="truncate" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-60 bg-white border border-[#c7d8e8] text-slate-900 rounded-xl shadow-xl">
+                  <SelectContent className="max-h-60 bg-card border border-[var(--border)] text-foreground rounded-xl shadow-xl">
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs text-slate-800">
+                      <SelectItem key={c.id} value={c.id} className="text-xs text-foreground/90">
                         {c.name} {c.nameNp ? `(${c.nameNp})` : ""}
                       </SelectItem>
                     ))}
@@ -469,12 +469,12 @@ export function RecordPaymentDialog({
               {/* Subcategory */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-slate-700">Subcategory</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Subcategory</Label>
                   {selectedCategoryObj && !isCreatingSub && (
                     <button
                       type="button"
                       onClick={() => setIsCreatingSub(true)}
-                      className="text-[10px] text-[#0284c7] hover:underline font-medium"
+                      className="text-[10px] text-[var(--primary)] hover:underline font-medium"
                     >
                       + New Sub
                     </button>
@@ -487,7 +487,7 @@ export function RecordPaymentDialog({
                       placeholder="e.g. Fuel / Mess / Repair"
                       value={newSubName}
                       onChange={(e) => setNewSubName(e.target.value)}
-                      className="h-9 text-xs bg-white border border-[#c7d8e8] text-slate-900 rounded-lg flex-1"
+                      className="h-9 text-xs bg-card border border-[var(--border)] text-foreground rounded-lg flex-1"
                       autoFocus
                     />
                     <Button
@@ -509,7 +509,7 @@ export function RecordPaymentDialog({
                       variant="ghost"
                       size="sm"
                       onClick={() => setIsCreatingSub(false)}
-                      className="h-9 text-xs px-2 text-slate-400 hover:text-slate-700"
+                      className="h-9 text-xs px-2 text-muted-foreground/80 hover:text-foreground/80"
                     >
                       ✕
                     </Button>
@@ -520,7 +520,7 @@ export function RecordPaymentDialog({
                     onValueChange={setSelectedSubId}
                     disabled={!selectedCategoryObj || subcategoryList.length === 0}
                   >
-                    <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900 disabled:opacity-40">
+                    <SelectTrigger className="w-full min-w-0 h-9 text-xs rounded-lg border border-[var(--border)] focus:border-[var(--primary)] bg-card text-foreground disabled:opacity-40">
                       <SelectValue
                         placeholder={
                           !selectedCategoryObj
@@ -532,9 +532,9 @@ export function RecordPaymentDialog({
                         className="truncate"
                       />
                     </SelectTrigger>
-                    <SelectContent className="max-h-56 bg-white border border-[#c7d8e8] rounded-xl shadow-xl text-slate-900">
+                    <SelectContent className="max-h-56 bg-card border border-[var(--border)] rounded-xl shadow-xl text-foreground">
                       {subcategoryList.map((s) => (
-                        <SelectItem key={s.id} value={s.id} className="text-xs text-slate-800">
+                        <SelectItem key={s.id} value={s.id} className="text-xs text-foreground/90">
                           {s.name} {s.nameNp ? `(${s.nameNp})` : ""}
                         </SelectItem>
                       ))}
@@ -549,7 +549,7 @@ export function RecordPaymentDialog({
               {/* Amount */}
               <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-semibold text-slate-700">Amount (NPR)</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Amount (NPR)</Label>
                   {amount && parseFloat(tds) > 0 && (
                     <span className="text-[10px] text-emerald-700 font-mono font-bold font-matrix">
                       Net: NPR {formatNpr(computedNet)}
@@ -569,14 +569,14 @@ export function RecordPaymentDialog({
                     }
                   }}
                   placeholder="e.g. 50000"
-                  className="w-full h-9 text-xs font-mono font-bold rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900"
+                  className="w-full h-9 text-xs font-mono font-bold rounded-lg border border-[var(--border)] focus:border-[var(--primary)] bg-card text-foreground"
                 />
               </div>
 
               {/* Payment Mode Selector */}
               <div className="space-y-1.5 min-w-0">
-                <Label className="text-[11px] font-semibold text-slate-700">Payment Mode</Label>
-                <div className="flex items-center justify-between p-1 h-9 rounded-lg border border-[#c7d8e8] bg-slate-50">
+                <Label className="text-[11px] font-semibold text-foreground/80">Payment Mode</Label>
+                <div className="flex items-center justify-between p-1 h-9 rounded-lg border border-[var(--border)] bg-muted/60">
                   {[
                     { value: "cash", label: "Cash" },
                     { value: "bank_transfer", label: "Bank" },
@@ -590,8 +590,8 @@ export function RecordPaymentDialog({
                       className={cn(
                         "flex-1 py-1 text-xs rounded-md font-mono transition text-center",
                         mode === item.value
-                          ? "bg-white text-[#0284c7] font-bold shadow-xs border border-[#bae6fd]"
-                          : "text-slate-600 hover:text-slate-900"
+                          ? "bg-card text-[var(--primary)] font-bold shadow-xs border border-[#bae6fd]"
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {item.label}
@@ -603,9 +603,9 @@ export function RecordPaymentDialog({
 
             {/* Contextual Bank / Cheque / Digital Details */}
             {mode !== "cash" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl border border-[var(--border)] bg-[#f8fbfe]">
                 <div className="space-y-1 min-w-0">
-                  <Label className="text-[11px] font-medium text-slate-700">
+                  <Label className="text-[11px] font-medium text-foreground/80">
                     {mode === "cheque"
                       ? "Cheque Number"
                       : mode === "connectips"
@@ -622,18 +622,18 @@ export function RecordPaymentDialog({
                         ? "e.g. TXN-881923"
                         : "e.g. REF-44120"
                     }
-                    className="h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                    className="h-9 text-xs font-mono bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
                   />
                 </div>
                 <div className="space-y-1 min-w-0 w-full">
-                  <Label className="text-[11px] font-medium text-slate-700">
+                  <Label className="text-[11px] font-medium text-foreground/80">
                     {mode === "connectips" ? "Digital Wallet / Channel" : "Bank Account Used"}
                   </Label>
                   <Select value={bankAccount} onValueChange={setBankAccount}>
-                    <SelectTrigger className="w-full min-w-0 h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
+                    <SelectTrigger className="w-full min-w-0 h-9 text-xs font-mono bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]">
                       <SelectValue placeholder="Select Bank / Channel" className="truncate" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-60 text-xs bg-white border border-[#c7d8e8] text-slate-900 rounded-xl shadow-xl">
+                    <SelectContent className="max-h-60 text-xs bg-card border border-[var(--border)] text-foreground rounded-xl shadow-xl">
                       {mode === "connectips" ? (
                         <>
                           <SelectItem value="connectIPS (NCHL)">connectIPS (NCHL)</SelectItem>
@@ -673,27 +673,27 @@ export function RecordPaymentDialog({
                 <button
                   type="button"
                   onClick={() => setShowErpSync(true)}
-                  className="text-xs text-slate-600 hover:text-[#0284c7] flex items-center gap-1.5 transition font-medium"
+                  className="text-xs text-muted-foreground hover:text-[var(--primary)] flex items-center gap-1.5 transition font-medium"
                 >
-                  <Plus className="h-3.5 w-3.5 text-[#0284c7]" /> Add TDS, Payment Voucher / Slip, or Notes (Optional)
+                  <Plus className="h-3.5 w-3.5 text-[var(--primary)]" /> Add TDS, Payment Voucher / Slip, or Notes (Optional)
                 </button>
               ) : (
-                <div className="space-y-3.5 p-4 rounded-xl border border-[#c7d8e8] bg-[#f8fbfe]">
+                <div className="space-y-3.5 p-4 rounded-xl border border-[var(--border)] bg-[#f8fbfe]">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">Additional Details & Attachments</span>
+                    <span className="text-xs font-bold text-foreground/90">Additional Details & Attachments</span>
                     <button
                       type="button"
                       onClick={() => setShowErpSync(false)}
-                      className="text-[10px] text-slate-500 hover:text-slate-800"
+                      className="text-[10px] text-muted-foreground hover:text-foreground/90"
                     >
                       ✕ Close
                     </button>
                   </div>
 
                   {/* TDS Withholding Section */}
-                  <div className="space-y-2 p-3 rounded-lg border border-[#c7d8e8] bg-white">
+                  <div className="space-y-2 p-3 rounded-lg border border-[var(--border)] bg-card">
                     <div className="flex items-center justify-between">
-                      <Label className="text-[11px] font-medium text-slate-700">
+                      <Label className="text-[11px] font-medium text-foreground/80">
                         TDS Withholding (कर कट्टी)
                       </Label>
                       {parseFloat(tds) > 0 && (
@@ -707,7 +707,7 @@ export function RecordPaymentDialog({
                       {/* TDS Percentage with Quick Presets */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-500">TDS Rate (%)</span>
+                          <span className="text-[10px] text-muted-foreground">TDS Rate (%)</span>
                           <div className="flex items-center gap-1">
                             {[
                               { label: "1.5%", val: 1.5 },
@@ -725,8 +725,8 @@ export function RecordPaymentDialog({
                                 className={cn(
                                   "px-2 py-0.5 text-[10px] font-mono rounded border transition",
                                   tdsPercent === preset.val.toString()
-                                    ? "bg-amber-500 text-slate-950 font-bold border-amber-500 shadow-xs"
-                                    : "bg-slate-100 border-[#c7d8e8] text-slate-600 hover:text-slate-900"
+                                    ? "bg-amber-500 text-foreground font-bold border-amber-500 shadow-xs"
+                                    : "bg-muted border-[var(--border)] text-muted-foreground hover:text-foreground"
                                 )}
                               >
                                 {preset.label}
@@ -747,15 +747,15 @@ export function RecordPaymentDialog({
                               setTds(pVal > 0 ? ((gross * pVal) / 100).toFixed(2) : "0");
                             }}
                             placeholder="e.g. 1.5"
-                            className="h-9 text-xs font-mono bg-white text-slate-900 pr-6 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                            className="h-9 text-xs font-mono bg-card text-foreground pr-6 rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
                           />
-                          <span className="absolute right-2.5 top-2.5 text-[10px] text-slate-400 font-bold">%</span>
+                          <span className="absolute right-2.5 top-2.5 text-[10px] text-muted-foreground/80 font-bold">%</span>
                         </div>
                       </div>
 
                       {/* Direct TDS Amount (NPR) */}
                       <div className="space-y-1">
-                        <span className="text-[10px] text-slate-500">TDS Amount (NPR)</span>
+                        <span className="text-[10px] text-muted-foreground">TDS Amount (NPR)</span>
                         <Input
                           type="number"
                           value={tds}
@@ -771,7 +771,7 @@ export function RecordPaymentDialog({
                             }
                           }}
                           placeholder="0.00"
-                          className="h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                          className="h-9 text-xs font-mono bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
                         />
                       </div>
                     </div>
@@ -779,11 +779,11 @@ export function RecordPaymentDialog({
 
                   {/* Upload Payment Voucher */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-slate-700">
+                    <Label className="text-[11px] text-foreground/80">
                       Upload Payment Voucher / Slip / Cheque
                     </Label>
-                    <label className="flex items-center justify-center gap-2 h-9 px-3 border border-dashed border-[#c7d8e8] rounded-lg cursor-pointer hover:bg-slate-100 text-xs text-slate-600 transition">
-                      <Paperclip className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />
+                    <label className="flex items-center justify-center gap-2 h-9 px-3 border border-dashed border-[var(--border)] rounded-lg cursor-pointer hover:bg-muted text-xs text-muted-foreground transition">
+                      <Paperclip className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />
                       <span className="truncate">
                         {fileName || "Attach signed voucher, cheque copy, or transfer slip (PDF/Image)"}
                       </span>
@@ -798,12 +798,12 @@ export function RecordPaymentDialog({
 
                   {/* Notes */}
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-slate-700">Narration / Notes (कैफियत)</Label>
+                    <Label className="text-[11px] text-foreground/80">Narration / Notes (कैफियत)</Label>
                     <Input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="e.g. Being payment disbursed for site expenses..."
-                      className="h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                      className="h-9 text-xs bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
                     />
                   </div>
                 </div>
@@ -812,12 +812,12 @@ export function RecordPaymentDialog({
           </div>
 
           {/* Sticky Footer with 3D Amber CTA */}
-          <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[#e2edf7] bg-[#f8fbfe] shrink-0">
+          <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[var(--input)] bg-[#f8fbfe] shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={() => onOpenChange(false)}
-              className="h-8 text-xs rounded-lg px-4 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
+              className="h-8 text-xs rounded-lg px-4 border-[var(--border)] text-muted-foreground hover:bg-muted"
             >
               Cancel
             </Button>

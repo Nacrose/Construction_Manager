@@ -107,9 +107,9 @@ export function AdvancesLedgerTab({
       case "mess_deduction":
         return "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300";
       case "safety_gear":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300";
+        return "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
       default:
-        return "bg-slate-100 text-slate-700 dark:bg-slate-800";
+        return "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)]";
     }
   };
 
@@ -264,7 +264,7 @@ export function AdvancesLedgerTab({
             Pending Auto-Recovery: {formatNpr(totalPending)}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-[#0284c7] font-medium">
+          <span className="text-emerald-600 dark:text-[var(--primary)] font-medium">
             Settled in Payroll: {formatNpr(totalRecovered)}
           </span>
         </div>

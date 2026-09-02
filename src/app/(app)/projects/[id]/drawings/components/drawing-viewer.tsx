@@ -194,20 +194,20 @@ export function DrawingViewer({
 
   return (
     <Dialog open={true} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className={cn("max-h-[95vh] p-0 overflow-hidden transition-all bg-[#0a0d13] border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl", splitComparator ? "sm:max-w-7xl" : "sm:max-w-6xl")}>
+      <DialogContent className={cn("max-h-[95vh] p-0 overflow-hidden transition-all bg-[#0a0d13] border border-[var(--border)] text-foreground rounded-2xl shadow-2xl", splitComparator ? "sm:max-w-7xl" : "sm:max-w-6xl")}>
         <div className="flex h-[90vh]">
           {/* Left Metadata & Revision Changelog Sidebar */}
-          <div className="w-72 shrink-0 border-r border-[#c7d8e8] overflow-y-auto p-3.5 space-y-4 bg-white/95 flex flex-col">
-            <div className="space-y-1 pb-3 border-b border-[#c7d8e8]">
+          <div className="w-72 shrink-0 border-r border-[var(--border)] overflow-y-auto p-3.5 space-y-4 bg-white/95 flex flex-col">
+            <div className="space-y-1 pb-3 border-b border-[var(--border)]">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                   {drawing?.number ?? "Loading..."}
                 </span>
-                <span className="text-[10px] uppercase font-mono text-slate-500">
+                <span className="text-[10px] uppercase font-mono text-muted-foreground">
                   {drawing?.discipline || "General"}
                 </span>
               </div>
-              <h3 className="text-sm font-semibold text-slate-900 truncate" title={drawing?.title}>
+              <h3 className="text-sm font-semibold text-foreground truncate" title={drawing?.title}>
                 {drawing?.title}
               </h3>
             </div>
@@ -215,15 +215,15 @@ export function DrawingViewer({
             {/* Revision Audit History */}
             <div className="flex-1 space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <History className="h-3.5 w-3.5 text-[#0284c7]" />
+                <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5 text-[var(--primary)]" />
                   <span>Revision History ({allRevisionsList.length})</span>
                 </Label>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setShowRevDialog(true)}
-                  className="h-6 text-[10px] font-mono text-[#0284c7] hover:text-cyan-300 hover:bg-cyan-500/10 px-1.5"
+                  className="h-6 text-[10px] font-mono text-[var(--primary)] hover:text-info hover:bg-cyan-500/10 px-1.5"
                 >
                   <GitBranch className="h-3 w-3 mr-1" /> + Stack Rev
                 </Button>
@@ -238,8 +238,8 @@ export function DrawingViewer({
                       className={cn(
                         "rounded-xl border p-2.5 text-xs transition-all space-y-1.5",
                         isSelected
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-slate-900 shadow-sm"
-                          : "border-[#c7d8e8] bg-[#f8fbfe]/70 text-slate-700 hover:bg-white/5 hover:border-[#0284c7]"
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-foreground shadow-sm"
+                          : "border-[var(--border)] bg-[#f8fbfe]/70 text-foreground/80 hover:bg-white/5 hover:border-[var(--primary)]"
                       )}
                     >
                       <div className="flex items-center justify-between">
@@ -251,7 +251,7 @@ export function DrawingViewer({
                           }}
                           className="flex items-center gap-2 font-mono font-bold text-left flex-1"
                         >
-                          <span className={cn("text-xs", rev.isCurrent ? "text-emerald-400" : "text-slate-700")}>
+                          <span className={cn("text-xs", rev.isCurrent ? "text-emerald-400" : "text-foreground/80")}>
                             Rev {rev.revision}
                           </span>
                           {rev.isCurrent ? (
@@ -259,7 +259,7 @@ export function DrawingViewer({
                               CURRENT · IFC
                             </span>
                           ) : (
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-white/10 text-slate-500 font-mono">
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-white/10 text-muted-foreground font-mono">
                               SUPERSEDED
                             </span>
                           )}
@@ -270,7 +270,7 @@ export function DrawingViewer({
                             size="sm"
                             variant="ghost"
                             onClick={() => startDiffWithRevision(rev.id)}
-                            className="h-5 text-[9px] px-1.5 text-[#0284c7] hover:text-cyan-300 hover:bg-cyan-500/10"
+                            className="h-5 text-[9px] px-1.5 text-[var(--primary)] hover:text-info hover:bg-cyan-500/10"
                             title="Compare this revision against Current"
                           >
                             <Sparkles className="h-2.5 w-2.5 mr-0.5" /> Diff
@@ -279,18 +279,18 @@ export function DrawingViewer({
                       </div>
 
                       {rev.description && (
-                        <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed italic bg-black/30 p-1.5 rounded-lg border border-[#e2edf7]">
+                        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed italic bg-black/30 p-1.5 rounded-lg border border-[var(--input)]">
                           "{rev.description}"
                         </p>
                       )}
 
-                      <div className="flex items-center justify-between text-[9px] text-slate-500 pt-0.5">
+                      <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-0.5">
                         <span className="flex items-center gap-1 font-mono">
-                          <Clock className="h-2.5 w-2.5 text-slate-500" />
+                          <Clock className="h-2.5 w-2.5 text-muted-foreground" />
                           {rev.issuedDate ? format(new Date(rev.issuedDate), "dd MMM yyyy") : "—"}
                         </span>
                         {rev.approvalStatus && rev.approvalStatus !== "pending" && (
-                          <span className="text-[9px] text-blue-400 font-medium">
+                          <span className="text-[9px] text-info/80 font-medium">
                             {APPROVAL_CONFIG[rev.approvalStatus]?.label ?? rev.approvalStatus}
                           </span>
                         )}
@@ -303,13 +303,13 @@ export function DrawingViewer({
 
             {/* Pins List */}
             {pins.length > 0 && (
-              <div className="space-y-1.5 pt-2 border-t border-[#c7d8e8]">
-                <Label className="text-[10px] font-semibold uppercase text-slate-500 flex items-center justify-between">
+              <div className="space-y-1.5 pt-2 border-t border-[var(--border)]">
+                <Label className="text-[10px] font-semibold uppercase text-muted-foreground flex items-center justify-between">
                   <span>Site Observation Pins ({pins.length})</span>
                 </Label>
                 <div className="space-y-1 max-h-28 overflow-y-auto">
                   {pins.map((pin, i) => (
-                    <div key={pin.id} className="flex items-center justify-between p-1.5 rounded-lg border border-[#c7d8e8] bg-[#f8fbfe] text-[10px] font-mono text-slate-700">
+                    <div key={pin.id} className="flex items-center justify-between p-1.5 rounded-lg border border-[var(--border)] bg-[#f8fbfe] text-[10px] font-mono text-foreground/80">
                       <div className="truncate flex-1 mr-1">
                         <span className="font-bold text-emerald-400 mr-1.5">#{i + 1}</span>
                         <span>{pin.note}</span>
@@ -328,18 +328,18 @@ export function DrawingViewer({
             )}
 
             {/* Quick Actions Footer */}
-            <div className="space-y-1.5 pt-3 border-t border-[#c7d8e8]">
-              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[#c7d8e8] bg-[#f8fbfe] text-slate-900 hover:bg-white/10" onClick={() => setShowRevDialog(true)}>
-                <GitBranch className="h-3.5 w-3.5 text-[#0284c7]" /> Stack New Revision
+            <div className="space-y-1.5 pt-3 border-t border-[var(--border)]">
+              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowRevDialog(true)}>
+                <GitBranch className="h-3.5 w-3.5 text-[var(--primary)]" /> Stack New Revision
               </Button>
-              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[#c7d8e8] bg-[#f8fbfe] text-slate-900 hover:bg-white/10" onClick={() => setShowApproveDialog(true)}>
+              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowApproveDialog(true)}>
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve / Reject Sheet
               </Button>
-              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[#c7d8e8] bg-[#f8fbfe] text-slate-900 hover:bg-white/10" onClick={() => setShowRfiDialog(true)}>
+              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowRfiDialog(true)}>
                 <FileQuestion className="h-3.5 w-3.5 text-amber-400" /> Raise Linked RFI
               </Button>
-              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[#c7d8e8] bg-[#f8fbfe] text-slate-900 hover:bg-white/10" onClick={() => setShowEditDialog(true)}>
-                <Pencil className="h-3.5 w-3.5 text-blue-400" /> Edit Metadata & Scale
+              <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="h-3.5 w-3.5 text-info/80" /> Edit Metadata & Scale
               </Button>
               <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={() => setShowDeleteConfirm(true)}>
                 <Trash2 className="h-3.5 w-3.5" /> Delete Sheet
@@ -350,16 +350,16 @@ export function DrawingViewer({
           {/* Center Drawing Canvas & Diff Area */}
           <div className="flex-1 flex flex-col min-w-0 bg-[#eef5fc]">
             {/* Top Toolbar */}
-            <div className="shrink-0 border-b border-[#c7d8e8] px-3 py-2 flex items-center justify-between bg-white/95 font-mono text-xs z-10 backdrop-blur-md">
+            <div className="shrink-0 border-b border-[var(--border)] px-3 py-2 flex items-center justify-between bg-white/95 font-mono text-xs z-10 backdrop-blur-md">
               <div className="flex items-center gap-1.5">
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-700 hover:text-slate-900" onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground" onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
                 <span className="text-xs font-mono w-12 text-center text-emerald-400 font-bold">{Math.round(zoom * 100)}%</span>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-700 hover:text-slate-900" onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Zoom in">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground" onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Zoom in">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-700 hover:text-slate-900" onClick={() => setZoom(1)} title="Reset zoom">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground" onClick={() => setZoom(1)} title="Reset zoom">
                   <Maximize2 className="h-4 w-4" />
                 </Button>
 
@@ -371,13 +371,13 @@ export function DrawingViewer({
                     className={cn(
                       "h-7 text-xs gap-1.5 ml-2 font-mono font-bold transition-all",
                       isDiffActive
-                        ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_10px_#22d3ee40]"
-                        : "border-[#c7d8e8] bg-[#f8fbfe] text-slate-700 hover:text-slate-900"
+                        ? "bg-cyan-500/20 text-info border border-info/40 shadow-[0_0_10px_#22d3ee40]"
+                        : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80 hover:text-foreground"
                     )}
                     onClick={() => setIsDiffActive(!isDiffActive)}
                     title="Toggle Bluebeam Red/Green Revision Difference Engine"
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-[#0284c7]" />
+                    <Sparkles className="h-3.5 w-3.5 text-[var(--primary)]" />
                     {isDiffActive ? "Exit Diff Mode" : "Bluebeam Diff Engine"}
                   </Button>
                 )}
@@ -389,7 +389,7 @@ export function DrawingViewer({
                     variant={pinningMode ? "default" : "outline"}
                     className={cn(
                       "h-7 text-xs gap-1 ml-1.5 font-mono",
-                      pinningMode ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "border-[#c7d8e8] bg-[#f8fbfe] text-slate-700 hover:text-slate-900"
+                      pinningMode ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80 hover:text-foreground"
                     )}
                     onClick={() => setPinningMode(!pinningMode)}
                     title="Drop a coordinate observation pin onto the sheet"
@@ -405,7 +405,7 @@ export function DrawingViewer({
                   variant={splitComparator ? "default" : "outline"}
                   className={cn(
                     "h-7 text-xs gap-1 ml-1 font-mono",
-                    splitComparator ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" : "border-[#c7d8e8] bg-[#f8fbfe] text-slate-700 hover:text-slate-900"
+                    splitComparator ? "bg-info/20 text-info/80 border border-info/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80 hover:text-foreground"
                   )}
                   onClick={() => setSplitComparator(!splitComparator)}
                   title="Split screen to compare drawing with BOQ Takeoffs / RFIs"
@@ -417,13 +417,13 @@ export function DrawingViewer({
 
               {/* Active Revision Selectors in Diff Mode OR Markup Toolbar */}
               {isDiffActive ? (
-                <div className="flex items-center gap-2 bg-[#f8fbfe] px-3 py-1 rounded-xl border border-[#c7d8e8] text-xs">
+                <div className="flex items-center gap-2 bg-[#f8fbfe] px-3 py-1 rounded-xl border border-[var(--border)] text-xs">
                   <span className="text-red-400 font-bold">Base (Older):</span>
                   <Select value={baseRevId} onValueChange={setBaseRevId}>
-                    <SelectTrigger className="h-7 w-28 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono">
+                    <SelectTrigger className="h-7 w-28 text-xs bg-card border-[var(--border)] text-foreground font-mono">
                       <SelectValue placeholder="Base Rev" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+                    <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                       {allRevisionsList.map((r) => (
                         <SelectItem key={r.id} value={r.id}>
                           Rev {r.revision} {r.isCurrent ? "(Current)" : ""}
@@ -432,12 +432,12 @@ export function DrawingViewer({
                     </SelectContent>
                   </Select>
 
-                  <span className="text-[#0284c7] font-bold ml-2">Compare (New):</span>
+                  <span className="text-[var(--primary)] font-bold ml-2">Compare (New):</span>
                   <Select value={compareRevId} onValueChange={setCompareRevId}>
-                    <SelectTrigger className="h-7 w-28 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono">
+                    <SelectTrigger className="h-7 w-28 text-xs bg-card border-[var(--border)] text-foreground font-mono">
                       <SelectValue placeholder="Compare Rev" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+                    <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                       {allRevisionsList.map((r) => (
                         <SelectItem key={r.id} value={r.id}>
                           Rev {r.revision} {r.isCurrent ? "(Current)" : ""}
@@ -466,7 +466,7 @@ export function DrawingViewer({
                     variant={showMarkupList ? "default" : "outline"}
                     className={cn(
                       "h-7 text-xs gap-1 font-mono",
-                      showMarkupList ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "border-[#c7d8e8] bg-[#f8fbfe] text-slate-700"
+                      showMarkupList ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80"
                     )}
                     onClick={() => setShowMarkupList(!showMarkupList)}
                     title="Toggle markup list panel"
@@ -502,7 +502,7 @@ export function DrawingViewer({
                         onClick={handleImageClick}
                         style={{ transform: `scale(${zoom})`, transition: "transform 0.15s ease-out" }}
                         className={cn(
-                          "relative inline-block max-w-full max-h-full shadow-2xl rounded-xl border border-[#0284c7] bg-white",
+                          "relative inline-block max-w-full max-h-full shadow-2xl rounded-xl border border-[var(--primary)] bg-card",
                           pinningMode && "cursor-crosshair"
                         )}
                       >
@@ -554,20 +554,20 @@ export function DrawingViewer({
                         title="PDF viewer"
                       />
                     ) : (
-                      <div className="text-center text-sm text-slate-500 font-mono">
-                        <FileImage className="h-12 w-12 mx-auto mb-2 opacity-30 text-slate-500" />
+                      <div className="text-center text-sm text-muted-foreground font-mono">
+                        <FileImage className="h-12 w-12 mx-auto mb-2 opacity-30 text-muted-foreground" />
                         <p>File type not previewable: {currentFile.fileType}</p>
                       </div>
                     )
                   ) : (
-                    <div className="text-center text-sm text-slate-500 font-mono">
-                      <FileImage className="h-12 w-12 mx-auto mb-2 opacity-30 text-slate-500" />
+                    <div className="text-center text-sm text-muted-foreground font-mono">
+                      <FileImage className="h-12 w-12 mx-auto mb-2 opacity-30 text-muted-foreground" />
                       <p>No drawing blueprint file attached for this revision.</p>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setShowRevDialog(true)}
-                        className="mt-3 text-xs border-cyan-500/30 text-[#0284c7] hover:bg-cyan-500/10"
+                        className="mt-3 text-xs border-info/40 text-[var(--primary)] hover:bg-cyan-500/10"
                       >
                         <Upload className="h-3.5 w-3.5 mr-1" /> Upload File for this Revision
                       </Button>
@@ -665,18 +665,18 @@ export function DrawingViewer({
       )}
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl">
+        <AlertDialogContent className="bg-card border border-[var(--border)] text-foreground rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-red-400">Delete Master Drawing Sheet</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 text-xs">
+            <AlertDialogDescription className="text-muted-foreground text-xs">
               Are you sure you want to permanently delete <strong>{drawing?.number}</strong>? All historical revisions, diff files, and markups will be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-[#c7d8e8] text-slate-700 hover:bg-white/5">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="border-[var(--border)] text-foreground/80 hover:bg-white/5">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteMut.mutate({ itemId: drawingId })}
-              className="bg-red-600 hover:bg-red-500 text-slate-900 font-bold"
+              className="bg-red-600 hover:bg-red-500 text-foreground font-bold"
             >
               Delete Sheet
             </AlertDialogAction>

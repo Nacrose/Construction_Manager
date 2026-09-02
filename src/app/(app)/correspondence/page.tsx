@@ -75,7 +75,7 @@ export default function OrgCorrespondencePage() {
         align: "center",
         render: (val) =>
           val === "incoming" ? (
-            <span className="inline-flex items-center text-blue-400 font-mono text-xs" title="Incoming (दर्ता)">
+            <span className="inline-flex items-center text-info/80 font-mono text-xs" title="Incoming (दर्ता)">
               <ArrowDownLeft className="h-4 w-4" />
             </span>
           ) : (
@@ -93,7 +93,7 @@ export default function OrgCorrespondencePage() {
           <div>
             <span className="font-mono font-bold text-emerald-400 text-xs">{val || r.theirRef || "—"}</span>
             {val && r.theirRef && (
-              <span className="block text-[10px] text-gray-400 font-mono">
+              <span className="block text-[10px] text-muted-foreground/80 font-mono">
                 Ext: {r.theirRef}
               </span>
             )}
@@ -110,7 +110,7 @@ export default function OrgCorrespondencePage() {
             <div className="font-medium text-white truncate max-w-[130px]">
               {r.project?.name || "Project Site"}
             </div>
-            <div className="text-[10px] font-mono text-gray-400">{r.project?.code}</div>
+            <div className="text-[10px] font-mono text-muted-foreground/80">{r.project?.code}</div>
           </div>
         ),
       },
@@ -130,7 +130,7 @@ export default function OrgCorrespondencePage() {
             <div className="font-medium text-white truncate max-w-[150px]">
               {r.direction === "incoming" ? r.fromParty || "External" : r.toParty || "Recipient"}
             </div>
-            <div className="text-[10px] text-gray-400 truncate max-w-[150px]">
+            <div className="text-[10px] text-muted-foreground/80 truncate max-w-[150px]">
               {r.direction === "incoming" ? r.fromName || "—" : r.toName || "—"}
             </div>
           </div>
@@ -150,12 +150,12 @@ export default function OrgCorrespondencePage() {
           }
           if (val === "eot_claim") {
             return (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-info bg-cyan-500/10 px-2 py-0.5 rounded border border-info/40">
                 EOT Claim
               </span>
             );
           }
-          return <span className="text-[10px] text-gray-400 font-mono">Informative</span>;
+          return <span className="text-[10px] text-muted-foreground/80 font-mono">Informative</span>;
         },
       },
       {
@@ -170,12 +170,12 @@ export default function OrgCorrespondencePage() {
         width: "100px",
         render: (val, r) => {
           if (r.replyStatus === "sent" || r.replyStatus === "closed") {
-            return <span className="text-[10px] text-gray-500 font-mono">Closed</span>;
+            return <span className="text-[10px] text-muted-foreground font-mono">Closed</span>;
           }
-          if (!val) return <span className="text-[10px] text-gray-500 font-mono">—</span>;
+          if (!val) return <span className="text-[10px] text-muted-foreground font-mono">—</span>;
           const dueDate = new Date(val);
           return (
-            <span className="text-xs font-mono font-semibold text-gray-300">
+            <span className="text-xs font-mono font-semibold text-muted-foreground/80">
               {format(dueDate, "dd MMM yyyy")}
             </span>
           );
@@ -187,7 +187,7 @@ export default function OrgCorrespondencePage() {
         width: "90px",
         sortable: true,
         render: (val) => (
-          <span className="text-xs font-mono text-gray-400">
+          <span className="text-xs font-mono text-muted-foreground/80">
             {val ? format(new Date(val), "dd MMM yy") : "—"}
           </span>
         ),
@@ -218,27 +218,27 @@ export default function OrgCorrespondencePage() {
   return (
     <div className="space-y-4 pb-8">
       {/* Header Bar with KPI Metrics & Action */}
-      <div className="p-4 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl border border-[var(--border)] bg-card shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-[#0284c7]" />
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+            <Mail className="h-5 w-5 text-[var(--primary)]" />
+            <h1 className="text-lg font-bold text-foreground tracking-tight">
               Enterprise Correspondence Register
             </h1>
-            <span className="text-[10px] font-mono text-[#0284c7] bg-sky-50 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
+            <span className="text-[10px] font-mono text-[var(--primary)] bg-info/10 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
               सम्पूर्ण आयोजना पत्र दर्ता / चलानी
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Centralized formal letter tracking, client/consultant notices, EOT claims, and reply deadlines across all site projects.
           </p>
         </div>
 
         {/* Quick KPI summary chips */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-[#c7d8e8] text-xs">
-            <span className="text-slate-500">Total:</span>
-            <span className="font-bold text-slate-900 font-mono">{totalCount}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-muted/60 border border-[var(--border)] text-xs">
+            <span className="text-muted-foreground">Total:</span>
+            <span className="font-bold text-foreground font-mono">{totalCount}</span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs">
             <Clock className="h-3.5 w-3.5 text-amber-600" />
@@ -253,9 +253,9 @@ export default function OrgCorrespondencePage() {
             </div>
           )}
           {eotClaimsCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-xs">
-              <span className="text-sky-800">EOT Claims:</span>
-              <span className="font-bold text-[#0284c7] font-mono">{eotClaimsCount}</span>
+            <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-info/10 border border-info/30 text-xs">
+              <span className="text-info">EOT Claims:</span>
+              <span className="font-bold text-[var(--primary)] font-mono">{eotClaimsCount}</span>
             </div>
           )}
 
@@ -271,16 +271,16 @@ export default function OrgCorrespondencePage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {/* Project Scoper */}
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-slate-500" />
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 min-w-[170px] rounded-lg focus:border-[#0284c7]">
+              <SelectTrigger className="h-8 text-xs bg-card border-[var(--border)] text-foreground min-w-[170px] rounded-lg focus:border-[var(--primary)]">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
                 <SelectItem value="all">🏢 All Projects (सम्पूर्ण आयोजना)</SelectItem>
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
@@ -293,10 +293,10 @@ export default function OrgCorrespondencePage() {
 
           {/* Direction Filter */}
           <Select value={directionFilter} onValueChange={setDirectionFilter}>
-            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-32 rounded-lg focus:border-[#0284c7]">
+            <SelectTrigger className="h-8 text-xs bg-card border-[var(--border)] text-foreground w-32 rounded-lg focus:border-[var(--primary)]">
               <SelectValue placeholder="Direction" />
             </SelectTrigger>
-            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
+            <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Directions</SelectItem>
               <SelectItem value="incoming">📥 Incoming (दर्ता)</SelectItem>
               <SelectItem value="outgoing">📤 Outgoing (चलानी)</SelectItem>
@@ -305,10 +305,10 @@ export default function OrgCorrespondencePage() {
 
           {/* Letter Type */}
           <Select value={letterTypeFilter} onValueChange={setLetterTypeFilter}>
-            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-36 rounded-lg focus:border-[#0284c7]">
+            <SelectTrigger className="h-8 text-xs bg-card border-[var(--border)] text-foreground w-36 rounded-lg focus:border-[var(--primary)]">
               <SelectValue placeholder="Letter Type" />
             </SelectTrigger>
-            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
+            <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="actionable">Actionable (जवाफ आवश्यक)</SelectItem>
               <SelectItem value="informative">Informative (जानकारी मात्र)</SelectItem>

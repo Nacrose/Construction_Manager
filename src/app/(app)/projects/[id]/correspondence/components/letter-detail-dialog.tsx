@@ -84,7 +84,7 @@ export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: 
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {letter?.direction === "incoming" ? <ArrowDownLeft className="h-4 w-4 text-blue-600" /> : <ArrowUpRight className="h-4 w-4 text-emerald-600" />}
+            {letter?.direction === "incoming" ? <ArrowDownLeft className="h-4 w-4 text-info" /> : <ArrowUpRight className="h-4 w-4 text-emerald-600" />}
             {letter?.ourRef ?? "Loading..."}
           </DialogTitle>
           {letter && <DialogDescription>{letter.subject}</DialogDescription>}
@@ -105,7 +105,7 @@ export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: 
                 </span>
               </div>
               <div><span className="text-muted-foreground">Type:</span>
-                {letter.letterType === "actionable" ? <span className="text-amber-600 font-medium">⚡ Actionable</span> : <span className="text-slate-400">ℹ Informative</span>}
+                {letter.letterType === "actionable" ? <span className="text-amber-600 font-medium">⚡ Actionable</span> : <span className="text-muted-foreground/80">ℹ Informative</span>}
               </div>
             </div>
 
@@ -129,8 +129,8 @@ export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: 
             )}
 
             {letter.letterType === "actionable" && (
-              <div className="rounded-md border border-blue-200 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/10 p-3 space-y-3">
-                <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">Reply Management</p>
+              <div className="rounded-md border border-info/30 dark:border-info/30 bg-info/30 dark:bg-[var(--navy-deep)]/10 p-3 space-y-3">
+                <p className="text-xs font-semibold text-info dark:text-info/80">Reply Management</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Reply Status</Label>

@@ -69,7 +69,7 @@ export function MaterialsRequisitionsTab({
           <Button
             size="sm"
             onClick={() => setCreateReqOpen(true)}
-            className="h-7.5 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+            className="h-7.5 text-xs gap-1.5 bg-info hover:bg-info text-white rounded-lg"
           >
             <Plus className="h-3.5 w-3.5" /> New Requisition (PR)
           </Button>
@@ -96,7 +96,7 @@ export function MaterialsRequisitionsTab({
                 statusBadge =
                   "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
               if (req.status === "partially_ordered")
-                statusBadge = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
+                statusBadge = "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
               if (req.status === "ordered")
                 statusBadge =
                   "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300";
@@ -115,7 +115,7 @@ export function MaterialsRequisitionsTab({
               return (
                 <Card
                   key={req.id}
-                  className="flex flex-col justify-between overflow-hidden cursor-pointer hover:border-blue-500/50 transition-all shadow-2xs rounded-xl"
+                  className="flex flex-col justify-between overflow-hidden cursor-pointer hover:border-info/50 transition-all shadow-2xs rounded-xl"
                   onClick={() => setSelectedRequisitionId(req.id)}
                 >
                   <CardHeader className="bg-muted/10 pb-2 pt-3 px-3.5">

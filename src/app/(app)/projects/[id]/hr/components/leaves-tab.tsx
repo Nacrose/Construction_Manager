@@ -145,9 +145,9 @@ export function LeavesTab({
         sortable: true,
         render: (_, row) => (
           <div className="font-sans">
-            <span className="font-semibold text-slate-900 text-xs">{row.staff.name}</span>
+            <span className="font-semibold text-foreground text-xs">{row.staff.name}</span>
             {row.staff.designation && (
-              <span className="block text-[10px] text-slate-500 font-mono">
+              <span className="block text-[10px] text-muted-foreground font-mono">
                 {row.staff.designation}
               </span>
             )}
@@ -161,7 +161,7 @@ export function LeavesTab({
         align: "center",
         width: "110px",
         render: (val) => (
-          <Badge variant="outline" className="text-[10px] font-mono capitalize px-2 py-0.5 border-[#c7d8e8] bg-white text-slate-800">
+          <Badge variant="outline" className="text-[10px] font-mono capitalize px-2 py-0.5 border-[var(--border)] bg-card text-foreground/90">
             {val}
           </Badge>
         ),
@@ -172,7 +172,7 @@ export function LeavesTab({
         accessor: (row) => row.startDate,
         width: "120px",
         render: (val) => (
-          <span className="text-slate-600 font-mono text-xs">
+          <span className="text-muted-foreground font-mono text-xs">
             {val ? format(new Date(val), "dd MMM yyyy") : "—"}
           </span>
         ),
@@ -183,7 +183,7 @@ export function LeavesTab({
         accessor: (row) => row.endDate,
         width: "120px",
         render: (val) => (
-          <span className="text-slate-600 font-mono text-xs">
+          <span className="text-muted-foreground font-mono text-xs">
             {val ? format(new Date(val), "dd MMM yyyy") : "—"}
           </span>
         ),
@@ -195,7 +195,7 @@ export function LeavesTab({
         align: "center",
         width: "80px",
         render: (val) => (
-          <span className="font-mono font-bold text-xs text-[#0284c7]">
+          <span className="font-mono font-bold text-xs text-[var(--primary)]">
             {val} {val === 1 ? "day" : "days"}
           </span>
         ),
@@ -205,7 +205,7 @@ export function LeavesTab({
         header: "Reason / Handover Notes",
         accessor: (row) => row.reason || "",
         render: (val) => (
-          <span className="text-xs text-slate-600 truncate max-w-xs block" title={val || ""}>
+          <span className="text-xs text-muted-foreground truncate max-w-xs block" title={val || ""}>
             {val || "—"}
           </span>
         ),
@@ -263,7 +263,7 @@ export function LeavesTab({
                 </Button>
               </>
             ) : (
-              <span className="text-[10px] text-slate-500 font-mono">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 {leave.approvedBy ? `By ${leave.approvedBy.name}` : "—"}
               </span>
             )}
@@ -277,13 +277,13 @@ export function LeavesTab({
   return (
     <div className="space-y-3 font-sans">
       {/* Action Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
         <div className="flex items-center gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-8 w-40 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-lg font-mono">
+            <SelectTrigger className="h-8 w-40 text-xs bg-card border-[var(--border)] text-foreground rounded-lg font-mono">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="font-mono text-xs bg-white border-[#c7d8e8] text-slate-900 shadow-xl rounded-xl">
+            <SelectContent className="font-mono text-xs bg-card border-[var(--border)] text-foreground shadow-xl rounded-xl">
               <SelectItem value="all">All Requests</SelectItem>
               <SelectItem value="pending">Pending Approval</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -298,7 +298,7 @@ export function LeavesTab({
             variant="outline"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="h-8 text-xs gap-1.5 px-3 font-mono bg-white border-[#c7d8e8] text-slate-700 hover:bg-slate-50 rounded-lg"
+            className="h-8 text-xs gap-1.5 px-3 font-mono bg-card border-[var(--border)] text-foreground/80 hover:bg-muted/60 rounded-lg"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
             <span>Refresh</span>
@@ -308,7 +308,7 @@ export function LeavesTab({
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="h-8 text-xs bg-[#0284c7] hover:bg-[#0369a1] text-white font-semibold gap-1.5 px-3.5 shadow-xs font-mono rounded-lg"
+              className="h-8 text-xs bg-[var(--primary)] hover:bg-[var(--primary)] text-white font-semibold gap-1.5 px-3.5 shadow-xs font-mono rounded-lg"
             >
               <Plus className="h-3.5 w-3.5" />
               Apply Leave (बिदा अनुरोध)
@@ -318,22 +318,22 @@ export function LeavesTab({
       </div>
 
       {/* KPI Ribbon */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2 bg-white rounded-xl border border-[#c7d8e8] text-xs font-mono shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-4 py-2 bg-card rounded-xl border border-[var(--border)] text-xs font-mono shadow-xs">
         <div className="flex items-center gap-3">
           <span>
-            <strong className="text-slate-900">Total:</strong> {leaves.length}
+            <strong className="text-foreground">Total:</strong> {leaves.length}
           </span>
-          <span className="text-slate-300">│</span>
+          <span className="text-muted-foreground">│</span>
           <span className="text-amber-600 font-semibold">
             ⏳ Pending: {pendingCount}
           </span>
-          <span className="text-slate-300">│</span>
+          <span className="text-muted-foreground">│</span>
           <span className="text-emerald-600 font-semibold">
             ✓ Approved: {approvedCount}
           </span>
           {rejectedCount > 0 && (
             <>
-              <span className="text-slate-300">│</span>
+              <span className="text-muted-foreground">│</span>
               <span className="text-rose-600 font-semibold">
                 ✗ Rejected: {rejectedCount}
               </span>
@@ -366,7 +366,7 @@ export function LeavesTab({
         title="Apply for Site Leave"
         description="Submit a site staff leave request for Project Manager approval and attendance deduction."
         badge={
-          <Badge className="bg-[#e5eef7] text-[#0284c7] border border-[#c7d8e8] font-mono text-[10px]">
+          <Badge className="bg-[var(--background)] text-[var(--primary)] border border-[var(--border)] font-mono text-[10px]">
             HR Module
           </Badge>
         }
@@ -375,12 +375,12 @@ export function LeavesTab({
       >
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-800">Select Worker / Staff *</Label>
+            <Label className="text-xs font-semibold text-foreground/90">Select Worker / Staff *</Label>
             <Select value={staffId} onValueChange={setStaffId} required>
-              <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono rounded-xl">
+              <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono rounded-xl">
                 <SelectValue placeholder="Choose personnel..." />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                 {staffList.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name} ({s.designation || s.category || "Staff"})
@@ -391,12 +391,12 @@ export function LeavesTab({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-800">Leave Type</Label>
+            <Label className="text-xs font-semibold text-foreground/90">Leave Type</Label>
             <Select value={leaveType} onValueChange={setLeaveType}>
-              <SelectTrigger className="h-9 text-xs capitalize bg-white border-[#c7d8e8] text-slate-900 font-mono rounded-xl">
+              <SelectTrigger className="h-9 text-xs capitalize bg-card border-[var(--border)] text-foreground font-mono rounded-xl">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                 {LEAVE_TYPES.map((lt) => (
                   <SelectItem key={lt} value={lt} className="capitalize">
                     {lt} Leave
@@ -408,46 +408,46 @@ export function LeavesTab({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-800">Start Date *</Label>
+              <Label className="text-xs font-semibold text-foreground/90">Start Date *</Label>
               <Input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+                className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground rounded-xl"
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-800">End Date *</Label>
+              <Label className="text-xs font-semibold text-foreground/90">End Date *</Label>
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+                className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground rounded-xl"
                 required
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-800">Reason / Handover Notes</Label>
+            <Label className="text-xs font-semibold text-foreground/90">Reason / Handover Notes</Label>
             <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Medical emergency, Family festival"
-              className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-xl"
+              className="h-9 text-xs bg-card border-[var(--border)] text-foreground rounded-xl"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#c7d8e8]">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setAddOpen(false)}
               disabled={createMut.isPending}
-              className="h-9 px-4 text-xs font-mono bg-white border-[#c7d8e8] text-slate-700 hover:bg-slate-50 rounded-xl"
+              className="h-9 px-4 text-xs font-mono bg-card border-[var(--border)] text-foreground/80 hover:bg-muted/60 rounded-xl"
             >
               Cancel
             </Button>

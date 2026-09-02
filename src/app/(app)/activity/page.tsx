@@ -31,17 +31,17 @@ type Log = {
 
 const ACTION_COLORS: Record<string, string> = {
   create: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  update: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  update: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   delete: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   submit: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   approve: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  archive: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  archive: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
 
 function actionBadge(action: string) {
   const verb = action.split(".").pop() ?? action;
   return (
-    <Badge variant="secondary" className={`text-xs ${ACTION_COLORS[verb] ?? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
+    <Badge variant="secondary" className={`text-xs ${ACTION_COLORS[verb] ?? "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80"}`}>
       {verb}
     </Badge>
   );

@@ -26,7 +26,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "level-1-dock bg-[#d8e5f2] border border-[#b8cde2] text-slate-700 inline-flex h-8 w-fit max-w-full items-center justify-start rounded-lg p-0.5 shadow-inner gap-1",
+        "level-1-dock text-muted-foreground dark:text-muted-foreground/80 inline-flex h-8 w-fit max-w-full items-center justify-start rounded-[5px] p-0.5 gap-1",
         className
       )}
       {...props}
@@ -43,8 +43,8 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         "snappy-btn inline-flex h-[calc(100%-2px)] items-center justify-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer",
-        "text-slate-700 hover:text-slate-950 hover:bg-white/60",
-        "data-[state=active]:tab-card-active data-[state=active]:bg-white data-[state=active]:text-[#0369a1] data-[state=active]:font-extrabold data-[state=active]:shadow-xs data-[state=active]:border data-[state=active]:border-[#0284c7]",
+        "text-muted-foreground hover:text-white hover:bg-white/10",
+        "data-[state=active]:tab-card-active data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:font-bold",
         "disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className
       )}

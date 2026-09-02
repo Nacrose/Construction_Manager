@@ -163,7 +163,7 @@ export function ItemCatalogTree({
                         {/* LEVEL 2: Group Header */}
                         <div
                           onClick={() => toggleGroup(category, groupName)}
-                          className="flex items-center justify-between py-1.5 px-3 bg-slate-700/10 dark:bg-zinc-800/40 hover:bg-slate-700/20 cursor-pointer select-none transition-colors border-b border-border/30"
+                          className="flex items-center justify-between py-1.5 px-3 bg-[var(--navy-mid)]/10 dark:bg-zinc-800/40 hover:bg-[var(--navy-mid)]/20 cursor-pointer select-none transition-colors border-b border-border/30"
                         >
                           <div className="flex items-center gap-2">
                             {isGrpCollapsed ? (
@@ -247,10 +247,10 @@ export function ItemCatalogTree({
                                       {item.rateSource && (
                                         <Badge
                                           variant="outline"
-                                          className="text-[9px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 gap-0.5 truncate max-w-[200px]"
+                                          className="text-[9px] font-mono text-muted-foreground dark:text-muted-foreground/80 bg-muted dark:bg-[var(--navy-mid)] border-border dark:border-border gap-0.5 truncate max-w-[200px]"
                                           title={item.rateSource}
                                         >
-                                          <Tag className="h-2.5 w-2.5 text-blue-500 shrink-0" />
+                                          <Tag className="h-2.5 w-2.5 text-info shrink-0" />
                                           {item.rateSource}
                                         </Badge>
                                       )}
@@ -266,9 +266,9 @@ export function ItemCatalogTree({
                                       ) : (
                                         <Badge
                                           variant="outline"
-                                          className="text-[9px] bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-0.5"
+                                          className="text-[9px] bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 gap-0.5"
                                         >
-                                          <Building2 className="h-2.5 w-2.5 text-blue-500" />
+                                          <Building2 className="h-2.5 w-2.5 text-info" />
                                           Org Catalog
                                         </Badge>
                                       )}

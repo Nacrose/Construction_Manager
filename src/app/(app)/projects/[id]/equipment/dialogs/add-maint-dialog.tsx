@@ -196,7 +196,7 @@ export function AddMaintDialog({
               id="maintResolved"
               checked={isResolved}
               onChange={(e) => setIsResolved(e.target.checked)}
-              className="rounded border-input text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+              className="rounded border-input text-info focus:ring-info/50 h-3.5 w-3.5 cursor-pointer"
             />
             <Label htmlFor="maintResolved" className="cursor-pointer text-xs font-medium">
               Mark as Resolved Immediately (Machine Remains Active)

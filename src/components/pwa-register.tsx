@@ -233,7 +233,7 @@ function OfflineBanner({
   } else if (pendingCount > 0) {
     icon = <RefreshCw className="h-4 w-4 animate-spin" />;
     message = `Syncing ${pendingCount} ${pendingCount === 1 ? "item" : "items"}…`;
-    bgClass = "bg-blue-500/95 text-white border-blue-600/40";
+    bgClass = "bg-info/95 text-white border-info/40";
     action = (
       <button
         onClick={onRetry}

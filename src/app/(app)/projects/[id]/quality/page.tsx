@@ -224,7 +224,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
           r.checklist ? (
             <button
               onClick={() => setViewChecklist(r.id)}
-              className="text-blue-500 hover:text-blue-400 p-1"
+              className="text-info hover:text-info/80 p-1"
               title="View Checklist"
             >
               <ClipboardList className="h-4 w-4" />
@@ -261,19 +261,19 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
         {/* KPI Header */}
         {stats && (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono">
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-slate-700">{stats.total}</div><div className="text-[10px] text-slate-500 uppercase">Total</div></Card>
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-amber-700">{stats.pending}</div><div className="text-[10px] text-slate-500 uppercase">Pending</div></Card>
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-emerald-700">{stats.passed}</div><div className="text-[10px] text-slate-500 uppercase">Passed</div></Card>
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-rose-700">{stats.failed}</div><div className="text-[10px] text-slate-500 uppercase">Failed</div></Card>
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-orange-700">{stats.ncr}</div><div className="text-[10px] text-slate-500 uppercase">NCR</div></Card>
-            <Card className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl"><div className="text-lg font-bold text-[#0284c7]">{stats.completed}</div><div className="text-[10px] text-slate-500 uppercase">Completed</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-foreground/80">{stats.total}</div><div className="text-[10px] text-muted-foreground uppercase">Total</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-amber-700">{stats.pending}</div><div className="text-[10px] text-muted-foreground uppercase">Pending</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-emerald-700">{stats.passed}</div><div className="text-[10px] text-muted-foreground uppercase">Passed</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-rose-700">{stats.failed}</div><div className="text-[10px] text-muted-foreground uppercase">Failed</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-orange-700">{stats.ncr}</div><div className="text-[10px] text-muted-foreground uppercase">NCR</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-[var(--primary)]">{stats.completed}</div><div className="text-[10px] text-muted-foreground uppercase">Completed</div></Card>
           </div>
         )}
 
         {/* Action Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-700">
-            <ShieldCheck className="h-4 w-4 text-[#0284c7]" />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
+          <div className="flex items-center gap-2 text-xs font-mono text-foreground/80">
+            <ShieldCheck className="h-4 w-4 text-[var(--primary)]" />
             <span className="font-bold">Quality Inspection &amp; Non-Conformance Register</span>
           </div>
 
@@ -283,21 +283,21 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                 <Plus className="h-3.5 w-3.5" /> Request Inspection (जाँच अनुरोध)
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
-                <DialogTitle className="text-base font-bold text-slate-900">Request Inspection (गुणस्तर जाँच अनुरोध)</DialogTitle>
+            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
+                <DialogTitle className="text-base font-bold text-foreground">Request Inspection (गुणस्तर जाँच अनुरोध)</DialogTitle>
               </div>
-              <div className="p-6 space-y-3.5 text-xs bg-white">
+              <div className="p-6 space-y-3.5 text-xs bg-card">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-700">QI Number *</Label>
-                    <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                    <Label className="text-[11px] font-semibold text-foreground/80">QI Number *</Label>
+                    <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="QI-001" className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-700">Inspection Type</Label>
+                    <Label className="text-[11px] font-semibold text-foreground/80">Inspection Type</Label>
                     <Select value={inspectionType} onValueChange={setInspectionType}>
-                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                      <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                         <SelectItem value="work_inspection">Work Inspection</SelectItem>
                         <SelectItem value="material_test">Material Test</SelectItem>
                         <SelectItem value="ncr">Non-Conformance (NCR)</SelectItem>
@@ -307,16 +307,16 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-slate-700">Title / Work Scope *</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                  <Label className="text-[11px] font-semibold text-foreground/80">Title / Work Scope *</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Rebar inspection at Grid A-3" className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-slate-700">Site Location (Optional)</Label>
-                  <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Block B, 2nd Floor" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                  <Label className="text-[11px] font-semibold text-foreground/80">Site Location (Optional)</Label>
+                  <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Block B, 2nd Floor" className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" />
                 </div>
 
-                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
-                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100 font-mono">Cancel</Button>
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
+                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[var(--border)] text-muted-foreground hover:bg-muted font-mono">Cancel</Button>
                   <Button size="sm" onClick={() => createMut.mutate({ projectId: id, number, title, inspectionType: inspectionType as any, location: location || undefined })} disabled={createMut.isPending || !number || !title} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm font-mono">
                     {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Create Request (अनुरोध सुरक्षित)
                   </Button>
@@ -346,21 +346,21 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
         {/* Complete Dialog with Checklist Builder */}
         {completeId && (
           <Dialog open={true} onOpenChange={(o) => { if (!o) { setCompleteId(null); setShowChecklistBuilder(false); } }}>
-            <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-              <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
-                <DialogTitle className="text-base font-bold text-slate-900">Complete Quality Inspection</DialogTitle>
+            <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+              <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
+                <DialogTitle className="text-base font-bold text-foreground">Complete Quality Inspection</DialogTitle>
               </div>
-              <div className="p-6 space-y-4 text-xs bg-white max-h-[80vh] overflow-y-auto">
+              <div className="p-6 space-y-4 text-xs bg-card max-h-[80vh] overflow-y-auto">
                 {showChecklistBuilder && checklist.length > 0 && (
-                  <div className="space-y-2 border border-[#c7d8e8] rounded-xl p-3 bg-slate-50 font-mono">
+                  <div className="space-y-2 border border-[var(--border)] rounded-xl p-3 bg-muted/60 font-mono">
                     <div className="space-y-1.5">
                       {checklist.map((c, i) => (
-                        <div key={i} className="flex items-start gap-2 rounded-lg border border-[#c7d8e8] bg-white p-2">
+                        <div key={i} className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-card p-2">
                           <div className="flex gap-1 shrink-0 pt-0.5">
                             <button
                               type="button"
                               onClick={() => updateChecklistItem(i, "passed", true)}
-                              className={cn("rounded p-1 transition", c.passed === true ? "bg-emerald-600 text-white" : "bg-slate-100 hover:bg-emerald-500/20 text-slate-600")}
+                              className={cn("rounded p-1 transition", c.passed === true ? "bg-emerald-600 text-white" : "bg-muted hover:bg-emerald-500/20 text-muted-foreground")}
                               title="Pass"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -368,7 +368,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                             <button
                               type="button"
                               onClick={() => updateChecklistItem(i, "passed", false)}
-                              className={cn("rounded p-1 transition", c.passed === false ? "bg-red-600 text-white" : "bg-slate-100 hover:bg-red-500/20 text-slate-600")}
+                              className={cn("rounded p-1 transition", c.passed === false ? "bg-red-600 text-white" : "bg-muted hover:bg-red-500/20 text-muted-foreground")}
                               title="Fail"
                             >
                               <XCircle className="h-3.5 w-3.5" />
@@ -378,18 +378,18 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                             value={c.item}
                             onChange={(e) => updateChecklistItem(i, "item", e.target.value)}
                             placeholder="Checklist item description"
-                            className="h-7 text-xs flex-1 bg-white border-[#c7d8e8]"
+                            className="h-7 text-xs flex-1 bg-card border-[var(--border)]"
                           />
                           <Input
                             value={c.notes}
                             onChange={(e) => updateChecklistItem(i, "notes", e.target.value)}
                             placeholder="Notes (optional)"
-                            className="h-7 text-xs flex-1 bg-white border-[#c7d8e8]"
+                            className="h-7 text-xs flex-1 bg-card border-[var(--border)]"
                           />
                           <button
                             type="button"
                             onClick={() => removeChecklistItem(i)}
-                            className="rounded p-1 text-slate-400 hover:bg-red-500/10 hover:text-red-600 shrink-0"
+                            className="rounded p-1 text-muted-foreground/80 hover:bg-red-500/10 hover:text-red-600 shrink-0"
                             title="Remove"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -397,7 +397,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-muted-foreground">
                       Auto-suggested Result: {computeResult() === "pass" ? "✓ Pass" : computeResult() === "fail" ? "✕ Fail" : "⚠ Conditional"}
                     </p>
                   </div>
@@ -405,10 +405,10 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-700">Final Result</Label>
+                    <Label className="text-[11px] font-semibold text-foreground/80">Final Result</Label>
                     <Select value={result} onValueChange={setResult}>
-                      <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                      <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                         <SelectItem value="pass">✓ Pass</SelectItem>
                         <SelectItem value="fail">✕ Fail (NCR)</SelectItem>
                         <SelectItem value="conditional_pass">⚠ Conditional Pass</SelectItem>
@@ -416,23 +416,23 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-700">Inspected By</Label>
-                    <Input value={inspectedBy} onChange={(e) => setInspectedBy(e.target.value)} placeholder="Engineer Name" className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]" />
+                    <Label className="text-[11px] font-semibold text-foreground/80">Inspected By</Label>
+                    <Input value={inspectedBy} onChange={(e) => setInspectedBy(e.target.value)} placeholder="Engineer Name" className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]" />
                   </div>
                 </div>
                 {result === "fail" && (
                   <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold text-slate-700">NCR Number</Label>
-                    <Input value={ncrNumber} onChange={(e) => setNcrNumber(e.target.value)} placeholder="NCR-001" className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                    <Label className="text-[11px] font-semibold text-foreground/80">NCR Number</Label>
+                    <Input value={ncrNumber} onChange={(e) => setNcrNumber(e.target.value)} placeholder="NCR-001" className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" />
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold text-slate-700">Remarks</Label>
-                  <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className="text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]" />
+                  <Label className="text-[11px] font-semibold text-foreground/80">Remarks</Label>
+                  <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} className="text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" />
                 </div>
 
-                <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
-                  <Button variant="outline" onClick={() => { setCompleteId(null); setShowChecklistBuilder(false); }} className="h-8 text-xs font-mono border-[#c7d8e8] text-slate-600 hover:bg-slate-100">Cancel</Button>
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
+                  <Button variant="outline" onClick={() => { setCompleteId(null); setShowChecklistBuilder(false); }} className="h-8 text-xs font-mono border-[var(--border)] text-muted-foreground hover:bg-muted">Cancel</Button>
                   <Button
                     onClick={() => {
                       const finalResult = (result as any) || computeResult();
@@ -464,19 +464,19 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
           try { items = JSON.parse(qi.checklist); } catch {}
           return (
             <Dialog open={true} onOpenChange={(o) => { if (!o) setViewChecklist(null); }}>
-              <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-                <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
-                  <DialogTitle className="text-base font-bold text-slate-900 font-mono">Checklist — {qi.number}</DialogTitle>
+              <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+                <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
+                  <DialogTitle className="text-base font-bold text-foreground font-mono">Checklist — {qi.number}</DialogTitle>
                 </div>
-                <div className="p-6 space-y-2 text-xs font-mono bg-white">
+                <div className="p-6 space-y-2 text-xs font-mono bg-card">
                   {items.map((c, i) => (
-                    <div key={i} className="flex items-start gap-2 rounded-lg border border-[#c7d8e8] bg-slate-50 p-2.5 text-xs font-mono">
+                    <div key={i} className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-muted/60 p-2.5 text-xs font-mono">
                       {c.passed === true ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> :
                        c.passed === false ? <XCircle className="h-4 w-4 text-rose-600 shrink-0" /> :
-                       <AlertCircle className="h-4 w-4 text-slate-400 shrink-0" />}
+                       <AlertCircle className="h-4 w-4 text-muted-foreground/80 shrink-0" />}
                       <div className="flex-1">
-                        <p className="font-semibold text-slate-900">{c.item}</p>
-                        {c.notes && <p className="text-slate-500 mt-0.5">{c.notes}</p>}
+                        <p className="font-semibold text-foreground">{c.item}</p>
+                        {c.notes && <p className="text-muted-foreground mt-0.5">{c.notes}</p>}
                       </div>
                     </div>
                   ))}

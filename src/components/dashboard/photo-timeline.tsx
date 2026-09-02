@@ -45,7 +45,7 @@ export function PhotoTimeline({ projectId }: Props) {
                     <div className="text-[7px] text-center truncate w-full">{photo.fileName}</div>
                     <div className="text-[7px] text-muted-foreground">{photo.reportNumber}</div>
                     {photo.latitude != null && (
-                      <MapPin className="h-2 w-2 text-blue-500 mt-0.5" />
+                      <MapPin className="h-2 w-2 text-info mt-0.5" />
                     )}
                   </div>
                 ))}

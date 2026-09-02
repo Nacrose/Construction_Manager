@@ -562,7 +562,7 @@ export function ChatPiP() {
                   {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                   {isOwn && (
                     isRead ? (
-                      <CheckCheck className="h-3 w-3 text-blue-500" aria-label="Seen" />
+                      <CheckCheck className="h-3 w-3 text-info" aria-label="Seen" />
                     ) : (
                       <Check className="h-3 w-3 text-muted-foreground" aria-label="Sent" />
                     )

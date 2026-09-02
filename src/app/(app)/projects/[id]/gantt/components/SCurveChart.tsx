@@ -146,9 +146,9 @@ export function SCurveChart({ tasks, rangeStart, days }: { tasks: Task[]; rangeS
         <Card className="p-3 border border-border/70 bg-card/60">
           <div className="flex items-center justify-between text-muted-foreground text-[11px] uppercase">
             <span>Contract Milestones</span>
-            <Flag className="h-3.5 w-3.5 text-cyan-400" />
+            <Flag className="h-3.5 w-3.5 text-info" />
           </div>
-          <div className="text-lg font-bold text-cyan-400 mt-1">
+          <div className="text-lg font-bold text-info mt-1">
             {milestones.length}
           </div>
           <div className="text-[10px] text-muted-foreground">

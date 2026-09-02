@@ -34,10 +34,10 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  project_manager: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  project_manager: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
   engineer: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  client: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  client: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   inspector: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
 };
 
@@ -143,10 +143,10 @@ export default function TeamPage() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
         <TabsList className="bg-muted p-1 rounded-xl h-10 border-none shadow-none flex w-fit">
           <TabsTrigger value="members" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <Users className="h-4 w-4 text-blue-400" /> Team Members ({users.length})
+            <Users className="h-4 w-4 text-info/80" /> Team Members ({users.length})
           </TabsTrigger>
           <TabsTrigger value="organization" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <Building2 className="h-4 w-4 text-[#0284c7]" /> Organization Configuration &amp; Operating Model
+            <Building2 className="h-4 w-4 text-[var(--primary)]" /> Organization Configuration &amp; Operating Model
           </TabsTrigger>
         </TabsList>
 
@@ -254,7 +254,7 @@ export default function TeamPage() {
                         </TableCell>
                         <TableCell>
                           {u.orgRole === "org_admin" && (
-                            <Badge className="text-[9px] gap-1 bg-emerald-500/10 text-[#0284c7] border border-emerald-500/20">
+                            <Badge className="text-[9px] gap-1 bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/20">
                               <ShieldCheck className="h-3 w-3" /> Admin
                             </Badge>
                           )}
@@ -318,11 +318,11 @@ export default function TeamPage() {
 
         {/* Organization Configuration & Operating Model Tab */}
         <TabsContent value="organization" className="space-y-4">
-          <div className="bg-[#f8fbfe]/40 p-6 rounded-2xl border border-[#e2edf7] space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-[#c7d8e8]">
+          <div className="bg-[#f8fbfe]/40 p-6 rounded-2xl border border-[var(--input)] space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-[#0284c7]" /> Organization Type &amp; Operating Model
+                <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-[var(--primary)]" /> Organization Type &amp; Operating Model
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   Configure contractor scale, joint venture structure, and financial site delegation authority.
@@ -349,19 +349,19 @@ export default function TeamPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* 1. Organization Scale */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-800">Organization Scale *</Label>
+                <Label className="text-xs font-semibold text-foreground/90">Organization Scale *</Label>
                 <div className="space-y-2">
                   <div
                     onClick={() => setOrgScale("multi_project")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       orgScale === "multi_project"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">🏢 Multi-Project Firm</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Company runs multiple ongoing sites across different districts.</p>
+                    <div className="font-semibold text-xs text-foreground">🏢 Multi-Project Firm</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Company runs multiple ongoing sites across different districts.</p>
                   </div>
 
                   <div
@@ -369,31 +369,31 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       orgScale === "single_project_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">🤝 Single Dedicated Project JV</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Dedicated entity created for a single joint venture contract.</p>
+                    <div className="font-semibold text-xs text-foreground">🤝 Single Dedicated Project JV</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Dedicated entity created for a single joint venture contract.</p>
                   </div>
                 </div>
               </div>
 
               {/* 2. Partnership Model */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-800">Contractor Partnership Model *</Label>
+                <Label className="text-xs font-semibold text-foreground/90">Contractor Partnership Model *</Label>
                 <div className="space-y-2">
                   <div
                     onClick={() => setPartnershipType("sole")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "sole"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">👤 Sole Contractor</div>
-                    <p className="text-[11px] text-slate-500 mt-1">100% owned &amp; operated by this organization.</p>
+                    <div className="font-semibold text-xs text-foreground">👤 Sole Contractor</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">100% owned &amp; operated by this organization.</p>
                   </div>
 
                   <div
@@ -401,12 +401,12 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "lead_partner_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">👑 Lead Managing Partner (JV)</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Manages execution, billing, and distributes partner shares.</p>
+                    <div className="font-semibold text-xs text-foreground">👑 Lead Managing Partner (JV)</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Manages execution, billing, and distributes partner shares.</p>
                   </div>
 
                   <div
@@ -414,31 +414,31 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "joint_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">⚖️ Jointly Operated JV</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Equal partner governance and joint approvals.</p>
+                    <div className="font-semibold text-xs text-foreground">⚖️ Jointly Operated JV</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Equal partner governance and joint approvals.</p>
                   </div>
                 </div>
               </div>
 
               {/* 3. Financial & Procurement Authority */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-800">Operating Delegation Model *</Label>
+                <Label className="text-xs font-semibold text-foreground/90">Operating Delegation Model *</Label>
                 <div className="space-y-2">
                   <div
                     onClick={() => setOperatingModel("decentralized_site_and_hq")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingModel === "decentralized_site_and_hq"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">⚡ Autonomous Site &amp; HQ</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Site managers create bills and approve expenses up to petty cash limit.</p>
+                    <div className="font-semibold text-xs text-foreground">⚡ Autonomous Site &amp; HQ</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Site managers create bills and approve expenses up to petty cash limit.</p>
                   </div>
 
                   <div
@@ -446,12 +446,12 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingModel === "hybrid_daybook_hq_procure"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">🔄 Hybrid Day Book + HQ Procure</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Daily expenses at site; major procurement centrally reviewed at HQ.</p>
+                    <div className="font-semibold text-xs text-foreground">🔄 Hybrid Day Book + HQ Procure</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Daily expenses at site; major procurement centrally reviewed at HQ.</p>
                   </div>
 
                   <div
@@ -459,12 +459,12 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingModel === "hq_centralized_imprest"
-                        ? "border-emerald-500 bg-emerald-500/10 text-slate-900"
-                        : "border-[#c7d8e8] bg-white text-slate-500 hover:border-[#0284c7]"
+                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-slate-900">🏛️ HQ Centralized Imprest</div>
-                    <p className="text-[11px] text-slate-500 mt-1">Strict petty cash advance system with HQ accounting control.</p>
+                    <div className="font-semibold text-xs text-foreground">🏛️ HQ Centralized Imprest</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Strict petty cash advance system with HQ accounting control.</p>
                   </div>
                 </div>
               </div>

@@ -56,8 +56,8 @@ export function OrgDayBookTab() {
         header: "Date (Miti / AD)",
         render: (_val, row) => (
           <div>
-            <div className="font-bold text-slate-900 leading-tight">{row.miti || "—"}</div>
-            <div className="text-[10px] text-slate-500 leading-tight">
+            <div className="font-bold text-foreground leading-tight">{row.miti || "—"}</div>
+            <div className="text-[10px] text-muted-foreground leading-tight">
               {format(new Date(row.date), "yyyy-MM-dd")}
             </div>
           </div>
@@ -67,7 +67,7 @@ export function OrgDayBookTab() {
         key: "projectCode",
         header: "Project",
         render: (val) => (
-          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-[#c7d8e8] text-[#0284c7]">
+          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-[var(--border)] text-[var(--primary)]">
             {val || "HO"}
           </Badge>
         ),
@@ -75,7 +75,7 @@ export function OrgDayBookTab() {
       {
         key: "voucherNo",
         header: "Voucher #",
-        className: "font-bold text-[#0284c7]",
+        className: "font-bold text-[var(--primary)]",
       },
       {
         key: "voucherType",
@@ -88,9 +88,9 @@ export function OrgDayBookTab() {
         className: "font-sans",
         render: (val, row) => (
           <div>
-            <div className="font-semibold text-slate-900 truncate max-w-md text-xs">{val}</div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
-              <span className="bg-[#f8fbfe] px-1.5 py-0.2 rounded text-[#0284c7] border border-[#e2edf7] font-semibold">
+            <div className="font-semibold text-foreground truncate max-w-md text-xs">{val}</div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
+              <span className="bg-[#f8fbfe] px-1.5 py-0.2 rounded text-[var(--primary)] border border-[var(--input)] font-semibold">
                 {row.accountHead}
               </span>
               {row.partyPan && <span>PAN: {row.partyPan}</span>}
@@ -101,7 +101,7 @@ export function OrgDayBookTab() {
       {
         key: "paymentMode",
         header: "Mode",
-        render: (val) => <span className="capitalize text-slate-700">{val?.replace(/_/g, " ") || "—"}</span>,
+        render: (val) => <span className="capitalize text-foreground/80">{val?.replace(/_/g, " ") || "—"}</span>,
       },
       {
         key: "debit",
@@ -116,14 +116,14 @@ export function OrgDayBookTab() {
         header: "Credit (Cr)",
         align: "right",
         summary: "sum",
-        className: "text-[#0284c7] font-bold",
+        className: "text-[var(--primary)] font-bold",
         render: (val) => (val > 0 ? formatNpr(val) : "—"),
       },
       {
         key: "runningBalance",
         header: "Balance",
         align: "right",
-        className: "font-bold font-mono text-slate-900",
+        className: "font-bold font-mono text-foreground",
         render: (val) => formatNpr(val),
       },
     ],
@@ -142,27 +142,27 @@ export function OrgDayBookTab() {
   return (
     <div className="space-y-3">
       {/* Single-Line Summary Strip (Khatabook Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-[#c7d8e8] bg-white shadow-xs text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-card shadow-xs text-xs font-mono">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Total Disbursements (Dr):</span>
+            <span className="text-muted-foreground">Total Disbursements (Dr):</span>
             <span className="font-bold text-rose-700 font-matrix">NPR {formatNpr(summary.totalDebit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-[#c7d8e8]" />
+          <div className="h-3 w-[1px] bg-[var(--border)]" />
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Total Invoiced / Inflow (Cr):</span>
+            <span className="text-muted-foreground">Total Invoiced / Inflow (Cr):</span>
             <span className="font-bold text-emerald-700 font-matrix">NPR {formatNpr(summary.totalCredit)}</span>
           </div>
-          <div className="h-3 w-[1px] bg-[#c7d8e8]" />
+          <div className="h-3 w-[1px] bg-[var(--border)]" />
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Net Flow:</span>
+            <span className="text-muted-foreground">Net Flow:</span>
             <span className={cn("font-bold font-matrix", summary.totalCredit - summary.totalDebit >= 0 ? "text-emerald-700" : "text-rose-700")}>
               NPR {formatNpr(summary.totalCredit - summary.totalDebit)}
             </span>
           </div>
         </div>
 
-        <div className="text-[11px] text-slate-500 font-mono">
+        <div className="text-[11px] text-muted-foreground font-mono">
           {entries.length} Master Journal Entries
         </div>
       </div>
@@ -187,10 +187,10 @@ export function OrgDayBookTab() {
             {/* Project Selector */}
             <div className="w-44">
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger className="h-8 text-xs bg-[#f8fbfe] text-slate-900 rounded-lg border-[#c7d8e8]">
+                <SelectTrigger className="h-8 text-xs bg-[#f8fbfe] text-foreground rounded-lg border-[var(--border)]">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                   <SelectItem value="all">🌐 All Projects</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
@@ -204,10 +204,10 @@ export function OrgDayBookTab() {
             {/* Voucher Type Filter */}
             <div className="w-36">
               <Select value={voucherType} onValueChange={setVoucherType}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-lg">
+                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Vouchers" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-emerald-500/30 text-xs text-slate-900">
+                <SelectContent className="bg-card border-emerald-500/30 text-xs text-foreground">
                   <SelectItem value="all">All Vouchers</SelectItem>
                   <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
                   <SelectItem value="billing">Inflows / Receipts</SelectItem>

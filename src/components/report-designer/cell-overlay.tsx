@@ -256,7 +256,7 @@ export function CellOverlay({
       {selected && !cell.locked && (
         <div
           onMouseDown={handleResizeStart}
-          className="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize rounded-sm border border-primary bg-white"
+          className="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize rounded-sm border border-primary bg-card"
         />
       )}
 

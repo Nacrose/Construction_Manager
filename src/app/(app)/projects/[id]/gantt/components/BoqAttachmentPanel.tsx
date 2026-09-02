@@ -50,7 +50,7 @@ export function BoqAttachmentPanel({
   const totalBoqValue = task.boqLinks.reduce((s, l) => s + l.boqItem.rate * l.quantity, 0);
 
   return (
-    <div className="flex border-b bg-blue-50/30 dark:bg-blue-950/10">
+    <div className="flex border-b bg-info/30 dark:bg-[var(--navy-deep)]/10">
       <div className="flex-1 px-3 py-2 space-y-1.5">
         {task.boqLinks.length > 0 && (
           <div className="space-y-1">
@@ -129,7 +129,7 @@ export function BoqAttachmentPanel({
             <button
               onClick={() => addLinkMutation.mutate({ taskId: task.id, boqItemId: selectedBoqId, quantity: parseFloat(qty) || 0 })}
               disabled={!selectedBoqId || addLinkMutation.isPending}
-              className="flex h-7 w-7 items-center justify-center rounded bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700"
+              className="flex h-7 w-7 items-center justify-center rounded bg-info text-white disabled:opacity-40 hover:bg-info"
               title="Attach BOQ item"
             >
               {addLinkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}

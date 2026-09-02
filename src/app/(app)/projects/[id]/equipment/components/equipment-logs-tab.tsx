@@ -113,7 +113,7 @@ export function EquipmentLogsTab({
                 </span>
               )}
               {hasTrips && (
-                <span className="text-blue-700 dark:text-blue-300 font-semibold">
+                <span className="text-info dark:text-info/80 font-semibold">
                   • {log.tripCount} Trips
                 </span>
               )}
@@ -254,7 +254,7 @@ export function EquipmentLogsTab({
                     {t.productivityRate !== null && (
                       <div>
                         <span className="text-muted-foreground">Productivity:</span>{" "}
-                        <strong className="font-mono text-blue-600">
+                        <strong className="font-mono text-info">
                           {t.productivityRate.toFixed(1)} {t.outputUnit || "cum"}/hr
                         </strong>
                       </div>

@@ -10,7 +10,7 @@ export function SkeletonBlock({
   return (
     <div
       className={cn(
-        "animate-pulse rounded bg-[#d8e5f2]/70 border border-[#c5d7e8]/40",
+        "animate-pulse rounded bg-[var(--secondary)]/70 border border-[#c5d7e8]/40",
         className
       )}
     />
@@ -23,7 +23,7 @@ export function StatCardSkeleton({ count = 3 }: { count?: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="rounded-lg p-3 bg-white border border-[#c7d8e8] shadow-xs flex items-center justify-between"
+          className="rounded-lg p-3 bg-card border border-[var(--border)] shadow-xs flex items-center justify-between"
         >
           <div className="space-y-1.5 flex-1">
             <SkeletonBlock className="h-3 w-24" />
@@ -44,9 +44,9 @@ export function TableSkeleton({
   cols?: number;
 }) {
   return (
-    <div className="rounded-lg border border-[#c7d8e8] bg-white overflow-hidden shadow-xs">
+    <div className="rounded-lg border border-[var(--border)] bg-card overflow-hidden shadow-xs">
       {/* Table Header Skeleton */}
-      <div className="bg-[#f0f6fc] border-b border-[#c7d8e8] px-3 py-2 flex items-center justify-between gap-4">
+      <div className="bg-[#f0f6fc] border-b border-[var(--border)] px-3 py-2 flex items-center justify-between gap-4">
         <SkeletonBlock className="h-4 w-28" />
         <SkeletonBlock className="h-6 w-48" />
       </div>
@@ -89,7 +89,7 @@ export function CockpitSkeleton() {
       <StatCardSkeleton count={3} />
 
       {/* Middle Alerts / Quick Actions Bar Skeleton */}
-      <div className="rounded-lg p-2.5 bg-white border border-[#c7d8e8] shadow-xs flex items-center justify-between gap-4">
+      <div className="rounded-lg p-2.5 bg-card border border-[var(--border)] shadow-xs flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 flex-1">
           <SkeletonBlock className="h-4 w-4 rounded-full" />
           <SkeletonBlock className="h-3.5 w-64" />
@@ -100,7 +100,7 @@ export function CockpitSkeleton() {
       {/* Main Grid: Liquid Cash / Projects & Live Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
         <div className="lg:col-span-4 space-y-2.5">
-          <div className="rounded-lg p-3 bg-white border border-[#c7d8e8] shadow-xs space-y-2">
+          <div className="rounded-lg p-3 bg-card border border-[var(--border)] shadow-xs space-y-2">
             <SkeletonBlock className="h-4 w-32" />
             <SkeletonBlock className="h-10 w-full" />
             <SkeletonBlock className="h-10 w-full" />

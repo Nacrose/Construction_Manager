@@ -95,7 +95,7 @@ export function ProgressSCurve({ projectId }: Props) {
         <div className="grid grid-cols-4 gap-2 text-xs">
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Planned</div>
-            <div className="font-bold text-blue-600">{currentPlannedPct}%</div>
+            <div className="font-bold text-info">{currentPlannedPct}%</div>
           </div>
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Actual</div>
@@ -109,7 +109,7 @@ export function ProgressSCurve({ projectId }: Props) {
           </div>
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Budget</div>
-            <div className="font-bold text-slate-600">{npr(data.summary.totalPlanned)}</div>
+            <div className="font-bold text-muted-foreground">{npr(data.summary.totalPlanned)}</div>
           </div>
         </div>
 
@@ -171,7 +171,7 @@ export function ProgressSCurve({ projectId }: Props) {
         {/* Legend */}
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="h-0.5 w-4 border-t-2 border-dashed border-blue-500" /> Planned
+            <span className="h-0.5 w-4 border-t-2 border-dashed border-info/60" /> Planned
           </span>
           <span className="flex items-center gap-1">
             <span className="h-0.5 w-4 border-t-2 border-emerald-500" /> Actual

@@ -127,7 +127,7 @@ export function CreatePODialog({
     <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle className="text-base font-bold flex items-center gap-2">
-          <Link2 className="h-5 w-5 text-blue-600" />
+          <Link2 className="h-5 w-5 text-info" />
           Draft Purchase Order
         </DialogTitle>
         <DialogDescription className="text-xs">
@@ -137,15 +137,15 @@ export function CreatePODialog({
 
       <form onSubmit={onSubmit} className="space-y-4">
         {/* Optional Requisition Link Selector */}
-        <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-3 space-y-1.5">
-          <Label className="text-xs font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+        <div className="bg-info/50 dark:bg-[var(--navy-deep)]/20 border border-info/30 dark:border-info/30 rounded-xl p-3 space-y-1.5">
+          <Label className="text-xs font-semibold text-info dark:text-info/80 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-info" />
             Link to Approved Requisition (PR)
           </Label>
           <select
             value={selectedReqId}
             onChange={(e) => handleSelectRequisition(e.target.value)}
-            className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground shadow-2xs focus:ring-1 focus:ring-blue-500"
+            className="flex h-8 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground shadow-2xs focus:ring-1 focus:ring-info/50"
           >
             <option value="">-- Optional: Select Approved Requisition to Auto-Fill --</option>
             {approvedReqs.map((r) => (
@@ -253,7 +253,7 @@ export function CreatePODialog({
             </div>
             <div className="border-t pt-1 flex justify-between font-bold text-sm text-foreground">
               <span>Grand Total (Net):</span>
-              <span className="text-blue-600 dark:text-blue-400">NPR {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span className="text-info dark:text-info/80">NPR {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         )}
@@ -264,7 +264,7 @@ export function CreatePODialog({
         </div>
 
         <DialogFooter>
-          <Button size="sm" type="submit" disabled={mutation.isPending || items.length === 0 || !supplierId} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button size="sm" type="submit" disabled={mutation.isPending || items.length === 0 || !supplierId} className="bg-info hover:bg-info text-white">
             {mutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             Draft Purchase Order
           </Button>

@@ -26,10 +26,10 @@ type Props = {
 
 const CATEGORY_CONFIG = {
   material: { label: "Material", icon: Package, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/30" },
-  labor: { label: "Labor", icon: HardHat, color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-950/30" },
+  labor: { label: "Labor", icon: HardHat, color: "text-info", bg: "bg-info/10 dark:bg-[var(--navy-deep)]/30" },
   equipment: { label: "Equipment", icon: Wrench, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-950/30" },
   subcontractor: { label: "Subcontractor", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
-  overhead: { label: "Overhead", icon: Receipt, color: "text-slate-600", bg: "bg-slate-50 dark:bg-slate-800/50" },
+  overhead: { label: "Overhead", icon: Receipt, color: "text-muted-foreground", bg: "bg-muted/60 dark:bg-[var(--navy-mid)]/50" },
 };
 
 const PERIODS = [
@@ -200,7 +200,7 @@ export function CostSummaryCard({ projectId, canWrite = true }: Props) {
                               {cost.source !== "manual" && (
                                 <>
                                   <span>·</span>
-                                  <span className="text-blue-600">{cost.source === "daily_report" ? "📄 " + (cost.sourceRef || "report") : cost.source}</span>
+                                  <span className="text-info">{cost.source === "daily_report" ? "📄 " + (cost.sourceRef || "report") : cost.source}</span>
                                 </>
                               )}
                               {cost.vendor && (
@@ -237,7 +237,7 @@ export function CostSummaryCard({ projectId, canWrite = true }: Props) {
               {/* Auto vs Manual split */}
               <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t pt-2">
                 <span>
-                  Auto-captured: <strong className="text-blue-600">{npr(stats.bySource["daily_report"] ?? 0)}</strong>
+                  Auto-captured: <strong className="text-info">{npr(stats.bySource["daily_report"] ?? 0)}</strong>
                 </span>
                 <span>
                   Manual: <strong className="text-amber-600">{npr(stats.bySource["manual"] ?? 0)}</strong>

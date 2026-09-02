@@ -346,7 +346,7 @@ export function EditRfiDialog({
 
         <div className="flex gap-2 justify-end pt-4 border-t border-border mt-6">
           <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
-          <Button type="submit" disabled={mutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button type="submit" disabled={mutation.isPending} className="bg-info hover:bg-info text-white">
             {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} 
             Update
           </Button>

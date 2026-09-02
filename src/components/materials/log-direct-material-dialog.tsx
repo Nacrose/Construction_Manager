@@ -387,24 +387,24 @@ export function LogDirectMaterialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[1280px] !w-[95vw] max-h-[92vh] flex flex-col p-0 gap-0 bg-white border border-[#c7d8e8] shadow-2xl rounded-2xl font-sans overflow-hidden text-slate-900">
+      <DialogContent className="!max-w-[1280px] !w-[95vw] max-h-[92vh] flex flex-col p-0 gap-0 bg-card border border-[var(--border)] shadow-2xl rounded-2xl font-sans overflow-hidden text-foreground">
         {/* Header Bar */}
-        <div className="px-6 py-3.5 shrink-0 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+        <div className="px-6 py-3.5 shrink-0 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-[#e0f2fe] text-[#0284c7] border border-[#bae6fd]">
+            <div className="p-2 rounded-xl bg-[var(--accent)] text-[var(--primary)] border border-[#bae6fd]">
               <Truck className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              <DialogTitle className="text-base font-extrabold text-foreground tracking-tight flex items-center gap-2">
                 Log Direct Material Delivery (सामग्री दाखिला / रेकर्ड)
               </DialogTitle>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Unified Procurement Hub: 3-Tier Catalog, Multi-stream Landing &amp; Statutory VAT/TDS Engine.
               </p>
             </div>
           </div>
           {miti && (
-            <span className="text-xs font-mono font-bold text-[#0369a1] px-3 py-1 rounded-full bg-[#e5eef7] border border-[#c7d8e8]">
+            <span className="text-xs font-mono font-bold text-[var(--primary)] px-3 py-1 rounded-full bg-[var(--background)] border border-[var(--border)]">
               {miti} BS ({date})
             </span>
           )}
@@ -417,17 +417,17 @@ export function LogDirectMaterialDialog({
           {/* ═════════════════════════════════════════════════════════════════════ */}
           <div className="col-span-6 flex flex-col justify-between space-y-3">
             {/* 1. Target Site & Supplier Header Card */}
-            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[#c7d8e8] space-y-3">
+            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Target Site (साइट) <span className="text-[#0284c7]">*</span>
+                  <Label className="text-[11px] font-semibold text-foreground/80">
+                    Target Site (साइट) <span className="text-[var(--primary)]">*</span>
                   </Label>
                   <Select value={activeProjectId} onValueChange={setSelectedProjectId}>
-                    <SelectTrigger className="h-9 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]">
+                    <SelectTrigger className="h-9 text-xs bg-card text-foreground rounded-xl border-[var(--border)]">
                       <SelectValue placeholder="Select target site" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                    <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                       {projects.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
@@ -438,8 +438,8 @@ export function LogDirectMaterialDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">
-                    Delivery Date (मिति) <span className="text-[#0284c7]">*</span>
+                  <Label className="text-[11px] font-semibold text-foreground/80">
+                    Delivery Date (मिति) <span className="text-[var(--primary)]">*</span>
                   </Label>
                   <NepaliDatePicker
                     value={date}
@@ -452,16 +452,16 @@ export function LogDirectMaterialDialog({
                       }
                     }}
                     placeholder="Select BS date"
-                    className="w-full h-9 text-xs font-mono rounded-xl border-[#c7d8e8] bg-white text-slate-900"
+                    className="w-full h-9 text-xs font-mono rounded-xl border-[var(--border)] bg-card text-foreground"
                   />
                 </div>
               </div>
 
               {/* Vendor Search Dropdown */}
-              <div className="space-y-1 pt-1 border-t border-[#e2edf7]">
+              <div className="space-y-1 pt-1 border-t border-[var(--input)]">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[11px] font-bold text-[#0284c7] flex items-center gap-1.5">
-                    <Building className="h-3.5 w-3.5" /> Supplier / Vendor (कसबाट प्राप्त?) <span className="text-[#0284c7]">*</span>
+                  <Label className="text-[11px] font-bold text-[var(--primary)] flex items-center gap-1.5">
+                    <Building className="h-3.5 w-3.5" /> Supplier / Vendor (कसबाट प्राप्त?) <span className="text-[var(--primary)]">*</span>
                   </Label>
                   {selectedVendor && (
                     <button
@@ -478,18 +478,18 @@ export function LogDirectMaterialDialog({
                 </div>
 
                 {selectedVendor ? (
-                  <div className="h-9 px-3 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-between">
+                  <div className="h-9 px-3 rounded-xl bg-info/10 border border-info/40 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-500 text-slate-900 text-[9px] font-bold">Party</Badge>
-                      <span className="font-bold text-slate-900 text-xs">{selectedVendor.name}</span>
+                      <Badge className="bg-info/70 text-foreground text-[9px] font-bold">Party</Badge>
+                      <span className="font-bold text-foreground text-xs">{selectedVendor.name}</span>
                     </div>
                     {selectedVendor.pan && (
-                      <span className="text-[10px] text-[#0284c7] font-mono">PAN: {selectedVendor.pan}</span>
+                      <span className="text-[10px] text-[var(--primary)] font-mono">PAN: {selectedVendor.pan}</span>
                     )}
                   </div>
                 ) : (
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       value={vendorSearch}
                       onChange={(e) => {
@@ -497,19 +497,19 @@ export function LogDirectMaterialDialog({
                         setCustomVendorName(e.target.value);
                       }}
                       placeholder="Search registered vendor or type supplier name..."
-                      className="h-9 pl-8 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]"
+                      className="h-9 pl-8 text-xs bg-card text-foreground rounded-xl border-[var(--border)]"
                     />
                     {vendorSuggestions.length > 0 && vendorSearch.trim().length > 0 && (
-                      <div className="absolute top-10 left-0 right-0 z-50 bg-white border border-[#c7d8e8] rounded-xl shadow-2xl max-h-36 overflow-y-auto p-1">
+                      <div className="absolute top-10 left-0 right-0 z-50 bg-card border border-[var(--border)] rounded-xl shadow-2xl max-h-36 overflow-y-auto p-1">
                         {vendorSuggestions.map((v) => (
                           <button
                             key={v.id}
                             type="button"
                             onClick={() => handleSelectVendor(v)}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-500/10 rounded-lg flex items-center justify-between text-slate-800 hover:text-slate-900"
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-500/10 rounded-lg flex items-center justify-between text-foreground/90 hover:text-foreground"
                           >
                             <span className="font-semibold">{v.name}</span>
-                            <span className="text-[10px] text-[#0284c7] font-mono">
+                            <span className="text-[10px] text-[var(--primary)] font-mono">
                               {v.pan ? `PAN: ${v.pan}` : "Party"}
                             </span>
                           </button>
@@ -522,18 +522,18 @@ export function LogDirectMaterialDialog({
             </div>
 
             {/* 2. 3-Tier Hierarchical Catalog Dropdowns Card */}
-            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[#c7d8e8] space-y-3 shadow-lg">
+            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-[#0284c7] flex items-center gap-1.5">
-                  <Layers className="h-4 w-4" /> 3-Tier Material Catalog (वर्गीकरण) <span className="text-[#0284c7]">*</span>
+                <Label className="text-xs font-bold text-[var(--primary)] flex items-center gap-1.5">
+                  <Layers className="h-4 w-4" /> 3-Tier Material Catalog (वर्गीकरण) <span className="text-[var(--primary)]">*</span>
                 </Label>
-                <span className="text-[10px] text-slate-500">Category $\rightarrow$ Material $\rightarrow$ Spec</span>
+                <span className="text-[10px] text-muted-foreground">Category $\rightarrow$ Material $\rightarrow$ Spec</span>
               </div>
 
               <div className="grid grid-cols-3 gap-2.5">
                 {/* Tier 1: Category */}
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-semibold text-slate-700">
+                  <Label className="text-[10px] font-semibold text-foreground/80">
                     1. Category (मुख्य वर्ग)
                   </Label>
                   <Select
@@ -544,10 +544,10 @@ export function LogDirectMaterialDialog({
                       setSelectedSpecObj(null);
                     }}
                   >
-                    <SelectTrigger className="h-9 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]">
+                    <SelectTrigger className="h-9 text-xs bg-card text-foreground rounded-xl border-[var(--border)]">
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900 max-h-52">
+                    <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground max-h-52">
                       {categories.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat}
@@ -559,7 +559,7 @@ export function LogDirectMaterialDialog({
 
                 {/* Tier 2: Material Name */}
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-semibold text-slate-700">
+                  <Label className="text-[10px] font-semibold text-foreground/80">
                     2. Material (सामग्री)
                   </Label>
                   <Select
@@ -570,10 +570,10 @@ export function LogDirectMaterialDialog({
                     }}
                     disabled={materialsInCategory.length === 0}
                   >
-                    <SelectTrigger className="h-9 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]">
+                    <SelectTrigger className="h-9 text-xs bg-card text-foreground rounded-xl border-[var(--border)]">
                       <SelectValue placeholder="Material" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900 max-h-52">
+                    <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground max-h-52">
                       {materialsInCategory.map((mat) => (
                         <SelectItem key={mat} value={mat}>
                           {mat}
@@ -585,7 +585,7 @@ export function LogDirectMaterialDialog({
 
                 {/* Tier 3: Specification / Grade */}
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-semibold text-slate-700">
+                  <Label className="text-[10px] font-semibold text-foreground/80">
                     3. Spec / Grade (साइज)
                   </Label>
                   <Select
@@ -593,10 +593,10 @@ export function LogDirectMaterialDialog({
                     onValueChange={handleSelectTier3Spec}
                     disabled={specsForMaterial.length === 0}
                   >
-                    <SelectTrigger className="h-9 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8] font-semibold">
+                    <SelectTrigger className="h-9 text-xs bg-card text-foreground rounded-xl border-[var(--border)] font-semibold">
                       <SelectValue placeholder="Spec" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900 max-h-52">
+                    <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground max-h-52">
                       {specsForMaterial.map((item) => (
                         <SelectItem key={item.id} value={item.id}>
                           {item.spec || item.name} {item.unit ? `(${item.unit})` : ""}
@@ -608,42 +608,42 @@ export function LogDirectMaterialDialog({
               </div>
 
               {/* Brand & Remarks */}
-              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[#e2edf7]">
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[var(--input)]">
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-500 font-medium">Brand / Manufacturer (कम्पनी)</Label>
+                  <Label className="text-[10px] text-muted-foreground font-medium">Brand / Manufacturer (कम्पनी)</Label>
                   <Input
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
                     placeholder="e.g. Maruti, Shivam, Jagdamba"
-                    className="h-8.5 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]"
+                    className="h-8.5 text-xs bg-card text-foreground rounded-xl border-[var(--border)]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-500 font-medium">Remarks (कैफियत)</Label>
+                  <Label className="text-[10px] text-muted-foreground font-medium">Remarks (कैफियत)</Label>
                   <Input
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                     placeholder="e.g. Site drop notes"
-                    className="h-8.5 text-xs bg-white text-slate-900 rounded-xl border-[#c7d8e8]"
+                    className="h-8.5 text-xs bg-card text-foreground rounded-xl border-[var(--border)]"
                   />
                 </div>
               </div>
             </div>
 
             {/* Direct Bill Upload Card */}
-            <div className="p-3.5 rounded-2xl bg-[#f8fbfe] border border-[#c7d8e8] flex items-center justify-between gap-3">
+            <div className="p-3.5 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-[#0284c7] border border-[#c7d8e8]">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-[var(--primary)] border border-[var(--border)]">
                   <Upload className="h-4 w-4" />
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-slate-900 block">Official Bill / Challan Attachment</span>
-                  <span className="text-[10px] text-slate-500">Attach scanned VAT invoice, challan or delivery slip (PDF/Image)</span>
+                  <span className="text-xs font-semibold text-foreground block">Official Bill / Challan Attachment</span>
+                  <span className="text-[10px] text-muted-foreground">Attach scanned VAT invoice, challan or delivery slip (PDF/Image)</span>
                 </div>
               </div>
 
-              <label className="h-8.5 px-3 flex items-center gap-1.5 bg-white border border-[#c7d8e8] hover:border-emerald-400 text-[#0284c7] rounded-xl cursor-pointer text-xs font-semibold shrink-0 transition shadow-sm">
+              <label className="h-8.5 px-3 flex items-center gap-1.5 bg-card border border-[var(--border)] hover:border-emerald-400 text-[var(--primary)] rounded-xl cursor-pointer text-xs font-semibold shrink-0 transition shadow-sm">
                 <FileText className="h-3.5 w-3.5" />
                 <span>{fileName ? fileName.slice(0, 15) + "..." : "Browse Bill"}</span>
                 <input
@@ -661,18 +661,18 @@ export function LogDirectMaterialDialog({
           {/* ═════════════════════════════════════════════════════════════════════ */}
           <div className="col-span-6 flex flex-col justify-between space-y-3">
             {/* 3 & 4. COMBINED UNIFIED MATERIAL COST, VAT & TDS ENGINE CARD */}
-            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[#c7d8e8] space-y-3 shadow-lg">
+            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-[#0284c7] flex items-center gap-1.5">
+                <Label className="text-xs font-bold text-[var(--primary)] flex items-center gap-1.5">
                   <Calculator className="h-4 w-4" /> Material Cost, VAT &amp; TDS Engine (मूल्य तथा कर गणना)
                 </Label>
                 {/* 3 Bill States */}
-                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#c7d8e8]">
+                <div className="flex items-center gap-1 bg-card p-1 rounded-xl border border-[var(--border)]">
                   <button
                     type="button"
                     onClick={() => setBillStatus("received")}
                     className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition ${
-                      billStatus === "received" ? "bg-blue-500 text-slate-900" : "text-slate-500"
+                      billStatus === "received" ? "bg-info/70 text-foreground" : "text-muted-foreground"
                     }`}
                   >
                     VAT Bill
@@ -681,7 +681,7 @@ export function LogDirectMaterialDialog({
                     type="button"
                     onClick={() => setBillStatus("pending")}
                     className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition ${
-                      billStatus === "pending" ? "bg-amber-500 text-black font-bold" : "text-slate-500"
+                      billStatus === "pending" ? "bg-amber-500 text-black font-bold" : "text-muted-foreground"
                     }`}
                   >
                     Challan / Pending
@@ -690,7 +690,7 @@ export function LogDirectMaterialDialog({
                     type="button"
                     onClick={() => setBillStatus("non_vat")}
                     className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition ${
-                      billStatus === "non_vat" ? "bg-white/20 text-slate-900" : "text-slate-500"
+                      billStatus === "non_vat" ? "bg-white/20 text-foreground" : "text-muted-foreground"
                     }`}
                   >
                     Non-VAT
@@ -701,44 +701,44 @@ export function LogDirectMaterialDialog({
               {/* Quantity, Unit, Rate, Mode & Total Material Bill */}
               <div className="grid grid-cols-12 gap-2.5">
                 <div className="col-span-3 space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">Quantity *</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Quantity *</Label>
                   <Input
                     type="number"
                     step="any"
                     value={quantity}
                     onChange={(e) => handleQtyChange(e.target.value)}
                     placeholder="200"
-                    className="h-8.5 text-xs font-mono font-bold bg-white text-slate-900 rounded-xl border-[#c7d8e8]"
+                    className="h-8.5 text-xs font-mono font-bold bg-card text-foreground rounded-xl border-[var(--border)]"
                   />
                 </div>
 
                 <div className="col-span-2 space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">Unit</Label>
-                  <div className="h-8.5 px-2 flex items-center justify-center bg-white text-[#0284c7] font-mono font-bold rounded-xl border border-[#c7d8e8] text-xs">
+                  <Label className="text-[11px] font-semibold text-foreground/80">Unit</Label>
+                  <div className="h-8.5 px-2 flex items-center justify-center bg-card text-[var(--primary)] font-mono font-bold rounded-xl border border-[var(--border)] text-xs">
                     {unit || "Pcs"}
                   </div>
                 </div>
 
                 <div className="col-span-3 space-y-1">
-                  <Label className="text-[11px] font-semibold text-slate-700">Unit Rate</Label>
+                  <Label className="text-[11px] font-semibold text-foreground/80">Unit Rate</Label>
                   <Input
                     type="number"
                     step="any"
                     value={rate}
                     onChange={(e) => handleRateChange(e.target.value)}
                     placeholder="750"
-                    className="h-8.5 text-xs font-mono bg-white text-slate-900 rounded-xl border-[#c7d8e8]"
+                    className="h-8.5 text-xs font-mono bg-card text-foreground rounded-xl border-[var(--border)]"
                   />
                 </div>
 
                 <div className="col-span-4 space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-semibold text-[#0284c7]">Total Material</Label>
+                    <Label className="text-[11px] font-semibold text-[var(--primary)]">Total Material</Label>
                     {isVatBill && (
                       <button
                         type="button"
                         onClick={() => setVatCalculationMode(vatCalculationMode === "inclusive" ? "exclusive" : "inclusive")}
-                        className="text-[9px] text-slate-500 hover:text-[#0284c7]"
+                        className="text-[9px] text-muted-foreground hover:text-[var(--primary)]"
                       >
                         {vatCalculationMode === "inclusive" ? "Gross Incl" : "+13% Base"}
                       </button>
@@ -750,13 +750,13 @@ export function LogDirectMaterialDialog({
                     value={totalAmount}
                     onChange={(e) => handleTotalChange(e.target.value)}
                     placeholder="150000"
-                    className="h-8.5 text-xs font-mono font-bold bg-white text-[#0284c7] rounded-xl border-[#c7d8e8]"
+                    className="h-8.5 text-xs font-mono font-bold bg-card text-[var(--primary)] rounded-xl border-[var(--border)]"
                   />
                 </div>
               </div>
 
               {/* TDS & Invoice / Challan Identification Strip */}
-              <div className="grid grid-cols-12 gap-2.5 pt-1 border-t border-[#e2edf7] items-center">
+              <div className="grid grid-cols-12 gap-2.5 pt-1 border-t border-[var(--input)] items-center">
                 <div className="col-span-4 flex items-center gap-1.5">
                   <button
                     type="button"
@@ -764,7 +764,7 @@ export function LogDirectMaterialDialog({
                     className={`px-2.5 py-1 rounded-lg border text-[10px] font-semibold transition ${
                       isTdsDeductible
                         ? "border-amber-500 bg-amber-500/20 text-amber-600"
-                        : "border-[#c7d8e8] bg-white text-slate-500"
+                        : "border-[var(--border)] bg-card text-muted-foreground"
                     }`}
                   >
                     ✂️ TDS Deduct
@@ -777,9 +777,9 @@ export function LogDirectMaterialDialog({
                         value={tdsPercent}
                         onChange={(e) => setTdsPercent(e.target.value)}
                         placeholder="1.5"
-                        className="h-7 w-12 text-[10px] font-mono font-bold bg-white text-amber-600 rounded-lg p-0.5 text-center border-[#c7d8e8]"
+                        className="h-7 w-12 text-[10px] font-mono font-bold bg-card text-amber-600 rounded-lg p-0.5 text-center border-[var(--border)]"
                       />
-                      <span className="text-[10px] text-slate-500">%</span>
+                      <span className="text-[10px] text-muted-foreground">%</span>
                     </div>
                   )}
                 </div>
@@ -789,7 +789,7 @@ export function LogDirectMaterialDialog({
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                     placeholder="VAT Invoice No"
-                    className="h-7 text-[10px] font-mono bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                    className="h-7 text-[10px] font-mono bg-card text-foreground rounded-lg border-[var(--border)]"
                   />
                 </div>
 
@@ -798,44 +798,44 @@ export function LogDirectMaterialDialog({
                     value={challanNo}
                     onChange={(e) => setChallanNo(e.target.value)}
                     placeholder="Challan / Slip No"
-                    className="h-7 text-[10px] font-mono bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                    className="h-7 text-[10px] font-mono bg-card text-foreground rounded-lg border-[var(--border)]"
                   />
                 </div>
               </div>
 
               {/* Integrated Tax Breakdown Strip */}
               {parseFloat(totalAmount) > 0 && (
-                <div className="p-2 rounded-xl bg-white border border-[#e2edf7] grid grid-cols-4 gap-2 text-center">
+                <div className="p-2 rounded-xl bg-card border border-[var(--input)] grid grid-cols-4 gap-2 text-center">
                   <div>
-                    <div className="text-[9px] text-slate-500">Taxable (करयोग्य)</div>
-                    <div className="text-xs font-bold font-mono text-slate-900">Rs. {calculations.taxable.toLocaleString()}</div>
+                    <div className="text-[9px] text-muted-foreground">Taxable (करयोग्य)</div>
+                    <div className="text-xs font-bold font-mono text-foreground">Rs. {calculations.taxable.toLocaleString()}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-blue-400">VAT 13% (भ्याट)</div>
-                    <div className="text-xs font-bold font-mono text-blue-400">Rs. {calculations.vat.toLocaleString()}</div>
+                    <div className="text-[9px] text-info/80">VAT 13% (भ्याट)</div>
+                    <div className="text-xs font-bold font-mono text-info/80">Rs. {calculations.vat.toLocaleString()}</div>
                   </div>
                   <div>
                     <div className="text-[9px] text-amber-600">TDS {tdsPercent}%</div>
                     <div className="text-xs font-bold font-mono text-amber-600">Rs. {calculations.tds.toLocaleString()}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-[#0284c7]">Net Due / Payable</div>
-                    <div className="text-xs font-bold font-mono text-[#0284c7]">Rs. {calculations.netPayable.toLocaleString()}</div>
+                    <div className="text-[9px] text-[var(--primary)]">Net Due / Payable</div>
+                    <div className="text-xs font-bold font-mono text-[var(--primary)]">Rs. {calculations.netPayable.toLocaleString()}</div>
                   </div>
                 </div>
               )}
 
               {/* Material Due vs Paid Now Settlement Controls */}
-              <div className="flex items-center justify-between pt-1 border-t border-[#e2edf7]">
+              <div className="flex items-center justify-between pt-1 border-t border-[var(--input)]">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 font-semibold">Material Settlement:</span>
+                  <span className="text-[10px] text-muted-foreground font-semibold">Material Settlement:</span>
                   <button
                     type="button"
                     onClick={() => setMaterialPaidStatus("credit")}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
                       materialPaidStatus === "credit"
-                        ? "bg-amber-500/20 text-amber-600 border border-[#c7d8e8]"
-                        : "text-slate-500 hover:text-slate-900"
+                        ? "bg-amber-500/20 text-amber-600 border border-[var(--border)]"
+                        : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     📝 Due / Credit (उधारो)
@@ -845,8 +845,8 @@ export function LogDirectMaterialDialog({
                     onClick={() => setMaterialPaidStatus("paid_now")}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
                       materialPaidStatus === "paid_now"
-                        ? "bg-emerald-500/20 text-[#0284c7] border border-[#c7d8e8]"
-                        : "text-slate-500 hover:text-slate-900"
+                        ? "bg-emerald-500/20 text-[var(--primary)] border border-[var(--border)]"
+                        : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     💵 Paid Now
@@ -856,10 +856,10 @@ export function LogDirectMaterialDialog({
                 {materialPaidStatus === "paid_now" && (
                   <div className="w-48">
                     <Select value={materialBankAccountId} onValueChange={setMaterialBankAccountId}>
-                      <SelectTrigger className="h-7 text-[10px] bg-white text-slate-900 rounded-lg border-[#c7d8e8]">
+                      <SelectTrigger className="h-7 text-[10px] bg-card text-foreground rounded-lg border-[var(--border)]">
                         <SelectValue placeholder="Account" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                      <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                         <SelectItem value="cash_petty">Site Petty Cash</SelectItem>
                         {bankAccounts.map((b) => (
                           <SelectItem key={b.id} value={b.id}>
@@ -874,34 +874,34 @@ export function LogDirectMaterialDialog({
             </div>
 
             {/* 5. Landing Costs (Freight VAT & Incidentals) Card */}
-            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[#c7d8e8] space-y-2.5">
+            <div className="p-4 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] space-y-2.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-bold text-amber-600 flex items-center gap-1.5">
                   <Coins className="h-3.5 w-3.5" /> Landing &amp; Incidental Costs (ढुवानी, अनलोडिङ)
                 </Label>
-                <span className="text-[10px] text-slate-500 font-mono">Independent settlements</span>
+                <span className="text-[10px] text-muted-foreground font-mono">Independent settlements</span>
               </div>
 
               {/* Freight Row with 13% VAT Option */}
-              <div className="p-2 rounded-xl bg-white border border-[#e2edf7] space-y-1.5">
+              <div className="p-2 rounded-xl bg-card border border-[var(--input)] space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-800">🚛 Freight:</span>
+                    <span className="text-[11px] font-semibold text-foreground/90">🚛 Freight:</span>
                     <Input
                       type="number"
                       step="any"
                       value={transportCost}
                       onChange={(e) => setTransportCost(e.target.value)}
                       placeholder="Freight Rs. 0"
-                      className="h-7 w-24 text-xs font-mono bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                      className="h-7 w-24 text-xs font-mono bg-card text-foreground rounded-lg border-[var(--border)]"
                     />
                     <button
                       type="button"
                       onClick={() => setTransportIsVat(!transportIsVat)}
                       className={`px-2 py-0.5 rounded text-[10px] font-semibold transition ${
                         transportIsVat
-                          ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                          : "bg-white text-slate-500"
+                          ? "bg-info/20 text-info/80 border border-info/40"
+                          : "bg-card text-muted-foreground"
                       }`}
                     >
                       {transportIsVat ? "13% Freight VAT" : "+ Non-VAT"}
@@ -913,7 +913,7 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setTransportPaidStatus("credit")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        transportPaidStatus === "credit" ? "bg-amber-500/20 text-amber-600 font-bold" : "text-slate-500"
+                        transportPaidStatus === "credit" ? "bg-amber-500/20 text-amber-600 font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Due
@@ -922,17 +922,17 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setTransportPaidStatus("paid_now")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        transportPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[#0284c7] font-bold" : "text-slate-500"
+                        transportPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Paid
                     </button>
                     {transportPaidStatus === "paid_now" && (
                       <Select value={transportBankAccountId} onValueChange={setTransportBankAccountId}>
-                        <SelectTrigger className="h-7 w-28 text-[10px] bg-white text-slate-900 rounded-lg border-[#c7d8e8]">
+                        <SelectTrigger className="h-7 w-28 text-[10px] bg-card text-foreground rounded-lg border-[var(--border)]">
                           <SelectValue placeholder="Account" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                        <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                           <SelectItem value="cash_petty">Petty Cash</SelectItem>
                           {bankAccounts.map((b) => (
                             <SelectItem key={b.id} value={b.id}>
@@ -951,9 +951,9 @@ export function LogDirectMaterialDialog({
                       value={transportInvoiceNo}
                       onChange={(e) => setTransportInvoiceNo(e.target.value)}
                       placeholder="Transport VAT Invoice Number"
-                      className="h-6 flex-1 text-[10px] font-mono bg-white text-slate-900 rounded border-[#c7d8e8]"
+                      className="h-6 flex-1 text-[10px] font-mono bg-card text-foreground rounded border-[var(--border)]"
                     />
-                    <label className="h-6 px-2 flex items-center gap-1 bg-white border border-blue-500/30 hover:border-blue-400 text-blue-400 rounded cursor-pointer text-[9px] font-semibold shrink-0 transition">
+                    <label className="h-6 px-2 flex items-center gap-1 bg-card border border-info/40 hover:border-info/50 text-info/80 rounded cursor-pointer text-[9px] font-semibold shrink-0 transition">
                       <Upload className="h-2.5 w-2.5" />
                       <span>{transportFileName ? transportFileName.slice(0, 10) + "..." : "Upload Freight Bill"}</span>
                       <input
@@ -968,17 +968,17 @@ export function LogDirectMaterialDialog({
               </div>
 
               {/* Incidental / Unloading Row */}
-              <div className="p-2 rounded-xl bg-white border border-[#e2edf7] space-y-1.5">
+              <div className="p-2 rounded-xl bg-card border border-[var(--input)] space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-800">🛠️ Unload/Incident:</span>
+                    <span className="text-[11px] font-semibold text-foreground/90">🛠️ Unload/Incident:</span>
                     <Input
                       type="number"
                       step="any"
                       value={loadingCost}
                       onChange={(e) => setLoadingCost(e.target.value)}
                       placeholder="Unload Rs. 0"
-                      className="h-7 w-20 text-xs font-mono bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                      className="h-7 w-20 text-xs font-mono bg-card text-foreground rounded-lg border-[var(--border)]"
                     />
                     <Input
                       type="number"
@@ -986,7 +986,7 @@ export function LogDirectMaterialDialog({
                       value={incidentalCost}
                       onChange={(e) => setIncidentalCost(e.target.value)}
                       placeholder="Incidental Rs. 0"
-                      className="h-7 w-20 text-xs font-mono bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                      className="h-7 w-20 text-xs font-mono bg-card text-foreground rounded-lg border-[var(--border)]"
                     />
                   </div>
 
@@ -995,7 +995,7 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setIncidentalPaidStatus("credit")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        incidentalPaidStatus === "credit" ? "bg-amber-500/20 text-amber-600 font-bold" : "text-slate-500"
+                        incidentalPaidStatus === "credit" ? "bg-amber-500/20 text-amber-600 font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Due
@@ -1004,17 +1004,17 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setIncidentalPaidStatus("paid_now")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        incidentalPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[#0284c7] font-bold" : "text-slate-500"
+                        incidentalPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Paid
                     </button>
                     {incidentalPaidStatus === "paid_now" && (
                       <Select value={incidentalBankAccountId} onValueChange={setIncidentalBankAccountId}>
-                        <SelectTrigger className="h-7 w-28 text-[10px] bg-white text-slate-900 rounded-lg border-[#c7d8e8]">
+                        <SelectTrigger className="h-7 w-28 text-[10px] bg-card text-foreground rounded-lg border-[var(--border)]">
                           <SelectValue placeholder="Account" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                        <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                           <SelectItem value="cash_petty">Petty Cash</SelectItem>
                           {bankAccounts.map((b) => (
                             <SelectItem key={b.id} value={b.id}>
@@ -1031,16 +1031,16 @@ export function LogDirectMaterialDialog({
                   value={incidentalRemarks}
                   onChange={(e) => setIncidentalRemarks(e.target.value)}
                   placeholder="Incidental remarks (e.g. tipper puncture / spot unloading labor)"
-                  className="h-7 text-[10px] bg-white text-slate-900 rounded-lg border-[#c7d8e8]"
+                  className="h-7 text-[10px] bg-card text-foreground rounded-lg border-[var(--border)]"
                 />
               </div>
             </div>
 
             {/* Bottom Actions & Total */}
-            <div className="p-3.5 rounded-2xl bg-white border border-[#c7d8e8] flex items-center justify-between">
+            <div className="p-3.5 rounded-2xl bg-card border border-[var(--border)] flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Total Site Landed Cost</span>
-                <span className="text-base font-bold font-mono text-[#0284c7]">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Total Site Landed Cost</span>
+                <span className="text-base font-bold font-mono text-[var(--primary)]">
                   Rs. {calculations.totalSiteLandedCost.toLocaleString()}
                 </span>
               </div>
@@ -1050,7 +1050,7 @@ export function LogDirectMaterialDialog({
                   type="button"
                   variant="outline"
                   onClick={() => onOpenChange(false)}
-                  className="h-9 px-4 text-xs border-[#c7d8e8] bg-white text-slate-700 hover:text-slate-900 rounded-xl"
+                  className="h-9 px-4 text-xs border-[var(--border)] bg-card text-foreground/80 hover:text-foreground rounded-xl"
                 >
                   Cancel
                 </Button>

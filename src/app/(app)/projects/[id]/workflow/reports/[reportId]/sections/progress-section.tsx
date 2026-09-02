@@ -239,7 +239,7 @@ export function ProgressSection({
                             diff > 0
                               ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                               : diff < 0
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                ? "bg-info/15 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80"
                                 : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                           )}
                         >

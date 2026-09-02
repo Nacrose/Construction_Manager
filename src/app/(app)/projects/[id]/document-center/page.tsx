@@ -38,12 +38,12 @@ const TYPE_CONFIG: Record<
   { icon: React.ComponentType<{ className?: string }>; color: string; label: string }
 > = {
   daily_report: { icon: FileText, color: "text-emerald-600", label: "Daily Report" },
-  rfi: { icon: FileCheck, color: "text-blue-600", label: "RFI" },
+  rfi: { icon: FileCheck, color: "text-info", label: "RFI" },
   ipc: { icon: Receipt, color: "text-amber-600", label: "IPC" },
   drawing: { icon: Compass, color: "text-purple-600", label: "Drawing" },
-  correspondence: { icon: Mail, color: "text-slate-600", label: "Letter" },
+  correspondence: { icon: Mail, color: "text-muted-foreground", label: "Letter" },
   signed_doc: { icon: Shield, color: "text-teal-600", label: "Signed Doc" },
-  submittal: { icon: FileCheck, color: "text-cyan-600", label: "Submittal" },
+  submittal: { icon: FileCheck, color: "text-info", label: "Submittal" },
 };
 
 export default function DocumentCenterPage({ params }: { params: Promise<{ id: string }> }) {

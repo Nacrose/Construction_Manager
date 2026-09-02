@@ -38,8 +38,8 @@ type RfiListItem = {
 };
 
 const COLUMNS = [
-  { key: "draft", label: "Draft", color: "bg-slate-400", border: "border-l-slate-400" },
-  { key: "submitted", label: "Submitted", color: "bg-blue-500", border: "border-l-blue-500" },
+  { key: "draft", label: "Draft", color: "bg-muted-foreground/60", border: "border-l-slate-400" },
+  { key: "submitted", label: "Submitted", color: "bg-info/70", border: "border-l-info" },
   { key: "approved", label: "Approved", color: "bg-emerald-500", border: "border-l-emerald-500" },
   { key: "rejected", label: "Rejected", color: "bg-red-500", border: "border-l-red-500" },
   { key: "closed", label: "Closed", color: "bg-zinc-400", border: "border-l-zinc-400" },
@@ -50,7 +50,7 @@ function UserAvatar({ name, className }: { name: string; className?: string }) {
     ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "U";
   return (
-    <div className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7.5px] font-bold text-white bg-slate-500 select-none", className)}>
+    <div className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[7.5px] font-bold text-white bg-muted/600 select-none", className)}>
       {initials}
     </div>
   );
@@ -70,7 +70,7 @@ function KanbanCard({ rfi, onOpen }: { rfi: RfiListItem; onOpen: (id: string) =>
 
   const statusBorderColor = cn(
     rfi.status === "draft" && "border-l-slate-400 dark:border-l-slate-700",
-    rfi.status === "submitted" && "border-l-blue-500 dark:border-l-blue-600",
+    rfi.status === "submitted" && "border-l-info dark:border-l-info",
     rfi.status === "approved" && "border-l-emerald-500 dark:border-l-emerald-600",
     rfi.status === "rejected" && "border-l-red-500 dark:border-l-red-600",
     rfi.status === "closed" && "border-l-zinc-400 dark:border-l-zinc-700"
@@ -230,7 +230,7 @@ export function KanbanBoard({
             <Card className={cn(
               "border-l-[3px] shadow-xl",
               activeRfi.status === "draft" && "border-l-slate-400 dark:border-l-slate-700",
-              activeRfi.status === "submitted" && "border-l-blue-500 dark:border-l-blue-600",
+              activeRfi.status === "submitted" && "border-l-info dark:border-l-info",
               activeRfi.status === "approved" && "border-l-emerald-500 dark:border-l-emerald-600",
               activeRfi.status === "rejected" && "border-l-red-500 dark:border-l-red-600",
               activeRfi.status === "closed" && "border-l-zinc-400 dark:border-l-zinc-700"

@@ -38,7 +38,7 @@ export function CommentThread({ comment, depth, onReply, onDelete, currentUser }
 
   return (
     <div style={{ marginLeft: depth * 24 }} className="space-y-2">
-      <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-md border border-border">
+      <div className="bg-muted/60 dark:bg-[var(--navy-mid)]/50 p-3 rounded-md border border-border">
         <div className="flex items-start justify-between gap-2 mb-1">
           <div>
             <span className="font-medium text-xs">{comment.author.name}</span>

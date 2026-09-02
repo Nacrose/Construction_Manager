@@ -167,34 +167,34 @@ export function AddClaimDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
+      <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
           <div>
-            <DialogTitle className="text-base font-bold text-slate-900 tracking-tight font-sans">
+            <DialogTitle className="text-base font-bold text-foreground tracking-tight font-sans">
               Log Bill / Expense Claim (बिल तथा दाबी दर्ता)
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500 mt-0.5">
+            <DialogDescription className="text-xs text-muted-foreground mt-0.5">
               Register approved staff food/mess/travel reimbursement claims or vendor bills.
             </DialogDescription>
           </div>
           {miti && (
-            <span className="text-xs font-mono font-bold text-[#0284c7] px-2.5 py-0.5 rounded-full bg-sky-50 border border-[#bae6fd]">
+            <span className="text-xs font-mono font-bold text-[var(--primary)] px-2.5 py-0.5 rounded-full bg-info/10 border border-[#bae6fd]">
               {miti} BS
             </span>
           )}
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="p-6 space-y-4 text-xs bg-white">
+        <div className="p-6 space-y-4 text-xs bg-card">
           {/* Row 0: Target Project */}
           <div className="space-y-1.5 min-w-0">
-            <Label className="text-[11px] font-semibold text-slate-700">Target Project (प्रोजेक्ट)</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Target Project (प्रोजेक्ट)</Label>
             <Select value={targetProjectId} onValueChange={setTargetProjectId}>
-              <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
+              <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]">
                 <SelectValue placeholder="Select Project" />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 rounded-xl shadow-xl">
+              <SelectContent className="bg-card border border-[var(--border)] text-xs text-foreground rounded-xl shadow-xl">
                 {allProjects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} ({p.code})
@@ -208,7 +208,7 @@ export function AddClaimDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Date */}
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-[11px] font-semibold text-slate-700">Date (मिति)</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Date (मिति)</Label>
               <NepaliDatePicker
                 value={date}
                 onChange={(_d, dateStr) => {
@@ -220,13 +220,13 @@ export function AddClaimDialog({
                   }
                 }}
                 placeholder="Select Nepali date (BS)"
-                className="w-full h-9 text-xs font-mono rounded-lg border border-[#c7d8e8] bg-white text-slate-900"
+                className="w-full h-9 text-xs font-mono rounded-lg border border-[var(--border)] bg-card text-foreground"
               />
             </div>
 
             {/* Claimant / Party (Searchable Dropdown) */}
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-[11px] font-semibold text-slate-700">Claimant / Party (कसको दाबी?)</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Claimant / Party (कसको दाबी?)</Label>
               <Popover open={partyPopoverOpen} onOpenChange={setPartyPopoverOpen}>
                 <PopoverTrigger asChild>
                   <div className="relative flex items-center w-full">
@@ -239,7 +239,7 @@ export function AddClaimDialog({
                       }}
                       onFocus={() => setPartyPopoverOpen(true)}
                       placeholder="Search staff, supplier or type name..."
-                      className="w-full h-9 text-xs pr-8 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7] bg-white text-slate-900 truncate"
+                      className="w-full h-9 text-xs pr-8 rounded-lg border border-[var(--border)] focus:border-[var(--primary)] bg-card text-foreground truncate"
                     />
                     <Button
                       type="button"
@@ -249,7 +249,7 @@ export function AddClaimDialog({
                         e.preventDefault();
                         setPartyPopoverOpen(!partyPopoverOpen);
                       }}
-                      className="absolute right-0 h-9 w-8 p-0 text-slate-400 hover:text-slate-700"
+                      className="absolute right-0 h-9 w-8 p-0 text-muted-foreground/80 hover:text-foreground/80"
                     >
                       <ChevronsUpDown className="h-3.5 w-3.5" />
                     </Button>
@@ -257,7 +257,7 @@ export function AddClaimDialog({
                 </PopoverTrigger>
 
                 <PopoverContent
-                  className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-xl border border-[#c7d8e8] bg-white rounded-xl z-50"
+                  className="w-[var(--radix-popover-trigger-width)] p-1.5 shadow-xl border border-[var(--border)] bg-card rounded-xl z-50"
                   align="start"
                   sideOffset={6}
                   onOpenAutoFocus={(e) => e.preventDefault()}
@@ -276,18 +276,18 @@ export function AddClaimDialog({
                             setClaimPartyName(p.name);
                             setPartyPopoverOpen(false);
                           }}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-sky-50 hover:text-[#0284c7] transition cursor-pointer group"
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left hover:bg-info/10 hover:text-[var(--primary)] transition cursor-pointer group"
                         >
                           <div className="truncate">
-                            <p className="font-medium text-slate-900 group-hover:text-[#0284c7] truncate">
+                            <p className="font-medium text-foreground group-hover:text-[var(--primary)] truncate">
                               {p.name}
                             </p>
-                            <p className="text-[10px] text-slate-400">
+                            <p className="text-[10px] text-muted-foreground/80">
                               {p.typeLabel} {p.contact ? `• ${p.contact}` : ""}
                             </p>
                           </div>
                           {claimPartyName === p.name && (
-                            <Check className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />
+                            <Check className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />
                           )}
                         </button>
                       ))}
@@ -296,8 +296,8 @@ export function AddClaimDialog({
                       !partySearchQuery.trim() ||
                       p.name.toLowerCase().includes(partySearchQuery.toLowerCase())
                     ).length === 0 && (
-                      <div className="py-2 px-3 text-center text-xs text-slate-500">
-                        Use <span className="text-[#0284c7] font-semibold">"{claimPartyName}"</span> as new claimant
+                      <div className="py-2 px-3 text-center text-xs text-muted-foreground">
+                        Use <span className="text-[var(--primary)] font-semibold">"{claimPartyName}"</span> as new claimant
                       </div>
                     )}
                   </div>
@@ -309,22 +309,22 @@ export function AddClaimDialog({
           {/* Row 2: Bill # & Expense Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-[11px] font-semibold text-slate-700">Bill / Voucher # (Optional)</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Bill / Voucher # (Optional)</Label>
               <Input
                 value={claimBillNo}
                 onChange={(e) => setClaimBillNo(e.target.value)}
                 placeholder="e.g. BILL-2900 or EXP-01"
-                className="w-full h-9 text-xs font-mono bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+                className="w-full h-9 text-xs font-mono bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
               />
             </div>
 
             <div className="space-y-1.5 min-w-0">
-              <Label className="text-[11px] font-semibold text-slate-700">Expense Category</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Expense Category</Label>
               <Select value={claimCategory} onValueChange={setClaimCategory}>
-                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]">
+                <SelectTrigger className="w-full min-w-0 h-9 text-xs bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-white border border-[#c7d8e8] text-xs text-slate-900 rounded-xl shadow-xl max-h-56">
+                <SelectContent className="bg-card border border-[var(--border)] text-xs text-foreground rounded-xl shadow-xl max-h-56">
                   <SelectItem value="food_mess">
                     Food & Mess (खाजा / खाना)
                   </SelectItem>
@@ -350,23 +350,23 @@ export function AddClaimDialog({
 
           {/* Row 3: Claim Amount */}
           <div className="space-y-1.5 min-w-0">
-            <Label className="text-[11px] font-semibold text-slate-700">Claim Amount (NPR)</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Claim Amount (NPR)</Label>
             <Input
               type="number"
               value={claimAmount}
               onChange={(e) => setClaimAmount(e.target.value)}
               placeholder="e.g. 2900 or 15000"
-              className="w-full h-9 text-xs font-mono font-bold bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+              className="w-full h-9 text-xs font-mono font-bold bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
             />
           </div>
 
           {/* Row 4: Attach Scanned Bill / Voucher Photo */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">
+            <Label className="text-[11px] font-semibold text-foreground/80">
               Attach Scanned Bill / Receipt Photo (बिल फोटो)
             </Label>
-            <label className="flex items-center justify-center gap-2 h-9 px-3 border border-dashed border-[#c7d8e8] rounded-lg cursor-pointer hover:bg-slate-100 text-xs text-slate-600 transition bg-slate-50">
-              <Paperclip className="h-4 w-4 text-[#0284c7] shrink-0" />
+            <label className="flex items-center justify-center gap-2 h-9 px-3 border border-dashed border-[var(--border)] rounded-lg cursor-pointer hover:bg-muted text-xs text-muted-foreground transition bg-muted/60">
+              <Paperclip className="h-4 w-4 text-[var(--primary)] shrink-0" />
               <span className="truncate">
                 {fileName || "Attach bill photo, receipt, or approved claim slip (PDF / Image)"}
               </span>
@@ -381,23 +381,23 @@ export function AddClaimDialog({
 
           {/* Row 5: Narration / Purpose */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Narration / Approval Notes (कैफियत)</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Narration / Approval Notes (कैफियत)</Label>
             <Input
               value={claimDesc}
               onChange={(e) => setClaimDesc(e.target.value)}
               placeholder="e.g. Lunch for site concreting crew (Approved by PM)"
-              className="h-9 text-xs bg-white text-slate-900 rounded-lg border border-[#c7d8e8] focus:border-[#0284c7]"
+              className="h-9 text-xs bg-card text-foreground rounded-lg border border-[var(--border)] focus:border-[var(--primary)]"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[#e2edf7] bg-[#f8fbfe] shrink-0">
+        <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-[var(--input)] bg-[#f8fbfe] shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => onOpenChange(false)}
-            className="h-8 text-xs rounded-lg px-4 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
+            className="h-8 text-xs rounded-lg px-4 border-[var(--border)] text-muted-foreground hover:bg-muted"
           >
             Cancel
           </Button>

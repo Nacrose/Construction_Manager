@@ -95,15 +95,15 @@ export function OrgBankAccountsTab() {
   return (
     <div className="space-y-3">
       {/* Action Strip (Single Action Bar) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg border border-[#c7d8e8] bg-white level-2-surface shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg border border-[var(--border)] bg-card level-2-surface shadow-xs">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#0284c7]" />
-            <span className="text-xs font-bold text-slate-800">Treasury & Bank Facilities</span>
+            <Building2 className="h-4 w-4 text-[var(--primary)]" />
+            <span className="text-xs font-bold text-foreground/90">Treasury & Bank Facilities</span>
           </div>
-          <div className="h-4 w-[1px] bg-slate-200" />
+          <div className="h-4 w-[1px] bg-secondary" />
           <div className="flex items-center gap-1.5 text-xs font-matrix">
-            <span className="text-[11px] text-slate-500 font-sans">Total Balance:</span>
+            <span className="text-[11px] text-muted-foreground font-sans">Total Balance:</span>
             <span className="font-bold text-emerald-700">NPR {formatNpr(totalBalance)}</span>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function OrgBankAccountsTab() {
         <Button
           size="sm"
           onClick={() => setCreateDialogOpen(true)}
-          className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+          className="amber-cta-btn text-foreground font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>Add Bank / Wallet</span>
@@ -120,19 +120,19 @@ export function OrgBankAccountsTab() {
 
       {/* Account Grid */}
       {accounts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-white rounded-lg border border-dashed border-[#c7d8e8] space-y-2 shadow-xs">
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-card rounded-lg border border-dashed border-[var(--border)] space-y-2 shadow-xs">
           <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-200">
             <Wallet className="h-5 w-5" />
           </div>
-          <h3 className="text-xs font-bold text-slate-900">No Bank Accounts or Wallets Added</h3>
-          <p className="text-[11px] text-slate-500 max-w-sm font-sans">
+          <h3 className="text-xs font-bold text-foreground">No Bank Accounts or Wallets Added</h3>
+          <p className="text-[11px] text-muted-foreground max-w-sm font-sans">
             Add company bank accounts (Nabil, Global IME, NIC Asia) or wallets (eSewa, Khalti, ConnectIPS) to track treasury balances and link to vouchers.
           </p>
           <div className="pt-2">
             <Button
               size="sm"
               onClick={() => setCreateDialogOpen(true)}
-              className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+              className="amber-cta-btn text-foreground font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add First Account</span>
@@ -147,15 +147,15 @@ export function OrgBankAccountsTab() {
             return (
               <div
                 key={acc.id}
-                className="bg-white rounded-lg border border-[#c7d8e8] p-3 relative overflow-hidden transition-all hover:border-[#0284c7]/50 shadow-xs flex flex-col justify-between"
+                className="bg-card rounded-lg border border-[var(--border)] p-3 relative overflow-hidden transition-all hover:border-[var(--primary)]/50 shadow-xs flex flex-col justify-between"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center text-[#0284c7]">
+                    <div className="h-8 w-8 rounded-lg bg-info/10 border border-info/30 flex items-center justify-center text-[var(--primary)]">
                       {isWallet ? <Smartphone className="h-4 w-4" /> : <Landmark className="h-4 w-4" />}
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                         {acc.bankName}
                         {acc.isDefault && (
                           <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[9px] font-mono px-1 py-0">
@@ -163,30 +163,30 @@ export function OrgBankAccountsTab() {
                           </Badge>
                         )}
                       </h4>
-                      <p className="text-[11px] text-slate-500 font-sans">{acc.accountName}</p>
+                      <p className="text-[11px] text-muted-foreground font-sans">{acc.accountName}</p>
                     </div>
                   </div>
 
-                  <Badge variant="outline" className="text-[9px] uppercase font-mono text-slate-600 border-[#c5d7e8] bg-[#f0f6fc]">
+                  <Badge variant="outline" className="text-[9px] uppercase font-mono text-muted-foreground border-[#c5d7e8] bg-[#f0f6fc]">
                     {acc.accountType}
                   </Badge>
                 </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-1">
+                <div className="mt-3 pt-2.5 border-t border-border space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-sans">Account #:</span>
-                    <span className="font-mono font-bold text-slate-800">{acc.accountNumber}</span>
+                    <span className="text-muted-foreground font-sans">Account #:</span>
+                    <span className="font-mono font-bold text-foreground/90">{acc.accountNumber}</span>
                   </div>
 
                   {acc.branch && (
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-sans">Branch:</span>
-                      <span className="text-slate-700 font-sans">{acc.branch}</span>
+                      <span className="text-muted-foreground font-sans">Branch:</span>
+                      <span className="text-foreground/80 font-sans">{acc.branch}</span>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100/60 font-matrix">
-                    <span className="text-slate-500 text-[11px] font-sans">Current Balance:</span>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60 font-matrix">
+                    <span className="text-muted-foreground text-[11px] font-sans">Current Balance:</span>
                     <span className="font-bold text-emerald-700 text-sm">
                       NPR {formatNpr(acc.currentBalance || 0)}
                     </span>
@@ -200,27 +200,27 @@ export function OrgBankAccountsTab() {
 
       {/* Add Bank Account Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+        <DialogContent className="sm:max-w-[650px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
             <div>
-              <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
-                <Building2 className="h-4 w-4 text-[#0284c7]" /> Add Bank Account / Digital Wallet
+              <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Building2 className="h-4 w-4 text-[var(--primary)]" /> Add Bank Account / Digital Wallet
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 font-mono mt-0.5">
+              <DialogDescription className="text-xs text-muted-foreground font-mono mt-0.5">
                 Register commercial bank accounts, overdraft facilities, or wallets for central payments.
               </DialogDescription>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-white">
+          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-card">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">Account Category *</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Account Category *</Label>
                 <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
-                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+                  <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                  <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                     <SelectItem value="current">Current Account (चालु खाता)</SelectItem>
                     <SelectItem value="overdraft">Overdraft Facility (OD Loan)</SelectItem>
                     <SelectItem value="saving">Savings Account (बचत खाता)</SelectItem>
@@ -230,61 +230,61 @@ export function OrgBankAccountsTab() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">Bank / Provider *</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Bank / Provider *</Label>
                 <Input
                   required
                   placeholder="e.g. Nabil Bank, eSewa, ConnectIPS"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
+                  className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-slate-700">Account Holder Name *</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Account Holder Name *</Label>
               <Input
                 required
                 placeholder="e.g. Nacrose Construction Pvt. Ltd."
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
-                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">Account Number / Wallet ID *</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Account Number / Wallet ID *</Label>
                 <Input
                   required
                   placeholder="e.g. 01201017500123 / 9801234567"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                  className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                 />
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">Branch Name (Optional)</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Branch Name (Optional)</Label>
                 <Input
                   placeholder="e.g. New Road / Hetauda Branch"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
-                  className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]"
+                  className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 items-end">
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold text-slate-700">Opening Balance (NPR)</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Opening Balance (NPR)</Label>
                 <Input
                   type="number"
                   step="any"
                   placeholder="0.00"
                   value={openingBalance}
                   onChange={(e) => setOpeningBalance(e.target.value)}
-                  className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                  className="h-9 text-xs font-mono font-bold bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                 />
               </div>
 
@@ -294,21 +294,21 @@ export function OrgBankAccountsTab() {
                   id="isDefault"
                   checked={isDefault}
                   onChange={(e) => setIsDefault(e.target.checked)}
-                  className="rounded border-[#c7d8e8] accent-amber-500 h-4 w-4"
+                  className="rounded border-[var(--border)] accent-amber-500 h-4 w-4"
                 />
-                <Label htmlFor="isDefault" className="text-xs cursor-pointer font-mono text-slate-700">
+                <Label htmlFor="isDefault" className="text-xs cursor-pointer font-mono text-foreground/80">
                   Default primary account
                 </Label>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setCreateDialogOpen(false)}
-                className="text-xs h-8 border-[#c7d8e8] text-slate-600 hover:bg-slate-100"
+                className="text-xs h-8 border-[var(--border)] text-muted-foreground hover:bg-muted"
               >
                 Cancel
               </Button>

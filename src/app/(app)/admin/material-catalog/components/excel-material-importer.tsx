@@ -191,7 +191,7 @@ export function ExcelMaterialImporter({
               </Badge>
             )}
             {!isExact && !isSimilar && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 text-[10px] font-mono">
+              <Badge variant="outline" className="bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 text-[10px] font-mono">
                 New Unique
               </Badge>
             )}
@@ -301,8 +301,8 @@ export function ExcelMaterialImporter({
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono">Candidate duplicates detected</div>
               </Card>
-              <Card className="p-2.5 bg-blue-500/10 border-blue-500/30 text-center">
-                <div className="text-sm font-bold text-blue-700 dark:text-blue-300 font-mono">
+              <Card className="p-2.5 bg-info/10 border-info/40 text-center">
+                <div className="text-sm font-bold text-info dark:text-info/80 font-mono">
                   {uniqueCount} Unique Items
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono">Safe to create new records</div>

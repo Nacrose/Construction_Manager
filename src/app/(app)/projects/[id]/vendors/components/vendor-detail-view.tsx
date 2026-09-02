@@ -83,10 +83,10 @@ export function VendorDetailFullPage({
             <ArrowLeft className="h-3 w-3" /> Back to Vendors
           </button>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
+            <Building2 className="h-5 w-5 text-info shrink-0" />
             {partner.name}
             {partner.code && (
-              <span className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded">
+              <span className="font-mono text-xs bg-muted dark:bg-[var(--navy-mid)] text-foreground/80 dark:text-foreground/80 px-2 py-0.5 rounded">
                 {partner.code}
               </span>
             )}
@@ -121,7 +121,7 @@ export function VendorDetailFullPage({
               "capitalize text-[10px]",
               partner.status === "active"
                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                : "bg-slate-100 text-slate-600"
+                : "bg-muted text-muted-foreground"
             )}
           >
             {partner.status}
@@ -190,7 +190,7 @@ export function VendorDetailFullPage({
                           }}
                           className={cn(
                             "border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer",
-                            calcItem?.id === s.id && "bg-blue-50/20 dark:bg-blue-950/10"
+                            calcItem?.id === s.id && "bg-info/20 dark:bg-[var(--navy-deep)]/10"
                           )}
                         >
                           <td className="p-3 font-semibold text-foreground">
@@ -198,7 +198,7 @@ export function VendorDetailFullPage({
                               <span
                                 className={cn(
                                   "w-2 h-2 rounded-full shrink-0",
-                                  calcItem?.id === s.id ? "bg-blue-500" : "bg-transparent"
+                                  calcItem?.id === s.id ? "bg-info/70" : "bg-transparent"
                                 )}
                               />
                               <div>
@@ -209,7 +209,7 @@ export function VendorDetailFullPage({
                                 {s.specType && (
                                   <Badge
                                     variant="outline"
-                                    className="ml-2 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 border-blue-200 text-[9px] py-0 px-1.5 font-mono"
+                                    className="ml-2 bg-info/50 dark:bg-[var(--navy-deep)]/20 text-info dark:text-info/80 border-info/30 text-[9px] py-0 px-1.5 font-mono"
                                   >
                                     {s.specType}
                                   </Badge>
@@ -259,7 +259,7 @@ export function VendorDetailFullPage({
               <Card className="border border-border/50 shadow-sm">
                 <CardHeader className="pb-3 pt-4 px-4">
                   <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Plus className="h-3.5 w-3.5 text-blue-500" /> Add Material Rate
+                    <Plus className="h-3.5 w-3.5 text-info" /> Add Material Rate
                   </CardTitle>
                   <CardDescription className="text-[10px]">
                     Link to catalog and enter supplier brand & specification.
@@ -305,9 +305,9 @@ export function VendorDetailFullPage({
 
                   {/* Selected Item Badge / Auto-filled indicator */}
                   {selectedCatalogId && selectedCatalogId !== "custom" && (
-                    <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg p-2 flex justify-between items-center text-xs">
+                    <div className="bg-info/60 dark:bg-[var(--navy-deep)]/20 border border-info/30 dark:border-info/30 rounded-lg p-2 flex justify-between items-center text-xs">
                       <div>
-                        <span className="font-semibold text-blue-900 dark:text-blue-200">
+                        <span className="font-semibold text-info dark:text-info/80">
                           {materialName}
                         </span>
                         <span className="text-[10px] text-muted-foreground ml-2">
@@ -316,7 +316,7 @@ export function VendorDetailFullPage({
                       </div>
                       <Badge
                         variant="outline"
-                        className="text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 border-blue-300"
+                        className="text-[9px] bg-info/15 dark:bg-[var(--navy-mid)] text-info dark:text-info/80 border-info/40"
                       >
                         Catalog Linked
                       </Badge>
@@ -421,9 +421,9 @@ export function VendorDetailFullPage({
             )}
 
             {/* Delivered Cost Calculator */}
-            <Card className="border-blue-200 bg-blue-50/20 dark:border-blue-950 dark:bg-blue-950/10 shadow-sm">
+            <Card className="border-info/30 bg-info/20 dark:border-blue-950 dark:bg-[var(--navy-deep)]/10 shadow-sm">
               <CardHeader className="pb-3 pt-4 px-4">
-                <CardTitle className="text-xs font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5 uppercase">
+                <CardTitle className="text-xs font-semibold text-info dark:text-info/80 flex items-center gap-1.5 uppercase">
                   <Calculator className="h-4 w-4" /> Delivered Cost Calculator
                 </CardTitle>
                 <CardDescription className="text-[10px]">
@@ -433,7 +433,7 @@ export function VendorDetailFullPage({
               <CardContent className="px-4 pb-4 space-y-4">
                 {!calcItem ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
-                    <Info className="h-8 w-8 text-blue-300 dark:text-blue-500 mb-2" />
+                    <Info className="h-8 w-8 text-info/80 dark:text-info mb-2" />
                     <p className="text-[10px]">
                       Select any material from the table to load its rates here.
                     </p>
@@ -452,7 +452,7 @@ export function VendorDetailFullPage({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold text-blue-900 dark:text-blue-200">
+                      <Label className="text-[10px] font-semibold text-info dark:text-info/80">
                         Order Quantity ({calcItem.unit})
                       </Label>
                       <Input

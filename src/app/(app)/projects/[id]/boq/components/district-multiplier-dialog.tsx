@@ -115,7 +115,7 @@ export function DistrictMultiplierDialog({
                 onClick={() => setOperation("decrease")}
                 className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
                   operation === "decrease"
-                    ? "bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-300 font-semibold"
+                    ? "bg-info/10 border-info/60 text-info dark:text-info/80 font-semibold"
                     : "bg-muted/40 border-border/60 text-muted-foreground hover:bg-muted"
                 }`}
               >

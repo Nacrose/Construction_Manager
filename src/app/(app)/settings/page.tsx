@@ -63,7 +63,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex items-center gap-2.5 p-3 rounded-xl border text-xs font-medium transition-all text-left",
                       dockPosition === pos
-                        ? "border-primary bg-primary/10 text-primary font-bold shadow-[0_0_12px_rgba(0,255,102,0.15)]"
+                        ? "border-primary bg-primary/10 text-primary font-bold shadow-[0_0_12px_rgba(245,158,11,0.15)]"
                         : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60"
                     )}
                   >
@@ -85,7 +85,7 @@ export default function SettingsPage() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-all",
                   autoHide
-                    ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(0,255,102,0.3)]"
+                    ? "bg-primary text-primary-foreground shadow-[0_0_10px_rgba(245,158,11,0.3)]"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
               >
@@ -99,7 +99,7 @@ export default function SettingsPage() {
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-blue-400" /> Calendar &amp; Date System
+              <Calendar className="h-4 w-4 text-info/80" /> Calendar &amp; Date System
             </CardTitle>
             <CardDescription className="text-xs">
               Select date display format for invoices, Day Book, and site logs.
@@ -129,14 +129,14 @@ export default function SettingsPage() {
                 className={cn(
                   "p-3 rounded-xl border cursor-pointer transition-all",
                   calendarType === cal.id
-                    ? "border-blue-500 bg-blue-500/10 text-white font-medium shadow-[0_0_12px_rgba(59,130,246,0.15)]"
+                    ? "border-info/60 bg-info/10 text-white font-medium shadow-[0_0_12px_rgba(59,130,246,0.15)]"
                     : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60"
                 )}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-xs text-foreground">{cal.label}</span>
                   {calendarType === cal.id && (
-                    <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">
+                    <Badge variant="outline" className="bg-info/20 text-info/80 border-info/40 text-[10px]">
                       Active
                     </Badge>
                   )}

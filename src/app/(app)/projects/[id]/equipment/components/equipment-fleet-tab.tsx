@@ -197,7 +197,7 @@ export function EquipmentFleetTab({
                       status: "idle",
                     })
                   }
-                  className="text-xs cursor-pointer text-slate-600 dark:text-slate-400 font-medium"
+                  className="text-xs cursor-pointer text-muted-foreground dark:text-muted-foreground/80 font-medium"
                 >
                   Mark Idle
                 </DropdownMenuItem>
@@ -432,7 +432,7 @@ export function EquipmentFleetTab({
                               status: "idle",
                             })
                           }
-                          className="text-xs text-slate-600 font-medium"
+                          className="text-xs text-muted-foreground font-medium"
                         >
                           Mark Idle
                         </DropdownMenuItem>

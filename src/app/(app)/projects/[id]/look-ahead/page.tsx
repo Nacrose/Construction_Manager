@@ -43,13 +43,13 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
       <ModuleTabs projectId={id} tabs={PLANNING_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Unified Action & Controls Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
-          <div className="flex items-center gap-1 bg-[#f8fbfe] p-1 rounded-xl border border-[#c7d8e8]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
+          <div className="flex items-center gap-1 bg-[#f8fbfe] p-1 rounded-xl border border-[var(--border)]">
             <button
               onClick={() => setTab("schedule")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "schedule" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
+                tab === "schedule" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Calendar className="h-3.5 w-3.5" />
@@ -59,7 +59,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
               onClick={() => setTab("materials")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "materials" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
+                tab === "materials" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Package className="h-3.5 w-3.5" />
@@ -69,7 +69,7 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
               onClick={() => setTab("conflicts")}
               className={cn(
                 "px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5",
-                tab === "conflicts" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-slate-500 hover:text-slate-900"
+                tab === "conflicts" ? "bg-amber-500 text-black shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -78,27 +78,27 @@ export default function LookAheadPage({ params }: { params: Promise<{ id: string
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-[#f8fbfe] px-2 py-1 rounded-xl border border-[#c7d8e8]">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900" onClick={() => setStartDate(addDays(startDate, -7))}>
+            <div className="flex items-center gap-1 bg-[#f8fbfe] px-2 py-1 rounded-xl border border-[var(--border)]">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => setStartDate(addDays(startDate, -7))}>
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="text-xs font-mono font-bold text-slate-900 px-2">
+              <span className="text-xs font-mono font-bold text-foreground px-2">
                 {format(startDate, "dd MMM")} — {format(endDate, "dd MMM yyyy")}
               </span>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900" onClick={() => setStartDate(addDays(startDate, 7))}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => setStartDate(addDays(startDate, 7))}>
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             <Select value={String(weeks)} onValueChange={(v) => setWeeks(parseInt(v))}>
-              <SelectTrigger className="h-9 w-28 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+              <SelectTrigger className="h-9 w-28 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                 <SelectItem value="1">1 week</SelectItem>
                 <SelectItem value="2">2 weeks</SelectItem>
                 <SelectItem value="4">4 weeks</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" variant="outline" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-700 hover:text-slate-900 rounded-xl" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
+            <Button size="sm" variant="outline" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground/80 hover:text-foreground rounded-xl" onClick={() => setStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }))}>
               Today
             </Button>
           </div>
@@ -237,7 +237,7 @@ function MaterialsTab({ projectId, startDate, endDate }: { projectId: string; st
           <div className="text-[9px] text-muted-foreground uppercase font-mono">Material Types</div>
         </Card>
         <Card className="p-3 text-center bg-card">
-          <div className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400">
+          <div className="text-lg font-bold font-mono text-info dark:text-info/80">
             {formatNpr(data.totals.totalCost)}
           </div>
           <div className="text-[9px] text-muted-foreground uppercase font-mono">Total Cost</div>
@@ -364,7 +364,7 @@ function ConflictsTab({ projectId, startDate, endDate }: { projectId: string; st
             <div className="text-[9px] text-muted-foreground uppercase">Total Conflicts</div>
           </Card>
           <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-blue-600">{stats.byType.staff ?? 0}</div>
+            <div className="text-lg font-bold text-info">{stats.byType.staff ?? 0}</div>
             <div className="text-[9px] text-muted-foreground uppercase">Staff</div>
           </Card>
           <Card className="p-3 text-center">
@@ -388,11 +388,11 @@ function ConflictsTab({ projectId, startDate, endDate }: { projectId: string; st
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "shrink-0 h-8 w-8 rounded-full flex items-center justify-center",
-                    c.resourceType === "staff" ? "bg-blue-100 dark:bg-blue-950" :
+                    c.resourceType === "staff" ? "bg-info/15 dark:bg-[var(--navy-deep)]" :
                     c.resourceType === "equipment" ? "bg-purple-100 dark:bg-purple-950" :
                     "bg-amber-100 dark:bg-amber-950"
                   )}>
-                    {c.resourceType === "staff" ? <Users className="h-4 w-4 text-blue-600" /> :
+                    {c.resourceType === "staff" ? <Users className="h-4 w-4 text-info" /> :
                      c.resourceType === "equipment" ? <Wrench className="h-4 w-4 text-purple-600" /> :
                      <Users className="h-4 w-4 text-amber-600" />}
                   </div>

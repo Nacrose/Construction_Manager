@@ -73,7 +73,7 @@ export default function OrgDrawingsPage() {
             <Compass className="h-4 w-4 text-emerald-400 shrink-0" />
             <div>
               <span className="font-mono font-bold text-emerald-400 text-xs">{val}</span>
-              <span className="ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-mono bg-white/10 text-gray-300">
+              <span className="ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-mono bg-white/10 text-muted-foreground/80">
                 Rev {r.revision || "A"}
               </span>
             </div>
@@ -90,7 +90,7 @@ export default function OrgDrawingsPage() {
             <div className="font-medium text-white truncate max-w-[140px]">
               {r.project?.name || "Site"}
             </div>
-            <div className="text-[10px] font-mono text-gray-400">{r.project?.code}</div>
+            <div className="text-[10px] font-mono text-muted-foreground/80">{r.project?.code}</div>
           </div>
         ),
       },
@@ -103,7 +103,7 @@ export default function OrgDrawingsPage() {
           <div className="text-xs">
             <span className="font-medium text-white">{val}</span>
             {r.fileName && (
-              <span className="block text-[10px] text-gray-400 font-mono truncate max-w-[280px]">
+              <span className="block text-[10px] text-muted-foreground/80 font-mono truncate max-w-[280px]">
                 📁 {r.fileName}
               </span>
             )}
@@ -116,8 +116,8 @@ export default function OrgDrawingsPage() {
         width: "120px",
         sortable: true,
         render: (val) => {
-          if (!val) return <span className="text-[10px] text-gray-500 font-mono">—</span>;
-          const colorClass = DISCIPLINE_COLORS[val.toLowerCase()] || "bg-white/10 text-gray-300";
+          if (!val) return <span className="text-[10px] text-muted-foreground font-mono">—</span>;
+          const colorClass = DISCIPLINE_COLORS[val.toLowerCase()] || "bg-white/10 text-muted-foreground/80";
           return (
             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${colorClass}`}>
               {val}
@@ -131,7 +131,7 @@ export default function OrgDrawingsPage() {
         width: "100px",
         sortable: true,
         render: (val) => (
-          <span className="text-xs font-mono text-gray-300">
+          <span className="text-xs font-mono text-muted-foreground/80">
             {val ? format(new Date(val), "dd MMM yyyy") : "—"}
           </span>
         ),
@@ -142,8 +142,8 @@ export default function OrgDrawingsPage() {
         width: "90px",
         align: "center",
         render: (_val, r) => (
-          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-gray-300">
-            <GitBranch className="h-3 w-3 text-gray-400" />
+          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground/80">
+            <GitBranch className="h-3 w-3 text-muted-foreground/80" />
             {r._count?.revisions || 1}
           </span>
         ),
@@ -181,27 +181,27 @@ export default function OrgDrawingsPage() {
   return (
     <div className="space-y-4 pb-8">
       {/* Header Bar */}
-      <div className="p-4 rounded-2xl border border-[#c7d8e8] bg-white shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 rounded-2xl border border-[var(--border)] bg-card shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="h-5 w-5 text-[#0284c7]" />
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+            <Compass className="h-5 w-5 text-[var(--primary)]" />
+            <h1 className="text-lg font-bold text-foreground tracking-tight">
               Master Blueprints &amp; Drawings Vault
             </h1>
-            <span className="text-[10px] font-mono text-[#0284c7] bg-sky-50 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
+            <span className="text-[10px] font-mono text-[var(--primary)] bg-info/10 px-2 py-0.5 rounded-full border border-[#bae6fd] font-bold">
               सम्पूर्ण आयोजना नक्सा भण्डार
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Centralized blueprint library, discipline categorizations, revision histories, and direct downloads across all projects.
           </p>
         </div>
 
         {/* Quick KPI summary chips & Action */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-50 border border-[#c7d8e8] text-xs">
-            <span className="text-slate-500">Total Drawings:</span>
-            <span className="font-bold text-slate-900 font-mono">{totalDrawings}</span>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-muted/60 border border-[var(--border)] text-xs">
+            <span className="text-muted-foreground">Total Drawings:</span>
+            <span className="font-bold text-foreground font-mono">{totalDrawings}</span>
           </div>
           {structuralCount > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
@@ -234,16 +234,16 @@ export default function OrgDrawingsPage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {/* Project Scoper */}
           <div className="flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-slate-500" />
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 min-w-[170px] rounded-lg focus:border-[#0284c7]">
+              <SelectTrigger className="h-8 text-xs bg-card border-[var(--border)] text-foreground min-w-[170px] rounded-lg focus:border-[var(--primary)]">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
                 <SelectItem value="all">🏢 All Projects (सम्पूर्ण आयोजना)</SelectItem>
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
@@ -256,10 +256,10 @@ export default function OrgDrawingsPage() {
 
           {/* Discipline Filter */}
           <Select value={discipline} onValueChange={setDiscipline}>
-            <SelectTrigger className="h-8 text-xs bg-white border-[#c7d8e8] text-slate-900 w-36 rounded-lg focus:border-[#0284c7]">
+            <SelectTrigger className="h-8 text-xs bg-card border-[var(--border)] text-foreground w-36 rounded-lg focus:border-[var(--primary)]">
               <SelectValue placeholder="Discipline" />
             </SelectTrigger>
-            <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs shadow-xl rounded-xl">
+            <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
               <SelectItem value="all">All Disciplines</SelectItem>
               <SelectItem value="civil">Civil (सिभिल)</SelectItem>
               <SelectItem value="structural">Structural (स्ट्रक्चरल)</SelectItem>

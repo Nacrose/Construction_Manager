@@ -27,9 +27,9 @@ type _Subcontractor = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  draft: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  certified: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  certified: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   paid: "bg-emerald-600 text-white",
 };
@@ -62,15 +62,15 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Summary Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
           <div className="flex items-center gap-4 text-xs font-mono">
-            <span className="text-slate-600">
-              Total Certificates: <span className="font-bold text-slate-900 font-matrix">{allIpcs.length}</span>
+            <span className="text-muted-foreground">
+              Total Certificates: <span className="font-bold text-foreground font-matrix">{allIpcs.length}</span>
             </span>
             {allIpcs.length > 0 && (
               <>
-                <div className="h-3 w-[1px] bg-[#c7d8e8]" />
-                <span className="text-slate-600">
+                <div className="h-3 w-[1px] bg-[var(--border)]" />
+                <span className="text-muted-foreground">
                   Certified: <span className="font-bold text-emerald-700 font-matrix">{allIpcs.filter(i => i.status === "certified" || i.status === "paid").length}</span>
                 </span>
               </>
@@ -89,27 +89,27 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
           )}
         </div>
 
-        {isLoading ? <Skeleton className="h-64 rounded-xl bg-slate-100" /> : !allIpcs.length ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl">
-            <Inbox className="h-10 w-10 text-slate-400" />
-            <p className="text-xs text-slate-500">No Interim Payment Certificates recorded yet.</p>
+        {isLoading ? <Skeleton className="h-64 rounded-xl bg-muted" /> : !allIpcs.length ? (
+          <Card className="flex flex-col items-center gap-3 p-12 text-center bg-card border-[var(--border)] shadow-xs rounded-xl">
+            <Inbox className="h-10 w-10 text-muted-foreground/80" />
+            <p className="text-xs text-muted-foreground">No Interim Payment Certificates recorded yet.</p>
           </Card>
         ) : (
         <div className="space-y-3">
           {allIpcs.map((ipc) => (
             <Link key={ipc.id} href={`/projects/${id}/ipc/${ipc.id}`}>
-              <Card className="bg-white border-[#c7d8e8] shadow-xs hover:border-[#0284c7] transition-all rounded-xl">
+              <Card className="bg-card border-[var(--border)] shadow-xs hover:border-[var(--primary)] transition-all rounded-xl">
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-[#0284c7] border border-[#bae6fd]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info/10 text-[var(--primary)] border border-[#bae6fd]">
                     <ReceiptText className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-500">{ipc.number}</span>
+                      <span className="font-mono text-xs font-bold text-muted-foreground">{ipc.number}</span>
                       <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
-                      {ipc.period && <span className="text-xs text-slate-500 font-mono">{ipc.period}</span>}
+                      {ipc.period && <span className="text-xs text-muted-foreground font-mono">{ipc.period}</span>}
                       {ipc.subcontractor && (
-                        <Badge variant="outline" className="bg-sky-50 text-[#0284c7] border-[#bae6fd] gap-1 text-[11px] font-normal py-0.5">
+                        <Badge variant="outline" className="bg-info/10 text-[var(--primary)] border-[#bae6fd] gap-1 text-[11px] font-normal py-0.5">
                           <Users className="h-3 w-3" /> Subcontractor: {ipc.subcontractor.name}
                         </Badge>
                       )}
@@ -135,7 +135,7 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
 
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge variant="outline" className="border-[#c7d8e8] text-slate-600 font-mono">{ipc._count.items} items</Badge>
+                    <Badge variant="outline" className="border-[var(--border)] text-muted-foreground font-mono">{ipc._count.items} items</Badge>
                   </div>
                 </CardContent>
               </Card>

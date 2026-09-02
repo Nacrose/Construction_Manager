@@ -94,7 +94,7 @@ export function WeatherProductivityChart({ projectId }: Props) {
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
         {data.summary.productivityDropPct > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20 p-2 text-xs text-blue-700 dark:text-blue-400">
+          <div className="flex items-center gap-2 rounded-md border border-info/30 bg-info/50 dark:border-info/30 dark:bg-[var(--navy-deep)]/20 p-2 text-xs text-info dark:text-info/80">
             <TrendingDown className="h-3.5 w-3.5 shrink-0" />
             <span>
               Rain causes <strong>{data.summary.productivityDropPct}%</strong> productivity drop

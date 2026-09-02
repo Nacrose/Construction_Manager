@@ -50,7 +50,7 @@ export const UNITS = ["cum", "sqm", "no", "m", "kg", "ton", "set", "lot", "hrs"]
 export const TAG_COLORS = [
   "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
   "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
 ];

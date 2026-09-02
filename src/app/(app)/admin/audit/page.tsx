@@ -36,8 +36,8 @@ type AuditLogEntry = {
 const ACTION_COLORS: Record<string, string> = {
   "admin.org.create": "bg-primary/10 text-primary border-primary/30",
   "admin.org.update": "bg-primary/10 text-primary border-primary/30",
-  "admin.user.create": "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
-  "admin.user.update": "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+  "admin.user.create": "bg-cyan-500/10 text-info border-info/40",
+  "admin.user.update": "bg-cyan-500/10 text-info border-info/40",
   "admin.impersonation.start": "bg-amber-500/10 text-amber-400 border-amber-500/30",
   "admin.impersonation.stop": "bg-amber-500/10 text-amber-400 border-amber-500/30",
 };
@@ -235,7 +235,7 @@ export default function AdminAudit() {
         <Card>
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-cyan-400" />
+              <User className="h-4 w-4 text-info" />
               <span className="text-xs text-muted-foreground">Unique Users</span>
             </div>
             <p className="text-lg font-bold text-foreground mt-1">

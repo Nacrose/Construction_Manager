@@ -47,18 +47,18 @@ export function ConfirmDialog({
       case "success":
         return <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />;
       default:
-        return <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />;
+        return <Info className="h-5 w-5 text-info/80 shrink-0 mt-0.5" />;
     }
   };
 
   const getButtonClass = () => {
     switch (variant) {
       case "destructive":
-        return "bg-rose-600 hover:bg-rose-700 text-slate-900 font-bold";
+        return "bg-rose-600 hover:bg-rose-700 text-foreground font-bold";
       case "warning":
-        return "bg-amber-600 hover:bg-amber-700 text-slate-900 font-bold";
+        return "bg-amber-600 hover:bg-amber-700 text-foreground font-bold";
       case "success":
-        return "bg-emerald-600 hover:bg-emerald-700 text-slate-900 font-bold";
+        return "bg-emerald-600 hover:bg-emerald-700 text-foreground font-bold";
       default:
         return "bg-primary hover:bg-primary/90 text-primary-foreground font-bold";
     }
@@ -66,16 +66,16 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="bg-white border border-[#c7d8e8] text-slate-900 shadow-2xl max-w-md p-6 backdrop-blur-md shadow-2xl">
+      <AlertDialogContent className="bg-card border border-[var(--border)] text-foreground shadow-2xl max-w-md p-6 backdrop-blur-md shadow-2xl">
         <AlertDialogHeader>
           <div className="flex items-start gap-3">
             {getIcon()}
             <div className="space-y-1 text-left">
-              <AlertDialogTitle className="text-base font-bold text-slate-900 leading-snug">
+              <AlertDialogTitle className="text-base font-bold text-foreground leading-snug">
                 {title}
               </AlertDialogTitle>
               {description && (
-                <AlertDialogDescription className="text-xs text-slate-700 leading-relaxed">
+                <AlertDialogDescription className="text-xs text-foreground/80 leading-relaxed">
                   {description}
                 </AlertDialogDescription>
               )}
@@ -83,10 +83,10 @@ export function ConfirmDialog({
           </div>
         </AlertDialogHeader>
 
-        <AlertDialogFooter className="gap-2 pt-3 border-t border-[#c7d8e8] mt-2">
+        <AlertDialogFooter className="gap-2 pt-3 border-t border-[var(--border)] mt-2">
           <AlertDialogCancel
             disabled={isLoading}
-            className="text-xs bg-transparent border-[#c7d8e8] text-slate-700 hover:text-slate-900 hover:bg-slate-50 h-8 px-3"
+            className="text-xs bg-transparent border-[var(--border)] text-foreground/80 hover:text-foreground hover:bg-muted/60 h-8 px-3"
           >
             {cancelLabel}
           </AlertDialogCancel>

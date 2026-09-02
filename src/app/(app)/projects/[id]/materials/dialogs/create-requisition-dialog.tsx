@@ -208,7 +208,7 @@ export function CreateRequisitionDialog({
                 className={cn(
                   "p-3 rounded-xl border space-y-2.5 bg-card",
                   q.partnerId && q.partnerId === selectedPartnerId
-                    ? "border-blue-500 bg-blue-50/10"
+                    ? "border-info/60 bg-info/10"
                     : "border-border/60"
                 )}
               >

@@ -223,7 +223,7 @@ export default function SyncPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5 text-blue-500" />
+              <Smartphone className="h-5 w-5 text-info" />
               <span className="text-lg font-semibold capitalize">
                 {typeof window !== "undefined" && window.matchMedia("(display-mode: standalone)").matches
                   ? "Installed"

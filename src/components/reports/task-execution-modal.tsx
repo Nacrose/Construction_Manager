@@ -104,7 +104,7 @@ export function TaskExecutionModal({ projectId, task }: { projectId: string; tas
                 <span className={cn(
                   "font-mono font-semibold px-2 py-0.5 rounded text-[11px]",
                   variance > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" :
-                  variance < 0 ? "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300" :
+                  variance < 0 ? "bg-info/15 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80" :
                   "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                 )}>
                   {variance > 0 ? `+${variance.toFixed(2)} ${task.unit || ""} (${variancePct.toFixed(1)}% Wastage)` :
@@ -132,7 +132,7 @@ export function TaskExecutionModal({ projectId, task }: { projectId: string; tas
                 </Select>
               </div>
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="eot" checked={isEot} onChange={(e) => setIsEot(e.target.checked)} className="rounded border-gray-300" />
+                <input type="checkbox" id="eot" checked={isEot} onChange={(e) => setIsEot(e.target.checked)} className="rounded border-border" />
                 <Label htmlFor="eot" className="font-normal cursor-pointer text-xs">Flag as EOT (Extension of Time) Candidate</Label>
               </div>
 

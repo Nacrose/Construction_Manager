@@ -45,7 +45,7 @@ export function PurchaseRegisterTab({
   const getSourceIcon = (source: string) => {
     switch (source) {
       case "vendor_bill":
-        return <Package className="h-3 w-3 text-blue-500" />;
+        return <Package className="h-3 w-3 text-info" />;
       case "subcontractor":
         return <Layers className="h-3 w-3 text-purple-500" />;
       case "equipment":

@@ -620,7 +620,7 @@ export function ReportDesigner({ entityType, entityId, projectId, data, backHref
         />
 
         {/* Canvas */}
-        <div className="flex-1 overflow-auto bg-slate-200 dark:bg-slate-900 p-6 flex items-start justify-center">
+        <div className="flex-1 overflow-auto bg-secondary dark:bg-[var(--navy-mid)] p-6 flex items-start justify-center">
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-3 text-xs">
               <button

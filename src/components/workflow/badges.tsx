@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
   draft:
-    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted:
     "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   approved:
@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<string, string> = {
   rejected:
     "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   closed:
-    "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+    "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
 
 export function RfiStatusBadge({ status, className }: { status: string; className?: string }) {
@@ -26,9 +26,9 @@ export function RfiStatusBadge({ status, className }: { status: string; classNam
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  low: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
   normal:
-    "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   high: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   urgent: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
 };

@@ -380,14 +380,14 @@ export function TaskRow({
                   className={cn(
                     "relative rounded p-1",
                     boqPanelOpen
-                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                      : "hover:bg-blue-100 hover:text-blue-700 dark:hover:bg-blue-950",
+                      ? "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80"
+                      : "hover:bg-info/15 hover:text-info dark:hover:bg-[var(--navy-deep)]",
                   )}
                   title="BOQ items"
                 >
                   <Package className="h-4 w-4 mx-auto" />
                   {task.boqLinks.length > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-blue-600 px-0.5 text-[8px] font-bold text-white">
+                    <span className="absolute -right-1 -top-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-info px-0.5 text-[8px] font-bold text-white">
                       {task.boqLinks.length}
                     </span>
                   )}
@@ -428,7 +428,7 @@ export function TaskRow({
               const d = addDays(rangeStart, i);
               const isWeekend = d.getDay() === 6; // Nepal: Saturday is weekend
               return (
-                <div key={i} className={cn("flex-1 border-l", isWeekend && "bg-blue-50/40 dark:bg-blue-950/15")} />
+                <div key={i} className={cn("flex-1 border-l", isWeekend && "bg-info/40 dark:bg-[var(--navy-deep)]/15")} />
               );
             })}
             {today && (() => {

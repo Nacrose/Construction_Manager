@@ -63,11 +63,11 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
         align: "center",
         render: (val) =>
           val === "incoming" ? (
-            <span className="inline-flex items-center text-blue-400 font-mono text-xs" title="Incoming">
+            <span className="inline-flex items-center text-info/80 font-mono text-xs" title="Incoming">
               <ArrowDownLeft className="h-4 w-4" />
             </span>
           ) : (
-            <span className="inline-flex items-center text-[#0284c7] font-mono text-xs" title="Outgoing">
+            <span className="inline-flex items-center text-[var(--primary)] font-mono text-xs" title="Outgoing">
               <ArrowUpRight className="h-4 w-4" />
             </span>
           ),
@@ -109,7 +109,7 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
         header: "Category",
         width: "110px",
         render: (val) => (
-          <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase font-mono", CATEGORY_COLORS[String(val)] ?? "bg-slate-800 text-slate-300")}>
+          <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold uppercase font-mono", CATEGORY_COLORS[String(val)] ?? "bg-[var(--navy-mid)] text-muted-foreground")}>
             {CATEGORIES.find((c) => c.value === val)?.label ?? val}
           </span>
         ),
@@ -155,24 +155,24 @@ export default function CorrespondencePage({ params }: { params: Promise<{ id: s
         {/* Stats bar */}
         {statsData && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <StatCard label="Total" value={statsData.total} icon={Mail} color="text-slate-400" />
-            <StatCard label="Incoming" value={statsData.incoming} icon={ArrowDownLeft} color="text-blue-400" />
-            <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-[#0284c7]" />
+            <StatCard label="Total" value={statsData.total} icon={Mail} color="text-muted-foreground/80" />
+            <StatCard label="Incoming" value={statsData.incoming} icon={ArrowDownLeft} color="text-info/80" />
+            <StatCard label="Outgoing" value={statsData.outgoing} icon={ArrowUpRight} color="text-[var(--primary)]" />
             <StatCard label="Actionable" value={statsData.actionable} icon={FileText} color="text-amber-400" />
             <StatCard label="Overdue" value={statsData.overdue} icon={AlertTriangle} color="text-red-400" urgent={statsData.overdue > 0} />
           </div>
         )}
 
         {/* Action Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
-            <Mail className="h-4 w-4 text-[#0284c7]" />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
+          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+            <Mail className="h-4 w-4 text-[var(--primary)]" />
             <span>Official Site Correspondence &amp; Notices</span>
           </div>
 
           <Dialog open={logOpen} onOpenChange={setLogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-mono">
+              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition gap-1.5 shrink-0 font-mono">
                 <Plus className="h-3.5 w-3.5" /> Log Letter
               </Button>
             </DialogTrigger>

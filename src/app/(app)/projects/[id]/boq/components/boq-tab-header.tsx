@@ -174,15 +174,15 @@ export function BoqTabHeader({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 shrink-0 text-xs gap-1 font-mono border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200"
+                className="h-8 shrink-0 text-xs gap-1 font-mono border-border bg-[var(--navy-mid)]/80 hover:bg-[var(--navy-mid)] text-foreground"
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-400" />
                 <span>RA Tools</span>
-                <ChevronDown className="h-3 w-3 text-slate-400" />
+                <ChevronDown className="h-3 w-3 text-muted-foreground/80" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-slate-950 border-slate-800 text-xs">
-              <DropdownMenuLabel className="text-[10px] uppercase font-mono text-slate-400">
+            <DropdownMenuContent align="end" className="w-56 bg-[var(--navy-deep)] border-border text-xs">
+              <DropdownMenuLabel className="text-[10px] uppercase font-mono text-muted-foreground/80">
                 Default Scheduling Library
               </DropdownMenuLabel>
               {libsData?.libraries?.map((lib) => (
@@ -195,13 +195,13 @@ export function BoqTabHeader({
                   {libsData.defaultLibraryId === lib.id && <Check className="h-3.5 w-3.5 text-primary" />}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator className="bg-slate-800" />
-              <DropdownMenuLabel className="text-[10px] uppercase font-mono text-slate-400">
+              <DropdownMenuSeparator className="bg-[var(--navy-mid)]" />
+              <DropdownMenuLabel className="text-[10px] uppercase font-mono text-muted-foreground/80">
                 Quick Navigation
               </DropdownMenuLabel>
               <DropdownMenuItem asChild>
                 <Link href={`/projects/${id}/rate-library`} className="flex items-center gap-1.5 cursor-pointer">
-                  <Layers className="h-3.5 w-3.5 text-sky-400" />
+                  <Layers className="h-3.5 w-3.5 text-info/80" />
                   <span>District Rate Catalogs</span>
                 </Link>
               </DropdownMenuItem>

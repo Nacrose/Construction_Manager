@@ -445,7 +445,7 @@ export function InwardDeliveryDialog({
                 <button
                   type="button"
                   onClick={() => setShowWeighbridge(!showWeighbridge)}
-                  className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 font-medium"
+                  className="text-[10px] text-info hover:text-info dark:text-info/80 flex items-center gap-1 font-medium"
                 >
                   <Scale className="h-3 w-3" />
                   {showWeighbridge ? "Hide Weighbridge" : "Weighbridge Calc"}
