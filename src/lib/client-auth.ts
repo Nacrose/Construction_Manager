@@ -1,12 +1,27 @@
 "use client";
 
-// Client-side auth helpers. Stores the JWT token in localStorage and
-// provides a fetch wrapper that adds the Authorization header.
-// This is the reliable auth method through the TLS-terminating gateway
-// (HttpOnly cookies may not be forwarded correctly by all gateways).
+// Client-side auth helpers.
+//
+// v2.0 server-auth decision: there is NO token in client storage. The
+// httpOnly `cf_session` cookie — set by the server at login/signup/
+// admin-login — is the credential. The browser attaches it automatically to
+// every same-origin request (fetch, tRPC, <img src>, <a href>), and it is
+// invisible to JavaScript, so an XSS payload can no longer exfiltrate a
+// reusable session credential. What remains here is the non-sensitive
+// `cf_user` profile cache (instant UI paint + identity-only branching) and
+// small shared fetch helpers.
+//
+// Server truth always wins: /api/auth/me validates the session on every app
+// mount (see AppGuard), sessions stay revocable by jti in the DB, and
+// src/lib/csrf.ts covers the cross-site mutation risk that cookie auth
+// introduces.
 
-const TOKEN_KEY = "cf_token";
 const USER_KEY = "cf_user";
+// Legacy key from the pre-v2.0 "Bearer in localStorage" era. Browsers that
+// logged in before the migration still have one lying around — it is wiped
+// on the next setAuthUser/clearAuth (and its server-side session revocable
+// via /api/auth/logout or expiry).
+const LEGACY_TOKEN_KEY = "cf_token";
 
 export type ClientUser = {
   id: string;
@@ -25,9 +40,12 @@ export type ClientUser = {
   impersonatedReason?: string | null;
 };
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+function wipeLegacyToken(): void {
+  try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 export function getUser(): ClientUser | null {
@@ -47,17 +65,23 @@ function notifyAuthChange() {
   }
 }
 
-export function setAuth(token: string, user: ClientUser): void {
+/**
+ * Cache the (non-sensitive) user profile after a successful login, signup,
+ * admin login, or impersonation transition. The credential itself is the
+ * httpOnly cookie the server has already set — nothing secret is stored.
+ */
+export function setAuthUser(user: ClientUser): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // Belt-and-braces: scrub any pre-v2.0 Bearer token left in localStorage.
+  wipeLegacyToken();
   notifyAuthChange();
 }
 
 export function clearAuth(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  wipeLegacyToken();
   // Clear service worker caches. NOTE: the SW no longer caches tRPC GET
   // responses or /api/* bytes (both are network pass-through in sw.js), so
   // there should be no authenticated data in SW storage — this is now a
@@ -89,19 +113,15 @@ export function clearAuth(): void {
   notifyAuthChange();
 }
 
-// fetch wrapper that adds the Authorization header if a token exists.
-// NOTE: This is the plain fetch — for tRPC mutations, use the
-// offline-aware fetch in `offline-fetch.ts` instead. This wrapper is
-// used for non-tRPC requests (file uploads, /api/auth, /api/setup, etc.)
-// and does NOT queue offline.
+// Same-origin fetch wrapper for non-tRPC requests (/api/auth, /api/search,
+// /api/dashboard, file uploads, ...). The httpOnly cookie rides
+// automatically — the wrapper exists so call sites have a single documented
+// place for "authed fetch" and so future cross-cutting concerns (retry,
+// timeout, 401 interception) have one seam. It does NOT queue offline —
+// for tRPC mutations use the offline-aware fetch in `offline-fetch.ts`.
 export async function fetchWithAuth(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const token = getToken();
-  const headers = new Headers(init?.headers);
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  return fetch(input, { ...init, headers });
+  return fetch(input, init);
 }

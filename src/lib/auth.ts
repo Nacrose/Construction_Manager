@@ -1,8 +1,12 @@
-// Server-side auth: bcrypt password hashing + JWT (jose).
-// Supports TWO auth methods:
-// 1. HttpOnly cookie (cf_session) — for page navigation via the proxy
-// 2. Authorization: Bearer <token> header — for API calls from the client
-//    (this is the reliable method through the TLS-terminating gateway)
+// Server-side auth: bcrypt password hashing + DB-backed JWT sessions (jose).
+//
+// v2.0 server-auth decision: the httpOnly `cf_session` cookie IS the
+// credential. It is set by the login/signup/admin-login route handlers and
+// verified on every request; the JWT it carries is a DB session pointer
+// (jti), so sessions stay revocable server-side. The Authorization: Bearer
+// header is still accepted as a fallback (see extractToken) for machine
+// flows and the transition window, but no client code stores or sends a
+// token anymore — see src/lib/client-auth.ts and src/lib/csrf.ts.
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
@@ -135,7 +139,8 @@ export async function setSessionCookie(userId: string): Promise<string> {
       secure: true,
       // Lax is the safe default — blocks cross-site POST/PUT but allows
       // top-level navigations. SameSite=None widens CSRF surface and is
-      // only needed if the app is embedded in cross-site iframes.
+      // only needed if the app is embedded in cross-site iframes. Cross-site
+      // POST risk is additionally covered server-side by src/lib/csrf.ts.
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_DAYS * 24 * 60 * 60,
@@ -146,22 +151,19 @@ export async function setSessionCookie(userId: string): Promise<string> {
   return token;
 }
 
-export async function clearSessionCookie(authHeader?: string | null): Promise<void> {
-  // Extract the JWT from the Authorization header (preferred) OR the cookie.
-  // Without this, a client using only a Bearer token would have its session
-  // remain valid after logout.
+export async function clearSessionCookie(): Promise<void> {
+  // ALWAYS delete the cookie — post-v2.0 it IS the credential, so leaving it
+  // behind after logout on a shared machine is a session-hijack gift. (The
+  // previous implementation skipped the cookie delete whenever an
+  // Authorization header was present.) The DB session row the cookie points
+  // at is revoked by jti, defence in depth against cookie re-use.
   let token: string | null = null;
-  if (authHeader?.startsWith("Bearer ")) {
-    token = authHeader.slice(7);
-  }
-  if (!token) {
-    try {
-      const store = await cookies();
-      token = store.get(COOKIE_NAME)?.value ?? null;
-      store.delete(COOKIE_NAME);
-    } catch {
-      /* cookies() not available */
-    }
+  try {
+    const store = await cookies();
+    token = store.get(COOKIE_NAME)?.value ?? null;
+    store.delete(COOKIE_NAME);
+  } catch {
+    /* cookies() not available */
   }
   if (token) {
     try {

@@ -5,7 +5,7 @@ import { ShieldAlert, LogOut, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { useAuthUser } from "@/lib/use-auth-user";
-import { getToken, setAuth } from "@/lib/client-auth";
+import { setAuthUser } from "@/lib/client-auth";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -18,8 +18,8 @@ export function ImpersonationBanner() {
   const router = useRouter();
   const stop = trpc.admin.stopImpersonation.useMutation({
     onSuccess: (data) => {
-      const token = getToken();
-      if (token && data.user) setAuth(token, data.user);
+      // The same httpOnly cookie stays valid; refresh the cached identity.
+      if (data.user) setAuthUser(data.user);
       toast.success("Stopped impersonation");
       router.push("/admin");
     },

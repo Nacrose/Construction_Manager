@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { createSession } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
 
 /**
  * POST /api/auth/signup
@@ -13,6 +13,7 @@ import { createSession } from "@/lib/auth";
  */
 
 import { passwordSchema } from "@/lib/password-policy";
+import { assertSameOrigin } from "@/lib/csrf";
 
 // Single source of truth for signup input validation.
 const SignupSchema = z.object({
@@ -24,6 +25,9 @@ const SignupSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     // Signup is only allowed for the first user (org bootstrap).
     // After that, existing members invite friends via the Team page.
     const userCount = await db.user.count();
@@ -95,11 +99,12 @@ export async function POST(req: NextRequest) {
       return { org, user };
     });
 
-    // Create session + JWT
-    const token = await createSession(result.user.id);
+    // Create session and set the httpOnly cookie — post-v2.0 the cookie IS
+    // the credential, so the freshly-bootstrapped org admin gets a working
+    // session with no token in the response body.
+    await setSessionCookie(result.user.id);
 
     return NextResponse.json({
-      token,
       user: {
         id: result.user.id,
         email: result.user.email,

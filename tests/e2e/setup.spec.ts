@@ -1,7 +1,7 @@
 /**
  * E2E setup: perform the real UI login ONCE and persist the session
- * (cf_session cookie + cf_token/cf_user localStorage) to storageState for
- * the smoke project's tests.
+ * (the httpOnly cf_session cookie — the v2.0 credential, captured
+ * automatically by storageState) to test storage for the smoke project.
  *
  * This test IS the "login works end-to-end" test — it asserts the full
  * form → API → redirect → dashboard-render path before saving state.

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { setOrgContext } from "@/lib/rls";
 import { assertCanWrite } from "@/lib/authz";
 import { ok, handleError, unauthorized, notFound } from "@/lib/api";
+import { assertSameOrigin } from "@/lib/csrf";
 
 type Params = { params: Promise<{ itemId: string }> };
 
@@ -19,6 +20,9 @@ const UpdateSchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     const user = await getCurrentUser(req.headers.get("authorization"));
     if (!user) return unauthorized();
 
@@ -41,6 +45,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     const user = await getCurrentUser(req.headers.get("authorization"));
     if (!user) return unauthorized();
 

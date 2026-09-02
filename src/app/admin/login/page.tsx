@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { setAuth } from "@/lib/client-auth";
+import { setAuthUser } from "@/lib/client-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -38,8 +38,9 @@ export default function AdminLoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Admin login failed");
 
-      if (data.token && data.user) {
-        setAuth(data.token, data.user);
+      // Credential = the short-lived httpOnly admin cookie set by the server.
+      if (data.user) {
+        setAuthUser(data.user);
       }
       toast.success("Welcome, administrator.");
       window.location.href = "/admin";

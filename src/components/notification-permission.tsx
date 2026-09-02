@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Bell, BellOff, Check, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchWithAuth, getToken } from "@/lib/client-auth";
+import { fetchWithAuth } from "@/lib/client-auth";
 
 type PermissionState = "default" | "granted" | "denied" | "unsupported";
 
@@ -81,14 +81,12 @@ export function NotificationPermission() {
         applicationServerKey: urlBase64ToUint8Array(vapidData.publicKey) as unknown as BufferSource,
       });
 
-      // 4. Send subscription to server
+      // 4. Send subscription to server (cookie-authenticated)
       const subJson = subscription.toJSON();
-      const token = getToken();
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(subJson),
       });
@@ -114,13 +112,11 @@ export function NotificationPermission() {
       if (sub) {
         const endpoint = sub.endpoint;
         await sub.unsubscribe();
-        // Notify server
-        const token = getToken();
+        // Notify server (cookie-authenticated)
         await fetch("/api/push/unsubscribe", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ endpoint }),
         });

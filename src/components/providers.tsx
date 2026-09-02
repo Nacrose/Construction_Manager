@@ -6,7 +6,6 @@ import { Toaster as SonnerToaster } from "sonner";
 import { httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import { trpc } from "@/lib/trpc-client";
-import { getToken } from "@/lib/client-auth";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { UserPreferencesProvider } from "@/components/user-preferences-provider";
 
@@ -36,12 +35,10 @@ export function Providers({ children }: { children: ReactNode }) {
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
-          async headers() {
-            const token = getToken();
-            return {
-              authorization: token ? `Bearer ${token}` : undefined,
-            };
-          },
+          // v2.0: cookie-authenticated — the browser attaches the httpOnly
+          // cf_session cookie to every same-origin request automatically.
+          // No Authorization header, no credential in client JS.
+          //
           // Use our offline-aware fetch wrapper so mutations are queued
           // when the network is unavailable.
           fetch: offlineFetch as typeof fetch,

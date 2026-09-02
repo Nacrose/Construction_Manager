@@ -7,7 +7,7 @@
 > **⚠️ Core System Scope & Positioning**:
 > **This platform is built EXCLUSIVELY for Construction Contractors, Joint Ventures (JVs), and Builders.**
 > **This is NOT a Client / Consultant / Owner portal.**
-> **This is an OFFICE-USE web application** — built for desktop browsers in a head-office / site-office setting, used by staff on a stable internet connection. It is **online-first by design**: the browser app targets online use and is NOT a mobile app and has no app-store build. A service worker ships for push notifications and app-shell caching, and an IndexedDB offline mutation queue exists as groundwork for future field workflows — authenticated data (tRPC responses, `/api/*` bytes) is never persisted to disk by the service worker. Offline field workflows are a roadmap item, not a committed feature.
+> **This is an OFFICE-USE web application** — built for desktop browsers in a head-office / site-office setting, used by staff on a stable internet connection. It is **online-first by design**: the browser app targets online use and is NOT a mobile app and has no app-store build. A service worker ships for push notifications and app-shell caching, and an IndexedDB offline mutation queue exists as groundwork — authenticated data (tRPC responses, `/api/*` bytes) is never persisted to disk by the service worker. Offline field workflows are not a committed feature.
 > Every workflow is engineered around contractor reality: site material deliveries, subcontractor labor bills, Bahi Khata Day Books, VAT & TDS compliance, BOQ rate analysis, plant & equipment fleet logs, and Joint Venture royalty/equity sharing.
 
 A comprehensive construction enterprise management platform tailored for contractor and JV operations in Nepal (DoR / DUDBC / NEA standards) — encompassing BOQ & rate analysis, Day Book & cash-basis accounting, centralized finance & payables, Gantt scheduling, RFI workflows, site daily reports, IPC progress claims, variations, equipment fleet, staff HR, and multi-site inventory.
@@ -140,7 +140,7 @@ construction-manager/
 │   │   ├── audit.ts              # Audit-log writer
 │   │   ├── db.ts                 # Prisma singleton
 │   │   ├── api.ts                # JSON response helpers
-│   │   ├── client-auth.ts        # Client-side token storage + fetchWithAuth
+│   │   ├── client-auth.ts        # Client identity cache (cf_user) + authed fetch seam — no credential in JS
 │   │   ├── trpc-client.ts        # tRPC React client
 │   │   ├── ui-store.ts           # Zustand sidebar state
 │   │   └── utils.ts              # cn() and other utilities
@@ -246,15 +246,29 @@ Three enums: `LibraryPurpose`, `BoqVersionStatus`, `VersionStatus`.
 
 ### Authentication Flow
 
+Since v2.0, the httpOnly `cf_session` cookie **is** the credential — no
+session token is ever stored in, or sent from, client JavaScript:
+
 1. User submits email + password to `POST /api/auth/login`
 2. Server verifies password with bcrypt (cost 12)
 3. Server issues a JWT signed with `AUTH_SECRET` (HS256, 7-day expiry),
    with a `jti` claim stored in the `Session` table for revocation
-4. Client stores the JWT in `localStorage` and sends it as
-   `Authorization: Bearer <token>` on subsequent requests
-5. `POST /api/auth/logout` invalidates the session row (token can no
-   longer be used even before its expiry)
-6. `GET /api/auth/me` validates the token + session on each page load
+4. The JWT is delivered **only** as an `httpOnly; Secure; SameSite=Lax`
+   cookie (7-day maxAge for user sessions; platform-admin sessions are
+   60 minutes, kind-tagged `admin`, and enforced by both the edge proxy
+   and `superAdminProcedure`)
+5. The browser attaches the cookie to every same-origin request — tRPC,
+   REST fetches, `<img src>`, `<a href>` downloads — so all authed traffic
+   rides one channel. The server still accepts an `Authorization: Bearer`
+   header as a fallback for machine flows (cron uses its own secret)
+6. `src/lib/csrf.ts` enforces same-origin validation (Origin/Referer vs
+   forwarded host) on every mutation endpoint — tRPC included — closing
+   the CSRF surface that cookie auth opens
+7. `POST /api/auth/logout` revokes the session row and always deletes the
+   cookie (token can no longer be used even before its expiry)
+8. `GET /api/auth/me` validates the cookie + session on each page load;
+   the client caches only the non-sensitive user profile (`cf_user`) for
+   instant paint — never a credential
 
 ### Authorization (RBAC)
 
@@ -365,10 +379,11 @@ npx tsc --noEmit
 - [x] Re-enable TypeScript + ESLint build checks
 - [x] Clean repo of binary/internal files
 - [x] Add this README
+- [x] httpOnly cookie session credential + CSRF origin guards (v2.0 server-auth decision; no token in client JS)
 - [x] Retire `/api/setup` raw SQL (`ensure-schema.ts`) — `prisma migrate deploy` is the only schema path (v1.2)
 - [x] Drop `z-ai-web-dev-sdk` from runtime deps
 - [x] Pick one package manager (npm) and delete `bun.lock`
-- [x] Add Vitest — 107 test files / ~1,348 cases incl. live-Postgres RLS integration + Playwright E2E
+- [x] Add Vitest — ~109 test files / ~2,600 cases incl. live-Postgres RLS integration + Playwright E2E
 - [x] Split the 2,751-line `boq/page.tsx` into components (now ~450 lines)
 
 ### Feature Candidates (post-stabilization)

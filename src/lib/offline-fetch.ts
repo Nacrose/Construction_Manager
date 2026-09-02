@@ -190,7 +190,10 @@ async function enqueueAndReturn(
     else bodyStr = String(init.body);
   }
 
-  // Build headers (exclude Authorization header so credentials are not persisted in IndexedDB)
+  // Build headers (exclude Authorization so no credential lands in
+  // IndexedDB). Since v2.0 the credential is the httpOnly cf_session cookie,
+  // which never enters JS or IndexedDB; the strip remains as defence in
+  // depth for queued items created by pre-v2.0 builds.
   const headers: Record<string, string> = {};
   if (init?.headers) {
     const h = new Headers(init.headers);

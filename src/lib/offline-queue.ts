@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
-import { getToken } from "@/lib/client-auth";
 
 /**
  * Offline Queue
@@ -211,9 +210,11 @@ export async function replayQueue(): Promise<{ success: number; failed: number; 
     await dbUpdate(item.id, { status: "syncing" });
 
     try {
-      const token = getToken();
+      // v2.0: the httpOnly cf_session cookie rides automatically on the
+      // same-origin replay — no credential is stored client-side anymore.
+      // A queued mutation replayed after session expiry still hits the
+      // 401 path below and is marked failed.
       const headers = new Headers(item.headers);
-      if (token) headers.set("Authorization", `Bearer ${token}`);
 
       const res = await fetch(item.url, {
         method: item.method,

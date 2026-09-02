@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { fetchWithAuth, clearAuth, getToken } from "@/lib/client-auth";
+import { fetchWithAuth, clearAuth } from "@/lib/client-auth";
 import { useUserPreferences } from "@/components/user-preferences-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -165,7 +165,9 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
   }>({
     queryKey: ["me"],
     queryFn: async () => { const res = await fetchWithAuth("/api/auth/me"); if (!res.ok) throw new Error("not authed"); return res.json(); },
-    enabled: !getToken(),
+    // v2.0: always fetch — the cookie-authenticated me endpoint is the
+    // identity source of truth (previously gated on a localStorage token).
+    enabled: true,
   });
 
   const user = meData?.user;
