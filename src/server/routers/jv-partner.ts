@@ -10,7 +10,13 @@ import { TRPCError } from "@trpc/server";
 import { createDomainRouter, financialGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertOrgBankAccount } from "@/lib/authz";
+import { withOrgContext } from "@/lib/rls";
 import { audit } from "@/lib/audit";
+import {
+  createJournalEntry,
+  reverseJournalEntry,
+  jvPayoutEntry,
+} from "@/lib/journal-entry";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 import { normalizeDateMiti } from "@/server/utils/date-miti";
 
@@ -242,33 +248,71 @@ export const jvPartnerRouter = router({
       const tdsAmount = (input.grossAmount * input.tdsPercent) / 100;
       const netAmount = input.grossAmount - tdsAmount;
 
-      const voucherNo = await getNextSequenceNumber("jv_payout", { agreementId: agreement.id });
+      // ── Atomic money movement ───────────────────────────────────────
+      // Payout row, bank decrement, and the double-entry journal entry
+      // all happen inside ONE transaction with the tenant RLS context
+      // pinned. Previously these were separate writes: a crash between
+      // them left a payout with no bank decrement, and the GL never saw
+      // JV payouts at all.
+      const partnerName = agreement.partnerName;
+      const payout = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
-      const payout = await db.jvCommissionPayout.create({
-        data: {
-          agreementId: agreement.id,
-          ipcId: input.ipcId || null,
+        const voucherNo = await getNextSequenceNumber(
+          "jv_payout",
+          { agreementId: agreement.id },
+          tx,
+        );
+
+        const payout = await tx.jvCommissionPayout.create({
+          data: {
+            agreementId: agreement.id,
+            ipcId: input.ipcId || null,
+            voucherNo,
+            payoutDate: dateInfo.adDate,
+            payoutMiti: dateInfo.bsMiti,
+            grossAmount: input.grossAmount,
+            tdsPercent: input.tdsPercent,
+            tdsAmount,
+            netAmount,
+            paymentMode: input.paymentMode,
+            chequeNo: input.chequeNo?.trim() || null,
+            bankAccountId: input.bankAccountId || null,
+            remarks: input.remarks?.trim() || null,
+          },
+        });
+
+        // Deduct net payment from central company bank account (atomic
+        // single-statement decrement inside the tx).
+        if (input.bankAccountId) {
+          await tx.companyBankAccount.update({
+            where: { id: input.bankAccountId },
+            data: { currentBalance: { decrement: netAmount } },
+          });
+        }
+
+        // Double-entry: Dr JV Partner Commission (gross)
+        //               Cr TDS Payable (tds) / Cr Bank or Cash (net)
+        const jeInput = jvPayoutEntry({
+          payoutId: payout.id,
           voucherNo,
-          payoutDate: dateInfo.adDate,
-          payoutMiti: dateInfo.bsMiti,
+          partnerName,
           grossAmount: input.grossAmount,
-          tdsPercent: input.tdsPercent,
           tdsAmount,
           netAmount,
           paymentMode: input.paymentMode,
-          chequeNo: input.chequeNo?.trim() || null,
-          bankAccountId: input.bankAccountId || null,
-          remarks: input.remarks?.trim() || null,
-        },
-      });
-
-      // Deduct net payment from central company bank account
-      if (input.bankAccountId) {
-        await db.companyBankAccount.update({
-          where: { id: input.bankAccountId },
-          data: { currentBalance: { decrement: netAmount } },
+          projectId: input.projectId,
+          date: dateInfo.adDate,
+          miti: dateInfo.bsMiti,
         });
-      }
+        await createJournalEntry(tx, {
+          ...jeInput,
+          postedById: ctx.user.id,
+          organizationId: ctx.user.organizationId ?? undefined,
+        });
+
+        return payout;
+      });
 
       await audit({
         userId: ctx.user.id,
@@ -277,10 +321,11 @@ export const jvPartnerRouter = router({
         entityType: "jv_payout",
         entityId: payout.id,
         metadata: {
-          voucherNo,
+          voucherNo: payout.voucherNo,
           grossAmount: input.grossAmount,
           netAmount,
           bankAccountId: input.bankAccountId,
+          journalEntry: "jv_payout",
         },
       });
 
@@ -310,19 +355,41 @@ export const jvPartnerRouter = router({
         });
       }
 
-      // Restore bank account balance if previously deducted (verifying org ownership)
-      if (payout.bankAccountId) {
-        const bank = await assertOrgBankAccount(payout.bankAccountId, ctx.user.organizationId).catch(() => null);
-        if (bank) {
-          await db.companyBankAccount.update({
-            where: { id: payout.bankAccountId },
-            data: { currentBalance: { increment: payout.netAmount } },
-          }).catch(() => {});
-        }
-      }
+      // Restore bank account balance if previously deducted (verifying org
+      // ownership). Resolved BEFORE the tx — an invalid bank id should not
+      // block deleting an erroneous record.
+      const bank = payout.bankAccountId
+        ? await assertOrgBankAccount(payout.bankAccountId, ctx.user.organizationId).catch(() => null)
+        : null;
 
-      await db.jvCommissionPayout.delete({
-        where: { id: input.payoutId },
+      // ── Atomic reversal ──────────────────────────────────────────
+      // Bank restore, GL reversal, and payout delete happen in ONE
+      // transaction. Previously the bank increment was a swallowed
+      // best-effort write and the GL was never touched — deleting a
+      // payout left phantom commission expense in the ledger.
+      await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+
+        if (bank) {
+          await tx.companyBankAccount.update({
+            where: { id: payout.bankAccountId! },
+            data: { currentBalance: { increment: payout.netAmount } },
+          });
+        }
+
+        // Reverse the payout's journal entry (payouts recorded before the
+        // v1.1 ledger fix have none — skip cleanly for legacy rows).
+        const je = await tx.journalEntry.findFirst({
+          where: { source: "jv_payout", sourceRefId: payout.id },
+          select: { id: true, entryNumber: true },
+        });
+        if (je) {
+          await reverseJournalEntry(tx, je.id, `JV payout ${payout.voucherNo} deleted`);
+        }
+
+        await tx.jvCommissionPayout.delete({
+          where: { id: input.payoutId },
+        });
       });
 
       await audit({

@@ -69,6 +69,7 @@ export const CHART_OF_ACCOUNTS = [
   { code: "5032", name: "Equipment Fuel Cost", category: "equipment" },
   { code: "5040", name: "Equipment Operator Cost", category: "labor" },
   { code: "5050", name: "Site Transport Cost", category: "material" },
+  { code: "5060", name: "JV Partner Commission", category: "subcontract" },
 
   // ── Overheads (6xxx) ──────────────────────────────────────
   { code: "6001", name: "Site Overhead - Rent", category: "overhead" },

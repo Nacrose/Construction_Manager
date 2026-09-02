@@ -186,15 +186,21 @@ describe("finance.orgSettleMultiBill", () => {
 
   it("BAD_REQUESTs overpayment inside the transaction", async () => {
     primeVendorBill({ netPayable: 500 }); // paying 1000 on a 500 bill
+    // The overpayment guard now lives in the settlement UPDATE's WHERE
+    // clause (atomic conditional update). Rowcount 0 = guard rejected.
+    anyDb.$executeRaw.mockResolvedValue(0);
     const caller = createCaller(financeRouter, ORG_ADMIN);
     await expectTRPCError(caller.orgSettleMultiBill(baseSettle), "BAD_REQUEST");
     expect(anyDb.vendorBill.update).not.toHaveBeenCalled();
-    expect(anyDb.$executeRaw).not.toHaveBeenCalled();
+    // Exactly ONE raw statement ran: the guarded settlement attempt that
+    // was rejected. The bank decrement (2nd raw statement) never ran.
+    expect(anyDb.$executeRaw).toHaveBeenCalledTimes(1);
   });
 
   it("happy path: payment + balanced JE (Dr 2001, Cr 2020 TDS, Cr 1010) + paid + atomic decrement", async () => {
     primeVendorBill();
     anyDb.payment.create.mockResolvedValue({ id: "pay-1" });
+    anyDb.$executeRaw.mockResolvedValue(1); // settlement guard passes, bank decrement ok
 
     const caller = createCaller(financeRouter, ORG_ADMIN);
     const res = await caller.orgSettleMultiBill(baseSettle);
@@ -227,35 +233,39 @@ describe("finance.orgSettleMultiBill", () => {
     expect(lines[1]).toMatchObject({ accountCode: "2020", credit: 15 });
     expect(lines[2]).toMatchObject({ accountCode: "1010", credit: 985 });
 
-    // Bill fully settled
-    expect(anyDb.vendorBill.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "vb-1" },
-        data: { paidAmount: 1000, status: "paid" },
-      }),
+    // Bill fully settled — atomically. The overpayment guard lives in the
+    // UPDATE's WHERE clause; status is derived in SQL from the NEW balance.
+    // Raw statement #1 = settlement (bound values: amountToPay + billId),
+    // raw statement #2 = atomic bank decrement.
+    expect(anyDb.vendorBill.update).not.toHaveBeenCalled();
+    expect(anyDb.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(anyDb.$executeRaw.mock.calls[0]).toEqual(
+      expect.arrayContaining([1000, "vb-1"]),
     );
 
     // Atomic bank decrement by total net disbursement
-    expect(anyDb.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(anyDb.$executeRaw.mock.calls[0][1]).toBe(985);
-    expect(anyDb.$executeRaw.mock.calls[0][2]).toBe("bank-1");
+    expect(anyDb.$executeRaw.mock.calls[1][1]).toBe(985);
+    expect(anyDb.$executeRaw.mock.calls[1][2]).toBe("bank-1");
   });
 
-  it("marks the bill partially_paid when under-settled", async () => {
+  it("runs the atomic settlement UPDATE when under-settled (status derived in SQL)", async () => {
     primeVendorBill({ netPayable: 2000 });
     anyDb.payment.create.mockResolvedValue({ id: "pay-1" });
+    anyDb.$executeRaw.mockResolvedValue(1); // guard passed, 1 row updated
     const caller = createCaller(financeRouter, ORG_ADMIN);
     await caller.orgSettleMultiBill(baseSettle);
-    expect(anyDb.vendorBill.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { paidAmount: 1000, status: "partially_paid" },
-      }),
+    // Settlement rides the guarded atomic UPDATE — no read-then-write.
+    expect(anyDb.vendorBill.update).not.toHaveBeenCalled();
+    expect(anyDb.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(anyDb.$executeRaw.mock.calls[0]).toEqual(
+      expect.arrayContaining([1000, "vb-1"]),
     );
   });
 
   it("omits the TDS line entirely when nothing was withheld", async () => {
     primeVendorBill();
     anyDb.payment.create.mockResolvedValue({ id: "pay-1" });
+    anyDb.$executeRaw.mockResolvedValue(1);
     const caller = createCaller(financeRouter, ORG_ADMIN);
     await caller.orgSettleMultiBill({
       ...baseSettle,
@@ -278,6 +288,7 @@ describe("finance.orgSettleMultiBill", () => {
       netPayable: 500,
     });
     anyDb.payment.create.mockResolvedValue({ id: "pay-1" });
+    anyDb.$executeRaw.mockResolvedValue(1); // settlement guard passes
 
     const caller = createCaller(financeRouter, ORG_ADMIN);
     await caller.orgSettleMultiBill({
@@ -300,8 +311,11 @@ describe("finance.orgSettleMultiBill", () => {
     expect(jeData.lines.create[0]).toMatchObject({ accountCode: "2002", debit: 500 });
     const payData = anyDb.payment.create.mock.calls[0][0].data;
     expect(payData.category).toBe("Subcontractor");
-    expect(anyDb.subcontractorBill.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { paidAmount: 500, status: "paid" } }),
+    // Atomic guarded settlement UPDATE — no read-then-write update call.
+    expect(anyDb.subcontractorBill.update).not.toHaveBeenCalled();
+    expect(anyDb.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(anyDb.$executeRaw.mock.calls[0]).toEqual(
+      expect.arrayContaining([500, "sb-1"]),
     );
   });
 });
