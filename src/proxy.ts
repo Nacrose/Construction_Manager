@@ -8,9 +8,9 @@
  * edge so unauthenticated requests never reach the route handlers or
  * server components under the protected paths.
  *
- * Auth is accepted via EITHER:
- *   - Authorization: Bearer <jwt> header (the gateway-reliable method), OR
- *   - cf_session cookie (legacy fallback)
+ * Auth is accepted via:
+ *   - the cf_session httpOnly cookie (the v2.0 credential), with the
+ *     Authorization: Bearer header still honored as a fallback.
  *
  * We do a lightweight JWT verify (jose) without hitting the DB — the
  * full session check still happens per-request in tRPC/route handlers.

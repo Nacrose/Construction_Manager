@@ -6,9 +6,10 @@ import { assertSameOrigin } from "@/lib/csrf";
 /**
  * POST /api/auth/logout
  *
- * Revokes the current session in the database (so the bearer token stops
- * working) and clears the session cookie. Reads the JWT from either the
- * Authorization header or the cookie.
+ * Revokes the current session in the database (so the credential stops
+ * working) and ALWAYS clears the session cookie. The JWT is read from the
+ * Authorization header if present, else the cf_session cookie (the v2.0
+ * credential).
  */
 export async function POST(req: NextRequest) {
   const denied = assertSameOrigin(req);
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   const authHeader = req.headers.get("authorization");
 
-  // Validate the user via the bearer token (or cookie) so that we only
+  // Validate the user via the cookie (or Bearer fallback) so that we only
   // attempt to revoke a real, authenticated session.
   await getCurrentUser(authHeader);
 

@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Loader2, Pencil, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { getToken, setAuth } from "@/lib/client-auth";
+import { setAuthUser } from "@/lib/client-auth";
 
 export default function AdminOrganizations() {
   const router = useRouter();
@@ -51,8 +51,9 @@ export default function AdminOrganizations() {
   });
   const impersonateMut = trpc.admin.startImpersonation.useMutation({
     onSuccess: (res) => {
-      const token = getToken();
-      if (token && res.user) setAuth(token, res.user);
+      // Impersonation mutates the Session row server-side; the same
+      // httpOnly cookie stays valid. Just refresh the cached identity.
+      if (res.user) setAuthUser(res.user);
       toast.success(`Now impersonating ${impersonateOrg?.name ?? "organization"}`);
       setImpersonateOrg(null);
       setReason("");

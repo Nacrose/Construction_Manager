@@ -96,11 +96,11 @@ export async function POST(req: NextRequest) {
       return badRequest("Invalid email or password.");
     }
 
-    // Create session and get the token
-    const token = await setSessionCookie(user.id);
+    // Create the session; the httpOnly cookie IS the credential (v2.0).
+    // No token in the response body — it would sit in localStorage forever
+    // and be exfiltratable by any XSS payload.
+    await setSessionCookie(user.id);
 
-    // Return the token in the response body so the client can store it
-    // in localStorage and send it as a Bearer header (reliable through gateways)
     return ok({
       user: {
         id: user.id,
@@ -111,7 +111,6 @@ export async function POST(req: NextRequest) {
         orgRole: user.orgRole,
         isSuperAdmin: user.isSuperAdmin,
       },
-      token,
     });
   } catch (err) {
     return handleError(err);

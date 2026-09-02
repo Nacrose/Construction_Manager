@@ -101,12 +101,10 @@ export async function POST(req: NextRequest) {
 
     // Create session and set the httpOnly cookie — post-v2.0 the cookie IS
     // the credential, so the freshly-bootstrapped org admin gets a working
-    // session without any token touching client JS. (The token is still
-    // returned below for backward compatibility until the client flip lands.)
-    const token = await setSessionCookie(result.user.id);
+    // session with no token in the response body.
+    await setSessionCookie(result.user.id);
 
     return NextResponse.json({
-      token,
       user: {
         id: result.user.id,
         email: result.user.email,

@@ -10,7 +10,7 @@ import {
   Settings, Database, Mail, ShieldAlert, BookOpen, Boxes, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchWithAuth, clearAuth, getToken } from "@/lib/client-auth";
+import { fetchWithAuth, clearAuth } from "@/lib/client-auth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -58,7 +58,6 @@ export function AppSidebar() {
   const { data: user } = useQuery({
     queryKey: ["auth-me-sidebar"],
     queryFn: async () => {
-      if (!getToken()) return null;
       const res = await fetchWithAuth("/api/auth/me");
       if (!res.ok) return null;
       const json = await res.json();

@@ -18,7 +18,7 @@ import {
 import { HardHat, Loader2, AlertCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { setAuth } from "@/lib/client-auth";
+import { setAuthUser } from "@/lib/client-auth";
 import { GlowOrb, MagneticButton } from "@/components/ui/motion";
 import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 
@@ -104,8 +104,10 @@ function LoginCard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
 
-      if (data.token && data.user) {
-        setAuth(data.token, data.user);
+      // The session credential is the httpOnly cookie the server just set —
+      // only the (non-sensitive) user profile is cached client-side.
+      if (data.user) {
+        setAuthUser(data.user);
       }
 
       toast.success("Welcome back!");

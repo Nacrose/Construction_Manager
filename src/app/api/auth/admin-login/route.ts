@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createAdminSession } from "@/lib/auth";
+import { COOKIE_NAME } from "@/lib/auth-config";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
 import { assertSameOrigin } from "@/lib/csrf";
 import {
@@ -110,15 +111,15 @@ export async function POST(req: NextRequest) {
       return badRequest("Invalid email or password.");
     }
 
-    // Short-lived, kind-tagged admin session.
+    // Short-lived, kind-tagged admin session. The cookie IS the credential.
     const token = await createAdminSession(user.id);
     await recordLoginAttempt(data.email, ip, true);
 
-    // Set cookie for proxy/middleware navigation
+    // Set cookie for proxy navigation + subsequent API calls
     try {
       const { cookies } = await import("next/headers");
       const store = await cookies();
-      store.set("cf_session", token, {
+      store.set(COOKIE_NAME, token, {
         httpOnly: true,
         secure: true,
         sameSite: "lax",
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
       // cookies() not available in some contexts
     }
 
+    // v2.0: no token in the response body — the credential never touches JS.
     return ok({
       user: {
         id: user.id,
@@ -140,7 +142,6 @@ export async function POST(req: NextRequest) {
         isSuperAdmin: true,
         sessionKind: "admin",
       },
-      token,
     });
   } catch (err) {
     return handleError(err);

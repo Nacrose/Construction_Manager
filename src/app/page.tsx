@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getToken, fetchWithAuth } from "@/lib/client-auth";
 import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,21 +12,8 @@ export default function RootPage() {
   useEffect(() => {
     async function init() {
       try {
-        const token = getToken();
-        if (token) {
-          try {
-            const authRes = await fetchWithAuth("/api/auth/me");
-            if (authRes.ok) {
-              setStatus("ready");
-              window.location.href = "/dashboard";
-              return;
-            }
-          } catch {
-            // Proceed to check public endpoint
-          }
-        }
-
-        // Check if the database is set up by calling /api/auth/me
+        // Probe the session via the httpOnly cookie (v2.0): 200 = authed →
+        // straight to the dashboard.
         const checkRes = await fetch("/api/auth/me");
         if (checkRes.status === 200) {
           setStatus("ready");

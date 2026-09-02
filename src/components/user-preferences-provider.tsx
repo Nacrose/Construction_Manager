@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { getUser } from "@/lib/client-auth";
 
 type Prefs = Record<string, unknown>;
 
@@ -84,11 +85,12 @@ export function UserPreferencesProvider({ children }: { children: ReactNode }) {
     prefsRef.current = prefs;
   }, [prefs]);
 
-  // Fetch server preferences on mount
+  // Fetch server preferences on mount (once the app has an identity cache;
+  // AppGuard only mounts children after /api/auth/me validated the cookie).
   const { data: serverPrefs } = trpc.userPreferences.get.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
     retry: 1,
-    enabled: typeof window !== "undefined" && !!localStorage.getItem("cf_token"),
+    enabled: typeof window !== "undefined" && !!getUser(),
   });
 
   useEffect(() => {

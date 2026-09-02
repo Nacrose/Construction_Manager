@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
-import { fetchWithAuth, getToken } from "@/lib/client-auth";
+import { fetchWithAuth, getUser } from "@/lib/client-auth";
 import { useQuery } from "@tanstack/react-query";
 import { VoiceRecorder } from "@/components/voice-recorder";
 import { MentionText } from "@/components/chat/mention-text";
@@ -100,7 +100,7 @@ export function ChatPiP() {
       if (!res.ok) throw new Error("not authed");
       return res.json();
     },
-    enabled: !!getToken(),
+    enabled: !!getUser(),
   });
   const currentUserId = meData?.user?.id;
 

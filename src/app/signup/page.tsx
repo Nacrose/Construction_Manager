@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { HardHat, ArrowRight, Loader2, AlertCircle, Building2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { setAuth } from "@/lib/client-auth";
+import { setAuthUser } from "@/lib/client-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlowOrb, MagneticButton } from "@/components/ui/motion";
 
@@ -69,8 +69,9 @@ export default function SignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Signup failed");
 
-      if (data.token && data.user) {
-        setAuth(data.token, data.user);
+      // Credential = the httpOnly cookie the server just set (v2.0).
+      if (data.user) {
+        setAuthUser(data.user);
       }
       if (isFirstUser) {
         toast.success("Super admin account created — welcome!");
