@@ -1,9 +1,39 @@
 # Decimal Migration Plan
 
-## Status: Documented (NOT yet executed)
+## Status: EXECUTED (as-built 2026-08) — historical plan below, see corrections
 
-The schema (`prisma/schema.prisma`) currently uses `Float` for all 295
-monetary / quantity / rate fields. This is a known tech-debt item —
+> **⚠️ READ THIS FIRST — the plan below has been executed and superseded.**
+> The database and schema now use exact `Decimal @db.Decimal(15,2)` /
+> `Decimal @db.Decimal(15,4)` columns for all monetary / quantity / rate
+> fields (223+ money columns; remaining `Float` columns are non-money:
+> temperatures, ratings, coordinates).
+>
+> As-built differences from the original plan:
+> - Precision is `Decimal(15,*)` (not `Decimal(18,4)`): money is (15,2),
+>   quantities/rates (15,4).
+> - The conversion was applied via hand-authored repair migrations
+>   (`prisma/migrations/*decimal*`) plus `scripts/decimal-alters.json` /
+>   `scripts/gen-decimal-migration.js`, not a single `migrate dev`.
+> - Because Prisma result extensions can add but not retype fields, the
+>   generated client types are patched post-`generate` by
+>   `scripts/patch-prisma-decimal-types.mjs` (wired into `postinstall` /
+>   `build`): every Decimal field type is rewritten to `number` so the
+>   runtime boundary conversion in `src/lib/decimal-extension.ts` is
+>   type-honest across the superjson wire. A sentinel check fails the
+>   build loudly if a Prisma upgrade changes the generated file shape.
+> - Ledger arithmetic stays in exact `Prisma.Decimal` via
+>   `src/lib/money.ts` (2dp, ROUND_HALF_UP) — do NOT introduce raw float
+>   arithmetic on money values in application code.
+>
+> Do NOT re-run the migration plan below. It describes the pre-execution
+> state ("currently uses Float") and is kept only for the historical record.
+
+---
+
+## Original plan (historical — EXECUTED, see notes above)
+
+The schema (`prisma/schema.prisma`) used to use `Float` for all 295
+monetary / quantity / rate fields —
 floating-point arithmetic cannot exactly represent decimal fractions
 like 0.1 + 0.2, which causes cumulative rounding errors in financial
 calculations.
