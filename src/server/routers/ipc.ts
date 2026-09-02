@@ -534,6 +534,7 @@ export const ipcRouter = router({
       const items = await db.ipcItem.findMany({
         where: { ipcId: input.ipcId },
         orderBy: { sortOrder: "asc" },
+        take: 1000, // line items of a single IPC; cap is a safety net
       });
 
       // Calculate subcontractor material deductions (only unrecovered)
@@ -541,6 +542,7 @@ export const ipcRouter = router({
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
           where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
+          take: 5000,
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }
@@ -604,6 +606,7 @@ export const ipcRouter = router({
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
           where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
+          take: 5000,
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }

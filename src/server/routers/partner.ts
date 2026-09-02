@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 
 const SubcontractorSchema = z.object({
   projectId: z.string(),
@@ -41,15 +42,20 @@ const SupplierSchema = z.object({
 
 export const partnerRouter = router({
   /** List subcontractors in a project. */
+  /** Bounded, cursor-paged directory (financial summary rides the page). */
   listSubcontractors: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const subcontractors = await db.subcontractor.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rows = await db.subcontractor.findMany({
         where: { projectId: input.projectId },
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { subcontractors };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { subcontractors: items, hasMore, nextCursor };
     }),
 
   /** Get subcontractor details including debits. */
@@ -238,15 +244,20 @@ export const partnerRouter = router({
     }),
 
   /** List suppliers. */
+  /** Bounded, cursor-paged directory. */
   listSuppliers: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const suppliers = await db.supplier.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rows = await db.supplier.findMany({
         where: { projectId: input.projectId },
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { suppliers };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { suppliers: items, hasMore, nextCursor };
     }),
 
   /** Create supplier. */
@@ -274,18 +285,23 @@ export const partnerRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** List partners by type with financial payable summary. */
+  /** Bounded, cursor-paged directory. */
   listPartners: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       type: z.enum(["material_supplier", "equipment_vendor", "both"]).optional(),
+      ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const where: any = { projectId: input.projectId };
       if (input.type) where.type = input.type;
-      const rawPartners = await db.partner.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rawRows = await db.partner.findMany({
         where,
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         include: {
           _count: { select: { purchaseOrders: true, rentals: true, bills: true } },
           bills: {
@@ -296,6 +312,7 @@ export const partnerRouter = router({
           },
         },
       });
+      const { items: rawPartners, hasMore, nextCursor } = pageResult(rawRows, input);
 
       const partners = rawPartners.map((p) => {
         const totalBilled = p.bills.reduce((s, b) => s + b.netPayable, 0);
@@ -316,7 +333,7 @@ export const partnerRouter = router({
         };
       });
 
-      return { partners };
+      return { partners, hasMore, nextCursor };
     }),
 
   /** Create a partner. */

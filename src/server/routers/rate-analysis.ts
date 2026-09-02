@@ -138,6 +138,7 @@ export const rateAnalysisRouter = router({
           },
         },
         orderBy: { createdAt: "asc" },
+        take: 200, // analyses of a single BOQ item; cap is a safety net
       });
 
       return { item, analyses };
@@ -155,6 +156,7 @@ export const rateAnalysisRouter = router({
             ...(input.analysisId ? { rateAnalysisId: input.analysisId } : {}),
           },
           orderBy: { sortOrder: "asc" },
+          take: 1000,
           include: {
             material: { select: { id: true, name: true, unit: true, resourceType: true, code: true } },
             catalogMaterial: { select: { id: true, name: true, defaultUnit: true, resourceType: true } },
@@ -562,6 +564,7 @@ export const rateAnalysisRouter = router({
             },
           },
         },
+        take: 2000, // resource picker feed; cap is a runaway net
       });
 
       const materials = new Map<string, { name: string; qty: number; cost: number; unit: string; resourceId?: string | null }>();

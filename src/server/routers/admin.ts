@@ -511,6 +511,7 @@ export const adminRouter = router({
           ? { date: { startsWith: String(input.year) } }
           : undefined,
         orderBy: { date: "asc" },
+        take: 1000, // calendar-bounded reference list; cap is a safety net
       });
       return { holidays };
     }),

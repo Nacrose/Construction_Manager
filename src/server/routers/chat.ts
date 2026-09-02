@@ -27,6 +27,7 @@ export const chatRouter = router({
       const memberChannels = await db.chatMember.findMany({
         where: { userId: ctx.user.id },
         select: { channelId: true },
+        take: 1000,
       });
       const memberChannelIds = memberChannels.map(m => m.channelId);
 
@@ -40,6 +41,7 @@ export const chatRouter = router({
             type: { in: ["public", "project_order"] },
           },
           select: { id: true },
+          take: 1000,
         });
         publicChannelIds = publicChannels.map(c => c.id);
       }

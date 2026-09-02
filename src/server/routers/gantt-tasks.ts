@@ -967,6 +967,7 @@ export const ganttTasksRouter = router({
           ],
         },
         orderBy: { createdAt: "desc" },
+        take: 500, // template reference list; cap is a safety net
       });
 
       const formattedCustom: WorkPackageTemplateDef[] = customTemplates.map((t) => {

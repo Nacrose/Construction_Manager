@@ -3,6 +3,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { audit } from "@/lib/audit";
 import { format } from "date-fns";
 
@@ -43,7 +44,8 @@ export const plantProductionRouter = router({
             },
           },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: 500, // plants per project are few; cap is a safety net
       });
 
       // Fetch today's output per plant
@@ -236,6 +238,7 @@ export const plantProductionRouter = router({
         projectId: z.string(),
         plantId: z.string().optional(),
         type: z.string().optional(),
+        ...paginationInput,
       })
     )
     .query(async ({ ctx, input }) => {
@@ -245,18 +248,24 @@ export const plantProductionRouter = router({
       if (input.plantId) where.plantId = input.plantId;
       if (input.type) where.type = input.type;
 
-      const mixDesigns = await db.plantMixDesign.findMany({
+      const page = pageArgs(input, "code", "asc");
+      const rows = await db.plantMixDesign.findMany({
         where,
         include: {
           plant: { select: { id: true, name: true, type: true } },
           boqItem: { select: { id: true, code: true, description: true } },
           _count: { select: { batchTickets: true } },
         },
-        orderBy: { code: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
 
       return {
-        mixDesigns: mixDesigns.map((m) => {
+        hasMore,
+        nextCursor,
+        mixDesigns: items.map((m) => {
           let parsedIngredients: any[] = [];
           if (m.ingredients) {
             try {

@@ -124,6 +124,7 @@ export const ganttVersionsRouter = router({
       let versions = await db.ganttVersion.findMany({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
+        take: 500, // versions per project are few; cap is a safety net
       });
       if (versions.length === 0) {
         const defaultVer = await db.ganttVersion.create({

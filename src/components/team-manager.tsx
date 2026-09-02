@@ -58,7 +58,7 @@ export function TeamManager({
 
   const { data, isLoading } = trpc.project.listMembers.useQuery(
     { projectId },
-    { initialData: { members: initialMembers } }
+    { initialData: { members: initialMembers, hasMore: false, nextCursor: null } }
   );
 
   const removeMutation = trpc.project.removeMember.useMutation({

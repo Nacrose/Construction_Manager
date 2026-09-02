@@ -22,6 +22,7 @@ export const analysisLibraryRouter = router({
         where: { projectId: input.projectId },
         include: { _count: { select: { analyses: true } } },
         orderBy: { createdAt: "asc" },
+        take: 500, // libraries per project are few; cap is a safety net
       });
 
       // Ensure the 3 standard libraries exist idempotently
@@ -295,10 +296,12 @@ export const analysisLibraryRouter = router({
       });
       if (!library) throw new TRPCError({ code: "NOT_FOUND", message: "Library not found in this project." });
 
-      // Get all BOQ items
+      // Get all BOQ items (bounded — the auto-create below needs the full
+      // set, so no cursor; the cap keeps pathological BOQs finite)
       const boqItems = await db.boqItem.findMany({
         where: { projectId: input.projectId },
         orderBy: { sortOrder: "asc" },
+        take: 2000,
         select: {
           id: true, code: true, description: true, unit: true,
           quantity: true, rate: true, amount: true, section: true, sortOrder: true,
@@ -311,6 +314,7 @@ export const analysisLibraryRouter = router({
         include: {
           ingredients: { orderBy: { sortOrder: "asc" } },
         },
+        take: 2000,
       });
 
       // Auto-create missing analyses for BOQ items that don't have one

@@ -543,8 +543,10 @@ export const documentRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** List markups for a drawing (optionally filtered by revision). */
+  /** Bounded list (markups per drawing are naturally small; cap is a
+   *  safety net, cursor omitted — the canvas needs them all at once). */
   listMarkups: protectedProcedure
-    .input(z.object({ drawingId: z.string(), revisionId: z.string().optional() }))
+    .input(z.object({ drawingId: z.string(), revisionId: z.string().optional(), limit: z.number().int().min(1).max(1000).default(1000) }))
     .query(async ({ ctx, input }) => {
       const drawing = await db.drawing.findUnique({
         where: { id: input.drawingId },
@@ -559,6 +561,7 @@ export const documentRouter = router({
           ...(input.revisionId ? { OR: [{ revisionId: input.revisionId }, { revisionId: null }] } : {}),
         },
         orderBy: { createdAt: "desc" },
+        take: input.limit,
         select: {
           id: true, type: true, x: true, y: true, w: true, h: true,
           x2: true, y2: true, rotation: true, color: true, strokeWidth: true,
@@ -649,18 +652,23 @@ export const documentRouter = router({
   // ─────────────────────────────────────────────────────────
 
   /** List drawing sets for a project. */
+  /** Bounded, cursor-paged drawing sets. */
   listSets: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      const sets = await db.drawingSet.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rows = await db.drawingSet.findMany({
         where: { projectId: input.projectId },
         include: { _count: { select: { drawings: true } } },
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
 
-      return { sets };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { sets: items, hasMore, nextCursor };
     }),
 
   /** Create a drawing set. */

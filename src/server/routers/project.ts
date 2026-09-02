@@ -13,6 +13,7 @@ import { passwordSchema } from "@/lib/password-policy";
 import { withOrgContext } from "@/lib/rls";
 import { buildPresetModules, ModulePreset } from "@/lib/project-modules";
 import { transitionEntityState } from "@/server/utils/state-machine";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -426,18 +427,23 @@ export const projectRouter = router({
     }),
 
   /** List project members. */
+  /** Bounded, cursor-paged member list. */
   listMembers: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectAdmin(ctx.user, input.projectId);
-      const members = await db.projectMember.findMany({
+      const page = pageArgs(input);
+      const rows = await db.projectMember.findMany({
         where: { projectId: input.projectId },
         include: {
           user: { select: { id: true, name: true, email: true, role: true } },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { members };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { members: items, hasMore, nextCursor };
     }),
 
   /** Add project member. */
@@ -636,21 +642,26 @@ export const projectRouter = router({
   // Org admins can create/manage users within their own organization.
   // Super admins can manage users across all organizations.
 
-  /** List all users in the current user's organization */
+  /** List all users in the current user's organization (bounded, cursor-paged). */
   listOrgUsers: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({ ...paginationInput }).optional())
+    .query(async ({ ctx, input }) => {
       if (!ctx.user.organizationId) {
-        return { users: [] };
+        return { users: [], hasMore: false, nextCursor: null };
       }
-      const users = await db.user.findMany({
+      const page = pageArgs(input ?? {});
+      const rows = await db.user.findMany({
         where: { organizationId: ctx.user.organizationId },
-        orderBy: { createdAt: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         select: {
           id: true, email: true, name: true, role: true,
           orgRole: true, createdAt: true,
         },
       });
-      return { users };
+      const { items, hasMore, nextCursor } = pageResult(rows, input ?? {});
+      return { users: items, hasMore, nextCursor };
     }),
 
   /** Create a new user within the current user's organization (org admin only) */
