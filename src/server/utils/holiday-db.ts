@@ -55,7 +55,7 @@ export async function refreshHolidayCache(
         client ??
         (await import("@/lib/db")).db as unknown as { holiday: { findMany(args: unknown): Promise<HolidayRow[]> } };
       const rows: HolidayRow[] = await reader.holiday.findMany({
-        select: { date: true, name: true },
+        select: { date: true, name: true, type: true },
       });
       __replaceDbHolidayCache(rows);
     } catch {

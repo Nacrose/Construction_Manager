@@ -349,6 +349,51 @@ export const purchaseOrderRouter = router({
           },
         });
         if (!refreshed) throw new TRPCError({ code: "NOT_FOUND", message: "Purchase Order not found." });
+
+        // AUTO-CAPTURE (committed cost): issuing a PO commits its budget —
+        // record it in the cost ledger (ProjectCost, source
+        // "purchase_order"). The cost schema documents four sources —
+        // manual | daily_report | ipc | purchase_order — but only the
+        // first two were ever written, so committed procurement spend was
+        // invisible to cost stats and the cash flow forecast. Actuals keep
+        // flowing through material transactions / vendor bills; this row
+        // is the commitment itself (netAmount — the PO math's full net
+        // payable, incl. VAT per the create pins).
+        // Existence-checked so a draft → issued → (reopen path) re-issue
+        // cannot double-capture.
+        if (input.status === "issued" && refreshed.netAmount > 0) {
+          const existingCost = await tx.projectCost.findFirst({
+            where: { source: "purchase_order", sourceRefId: refreshed.id },
+            select: { id: true },
+          });
+          if (!existingCost) {
+            await tx.projectCost.create({
+              data: {
+                projectId: input.projectId,
+                date: refreshed.orderDate,
+                amount: refreshed.netAmount,
+                category: "material",
+                subcategory: "Purchase Order (committed)",
+                description: `Committed cost — PO ${refreshed.number}${refreshed.supplier?.name ? ` (${refreshed.supplier.name})` : ""}`,
+                source: "purchase_order",
+                sourceRef: refreshed.number,
+                sourceRefId: refreshed.id,
+                vendor: refreshed.supplier?.name ?? null,
+                createdById: ctx.user.id,
+              },
+            });
+          }
+        }
+
+        // Cancelling the PO dissolves the commitment — remove its cost
+        // ledger row so the committed figure doesn't linger. Real received
+        // value is unaffected (material transactions / vendor bills).
+        if (input.status === "cancelled") {
+          await tx.projectCost.deleteMany({
+            where: { source: "purchase_order", sourceRefId: refreshed.id },
+          });
+        }
+
         return refreshed;
       });
 

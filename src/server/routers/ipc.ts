@@ -16,6 +16,7 @@ import {
   getAllowedTransitions,
   transitionEntityState,
 } from "@/server/utils/state-machine";
+import { normalizeDateMiti } from "@/server/utils/date-miti";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -291,6 +292,8 @@ export const ipcRouter = router({
             select: {
               number: true, grossAmount: true, vatAmount: true,
               retentionAmount: true, tdsAmount: true, projectId: true,
+              issueDate: true,
+              subcontractor: { select: { name: true } },
             },
           });
           if (certifiedIpc && certifiedIpc.grossAmount > 0) {
@@ -328,6 +331,41 @@ export const ipcRouter = router({
                 postedById: ctx.user.id,
                 organizationId: ctx.user.organizationId ?? undefined,
               });
+            }
+
+            // AUTO-CAPTURE: subcontractor IPC → cost ledger (ProjectCost,
+            // source "ipc"). The cost schema documents four sources —
+            // manual | daily_report | ipc | purchase_order — but only the
+            // first two were ever written. This closes the subcontractor
+            // billing gap so IPC work shows up in cost stats and the cash
+            // flow forecast. Client IPCs (subcontractorId null) are billing
+            // INFLOW, not cost, and are deliberately skipped. Existence-
+            // checked (not delete+recreate) because certified amounts are
+            // locked — and it doubles as a backfill for IPCs certified
+            // before this hook existed (JE exists, cost missing).
+            if (item.subcontractorId) {
+              const existingCost = await tx.projectCost.findFirst({
+                where: { source: "ipc", sourceRefId: ipcId },
+                select: { id: true },
+              });
+              if (!existingCost) {
+                await tx.projectCost.create({
+                  data: {
+                    projectId: certifiedIpc.projectId,
+                    date: certifiedIpc.issueDate ?? new Date(),
+                    amount: certifiedIpc.grossAmount,
+                    category: "subcontractor",
+                    subcategory: "Subcontractor IPC",
+                    description: `Subcontractor billing — IPC ${certifiedIpc.number}`,
+                    subcontractorId: item.subcontractorId,
+                    vendor: certifiedIpc.subcontractor?.name ?? null,
+                    source: "ipc",
+                    sourceRef: certifiedIpc.number,
+                    sourceRefId: ipcId,
+                    createdById: ctx.user.id,
+                  },
+                });
+              }
             }
           }
         }
@@ -725,33 +763,60 @@ export const ipcRouter = router({
       const totalAdvance = ipcs.reduce((s, i) => s + i.advanceRecovery, 0);
       const totalFinalPayable = ipcs.reduce((s, i) => s + (i.finalPayable ?? 0), 0);
 
-      // Monthly breakdown
-      const byMonthMap = new Map<string, {
-        month: string;
+      // Quarterly breakdown — Nepal BS fiscal quarters (Q1 Shrawan–Ashwin,
+      // Q2 Kartik–Poush, Q3 Magh–Chaitra, Q4 Baisakh–Ashadh), the grouping
+      // Nepali VAT/TDS reporting actually uses. Previously this grouped by
+      // AD calendar month despite getNepaliFiscalQuarter existing and being
+      // used correctly elsewhere — VAT/TDS summaries by quarter were wrong
+      // for every month that straddles a BS quarter boundary.
+      const byQuarterMap = new Map<string, {
+        key: string;
+        fiscalYear: string;
+        quarter: number;
+        quarterName: string;
         grossAmount: number;
         vatAmount: number;
         tdsAmount: number;
         retentionAmount: number;
         finalPayable: number;
+        count: number;
       }>();
 
       for (const i of ipcs) {
         const d = i.issueDate ? new Date(i.issueDate) : new Date(i.createdAt);
-        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const existing = byMonthMap.get(monthKey) ?? {
-          month: monthKey,
+        let key = "unknown";
+        let fiscalYear = "unknown";
+        let quarter = 0;
+        let quarterName = "Unknown";
+        try {
+          const m = normalizeDateMiti({ adDate: d });
+          fiscalYear = m.fiscalYear;
+          quarter = m.quarter;
+          quarterName = m.quarterName;
+          key = `${m.fiscalYear}-Q${m.quarter}`;
+        } catch {
+          // AD date outside the supported BS table range — parked in the
+          // "unknown" bucket instead of silently dropping the IPC's taxes.
+        }
+        const existing = byQuarterMap.get(key) ?? {
+          key,
+          fiscalYear,
+          quarter,
+          quarterName,
           grossAmount: 0,
           vatAmount: 0,
           tdsAmount: 0,
           retentionAmount: 0,
           finalPayable: 0,
+          count: 0,
         };
         existing.grossAmount += i.grossAmount;
         existing.vatAmount += i.vatAmount ?? 0;
         existing.tdsAmount += i.tdsAmount ?? 0;
         existing.retentionAmount += i.retentionAmount;
         existing.finalPayable += i.finalPayable ?? 0;
-        byMonthMap.set(monthKey, existing);
+        existing.count += 1;
+        byQuarterMap.set(key, existing);
       }
 
       return {
@@ -781,7 +846,7 @@ export const ipcRouter = router({
           totalAdvance,
           totalFinalPayable,
         },
-        byMonth: Array.from(byMonthMap.values()).sort((a, b) => a.month.localeCompare(b.month)),
+        byQuarter: Array.from(byQuarterMap.values()).sort((a, b) => a.key.localeCompare(b.key)),
       };
     }),
 });

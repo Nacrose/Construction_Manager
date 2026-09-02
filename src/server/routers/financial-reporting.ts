@@ -1635,20 +1635,121 @@ export const financialReportingRouter = router({
         select: { id: true, number: true, retentionAmount: true, grossAmount: true },
       });
 
-      // Fetch all sub-bills with outstanding retention (payable to subs).
-      // Same idempotency filter as above.
-      const subsWithRetention = await db.subcontractorBill.findMany({
+      // ── SUBCONTRACTOR SIDE (payable) ──
+      // Covers BOTH source kinds: subcontractor bills AND subcontractor
+      // IPCs (the previous implementation released bill retention only,
+      // silently skipping retention deducted on sub-IPCs).
+      const [billsWithRetention, subIpcsWithRetention] = await Promise.all([
+        db.subcontractorBill.findMany({
+          where: {
+            projectId: input.projectId,
+            retentionAmount: { gt: 0 },
+            retentionReleasedAt: null,
+            status: { in: ["submitted", "verified", "certified", "paid"] },
+          },
+          select: {
+            id: true, number: true, retentionAmount: true,
+            subcontractorId: true, createdAt: true,
+          },
+          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+        }),
+        db.ipc.findMany({
+          where: {
+            projectId: input.projectId,
+            subcontractorId: { not: null },
+            retentionAmount: { gt: 0 },
+            retentionReleasedAt: null,
+            status: { in: ["submitted", "certified", "approved", "paid"] },
+          },
+          select: {
+            id: true, number: true, retentionAmount: true,
+            subcontractorId: true, createdAt: true,
+          },
+          take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+        }),
+      ]);
+
+      // RECONCILIATION with the ad-hoc release path (project-ops
+      // releaseRetention): that path pays retention out and bumps the
+      // subcontractor's release tracker, but (for partial releases) does
+      // not mark the source rows. Without this reconciliation the bulk
+      // release would re-release retention that already left via payment —
+      // double-release. For each subcontractor, walk its outstanding rows
+      // FIFO (oldest first) and treat already-paid releases as consuming
+      // them: fully covered rows are marked released WITHOUT a new JE (the
+      // payment path already posted Dr 2010 / Cr Bank for that money);
+      // only the uncovered remainder generates a release JE.
+      const releasePayments = await db.payment.findMany({
         where: {
           projectId: input.projectId,
-          retentionAmount: { gt: 0 },
-          retentionReleasedAt: null,
-          status: { in: ["submitted", "verified", "certified", "paid"] },
+          payeeType: "subcontractor",
+          retentionReleased: { gt: 0 },
         },
-        select: { id: true, number: true, retentionAmount: true, subcontractorId: true },
+        select: { payeeId: true, retentionReleased: true },
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
       });
+      const paidReleasedBySub = new Map<string, number>();
+      for (const p of releasePayments) {
+        if (!p.payeeId) continue;
+        paidReleasedBySub.set(p.payeeId, (paidReleasedBySub.get(p.payeeId) ?? 0) + p.retentionReleased);
+      }
+
+      // Per-subcontractor rows: bills + sub-IPCs, FIFO by creation date.
+      const rowsBySub = new Map<string, Array<{
+        id: string; kind: "bill" | "ipc"; number: string;
+        retentionAmount: number; createdAt: Date;
+      }>>();
+      for (const b of billsWithRetention) {
+        if (!b.subcontractorId) continue;
+        const list = rowsBySub.get(b.subcontractorId) ?? [];
+        list.push({ id: b.id, kind: "bill", number: b.number, retentionAmount: b.retentionAmount, createdAt: b.createdAt });
+        rowsBySub.set(b.subcontractorId, list);
+      }
+      for (const i of subIpcsWithRetention) {
+        if (!i.subcontractorId) continue;
+        const list = rowsBySub.get(i.subcontractorId) ?? [];
+        list.push({ id: i.id, kind: "ipc", number: i.number, retentionAmount: i.retentionAmount, createdAt: i.createdAt });
+        rowsBySub.set(i.subcontractorId, list);
+      }
+      for (const list of rowsBySub.values()) {
+        list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      }
+
+      // The reconciliation output: rows to mark (no JE), rows to release
+      // now (JE + mark), and per-sub tracker bumps.
+      const rowsToMarkOnly: Array<{ id: string; kind: "bill" | "ipc" }> = [];
+      const rowsToReleaseNow: Array<{
+        id: string; kind: "bill" | "ipc"; number: string;
+        amount: number; subcontractorId: string;
+      }> = [];
+      const trackerBumps = new Map<string, number>();
+      for (const [subId, rows] of rowsBySub) {
+        let paidCovered = paidReleasedBySub.get(subId) ?? 0;
+        for (const row of rows) {
+          const covered = Math.min(paidCovered, row.retentionAmount);
+          paidCovered -= covered;
+          const outstanding = row.retentionAmount - covered;
+          if (outstanding > 0.01) {
+            rowsToReleaseNow.push({
+              id: row.id, kind: row.kind, number: row.number,
+              amount: outstanding, subcontractorId: subId,
+            });
+            trackerBumps.set(subId, (trackerBumps.get(subId) ?? 0) + outstanding);
+          } else {
+            rowsToMarkOnly.push({ id: row.id, kind: row.kind });
+          }
+        }
+      }
 
       const totalReceivableRetention = ipcsWithRetention.reduce((s, i) => s + i.retentionAmount, 0);
-      const totalPayableRetention = subsWithRetention.reduce((s, b) => s + b.retentionAmount, 0);
+      const totalPayableRetention =
+        rowsToReleaseNow.reduce((s, r) => s + r.amount, 0) +
+        rowsToMarkOnly.reduce((s, r) => {
+          const row = [...billsWithRetention, ...subIpcsWithRetention].find(
+            (x) => x.id === r.id,
+          );
+          return s + (row?.retentionAmount ?? 0);
+        }, 0);
 
       if (totalReceivableRetention === 0 && totalPayableRetention === 0) {
         return {
@@ -1713,12 +1814,14 @@ export const financialReportingRouter = router({
           });
         }
 
-        for (const bill of subsWithRetention) {
+        // Sub side — rows with an unpaid remainder get the release JE;
+        // rows already covered by payment-path releases are only marked.
+        for (const row of rowsToReleaseNow) {
           await createJournalEntry(tx, {
             source: "retention_release",
-            sourceRefId: bill.id,
-            sourceRefType: "SubcontractorBill",
-            description: `Retention released to subcontractor — bill ${bill.number}`,
+            sourceRefId: row.id,
+            sourceRefType: row.kind === "bill" ? "SubcontractorBill" : "IPC",
+            description: `Retention released to subcontractor — ${row.kind === "bill" ? "bill" : "IPC"} ${row.number}`,
             entryDate: new Date(),
             postedById: ctx.user.id,
             organizationId: ctx.user.organizationId ?? undefined,
@@ -1726,30 +1829,77 @@ export const financialReportingRouter = router({
               {
                 accountCode: "2010",
                 accountName: "Retention Payable (to Subcontractors)",
-                debit: bill.retentionAmount,
+                debit: row.amount,
                 credit: 0,
                 description: `Retention released — project completed`,
                 projectId: input.projectId,
-                partnerId: bill.subcontractorId ?? undefined,
+                partnerId: row.subcontractorId,
               },
               {
                 accountCode: "2002",
                 accountName: "Subcontractor Payables",
                 debit: 0,
-                credit: bill.retentionAmount,
+                credit: row.amount,
                 description: `Retention now due to subcontractor`,
                 projectId: input.projectId,
-                partnerId: bill.subcontractorId ?? undefined,
+                partnerId: row.subcontractorId,
               },
             ],
           });
 
-          await tx.subcontractorBill.update({
-            where: { id: bill.id },
-            data: {
-              retentionReleasedAt: new Date(),
-              retentionReleasedById: ctx.user.id,
-            },
+          if (row.kind === "bill") {
+            await tx.subcontractorBill.update({
+              where: { id: row.id },
+              data: {
+                retentionReleasedAt: new Date(),
+                retentionReleasedById: ctx.user.id,
+              },
+            });
+          } else {
+            await tx.ipc.update({
+              where: { id: row.id },
+              data: {
+                retentionReleasedAt: new Date(),
+                retentionReleasedById: ctx.user.id,
+              },
+            });
+          }
+        }
+
+        for (const row of rowsToMarkOnly) {
+          // Covered by earlier payment-path releases — mark so the row-level
+          // ledger reflects reality; the release JE already exists (posted
+          // by the payment path), so deliberately NO new JE here.
+          if (row.kind === "bill") {
+            await tx.subcontractorBill.update({
+              where: { id: row.id },
+              data: {
+                retentionReleasedAt: new Date(),
+                retentionReleasedById: ctx.user.id,
+              },
+            });
+          } else {
+            await tx.ipc.update({
+              where: { id: row.id },
+              data: {
+                retentionReleasedAt: new Date(),
+                retentionReleasedById: ctx.user.id,
+              },
+            });
+          }
+        }
+
+        // Keep the shared release tracker in sync — both release paths
+        // maintain subcontractor.totalRetentionReleased, so the payment
+        // path's over-release guard and retentionSummary see bulk releases.
+        for (const [subId, amount] of trackerBumps) {
+          const sub = await tx.subcontractor.findUnique({
+            where: { id: subId },
+            select: { totalRetentionReleased: true },
+          });
+          await tx.subcontractor.update({
+            where: { id: subId },
+            data: { totalRetentionReleased: (sub?.totalRetentionReleased || 0) + amount },
           });
         }
       });
@@ -1764,7 +1914,9 @@ export const financialReportingRouter = router({
           totalReceivableRetention,
           totalPayableRetention,
           ipcCount: ipcsWithRetention.length,
-          subBillCount: subsWithRetention.length,
+          subBillCount: billsWithRetention.length,
+          subIpcCount: subIpcsWithRetention.length,
+          subRowsMarkedFromPayments: rowsToMarkOnly.length,
           force: input.force,
           notes: input.notes,
         },
@@ -1775,7 +1927,8 @@ export const financialReportingRouter = router({
         clientRetentionReleased: totalReceivableRetention,
         subcontractorRetentionReleased: totalPayableRetention,
         ipcCount: ipcsWithRetention.length,
-        subBillCount: subsWithRetention.length,
+        subBillCount: billsWithRetention.length,
+        subIpcCount: subIpcsWithRetention.length,
         netCashImpact: totalReceivableRetention - totalPayableRetention,
       };
     }),

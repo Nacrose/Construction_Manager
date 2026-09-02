@@ -874,8 +874,12 @@ async function captureReportCosts(
     }
   }
 
-  if (costsToCreate.length === 0) return;
-
+  // RESYNC CLEANUP — always runs, even when the fresh capture is empty.
+  // Previously the zero-cost early-return below SKIPPED this deleteMany:
+  // a rejected-then-corrected report that nets to zero cost (quantities
+  // removed) re-submitted with nothing to create, returned early, and the
+  // inflated cost rows from the pre-correction capture stayed in the
+  // ledger permanently. Delete-then-create makes every resync idempotent.
   await db.projectCost.deleteMany({
     where: {
       projectId,
@@ -883,6 +887,8 @@ async function captureReportCosts(
       sourceRefId: report.id,
     },
   });
+
+  if (costsToCreate.length === 0) return;
 
   await db.projectCost.createMany({
     data: costsToCreate.map((c) => ({

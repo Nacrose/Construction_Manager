@@ -55,11 +55,15 @@ export const financeRouter = router({
         month: string; // YYYY-MM
         label: string; // "Jan 2026"
         plannedCost: number;
-        actualCost: number;
+        actualCost: number; // ProjectCost (accrual/cost-capture ledger)
+        paymentsOut: number; // Payment rows — bill settlements, staff, other (CASH)
+        payrollOut: number; // disbursed PayrollRuns (no Payment rows exist for these)
+        siteExpenses: number; // approved SiteExpenses (separate model, never hit ProjectCost)
         ipcPaid: number;
-        netCashFlow: number; // ipcPaid (inflow) - actualCost (outflow)
+        netCashFlow: number; // ipcPaid (inflow) − all cash outflows
         cumulativePlanned: number;
         cumulativeActual: number;
+        cumulativeOut: number;
       }> = [];
 
       // Build month buckets
@@ -73,10 +77,14 @@ export const financeRouter = router({
           label,
           plannedCost: 0,
           actualCost: 0,
+          paymentsOut: 0,
+          payrollOut: 0,
+          siteExpenses: 0,
           ipcPaid: 0,
           netCashFlow: 0,
           cumulativePlanned: 0,
           cumulativeActual: 0,
+          cumulativeOut: 0,
         });
       }
 
@@ -143,6 +151,76 @@ export const financeRouter = router({
         }
       }
 
+      // ── Cash outflows the cost ledger never sees ──
+      // OUTFLOW FIX: the outflow side previously contained ONLY ProjectCost
+      // rows — but the payroll, site-expense, and vendor/subcontractor
+      // payment flows never write to ProjectCost, so the forecast
+      // systematically understated outflow. Three additional CASH series:
+      //
+      //   1. paymentsOut  — Payment rows (status "paid") settle vendor /
+      //      subcontractor / supplier / staff / other payables. netPaid is
+      //      what actually left the account (TDS is withheld, not paid).
+      //   2. payrollOut   — disbursed PayrollRuns. Payroll disbursement
+      //      flips PayrollStaffRecord.paymentStatus WITHOUT creating
+      //      Payment rows, so series 1 can never cover it.
+      //   3. siteExpenses — approved SiteExpense rows (a separate model
+      //      from ProjectCost manual entries); totalAmount ≈ cash out
+      //      incl. VAT.
+      //
+      // ProjectCost stays as its own series (actualCost): it is the
+      // accrual/cost-capture view used for planned-vs-actual burn, while
+      // the three cash series feed netCashFlow. Some double-coverage is
+      // possible when a payment settles a cost ALSO captured in
+      // ProjectCost — acceptable: understating outflow was the defect,
+      // and the series stay individually inspectable.
+      const payments = await db.payment.findMany({
+        where: {
+          projectId: input.projectId,
+          status: "paid",
+          paymentDate: { gte: startMonth },
+        },
+        select: { netPaid: true, paymentDate: true },
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+      });
+      for (const p of payments) {
+        const monthKey = `${p.paymentDate.getFullYear()}-${String(p.paymentDate.getMonth() + 1).padStart(2, "0")}`;
+        const entry = monthMap.get(monthKey);
+        if (entry) {
+          entry.month.paymentsOut += p.netPaid;
+        }
+      }
+
+      const startMonthKey = `${startMonth.getFullYear()}-${String(startMonth.getMonth() + 1).padStart(2, "0")}`;
+      const payrollRuns = await db.payrollRun.findMany({
+        where: { projectId: input.projectId, status: "disbursed" },
+        select: { month: true, disbursedAmount: true, totalNetPayable: true },
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+      });
+      for (const run of payrollRuns) {
+        if (run.month < startMonthKey) continue;
+        const entry = monthMap.get(run.month);
+        if (entry) {
+          entry.month.payrollOut += run.disbursedAmount || run.totalNetPayable;
+        }
+      }
+
+      const siteExpenses = await db.siteExpense.findMany({
+        where: {
+          projectId: input.projectId,
+          status: "approved",
+          date: { gte: startMonth },
+        },
+        select: { totalAmount: true, date: true },
+        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+      });
+      for (const e of siteExpenses) {
+        const monthKey = `${e.date.getFullYear()}-${String(e.date.getMonth() + 1).padStart(2, "0")}`;
+        const entry = monthMap.get(monthKey);
+        if (entry) {
+          entry.month.siteExpenses += e.totalAmount;
+        }
+      }
+
       // ── Client inflows: IPCs that have been paid by the client ──
       //
       // CRITICAL FIX: previously this block queried the `Payment` table
@@ -181,26 +259,31 @@ export const financeRouter = router({
       }
 
       // Calculate net cash flow and cumulative totals.
-      // Net cash flow = INFLOW - OUTFLOW.
-      //   INFLOW  = ipcPaid (money received from client via IPC payments)
-      //   OUTFLOW = actualCost (money spent on materials, labor, equipment)
-      // Previously this was `actualCost + ipcPaid` which summed both
-      // as outflows — a positive netCashFlow meant you were LOSING money,
-      // which is backwards.
+      // Net cash flow = INFLOW − OUTFLOW, where OUTFLOW is now the FULL
+      // cash picture: ProjectCost accruals + bill/staff payments + payroll
+      // disbursements + approved site expenses. Previously only ProjectCost
+      // was counted, so payroll, site expenses, and vendor/subcontractor
+      // settlements never appeared and the forecast understated outflow.
       let cumPlanned = 0;
       let cumActual = 0;
+      let cumOut = 0;
       for (const m of months) {
-        m.netCashFlow = m.ipcPaid - m.actualCost;
+        m.netCashFlow = m.ipcPaid - m.actualCost - m.paymentsOut - m.payrollOut - m.siteExpenses;
         cumPlanned += m.plannedCost;
         cumActual += m.actualCost;
+        cumOut += m.paymentsOut + m.payrollOut + m.siteExpenses;
         m.cumulativePlanned = cumPlanned;
         m.cumulativeActual = cumActual;
+        m.cumulativeOut = cumOut;
       }
 
       const totals = {
         totalPlanned: months.reduce((s, m) => s + m.plannedCost, 0),
         totalActual: months.reduce((s, m) => s + m.actualCost, 0),
         totalIpcPaid: months.reduce((s, m) => s + m.ipcPaid, 0),
+        totalPaymentsOut: months.reduce((s, m) => s + m.paymentsOut, 0),
+        totalPayrollOut: months.reduce((s, m) => s + m.payrollOut, 0),
+        totalSiteExpenses: months.reduce((s, m) => s + m.siteExpenses, 0),
       };
 
       return { months, totals };

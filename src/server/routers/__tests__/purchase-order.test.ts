@@ -292,6 +292,58 @@ describe("purchaseOrder.updateStatus", () => {
       "NOT_FOUND",
     );
   });
+
+  // ── cost-ledger auto-capture (source "purchase_order") ──
+  it("issuing a PO captures its committed cost into ProjectCost", async () => {
+    member("project_manager");
+    const issuedPo = {
+      ...po({ netAmount: 1130 }),
+      supplier: { name: "Everest Suppliers" },
+    };
+    anyDb.purchaseOrder.findFirst.mockResolvedValue(issuedPo);
+    anyDb.purchaseOrder.findUnique.mockResolvedValue(issuedPo); // engine pre-read + refreshed
+    anyDb.projectCost.findFirst.mockResolvedValue(null); // not yet captured
+
+    const caller = createCaller(purchaseOrderRouter, PM);
+    await caller.updateStatus({ projectId: "p-1", poId: "po-1", status: "issued" });
+
+    expect(anyDb.projectCost.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: "p-1",
+        amount: 1130,
+        category: "material",
+        source: "purchase_order",
+        sourceRef: "PO-0001",
+        sourceRefId: "po-1",
+        vendor: "Everest Suppliers",
+      }),
+    });
+  });
+
+  it("does not re-capture when a committed-cost row already exists", async () => {
+    member("project_manager");
+    const issuedPo = { ...po({ netAmount: 1130 }), supplier: { name: "Everest" } };
+    anyDb.purchaseOrder.findFirst.mockResolvedValue(issuedPo);
+    anyDb.purchaseOrder.findUnique.mockResolvedValue(issuedPo);
+    anyDb.projectCost.findFirst.mockResolvedValue({ id: "cost-1" }); // already captured
+
+    const caller = createCaller(purchaseOrderRouter, PM);
+    await caller.updateStatus({ projectId: "p-1", poId: "po-1", status: "issued" });
+    expect(anyDb.projectCost.create).not.toHaveBeenCalled();
+  });
+
+  it("cancelling a PO removes its committed-cost rows", async () => {
+    member("project_manager");
+    const issuedPo = { ...po({ status: "issued", netAmount: 1130 }), supplier: { name: "Everest" } };
+    anyDb.purchaseOrder.findFirst.mockResolvedValue(issuedPo);
+    anyDb.purchaseOrder.findUnique.mockResolvedValue(issuedPo);
+
+    const caller = createCaller(purchaseOrderRouter, PM);
+    await caller.updateStatus({ projectId: "p-1", poId: "po-1", status: "cancelled" });
+    expect(anyDb.projectCost.deleteMany).toHaveBeenCalledWith({
+      where: { source: "purchase_order", sourceRefId: "po-1" },
+    });
+  });
 });
 
 // ─── delete ─────────────────────────────────────────────────────────────────

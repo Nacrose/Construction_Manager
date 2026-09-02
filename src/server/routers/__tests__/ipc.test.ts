@@ -325,3 +325,154 @@ describe("ipc.loadBoq", () => {
     });
   });
 });
+
+// ─── update: subcontractor-IPC cost auto-capture (B7) ────────────────────────
+describe("ipc.update — ProjectCost auto-capture on certification", () => {
+  // Local copy — the ipcRow helper in the status-machine describe is block-scoped.
+  function ipcRow(status: string) {
+    return {
+      projectId: "p-1",
+      subcontractorId: null,
+      status,
+      issueDate: null,
+    };
+  }
+
+  it("captures subcontractor billing into the cost ledger (source 'ipc')", async () => {
+    member("project_manager");
+    anyDb.ipc.findUnique
+      .mockResolvedValueOnce({ ...ipcRow("submitted"), subcontractorId: "sub-1" })
+      .mockResolvedValueOnce({ ...ipcRow("submitted"), subcontractorId: "sub-1" })
+      .mockResolvedValue({
+        id: "ipc-1",
+        number: "IPC-001",
+        grossAmount: 100000,
+        vatAmount: 13000,
+        retentionAmount: 5000,
+        tdsAmount: 1500,
+        projectId: "p-1",
+        issueDate: new Date("2025-07-25"),
+        subcontractor: { name: "Kathmandu Builders" },
+      });
+    anyDb.projectCost.findFirst.mockResolvedValue(null); // not yet captured
+
+    const caller = createCaller(ipcRouter, PM);
+    await caller.update({ ipcId: "ipc-1", status: "certified" });
+
+    expect(anyDb.projectCost.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: "p-1",
+        amount: 100000,
+        category: "subcontractor",
+        subcontractorId: "sub-1",
+        vendor: "Kathmandu Builders",
+        source: "ipc",
+        sourceRef: "IPC-001",
+        sourceRefId: "ipc-1",
+      }),
+    });
+  });
+
+  it("does NOT capture client IPCs (billing inflow, not cost)", async () => {
+    member("project_manager");
+    anyDb.ipc.findUnique
+      .mockResolvedValueOnce(ipcRow("submitted"))
+      .mockResolvedValueOnce(ipcRow("submitted"))
+      .mockResolvedValue({
+        id: "ipc-1",
+        number: "IPC-001",
+        grossAmount: 100000,
+        vatAmount: 13000,
+        retentionAmount: 5000,
+        tdsAmount: 1500,
+        projectId: "p-1",
+        issueDate: new Date("2025-07-25"),
+        subcontractor: null,
+      });
+
+    const caller = createCaller(ipcRouter, PM);
+    await caller.update({ ipcId: "ipc-1", status: "certified" });
+    expect(anyDb.projectCost.create).not.toHaveBeenCalled();
+  });
+
+  it("does not re-capture when a cost row already exists (idempotency)", async () => {
+    member("project_manager");
+    anyDb.ipc.findUnique
+      .mockResolvedValueOnce({ ...ipcRow("submitted"), subcontractorId: "sub-1" })
+      .mockResolvedValueOnce({ ...ipcRow("submitted"), subcontractorId: "sub-1" })
+      .mockResolvedValue({
+        id: "ipc-1",
+        number: "IPC-001",
+        grossAmount: 100000,
+        vatAmount: 13000,
+        retentionAmount: 5000,
+        tdsAmount: 1500,
+        projectId: "p-1",
+        issueDate: new Date("2025-07-25"),
+        subcontractor: { name: "Kathmandu Builders" },
+      });
+    anyDb.journalEntry.findFirst.mockResolvedValue({ id: "je-1" }); // JE already posted
+    anyDb.projectCost.findFirst.mockResolvedValue({ id: "cost-1" }); // cost already captured
+
+    const caller = createCaller(ipcRouter, PM);
+    await caller.update({ ipcId: "ipc-1", status: "certified" });
+    expect(anyDb.projectCost.create).not.toHaveBeenCalled();
+  });
+});
+
+// ─── taxSummary: BS fiscal-quarter grouping (B1) ─────────────────────────────
+describe("ipc.taxSummary — Nepal BS fiscal-quarter grouping", () => {
+  it("groups VAT/TDS by BS fiscal quarter, not AD calendar month", async () => {
+    member("engineer");
+    // 2025-07-25 = Shrawan 2082 (Q1) and 2025-08-25 = Bhadra 2082 (Q1):
+    // two different AD months, ONE BS fiscal quarter → must land in one
+    // bucket (the pre-fix AD-month grouping would have split them).
+    // 2025-11-05 = Kartik 2082 (Q2) → second bucket.
+    anyDb.ipc.findMany.mockResolvedValue([
+      {
+        id: "ipc-1", number: "IPC-001", period: null, status: "certified",
+        issueDate: new Date("2025-07-25"), createdAt: new Date("2025-07-25"),
+        grossAmount: 1000, vatAmount: 130, tdsAmount: 15,
+        retentionAmount: 50, advanceRecovery: 0, finalPayable: 1065,
+        vatPercent: 13, tdsPercent: 1.5, subcontractor: null, _count: { items: 3 },
+      },
+      {
+        id: "ipc-2", number: "IPC-002", period: null, status: "certified",
+        issueDate: new Date("2025-08-25"), createdAt: new Date("2025-08-25"),
+        grossAmount: 2000, vatAmount: 260, tdsAmount: 30,
+        retentionAmount: 100, advanceRecovery: 0, finalPayable: 2130,
+        vatPercent: 13, tdsPercent: 1.5, subcontractor: null, _count: { items: 2 },
+      },
+      {
+        id: "ipc-3", number: "IPC-003", period: null, status: "certified",
+        issueDate: new Date("2025-11-05"), createdAt: new Date("2025-11-05"),
+        grossAmount: 3000, vatAmount: 390, tdsAmount: 45,
+        retentionAmount: 150, advanceRecovery: 0, finalPayable: 3195,
+        vatPercent: 13, tdsPercent: 1.5, subcontractor: null, _count: { items: 1 },
+      },
+    ]);
+
+    const caller = createCaller(ipcRouter, ENGINEER);
+    const res = await caller.taxSummary({ projectId: "p-1" });
+
+    expect(res.byQuarter).toHaveLength(2);
+    expect(res.byQuarter[0]).toMatchObject({
+      key: "2082/83-Q1",
+      fiscalYear: "2082/83",
+      quarter: 1,
+      count: 2,
+      grossAmount: 3000,
+      vatAmount: 390,
+      tdsAmount: 45,
+    });
+    expect(res.byQuarter[1]).toMatchObject({
+      key: "2082/83-Q2",
+      quarter: 2,
+      count: 1,
+      vatAmount: 390,
+    });
+    // totals unchanged by the regrouping
+    expect(res.totals.totalVat).toBe(780);
+    expect(res.totals.totalTds).toBe(90);
+  });
+});

@@ -372,3 +372,41 @@ describe("finance.createHeadOfficeExpense", () => {
     expect(where.endDate.gte).toEqual(new Date("2026-08-01")); // expense date, not today
   });
 });
+
+// ─── cashFlow ───────────────────────────────────────────────────────────────
+describe("finance.cashFlow — outflow completeness (B6 regression)", () => {
+  it("includes payments, payroll disbursements, and site expenses in outflow", async () => {
+    anyDb.projectMember.findUnique.mockResolvedValue({ role: "engineer" });
+    anyDb.ganttTask.findFirst.mockResolvedValue(null); // start = current month
+    anyDb.ganttTask.findMany.mockResolvedValue([]); // no planned-cost tasks
+    const now = new Date();
+    anyDb.projectCost.findMany.mockResolvedValue([
+      { amount: 100, date: now, category: "material" },
+    ]);
+    anyDb.payment.findMany.mockResolvedValue([
+      { netPaid: 500, paymentDate: now },
+    ]);
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    anyDb.payrollRun.findMany.mockResolvedValue([
+      { month: monthKey, disbursedAmount: 700, totalNetPayable: 700 },
+    ]);
+    anyDb.siteExpense.findMany.mockResolvedValue([
+      { totalAmount: 200, date: now },
+    ]);
+    anyDb.ipc.findMany.mockResolvedValue([]); // no client inflows
+
+    const caller = createCaller(financeRouter, MEMBER);
+    const res = await caller.cashFlow({ projectId: "p-1", months: 3 });
+
+    const m = res.months[0];
+    expect(m.actualCost).toBe(100);
+    expect(m.paymentsOut).toBe(500);
+    expect(m.payrollOut).toBe(700);
+    expect(m.siteExpenses).toBe(200);
+    // net = inflow − ALL outflows (previously payments/payroll/site were invisible)
+    expect(m.netCashFlow).toBe(-(100 + 500 + 700 + 200));
+    expect(res.totals.totalPaymentsOut).toBe(500);
+    expect(res.totals.totalPayrollOut).toBe(700);
+    expect(res.totals.totalSiteExpenses).toBe(200);
+  });
+});

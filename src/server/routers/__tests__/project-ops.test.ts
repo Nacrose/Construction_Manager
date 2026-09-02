@@ -12,9 +12,13 @@
  *   - payment.delete: JE reversal in the same transaction; cross-project
  *     payment NOT_FOUND (IDOR fix)
  *   - payment.bulkCreate: all-or-nothing single transaction
- *   - releaseRetention: over-release rejected; JE Dr 2010 / Cr 2002;
- *     released total updated on the subcontractor
- *   - retentionSummary: held = IPC+bill retention − released payments
+ *   - releaseRetention: over-release rejected (guard computed LIVE from
+ *     source rows — totalRetentionHeld was never written anywhere and made
+ *     the old guard reject every release); JE Dr 2010 / Cr Bank(1010) or
+ *     Cash(1001) — the payment is paid, not made due; released total
+ *     updated on the subcontractor
+ *   - retentionSummary: held = source-row retention (bills + sub-IPCs)
+ *     minus the shared release tracker
  *   - safety/quality/meeting delete: REGRESSION for cross-project IDOR —
  *     the row must be verified against input.projectId BEFORE deletion
  */
@@ -278,18 +282,41 @@ describe("payment.releaseRetention", () => {
     amount: 3000,
   };
 
-  function sub(held = 5000, released = 1000) {
+  /**
+   * The over-release guard computes held retention LIVE from source rows
+   * (bills + sub-IPCs) minus the release tracker. `totalRetentionHeld` is
+   * deliberately NOT set anywhere in these mocks — that column was never
+   * written by any code path, and the old guard read it, rejecting every
+   * release attempt (the feature was unusable). These tests pin the fix.
+   */
+  function sub(released = 1000) {
     anyDb.subcontractor.findFirst.mockResolvedValue({
       id: "sub-1",
       name: "Sub A",
-      totalRetentionHeld: held,
       totalRetentionReleased: released,
     });
+    anyDb.subcontractor.findMany.mockResolvedValue([
+      { id: "sub-1", totalRetentionReleased: released },
+    ]);
   }
 
-  it("rejects releasing more retention than is held", async () => {
+  function heldRows({ bills = 5000, ipcs = 0 }: { bills?: number; ipcs?: number } = {}) {
+    anyDb.subcontractorBill.findMany.mockResolvedValue(
+      bills > 0
+        ? [{ id: "bill-1", number: "SB-1", retentionAmount: bills, retentionReleasedAt: null, createdAt: new Date("2026-01-01"), subcontractorId: "sub-1" }]
+        : [],
+    );
+    anyDb.ipc.findMany.mockResolvedValue(
+      ipcs > 0
+        ? [{ id: "ipc-1", number: "IPC-1", retentionAmount: ipcs, retentionReleasedAt: null, createdAt: new Date("2026-01-02"), subcontractorId: "sub-1" }]
+        : [],
+    );
+  }
+
+  it("rejects releasing more retention than is held (computed from source rows)", async () => {
     member("engineer");
     sub();
+    heldRows({ bills: 5000 }); // outstanding = 5000 − 1000 = 4000
     const caller = createCaller(projectOpsRouter, USER);
     await expectTRPCError(
       caller.payment.releaseRetention({ ...releaseInput, amount: 5000 }),
@@ -298,9 +325,19 @@ describe("payment.releaseRetention", () => {
     expect(anyDb.payment.create).not.toHaveBeenCalled();
   });
 
-  it("posts Dr 2010 / Cr 2002 and updates the released total", async () => {
+  it("works with totalRetentionHeld never written (B3 regression: source-row guard)", async () => {
     member("engineer");
     sub();
+    heldRows({ bills: 5000, ipcs: 2000 }); // outstanding = 7000 − 1000 = 6000
+    const caller = createCaller(projectOpsRouter, USER);
+    const res = await caller.payment.releaseRetention(releaseInput);
+    expect(res.payment).toBeDefined();
+  });
+
+  it("posts Dr 2010 / Cr Bank(1010) — the payment is paid, not made due (B4 regression)", async () => {
+    member("engineer");
+    sub();
+    heldRows({ bills: 5000 }); // outstanding 4000 ≥ amount 3000
     const caller = createCaller(projectOpsRouter, USER);
     await caller.payment.releaseRetention(releaseInput);
 
@@ -317,7 +354,7 @@ describe("payment.releaseRetention", () => {
     const lines = anyDb.journalEntry.create.mock.calls[0][0].data.lines.create;
     expect(lines[0].accountCode).toBe("2010");
     expect(lines[0].debit).toBe(3000);
-    expect(lines[1].accountCode).toBe("2002");
+    expect(lines[1].accountCode).toBe("1010"); // Bank — NOT 2002 Subcontractor Payables
     expect(lines[1].credit).toBe(3000);
 
     expect(anyDb.subcontractor.update).toHaveBeenCalledWith(
@@ -325,6 +362,17 @@ describe("payment.releaseRetention", () => {
         data: { totalRetentionReleased: 4000 },
       }),
     );
+  });
+
+  it("credits Cash (1001) for cash-mode releases", async () => {
+    member("engineer");
+    sub();
+    heldRows();
+    const caller = createCaller(projectOpsRouter, USER);
+    await caller.payment.releaseRetention({ ...releaseInput, paymentMode: "cash" as const });
+    const lines = anyDb.journalEntry.create.mock.calls[0][0].data.lines.create;
+    expect(lines[1].accountCode).toBe("1001");
+    expect(lines[1].credit).toBe(3000);
   });
 
   it("NOT_FOUNDs a subcontractor from another project", async () => {
@@ -337,25 +385,24 @@ describe("payment.releaseRetention", () => {
 
 // ─── retentionSummary ───────────────────────────────────────────────────────
 describe("payment.retentionSummary", () => {
-  it("aggregates held retention across IPCs and sub bills minus releases", async () => {
+  it("aggregates held retention across sub-IPCs and bills minus the release tracker", async () => {
     member("engineer");
+    // One subcontractor.findMany mock serves BOTH the helper (tracker) and
+    // the summary list (name/contractValue).
     anyDb.subcontractor.findMany.mockResolvedValue([
-      { id: "sub-1", name: "Sub A", contractValue: 100000, totalRetentionHeld: 0, totalRetentionReleased: 0 },
+      { id: "sub-1", name: "Sub A", contractValue: 100000, totalRetentionReleased: 3000 },
     ]);
     anyDb.ipc.findMany.mockResolvedValue([
-      { subcontractorId: "sub-1", retentionAmount: 5000, status: "certified" },
+      { id: "ipc-1", number: "IPC-1", retentionAmount: 5000, retentionReleasedAt: null, createdAt: new Date(), subcontractorId: "sub-1" },
     ]);
     anyDb.subcontractorBill.findMany.mockResolvedValue([
-      { subcontractorId: "sub-1", retentionAmount: 2000 },
-    ]);
-    anyDb.payment.findMany.mockResolvedValue([
-      { payeeId: "sub-1", retentionReleased: 3000, paymentDate: new Date() },
+      { id: "bill-1", number: "SB-1", retentionAmount: 2000, retentionReleasedAt: null, createdAt: new Date(), subcontractorId: "sub-1" },
     ]);
 
     const caller = createCaller(projectOpsRouter, USER);
     const res = await caller.payment.retentionSummary({ projectId: "p-1" });
     expect(res.rows[0].ipcRetention).toBe(7000);
-    expect(res.rows[0].released).toBe(3000);
+    expect(res.rows[0].released).toBe(3000); // from the tracker, not payment sums
     expect(res.rows[0].held).toBe(4000);
     expect(res.totals.totalHeld).toBe(4000);
   });

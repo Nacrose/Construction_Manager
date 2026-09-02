@@ -109,9 +109,9 @@ export const NEPAL_HOLIDAYS: Holiday[] = [
 // The DB read + TTL cache live in `./holiday-db` (server-only); this module
 // only holds the swap-in primitive and the year-aware lookup.
 
-export type HolidayRow = { date: string; name: string };
+export type HolidayRow = { date: string; name: string; type?: string };
 
-type YearHolidays = { dates: Set<string>; names: Map<string, string> };
+type YearHolidays = { dates: Set<string>; names: Map<string, string>; types: Map<string, string> };
 
 /** Constant-derived holidays grouped by year (computed once at module load). */
 const CONSTANT_BY_YEAR = new Map<number, YearHolidays>();
@@ -119,16 +119,17 @@ for (const h of NEPAL_HOLIDAYS) {
   const year = Number(h.date.slice(0, 4));
   let entry = CONSTANT_BY_YEAR.get(year);
   if (!entry) {
-    entry = { dates: new Set(), names: new Map() };
+    entry = { dates: new Set(), names: new Map(), types: new Map() };
     CONSTANT_BY_YEAR.set(year, entry);
   }
   entry.dates.add(h.date);
   entry.names.set(h.date, h.name);
+  entry.types.set(h.date, h.type);
 }
 
 /** DB rows grouped by year — authoritative for any year it covers. */
 let DB_BY_YEAR = new Map<number, YearHolidays>();
-const EMPTY_YEAR: YearHolidays = { dates: new Set(), names: new Map() };
+const EMPTY_YEAR: YearHolidays = { dates: new Set(), names: new Map(), types: new Map() };
 
 /**
  * Swap the DB-derived holiday cache wholesale. Called ONLY by
@@ -144,11 +145,12 @@ export function __replaceDbHolidayCache(rows: HolidayRow[] | null): void {
       if (!Number.isFinite(year) || year < 2000) continue;
       let entry = byYear.get(year);
       if (!entry) {
-        entry = { dates: new Set(), names: new Map() };
+        entry = { dates: new Set(), names: new Map(), types: new Map() };
         byYear.set(year, entry);
       }
       entry.dates.add(r.date);
       entry.names.set(r.date, r.name);
+      entry.types.set(r.date, r.type ?? "public");
     }
   }
   DB_BY_YEAR = byYear;
@@ -206,13 +208,36 @@ export function addWorkingDays(start: Date, days: number): Date {
 }
 
 /**
- * Get all holidays within a date range.
+ * Get all holidays within a date range (inclusive on both ends).
+ *
+ * Reads the year-aware cache — DB rows when the admin maintains that year,
+ * the compiled constant otherwise — exactly like isWorkingDay/isHoliday.
+ * Previously this filtered the RAW NEPAL_HOLIDAYS constant directly,
+ * bypassing the DB holiday-override cache every other lookup uses, so
+ * admin-corrected festival dates (lunar drift) were not reflected here.
  */
 export function getHolidaysInRange(start: Date, end: Date): Holiday[] {
-  return NEPAL_HOLIDAYS.filter(h => {
-    const d = new Date(h.date);
-    return d >= start && d <= end;
-  });
+  // Date-only string comparison (YYYY-MM-DD sorts lexicographically) —
+  // avoids time-of-day edge cases at the range boundaries.
+  const startStr = start.toISOString().slice(0, 10);
+  const endStr = end.toISOString().slice(0, 10);
+
+  const out: Holiday[] = [];
+  const startYear = parseInt(startStr.slice(0, 4), 10);
+  const endYear = parseInt(endStr.slice(0, 4), 10);
+  for (let y = startYear; y <= endYear; y++) {
+    const year = yearHolidays(y);
+    for (const dateStr of year.dates) {
+      if (dateStr >= startStr && dateStr <= endStr) {
+        out.push({
+          date: dateStr,
+          name: year.names.get(dateStr) ?? "",
+          type: (year.types.get(dateStr) as Holiday["type"]) ?? "public",
+        });
+      }
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /**

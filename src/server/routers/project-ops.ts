@@ -14,6 +14,7 @@ import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry, reverseJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
 import { paymentDebitAccountForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
+import { computeSubRetention } from "@/server/utils/retention";
 
 // ─── Payment Router ─────────────────────────────────────────
 const paymentRouter = router({
@@ -843,72 +844,33 @@ const paymentRouter = router({
   /**
    * Retention summary — per-subcontractor breakdown of retention held vs released.
    * Also aggregates IPC retention amounts.
+   *
+   * Held/released come from the SHARED retention helper (source rows + the
+   * single release tracker) so this view can never disagree with the
+   * releaseRetention over-release guard. `subcontractor.totalRetentionHeld`
+   * was never written and is no longer read (legacy column).
    */
   retentionSummary: protectedProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // Get all subcontractors with their retention fields
+      const positions = await computeSubRetention(input.projectId);
+
       const subcontractors = await db.subcontractor.findMany({
         where: { projectId: input.projectId },
         select: {
           id: true, name: true, contractValue: true,
-          totalRetentionHeld: true, totalRetentionReleased: true,
         },
         orderBy: { name: "asc" },
               take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
       });
 
-      // Get Subcontractor Bill & IPC retention amounts per subcontractor
-      const [ipcs, subBills] = await Promise.all([
-        db.ipc.findMany({
-          where: { projectId: input.projectId, subcontractorId: { not: null } },
-          select: { subcontractorId: true, retentionAmount: true, status: true },
-                  take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
-        }),
-        db.subcontractorBill.findMany({
-          where: {
-            projectId: input.projectId,
-            status: { in: ["submitted", "verified", "certified", "paid"] },
-          },
-          select: { subcontractorId: true, retentionAmount: true },
-                  take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
-        }),
-      ]);
-
-      const ipcRetentionBySub = new Map<string, number>();
-      for (const bill of subBills) {
-        if (!bill.subcontractorId) continue;
-        ipcRetentionBySub.set(
-          bill.subcontractorId,
-          (ipcRetentionBySub.get(bill.subcontractorId) ?? 0) + bill.retentionAmount
-        );
-      }
-      for (const ipc of ipcs) {
-        if (!ipc.subcontractorId) continue;
-        ipcRetentionBySub.set(
-          ipc.subcontractorId,
-          (ipcRetentionBySub.get(ipc.subcontractorId) ?? 0) + ipc.retentionAmount
-        );
-      }
-
-      // Get retention release payments per subcontractor
-      const releasePayments = await db.payment.findMany({
-        where: { projectId: input.projectId, payeeType: "subcontractor", retentionReleased: { gt: 0 } },
-        select: { payeeId: true, retentionReleased: true, paymentDate: true },
-              take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts,
-      });
-      const releasedBySub = new Map<string, number>();
-      for (const p of releasePayments) {
-        if (!p.payeeId) continue;
-        releasedBySub.set(p.payeeId, (releasedBySub.get(p.payeeId) ?? 0) + p.retentionReleased);
-      }
-
       const rows = subcontractors.map((s) => {
-        const ipcRetention = ipcRetentionBySub.get(s.id) ?? 0;
-        const released = releasedBySub.get(s.id) ?? s.totalRetentionReleased;
-        const held = Math.max(0, ipcRetention - released);
+        const pos = positions.get(s.id);
+        const ipcRetention = pos?.heldRetention ?? 0;
+        const released = pos?.releasedTotal ?? 0;
+        const held = Math.max(0, pos?.outstandingHeld ?? 0);
         return {
           subcontractorId: s.id,
           subcontractorName: s.name,
@@ -938,6 +900,18 @@ const paymentRouter = router({
   /**
    * Release retention — record a payment that releases held retention
    * back to a subcontractor. Updates the subcontractor's released total.
+   *
+   * OVER-RELEASE GUARD computes held retention LIVE from the source rows
+   * (bills + sub-IPCs) minus the release tracker — it no longer reads
+   * `subcontractor.totalRetentionHeld`, which was never written anywhere
+   * and made the guard reject every release attempt (feature was unusable).
+   *
+   * JE (fixed): the payment is recorded `paid` in the same mutation, so
+   * the entry must settle cash, not re-credit a payable:
+   *   Dr Retention Payable (2010) = amount
+   *      Cr Bank (1010) / Cash (1001) = amount   [by paymentMode]
+   * Previously it credited Subcontractor Payables (2002), leaving the
+   * cash side of a real payment unrecorded on its own terms.
    */
   releaseRetention: protectedProcedure
     .input(z.object({
@@ -961,20 +935,23 @@ const paymentRouter = router({
 
       const sub = await db.subcontractor.findFirst({
         where: { id: input.subcontractorId, projectId: input.projectId },
-        select: { id: true, name: true, totalRetentionHeld: true, totalRetentionReleased: true },
+        select: { id: true, name: true, totalRetentionReleased: true },
       });
       if (!sub) throw new TRPCError({ code: "NOT_FOUND", message: "Subcontractor not found" });
 
-      // OVER-RELEASE CHECK: reject if the release would exceed the held
-      // retention amount. Without this, a user can release more retention
-      // than was ever held, producing negative "held" balances.
-      const held = (sub.totalRetentionHeld || 0) - (sub.totalRetentionReleased || 0);
+      // OVER-RELEASE CHECK (live from source rows — see helper docs).
+      const position = await computeSubRetention(input.projectId, input.subcontractorId)
+        .then((m) => m.get(input.subcontractorId));
+      const held = position?.outstandingHeld ?? 0;
       if (input.amount > held + 0.01) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Cannot release ${input.amount}: only ${held} retention is currently held for ${sub.name}.`,
+          message: `Cannot release ${input.amount}: only ${Math.max(0, held)} retention is currently held for ${sub.name}.`,
         });
       }
+
+      const bankCode = input.paymentMode === "cash" ? "1001" : "1010";
+      const bankName = input.paymentMode === "cash" ? "Cash" : "Bank";
 
       // PAYMENT + JE + SUB UPDATE — ONE TRANSACTION. Previously the three
       // writes committed independently: a JE failure after the payment row
@@ -1002,9 +979,9 @@ const paymentRouter = router({
           },
         });
 
-        // JOURNAL ENTRY: retention release to subcontractor.
+        // JOURNAL ENTRY: retention release paid out to subcontractor.
         // Dr Retention Payable (2010) = amount
-        //    Cr Subcontractor Payables (2002) = amount
+        //    Cr Bank (1010) / Cash (1001) = amount
         await createJournalEntry(tx, {
           source: "retention_release",
           sourceRefId: created.id,
@@ -1024,22 +1001,24 @@ const paymentRouter = router({
               partnerId: input.subcontractorId,
             },
             {
-              accountCode: "2002",
-              accountName: "Subcontractor Payables",
+              accountCode: bankCode,
+              accountName: bankName,
               debit: 0,
               credit: input.amount,
-              description: `Retention now due to ${sub.name}`,
+              description: `Retention paid via ${input.paymentMode}${input.chequeNo ? ` (cheque #${input.chequeNo})` : ""}`,
               projectId: input.projectId,
               partnerId: input.subcontractorId,
             },
           ],
         });
 
-        // Update subcontractor's released total
+        // Update the subcontractor's release tracker (single source of
+        // truth for "how much retention has left the held state" — the
+        // bulk release path bumps it too).
         await tx.subcontractor.update({
           where: { id: input.subcontractorId },
           data: {
-            totalRetentionReleased: sub.totalRetentionReleased + input.amount,
+            totalRetentionReleased: (sub.totalRetentionReleased || 0) + input.amount,
           },
         });
 
