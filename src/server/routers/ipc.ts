@@ -17,6 +17,7 @@ import {
   transitionEntityState,
 } from "@/server/utils/state-machine";
 import { normalizeDateMiti } from "@/server/utils/date-miti";
+import { invalidateProjectCache } from "@/lib/cache";
 
 // ─── Zod schemas ───────────────────────────────────────────────
 
@@ -402,6 +403,8 @@ export const ipcRouter = router({
         metadata: { status: data.status, grossAmount: final?.grossAmount, netPayable: final?.netPayable },
       });
 
+      // Certification changes retention rows + captures IPC costs.
+      await invalidateProjectCache(item.projectId, ["cashflow", "retention"]);
       return { ipc: final };
     }),
 

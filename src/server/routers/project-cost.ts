@@ -17,6 +17,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { invalidateProjectCache } from "@/lib/cache";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
@@ -203,6 +204,7 @@ export const projectCostRouter = router({
         },
       });
 
+      await invalidateProjectCache(input.projectId, ["cashflow"]);
       return { cost };
     }),
 
@@ -234,6 +236,7 @@ export const projectCostRouter = router({
         metadata: { amount: existing.amount, category: existing.category },
       });
 
+      await invalidateProjectCache(input.projectId, ["cashflow"]);
       return { ok: true };
     }),
 

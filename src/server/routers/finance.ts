@@ -16,6 +16,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { cached, invalidateProjectCache } from "@/lib/cache";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
@@ -42,6 +43,11 @@ export const financeRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
+
+      // CACHE: 6+ aggregate queries per call (tasks, costs, payments,
+      // payroll, site expenses, IPCs). 60s TTL; invalidated by the payment,
+      // cost, payroll, site-expense, PO, and IPC mutation sites.
+      return cached(`cashflow:${input.projectId}:${input.months}`, 60, async () => {
 
       // Get project's earliest task date
       const earliestTask = await db.ganttTask.findFirst({
@@ -287,6 +293,7 @@ export const financeRouter = router({
       };
 
       return { months, totals };
+      });
     }),
 
   /**

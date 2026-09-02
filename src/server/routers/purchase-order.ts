@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { invalidateProjectCache } from "@/lib/cache";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
@@ -408,6 +409,8 @@ export const purchaseOrderRouter = router({
         metadata: { model: "purchaseOrder", from: po.status, to: input.status },
       });
 
+      // Issue/cancel moves the committed-cost picture.
+      await invalidateProjectCache(input.projectId, ["cashflow"]);
       return { purchaseOrder: updated };
 
     }),

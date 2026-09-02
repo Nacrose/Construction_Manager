@@ -6,6 +6,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { invalidateProjectCache } from "@/lib/cache";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { computePayrollLine } from "@/server/utils/payroll-calc";
@@ -656,6 +657,8 @@ export const payrollRouter = router({
         return result.entity;
       });
 
+      // Disbursement moves payroll into the cash outflow picture.
+      await invalidateProjectCache(input.projectId, ["cashflow"]);
       return { run: updated };
     }),
 

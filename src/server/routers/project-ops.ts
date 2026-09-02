@@ -15,6 +15,7 @@ import { createJournalEntry, reverseJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
 import { paymentDebitAccountForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { computeSubRetention } from "@/server/utils/retention";
+import { cached, invalidateProjectCache } from "@/lib/cache";
 
 // ─── Payment Router ─────────────────────────────────────────
 const paymentRouter = router({
@@ -356,6 +357,7 @@ const paymentRouter = router({
         entityId: payment.id,
         metadata: { amount: data.amount, payeeName: data.payeeName, category: resolvedCategory },
       });
+      await invalidateProjectCache(projectId, ["cashflow"]);
       return { payment };
     }),
 
@@ -478,6 +480,7 @@ const paymentRouter = router({
         metadata: { importedCount: createdPayments.length },
       });
 
+      await invalidateProjectCache(input.projectId, ["cashflow"]);
       return { count: createdPayments.length, payments: createdPayments };
     }),
 
@@ -574,7 +577,7 @@ const paymentRouter = router({
       // IDOR FIX: verify the payment belongs to input.projectId.
       const existing = await db.payment.findFirst({
         where: { id: input.id, projectId: input.projectId },
-        select: { id: true, paymentDate: true, amount: true, payeeName: true, companyBankAccountId: true, netPaid: true },
+        select: { id: true, paymentDate: true, amount: true, payeeName: true, companyBankAccountId: true, netPaid: true, projectId: true },
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found in this project." });
@@ -632,6 +635,7 @@ const paymentRouter = router({
 
         await tx.payment.delete({ where: { id: input.id } });
       });
+      await invalidateProjectCache(existing.projectId, ["cashflow"]);
       return { ok: true };
     }),
 
@@ -855,6 +859,10 @@ const paymentRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
+      // CACHE: 3 queries + aggregate math per call, read-heavy on the
+      // payments page. 30s TTL; invalidated by the release paths and IPC
+      // certification (see invalidateProjectCache call sites).
+      return cached(`retention:${input.projectId}:summary`, 30, async () => {
       const positions = await computeSubRetention(input.projectId);
 
       const subcontractors = await db.subcontractor.findMany({
@@ -895,6 +903,7 @@ const paymentRouter = router({
           subcontractorCount: rows.length,
         },
       };
+      });
     }),
 
   /**
@@ -1034,6 +1043,7 @@ const paymentRouter = router({
         metadata: { amount: input.amount, subcontractorName: sub.name, paymentId: payment.id },
       });
 
+      await invalidateProjectCache(input.projectId, ["cashflow", "retention"]);
       return { payment };
     }),
 

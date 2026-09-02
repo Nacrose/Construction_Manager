@@ -27,6 +27,7 @@ import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { CHART_OF_ACCOUNTS, STANDARD_COST_CODES } from "@/lib/chart-of-accounts";
 import { bsToAd } from "@/lib/nepali-calendar";
+import { invalidateProjectCache } from "@/lib/cache";
 
 export const financialReportingRouter = router({
   // ═══════════════════════════════════════════════════════════
@@ -1921,6 +1922,8 @@ export const financialReportingRouter = router({
           notes: input.notes,
         },
       });
+
+      await invalidateProjectCache(input.projectId, ["cashflow", "retention"]);
 
       return {
         released: true,

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createDomainRouter, financialGuard, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
+import { invalidateProjectCache } from "@/lib/cache";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
@@ -321,6 +322,7 @@ export const siteExpenseRouter = router({
         metadata: { model: "siteExpense", from: expense.status, to: "approved" },
       });
 
+      await invalidateProjectCache(expense.projectId, ["cashflow"]);
       return { expense: updated };
     }),
 

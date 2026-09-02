@@ -21,7 +21,6 @@
     "db:regenerate-baseline": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0_init/migration.sql",
     "ci:verify": "npx eslint . --max-warnings 1200 && NODE_OPTIONS=\"--max-old-space-size=8192\" npx tsc --noEmit && npm test && NODE_OPTIONS=\"--max-old-space-size=8192\" npm run build",
     "postinstall": "prisma generate && node scripts/patch-prisma-decimal-types.mjs"
-
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -76,6 +75,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.42.2",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.3",
     "lucide-react": "^0.525.0",
     "next": "^16.1.1",
