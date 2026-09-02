@@ -13,6 +13,7 @@ import { createSession } from "@/lib/auth";
  */
 
 import { passwordSchema } from "@/lib/password-policy";
+import { assertSameOrigin } from "@/lib/csrf";
 
 // Single source of truth for signup input validation.
 const SignupSchema = z.object({
@@ -24,6 +25,9 @@ const SignupSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     // Signup is only allowed for the first user (org bootstrap).
     // After that, existing members invite friends via the Team page.
     const userCount = await db.user.count();

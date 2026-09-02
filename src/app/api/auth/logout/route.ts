@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, clearSessionCookie, getSessionJti } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { assertSameOrigin } from "@/lib/csrf";
 
 /**
  * POST /api/auth/logout
@@ -10,6 +11,9 @@ import { db } from "@/lib/db";
  * Authorization header or the cookie.
  */
 export async function POST(req: NextRequest) {
+  const denied = assertSameOrigin(req);
+  if (denied) return denied;
+
   const authHeader = req.headers.get("authorization");
 
   // Validate the user via the bearer token (or cookie) so that we only

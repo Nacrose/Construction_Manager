@@ -5,9 +5,16 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/routers/_app";
 import { createTRPCContext } from "@/server/trpc";
 import { captureServerError } from "@/lib/error-tracking";
+import { assertSameOrigin } from "@/lib/csrf";
 
-const handler = (req: Request) =>
-  fetchRequestHandler({
+// With cookie-only auth (v2.0), tRPC mutations are cookie-authenticated, so
+// the endpoint is a CSRF target. Batched queries ride POST too — same-origin
+// validation covers both verbs (GET is a safe method and always passes).
+const handler = (req: Request) => {
+  const denied = assertSameOrigin(req);
+  if (denied) return denied;
+
+  return fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
@@ -25,5 +32,6 @@ const handler = (req: Request) =>
       });
     },
   });
+};
 
 export { handler as GET, handler as POST };

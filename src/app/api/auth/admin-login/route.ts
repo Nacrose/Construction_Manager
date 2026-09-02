@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createAdminSession } from "@/lib/auth";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
+import { assertSameOrigin } from "@/lib/csrf";
 import {
   checkLoginRate,
   recordLoginAttempt,
@@ -24,6 +25,9 @@ const MAX_ATTEMPTS = 10;
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     const ip = clientIpFromHeaders(req.headers);
     const now = Date.now();
     const bucket = attempts.get(ip);

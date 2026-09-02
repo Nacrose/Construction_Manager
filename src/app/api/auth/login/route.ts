@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { setSessionCookie } from "@/lib/auth";
 import { ok, handleError, badRequest, forbidden } from "@/lib/api";
+import { assertSameOrigin } from "@/lib/csrf";
 import {
   checkLoginRate,
   recordLoginAttempt,
@@ -41,6 +42,9 @@ function checkRateLimit(key: string, maxAttempts: number): boolean {
 
 export async function POST(req: NextRequest) {
   try {
+    const denied = assertSameOrigin(req);
+    if (denied) return denied;
+
     const ip = clientIpFromHeaders(req.headers);
 
     // Pre-parse the body to extract email for per-email rate limiting.
