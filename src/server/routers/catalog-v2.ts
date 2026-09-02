@@ -248,7 +248,7 @@ export const catalogV2Router = router({
         subCategory: z.string().optional(),
         defaultUnit: z.string().default(""),
         defaultRate: z.number().min(0).default(0),
-        aliases: z.array(z.string()).default([]),
+        aliases: z.array(z.string().max(120)).max(30).default([]),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -456,7 +456,7 @@ export const catalogV2Router = router({
         defaultUnit: z.string().optional(),
         defaultRate: z.number().min(0).optional(),
         isActive: z.boolean().optional(),
-        aliases: z.array(z.string()).optional(),
+        aliases: z.array(z.string().max(120)).max(30).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -520,7 +520,7 @@ export const catalogV2Router = router({
 
   /** Bulk delete materials (soft or hard) */
   bulkDeleteMaterials: protectedProcedure
-    .input(z.object({ ids: z.array(z.string()).min(1), force: z.boolean().default(false) }))
+    .input(z.object({ ids: z.array(z.string()).min(1).max(500), force: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }) => {
       let archived = 0;
       let hardDeleted = 0;
@@ -579,7 +579,7 @@ export const catalogV2Router = router({
 
   /** Check deletion impact for single/multiple materials */
   getDeleteImpact: protectedProcedure
-    .input(z.object({ ids: z.array(z.string()) }))
+    .input(z.object({ ids: z.array(z.string()).max(500) }))
     .query(async ({ ctx, input }) => {
       const inputIds = input.ids;
       if (inputIds.length === 0) {

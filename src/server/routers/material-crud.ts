@@ -227,7 +227,7 @@ export const materialCrudProcedures = {
     }),
 
   checkProjectDeleteImpact: protectedProcedure
-    .input(z.object({ itemIds: z.array(z.string()) }))
+    .input(z.object({ itemIds: z.array(z.string()).max(500) }))
     .query(async ({ ctx, input }) => {
       // Cross-tenant read guard (same class as catalog-v2 M-2): previously
       // ANY authenticated user could probe arbitrary material ids and learn
@@ -259,7 +259,7 @@ export const materialCrudProcedures = {
     }),
 
   deleteMany: protectedProcedure
-    .input(z.object({ itemIds: z.array(z.string()) }))
+    .input(z.object({ itemIds: z.array(z.string()).max(500) }))
     .mutation(async ({ ctx, input }) => {
       const items = await db.material.findMany({
         where: { id: { in: input.itemIds } },
