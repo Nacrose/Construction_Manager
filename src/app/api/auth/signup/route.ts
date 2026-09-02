@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { createSession } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/auth";
 
 /**
  * POST /api/auth/signup
@@ -99,8 +99,11 @@ export async function POST(req: NextRequest) {
       return { org, user };
     });
 
-    // Create session + JWT
-    const token = await createSession(result.user.id);
+    // Create session and set the httpOnly cookie — post-v2.0 the cookie IS
+    // the credential, so the freshly-bootstrapped org admin gets a working
+    // session without any token touching client JS. (The token is still
+    // returned below for backward compatibility until the client flip lands.)
+    const token = await setSessionCookie(result.user.id);
 
     return NextResponse.json({
       token,

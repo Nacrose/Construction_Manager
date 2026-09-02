@@ -28,8 +28,9 @@ export async function POST(req: NextRequest) {
     await db.session.deleteMany({ where: { token: jti } }).catch(() => {});
   }
 
-  // Clear the session cookie as well.
-  await clearSessionCookie(authHeader);
+  // Always clear the session cookie (post-v2.0 it IS the credential) and
+  // revoke the session it points at.
+  await clearSessionCookie();
 
   return NextResponse.json({ ok: true });
 }
