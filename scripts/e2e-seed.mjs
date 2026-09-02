@@ -142,6 +142,61 @@ async function main() {
   // Fresh slate for the holiday CRUD test (delete leftovers from prior runs).
   await db.holiday.deleteMany({ where: { date: "2026-12-25" } });
 
+  // ── Money-path dataset (tests/e2e/money-path.spec.ts) ──
+  // A subcontractor with a CERTIFIED subcontractor-IPC carrying retention →
+  // the retention summary shows held money; the money-path spec releases
+  // part of it through the UI and asserts the over-release guard.
+  await db.subcontractor.deleteMany({
+    where: { projectId: project.id, name: "E2E Builders Nepal" },
+  });
+  const sub = await db.subcontractor.create({
+    data: {
+      projectId: project.id,
+      name: "E2E Builders Nepal",
+      contractValue: 5000000,
+    },
+  });
+
+  await db.ipc.deleteMany({ where: { projectId: project.id, number: "IPC-SUB-001" } });
+  await db.ipc.create({
+    data: {
+      projectId: project.id,
+      number: "IPC-SUB-001",
+      status: "certified",
+      subcontractorId: sub.id,
+      grossAmount: 100000,
+      retention: 5,
+      retentionAmount: 5000,
+      vatPercent: 13,
+      vatAmount: 13000,
+      tdsPercent: 1.5,
+      tdsAmount: 1500,
+      totalWithVat: 113000,
+      netPayable: 95000,
+      finalPayable: 106500,
+      issueDate: new Date(),
+    },
+  });
+
+  // A settled payment feeding the cash-flow outflow series (paymentsOut).
+  await db.payment.deleteMany({
+    where: { projectId: project.id, payeeName: "E2E Fuel Suppliers" },
+  });
+  await db.payment.create({
+    data: {
+      projectId: project.id,
+      payeeType: "other",
+      payeeName: "E2E Fuel Suppliers",
+      amount: 45000,
+      netPaid: 45000,
+      paymentDate: new Date(),
+      paymentMode: "bank_transfer",
+      status: "paid",
+      createdById: user.id,
+      notes: "E2E fuel purchase settled",
+    },
+  });
+
   console.log(JSON.stringify({
     ok: true,
     orgId: org.id,
@@ -151,6 +206,8 @@ async function main() {
     email: EMAIL,
     adminEmail: ADMIN_EMAIL,
     projectName: PROJECT_NAME,
+    subcontractorName: "E2E Builders Nepal",
+    subIpcNumber: "IPC-SUB-001",
   }));
 }
 

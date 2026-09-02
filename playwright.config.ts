@@ -41,7 +41,7 @@ export default defineConfig({
     },
     {
       name: "smoke",
-      testMatch: /(smoke|admin)\.spec\.ts/,
+      testMatch: /(smoke|admin|money-path)\.spec\.ts/,
       dependencies: ["setup"],
       use: {
         storageState: "test-results/.auth/e2e.json",

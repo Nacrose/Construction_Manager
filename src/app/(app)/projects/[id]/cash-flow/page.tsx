@@ -108,6 +108,28 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
             </Card>
           </div>
 
+          {/* Outflow completeness strip — the cash series ProjectCost never
+              captured (bill settlements, payroll disbursements, approved
+              site expenses) are now part of netCashFlow; surface them. */}
+          {(data.totals.totalPaymentsOut > 0 ||
+            data.totals.totalPayrollOut > 0 ||
+            data.totals.totalSiteExpenses > 0) && (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs font-mono text-muted-foreground px-1">
+              <span>
+                Bill Payments Out:{" "}
+                <strong className="text-red-600">{formatNpr(data.totals.totalPaymentsOut)}</strong>
+              </span>
+              <span>
+                Payroll Disbursed:{" "}
+                <strong className="text-red-600">{formatNpr(data.totals.totalPayrollOut)}</strong>
+              </span>
+              <span>
+                Site Expenses (approved):{" "}
+                <strong className="text-red-600">{formatNpr(data.totals.totalSiteExpenses)}</strong>
+              </span>
+            </div>
+          )}
+
           {/* Chart — simple bar chart with CSS */}
           <Card>
             <CardHeader>

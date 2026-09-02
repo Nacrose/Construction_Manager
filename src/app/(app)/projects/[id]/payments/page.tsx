@@ -3,6 +3,7 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ModuleTabs } from "@/components/module-tabs";
+import { RetentionTab } from "./components/retention-tab";
 import {
   Users,
   Building2,
@@ -411,9 +412,20 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
             )}
           </div>
         </div>
-      </div>
 
-      {/* Record Payment Dialog */}
+        {/* Retention Money — held vs released per subcontractor, with the
+            release-payment flow. Previously this component existed but was
+            never mounted anywhere, leaving retention management unreachable
+            from the UI. */}
+        <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase font-mono tracking-wide text-foreground">
+              Retention Money (धरौटी)
+            </span>
+          </div>
+          <RetentionTab projectId={id} />
+        </div>
+      </div>
       {recordPaymentOpen && (
         <RecordPaymentDialog
           projectId={id}
