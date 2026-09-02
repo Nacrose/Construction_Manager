@@ -11,6 +11,7 @@ import { createDomainRouter, financialGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertOrgBankAccount } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 import { audit } from "@/lib/audit";
 import {
   createJournalEntry,
@@ -283,12 +284,10 @@ export const jvPartnerRouter = router({
         });
 
         // Deduct net payment from central company bank account (atomic
-        // single-statement decrement inside the tx).
+        // single-statement decrement inside the tx). P2 item 30: guarded —
+        // rejects an overdraw atomically.
         if (input.bankAccountId) {
-          await tx.companyBankAccount.update({
-            where: { id: input.bankAccountId },
-            data: { currentBalance: { decrement: netAmount } },
-          });
+          await decrementBankBalanceInTx(tx, input.bankAccountId, netAmount);
         }
 
         // Double-entry: Dr JV Partner Commission (gross)

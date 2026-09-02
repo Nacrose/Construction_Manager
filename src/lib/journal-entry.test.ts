@@ -21,6 +21,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
   describe("vendorPaymentEntry", () => {
     it("produces balanced entry for cash payment with no TDS", () => {
       const entry = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "test-1",
         vendorName: "Test Vendor",
         amount: 1000,
@@ -37,6 +38,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
 
     it("produces balanced entry for bank payment with TDS", () => {
       const entry = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "test-2",
         vendorName: "Test Vendor",
         amount: 10000,
@@ -54,6 +56,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
     it("throws on inconsistent amount/tds/netPaid", () => {
       expect(() =>
         vendorPaymentEntry({
+          paymentId: "vp-test-1",
           vendorBillId: "test-3",
           vendorName: "Test Vendor",
           amount: 1000,
@@ -67,6 +70,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
 
     it("produces balanced entry with zero TDS and zero netPaid (edge case)", () => {
       const entry = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "test-4",
         vendorName: "Test Vendor",
         amount: 0,
@@ -202,6 +206,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
   describe("Entry structure", () => {
     it("vendorPaymentEntry uses correct account codes", () => {
       const entry = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "test",
         vendorName: "Vendor",
         amount: 1000,
@@ -216,6 +221,7 @@ describe("Journal Entry Helpers — Balance Validation", () => {
 
     it("vendorPaymentEntry uses cash account code for cash payments", () => {
       const entry = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "test",
         vendorName: "Vendor",
         amount: 1000,

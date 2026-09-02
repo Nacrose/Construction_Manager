@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { isQueuedMutationResult } from "@/lib/offline-fetch";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +90,15 @@ export function GeneratePODialog({
 
   const generateMut = trpc.requisition.generatePOs.useMutation({
     onSuccess: (res) => {
+      // H-18 (c): offline-queue path — no real count in the synthetic reply.
+      if (isQueuedMutationResult(res)) {
+        toast.success("PO generation saved offline — it will sync when you're back online");
+        utils.requisition.invalidate();
+        utils.material.invalidate();
+        onSuccess?.();
+        onOpenChange(false);
+        return;
+      }
       toast.success(`Successfully generated ${res.count} Purchase Order(s)!`);
       utils.requisition.invalidate();
       utils.material.invalidate();

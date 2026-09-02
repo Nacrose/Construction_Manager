@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, superAdminProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
@@ -293,7 +293,7 @@ export const fiscalYearRouter = router({
       return { logs };
     }),
 
-  rollForwardCatalog: protectedProcedure
+  rollForwardCatalog: superAdminProcedure
     .input(
       z.object({
         sourceCatalogId: z.string(),
@@ -302,9 +302,12 @@ export const fiscalYearRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.user.isSuperAdmin) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Only SuperAdmins can roll forward baseline rate catalogs." });
-      }
+      // H-7 FIX: was a hand-rolled `isSuperAdmin` check inside
+      // protectedProcedure — a plain superadmin-flagged USER session (not
+      // a dedicated admin login) could roll baseline catalogs, bypassing
+      // the sessionKind==="admin" invariant every other admin path
+      // enforces. superAdminProcedure enforces the admin-session tier
+      // declaratively.
 
       const sourceCatalog = await db.rateBook.findUnique({
         where: { id: input.sourceCatalogId },

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
 import { transitionEntityState } from "@/server/utils/state-machine";
@@ -128,7 +128,11 @@ export const boqVersionRouter = router({
   approve: protectedProcedure
     .input(z.object({ projectId: z.string(), versionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await assertCanWrite(ctx.user, input.projectId);
+      // H-7 PRIVILEGE-TIER FIX: approving a version locks the project BOQ
+      // PERMANENTLY (the baseline becomes immutable) — that is a
+      // project-manager decision, not an engineer one. assertCanWrite
+      // admitted any implicit engineer.
+      await assertProjectManager(ctx.user, input.projectId);
 
       const found = await db.boqVersion.findUnique({
         where: { id: input.versionId },

@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { toMoney } from "@/lib/money";
 import { adToBs } from "@/lib/nepali-calendar";
@@ -399,10 +400,7 @@ export const bankGuaranteeRouter = router({
               },
             });
 
-            await tx.companyBankAccount.update({
-              where: { id: input.bankAccountId },
-              data: { currentBalance: { decrement: input.commissionPaid } },
-            });
+            await decrementBankBalanceInTx(tx, input.bankAccountId, input.commissionPaid);
           }
 
           return bg;
@@ -451,6 +449,10 @@ export const bankGuaranteeRouter = router({
         where: { id: input.id },
       });
       await assertGuaranteeAccess(ctx.user, existing);
+
+      // FISCAL LOCK FIX (audit §4): extend had no lock — amendments could
+      // land inside a locked fiscal year.
+      await assertNotLocked(ctx.user.organizationId, new Date());
 
       const newExpiryD = new Date(input.newExpiryDate);
       if (isNaN(newExpiryD.getTime())) {
@@ -541,6 +543,9 @@ export const bankGuaranteeRouter = router({
       });
       await assertGuaranteeAccess(ctx.user, existing);
 
+      // FISCAL LOCK FIX (audit §4): release had no lock.
+      await assertNotLocked(ctx.user.organizationId, new Date());
+
       const targetOrg = existing.organizationId || ctx.user.organizationId;
       const guarantee = await db.$transaction(async (tx) => {
         await withOrgContext(tx, targetOrg, !!ctx.user.isSuperAdmin);
@@ -623,6 +628,10 @@ export const bankGuaranteeRouter = router({
       if (!targetOrg) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Valid organization required." });
       }
+
+      // FISCAL LOCK FIX (audit §4): update had no lock — the issue date
+      // (or today when unchanged) is the transaction date.
+      await assertNotLocked(targetOrg, input.issuedDate ? new Date(input.issuedDate) : new Date());
 
       const issuedD = input.issuedDate ? new Date(input.issuedDate) : existing.issuedDate;
       const expiryD = input.expiryDate ? new Date(input.expiryDate) : existing.expiryDate;
@@ -709,10 +718,7 @@ export const bankGuaranteeRouter = router({
               },
             });
 
-            await tx.companyBankAccount.update({
-              where: { id: targetBankAccountId },
-              data: { currentBalance: { decrement: newCommission } },
-            });
+            await decrementBankBalanceInTx(tx, targetBankAccountId, Number(newCommission));
           } else {
             // Commission removed or set to 0
             await tx.headOfficeExpense.delete({ where: { id: linkedExpense.id } });
@@ -742,10 +748,7 @@ export const bankGuaranteeRouter = router({
             },
           });
 
-          await tx.companyBankAccount.update({
-            where: { id: bankAccountId },
-            data: { currentBalance: { decrement: newCommission } },
-          });
+          await decrementBankBalanceInTx(tx, bankAccountId, Number(newCommission));
         }
 
         return updatedBg;
@@ -773,6 +776,10 @@ export const bankGuaranteeRouter = router({
         where: { id: input.id },
       });
       await assertGuaranteeAccess(ctx.user, existing);
+
+      // FISCAL LOCK FIX (audit §4): delete restores bank balances — it
+      // belongs behind the fiscal lock like every other BG mutation.
+      await assertNotLocked(ctx.user.organizationId, new Date());
 
       const targetOrg = existing.organizationId || ctx.user.organizationId;
       await db.$transaction(async (tx) => {

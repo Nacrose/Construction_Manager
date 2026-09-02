@@ -21,10 +21,11 @@ import type { Prisma } from "@prisma/client";
 import { router, reportingProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
-import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
+import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount, assertProjectManager, isOrgAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { assertNotLocked, listLocks } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { assertDelegation } from "@/lib/delegation";
 import { CHART_OF_ACCOUNTS, STANDARD_COST_CODES } from "@/lib/chart-of-accounts";
 import { bsToAd } from "@/lib/nepali-calendar";
 import { invalidateProjectCache } from "@/lib/cache";
@@ -1587,7 +1588,17 @@ export const financialReportingRouter = router({
       notes: z.string().max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await assertProjectMember(ctx.user, input.projectId);
+      // H-7 PRIVILEGE-TIER FIX: releasing retention reclassifies real
+      // money state via posted JEs — reachable before by ANY implicit
+      // engineer through reportingProcedure. A project-manager call now.
+      await assertProjectManager(ctx.user, input.projectId);
+      // H-7: the DLP bypass is org-admin-only (was a client-supplied flag
+      // any engineer could set).
+      if (input.force) {
+        if (!isOrgAdmin(ctx.user)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Only org admins may force a retention release before the defect liability period ends." });
+        }
+      }
       await assertNotLocked(ctx.user.organizationId);
 
       const project = await db.project.findUnique({
@@ -1759,6 +1770,15 @@ export const financialReportingRouter = router({
         };
       }
 
+      // H-16: delegation gate WITH the amount actually being released
+      // (previously this path never called assertDelegation at all, so org
+      // maxAmount rules were silently skipped).
+      await assertDelegation(
+        ctx.user,
+        "release_retention",
+        totalReceivableRetention + totalPayableRetention,
+      );
+
       // Generate journal entries + release markers ATOMICALLY. Previously
       // each JE was created via `db` and then the IPC/sub-bill was updated
       // separately — a failure in between left a posted JE for a release
@@ -1893,14 +1913,12 @@ export const financialReportingRouter = router({
         // Keep the shared release tracker in sync — both release paths
         // maintain subcontractor.totalRetentionReleased, so the payment
         // path's over-release guard and retentionSummary see bulk releases.
+        // RMW FIX: atomic increment (was read-then-write — two concurrent
+        // releases could lose one bump; the payment path got the same fix).
         for (const [subId, amount] of trackerBumps) {
-          const sub = await tx.subcontractor.findUnique({
-            where: { id: subId },
-            select: { totalRetentionReleased: true },
-          });
           await tx.subcontractor.update({
             where: { id: subId },
-            data: { totalRetentionReleased: (sub?.totalRetentionReleased || 0) + amount },
+            data: { totalRetentionReleased: { increment: amount } },
           });
         }
       });

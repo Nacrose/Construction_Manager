@@ -44,7 +44,7 @@ beforeEach(() => {
 // ─── approve ────────────────────────────────────────────────────────────────
 describe("boqVersion.approve", () => {
   it("approves a draft version and locks the project BOQ in one transaction", async () => {
-    member("engineer");
+    member("project_manager"); // H-7: approval is a PM-tier decision
     anyDb.boqVersion.findUnique.mockResolvedValue(draftVersion());
     anyDb.project.findUnique.mockResolvedValue({ boqLocked: false });
     const caller = createCaller(boqVersionRouter, ENGINEER);
@@ -63,7 +63,7 @@ describe("boqVersion.approve", () => {
   });
 
   it("does not re-lock an already-locked project BOQ", async () => {
-    member("engineer");
+    member("project_manager"); // H-7: approval is a PM-tier decision
     anyDb.boqVersion.findUnique.mockResolvedValue(draftVersion());
     anyDb.project.findUnique.mockResolvedValue({ boqLocked: true });
     const caller = createCaller(boqVersionRouter, ENGINEER);
@@ -73,7 +73,7 @@ describe("boqVersion.approve", () => {
   });
 
   it("BAD_REQUESTs approving a non-draft version", async () => {
-    member("engineer");
+    member("project_manager"); // H-7: approval is a PM-tier decision
     anyDb.boqVersion.findUnique.mockResolvedValue(draftVersion({ status: "approved" }));
     const caller = createCaller(boqVersionRouter, ENGINEER);
     await expectTRPCError(
@@ -85,7 +85,7 @@ describe("boqVersion.approve", () => {
   });
 
   it("NOT_FOUNDs a version from ANOTHER project (IDOR guard)", async () => {
-    member("engineer");
+    member("project_manager"); // H-7: approval is a PM-tier decision
     anyDb.boqVersion.findUnique.mockResolvedValue(draftVersion({ projectId: "p-other" }));
     const caller = createCaller(boqVersionRouter, ENGINEER);
     await expectTRPCError(
@@ -96,7 +96,7 @@ describe("boqVersion.approve", () => {
   });
 
   it("CONFLICTs when a concurrent approval wins the race (CAS regression)", async () => {
-    member("engineer");
+    member("project_manager"); // H-7: approval is a PM-tier decision
     anyDb.boqVersion.findUnique.mockResolvedValue(draftVersion());
     // 0 rows matched → another approver already transitioned the version
     anyDb.boqVersion.updateMany.mockResolvedValue({ count: 0 });

@@ -239,7 +239,7 @@ describe("purchaseOrder.updateStatus", () => {
     // 100 ordered − 40 already received = 60 to top up on 50 → 110
     expect(anyDb.material.update).toHaveBeenCalledWith({
       where: { id: "mat-1" },
-      data: { currentStock: 110 },
+      data: { currentStock: { increment: 60 } },
     });
     expect(anyDb.materialTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

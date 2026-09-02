@@ -12,7 +12,14 @@ import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry, reverseJournalEntry } from "@/lib/journal-entry";
+import {
+  settleVendorBillInTx,
+  settleSubcontractorBillInTx,
+  unwindVendorBillSettlementInTx,
+  unwindSubcontractorBillSettlementInTx,
+} from "@/lib/bill-settlement";
 import { assertDelegation } from "@/lib/delegation";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 import { paymentDebitAccountForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { computeSubRetention } from "@/server/utils/retention";
 import { cached, invalidateProjectCache } from "@/lib/cache";
@@ -298,16 +305,15 @@ const paymentRouter = router({
         });
 
         // Settle the linked Vendor Bill (validated above).
+        // GUARDED ATOMIC SETTLEMENT (audit C-2): the authoritative
+        // overpayment guard lives in the UPDATE's WHERE clause and the
+        // bill `status` is derived inside the same statement. Previously
+        // this wrote `paidAmount: paidAtPreTxRead + amount` (a plain
+        // absolute write from a STALE pre-tx read) — two concurrent
+        // payments could both pass the stale check and jointly overpay,
+        // or one payment's effect could be lost entirely.
         if (linkedVendorBill) {
-          const newPaid = (linkedVendorBill.paidAmount || 0) + data.amount;
-          const isFullyPaid = newPaid >= linkedVendorBill.netPayable - 0.01;
-          await tx.vendorBill.update({
-            where: { id: linkedVendorBill.id },
-            data: {
-              paidAmount: newPaid,
-              status: isFullyPaid ? "paid" : "partially_paid",
-            },
-          });
+          await settleVendorBillInTx(tx, linkedVendorBill.id, data.amount, linkedVendorBill.billNumber);
           await tx.vendorPayment.create({
             data: {
               projectId,
@@ -317,20 +323,31 @@ const paymentRouter = router({
               paymentMethod: data.paymentMode || "bank_transfer",
               referenceNumber: data.chequeNo || data.accountingVoucherNo || null,
               remarks: data.notes || `Payment Voucher settlement`,
+              // Loose back-link to this Payment voucher — lets delete
+              // unwind exactly this bill payment (audit H-15).
+              sourcePaymentId: created.id,
               createdById: ctx.user.id,
             },
           });
         }
 
-        // Settle the linked Subcontractor Bill (validated above).
+        // Settle the linked Subcontractor Bill (validated above) — same
+        // guarded pattern, plus a per-payment SubcontractorPayment ledger
+        // row (mirrors the vendor path; enables installments under the
+        // JE @@unique([source, sourceRefId]) constraint — audit C-3).
         if (linkedSubBill) {
-          const newPaid = (linkedSubBill.paidAmount || 0) + data.amount;
-          const isFullyPaid = newPaid >= linkedSubBill.netPayable - 0.01;
-          await tx.subcontractorBill.update({
-            where: { id: linkedSubBill.id },
+          await settleSubcontractorBillInTx(tx, linkedSubBill.id, data.amount, linkedSubBill.number);
+          await tx.subcontractorPayment.create({
             data: {
-              paidAmount: newPaid,
-              status: isFullyPaid ? "paid" : "certified",
+              projectId,
+              subcontractorBillId: linkedSubBill.id,
+              amount: data.amount,
+              paymentDate,
+              paymentMethod: data.paymentMode || "bank_transfer",
+              referenceNumber: data.chequeNo || data.accountingVoucherNo || null,
+              remarks: data.notes || `Payment Voucher settlement`,
+              sourcePaymentId: created.id,
+              createdById: ctx.user.id,
             },
           });
         }
@@ -339,11 +356,8 @@ const paymentRouter = router({
         // on one (same behavior as the central cheque-run path). Atomic
         // decrement inside the same transaction.
         if (data.companyBankAccountId) {
-          await tx.$executeRaw`
-            UPDATE "CompanyBankAccount"
-            SET "currentBalance" = "currentBalance" - ${finalNetPaid}
-            WHERE "id" = ${data.companyBankAccountId}
-          `;
+          // P2 item 30: guarded decrement — rejects an overdraw atomically.
+          await decrementBankBalanceInTx(tx, data.companyBankAccountId, finalNetPaid);
         }
 
         return created;
@@ -391,7 +405,13 @@ const paymentRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertDelegation(ctx.user, "bulk_create_payments");
+      // H-16: delegation WITH the total batch amount (was called without
+      // an amount — org maxAmount rules silently skipped on bulk imports).
+      await assertDelegation(
+        ctx.user,
+        "bulk_create_payments",
+        input.payments.reduce((s, p) => s + p.amount, 0),
+      );
 
       // FISCAL YEAR LOCK: use the earliest payment date so back-dated
       // bulk imports to locked fiscal years are correctly rejected.
@@ -572,16 +592,26 @@ const paymentRouter = router({
     .input(z.object({ id: z.string(), projectId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      await assertDelegation(ctx.user, "create_payment");
 
       // IDOR FIX: verify the payment belongs to input.projectId.
       const existing = await db.payment.findFirst({
         where: { id: input.id, projectId: input.projectId },
-        select: { id: true, paymentDate: true, amount: true, payeeName: true, companyBankAccountId: true, netPaid: true, projectId: true },
+        select: {
+          id: true, paymentDate: true, amount: true, payeeName: true,
+          companyBankAccountId: true, netPaid: true, projectId: true,
+          // Needed to locate the settled bill for the settlement unwind
+          // (audit H-15) — linkage mirrors payment.create.
+          payeeType: true, invoiceNumber: true,
+        },
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found in this project." });
       }
+
+      // DELEGATION: gated on the payment's amount (audit H-16 — was
+      // called without an amount, silently skipping org maxAmount rules
+      // on one of the largest money paths).
+      await assertDelegation(ctx.user, "create_payment", existing.amount);
 
       // FISCAL YEAR LOCK
       await assertNotLocked(ctx.user.organizationId, existing.paymentDate);
@@ -613,6 +643,41 @@ const paymentRouter = router({
               je.id,
               `Payment deleted — ${existing.payeeName} (NPR ${existing.amount.toLocaleString()})`,
             );
+          }
+        }
+
+        // SETTLEMENT UNWIND (audit H-15): if this payment settled a bill,
+        // reverse the bill's paidAmount/status in the SAME transaction —
+        // previously the bill stayed "paid" with no payment behind it and
+        // the GL (reversed JE above) disagreed with the bill state. The
+        // unwind is a guarded atomic decrement floored at 0 with the
+        // status ladder recomputed in-statement. Per-payment bill rows
+        // (VendorPayment / SubcontractorPayment created by payment.create
+        // with a sourcePaymentId back-link) are removed too, so the bill's
+        // payment list can't show a payment that no longer exists.
+        if (existing.invoiceNumber) {
+          if (existing.payeeType === "vendor") {
+            const vBill = await tx.vendorBill.findFirst({
+              where: { projectId: existing.projectId, billNumber: existing.invoiceNumber },
+              select: { id: true, billNumber: true },
+            });
+            if (vBill) {
+              await unwindVendorBillSettlementInTx(tx, vBill.id, existing.amount, vBill.billNumber);
+              await tx.vendorPayment.deleteMany({
+                where: { vendorBillId: vBill.id, sourcePaymentId: input.id },
+              });
+            }
+          } else if (existing.payeeType === "subcontractor") {
+            const sBill = await tx.subcontractorBill.findFirst({
+              where: { projectId: existing.projectId, number: existing.invoiceNumber },
+              select: { id: true, number: true },
+            });
+            if (sBill) {
+              await unwindSubcontractorBillSettlementInTx(tx, sBill.id, existing.amount, sBill.number);
+              await tx.subcontractorPayment.deleteMany({
+                where: { subcontractorBillId: sBill.id, sourcePaymentId: input.id },
+              });
+            }
           }
         }
 
@@ -1023,11 +1088,12 @@ const paymentRouter = router({
 
         // Update the subcontractor's release tracker (single source of
         // truth for "how much retention has left the held state" — the
-        // bulk release path bumps it too).
+        // bulk release path bumps it too). RMW FIX: atomic increment —
+        // was read-then-write, losing bumps under concurrent releases.
         await tx.subcontractor.update({
           where: { id: input.subcontractorId },
           data: {
-            totalRetentionReleased: (sub.totalRetentionReleased || 0) + input.amount,
+            totalRetentionReleased: { increment: input.amount },
           },
         });
 

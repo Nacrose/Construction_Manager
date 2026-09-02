@@ -39,22 +39,26 @@ describe("accounting.trialBalance", () => {
     await expectTRPCError(caller.trialBalance({ projectId: "p-1" }), "FORBIDDEN");
   });
 
-  it("aggregates POSTED lines only, through the GL engine", async () => {
+  it("aggregates POSTED lines only, via DB-side groupBy (no truncation)", async () => {
     member("engineer");
-    anyDb.journalEntryLine.findMany.mockResolvedValue([
-      { accountCode: "1010", accountName: "Bank", debit: 100000, credit: 0 },
-      { accountCode: "1100", accountName: "Client Receivables", debit: 0, credit: 100000 },
+    // H-11 FIX: the trial balance aggregates in the DATABASE (groupBy) —
+    // the old findMany({ take: 1000 }) truncated at 1,000 GL lines and
+    // returned wrong totals as authoritative.
+    anyDb.journalEntryLine.groupBy.mockResolvedValue([
+      { accountCode: "1010", _sum: { debit: 100000, credit: 0 }, _max: { accountName: "Bank" } },
+      { accountCode: "1100", _sum: { debit: 0, credit: 100000 }, _max: { accountName: "Client Receivables" } },
     ]);
 
     const caller = createCaller(accountingRouter, ENGINEER);
     const res = await caller.trialBalance({ projectId: "p-1" });
 
-    // Posted entries only, scoped to the project
-    const where = anyDb.journalEntryLine.findMany.mock.calls[0][0].where;
-    expect(where).toEqual({
+    // Posted entries only, scoped to the project — grouped by account.
+    const args = anyDb.journalEntryLine.groupBy.mock.calls[0][0];
+    expect(args.where).toEqual({
       projectId: "p-1",
       journalEntry: { isPosted: true },
     });
+    expect(args.by).toEqual(["accountCode"]);
 
     expect(res.totalDebits).toBe(100000);
     expect(res.totalCredits).toBe(100000);
@@ -64,9 +68,9 @@ describe("accounting.trialBalance", () => {
 
   it("flags unbalanced GL data (corruption detection)", async () => {
     member("engineer");
-    anyDb.journalEntryLine.findMany.mockResolvedValue([
-      { accountCode: "1010", accountName: "Bank", debit: 100, credit: 0 },
-      { accountCode: "2001", accountName: "Sundry Creditors", debit: 0, credit: 90 },
+    anyDb.journalEntryLine.groupBy.mockResolvedValue([
+      { accountCode: "1010", _sum: { debit: 100, credit: 0 }, _max: { accountName: "Bank" } },
+      { accountCode: "2001", _sum: { debit: 0, credit: 90 }, _max: { accountName: "Sundry Creditors" } },
     ]);
     const caller = createCaller(accountingRouter, ENGINEER);
     const res = await caller.trialBalance({ projectId: "p-1" });

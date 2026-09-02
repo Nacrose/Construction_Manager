@@ -108,12 +108,15 @@ describe("dailyReportAttachments.listAttachments", () => {
     expect(anyDb.dailyReportAttachment.findMany).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles (client) — current behavior", async () => {
+  it("ALLOWS read-only roles (client) to view attachments — direction fix", async () => {
+    // AUDIT §4 DIRECTION FIX: viewing report photos is a READ — the old
+    // behavior (assertCanWrite on a view) locked read-only roles out of
+    // their own reports' photo gallery. A client member now succeeds.
     member("client");
     anyDb.dailyReport.findUnique.mockResolvedValue(report());
     const caller = createCaller(dailyReportAttachmentsRouter, USER);
-    await expectTRPCError(caller.listAttachments({ reportId: "rep-1" }), "FORBIDDEN");
-    expect(anyDb.dailyReportAttachment.findMany).not.toHaveBeenCalled();
+    const res = await caller.listAttachments({ reportId: "rep-1" });
+    expect(res.attachments).toBeDefined();
   });
 });
 

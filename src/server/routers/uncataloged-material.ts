@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { findSimilarMaterials, normalizeMaterialName } from "@/lib/fuzzy-match";
+import { isOrgAdmin } from "@/lib/authz";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const uncatalogedMaterialRouter = router({
@@ -298,7 +299,10 @@ export const uncatalogedMaterialRouter = router({
         if (ctx.user.organizationId !== orgId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized for this organization." });
         }
-        if (!["admin", "owner"].includes(ctx.user.orgRole?.toLowerCase() || "")) {
+        // ROLE-DRIFT FIX (audit §4): this checked ["admin", "owner"] but
+        // the app's org-admin role string is "org_admin" — real org admins
+        // were locked out of promoteToOrg. Use the canonical isOrgAdmin.
+        if (!isOrgAdmin(ctx.user)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Admin role required." });
         }
       }

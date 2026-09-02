@@ -24,12 +24,21 @@ export const ganttImportRouter = router({
     .mutation(async ({ ctx, input }) => {
       const version = await db.ganttVersion.findUnique({
         where: { id: input.versionId },
-        select: { projectId: true, versionNumber: true, scheduleType: true },
+        select: { projectId: true, versionNumber: true, scheduleType: true, status: true },
       });
       if (!version) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Version not found" });
       }
       await assertCanWrite(ctx.user, version.projectId);
+      // H-6 FIX: enforce the same draft gate as every other Gantt mutation
+      // (assertVersionIsEditable) — an import must never overwrite an
+      // approved baseline.
+      if (version.status && version.status !== "DRAFT") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Version ${version.versionNumber} is ${version.status} — imports are only allowed on DRAFT versions.`,
+        });
+      }
 
       const result = parseMSPXML(input.xml);
       if (result.tasks.length === 0) {
@@ -82,12 +91,21 @@ export const ganttImportRouter = router({
     .mutation(async ({ ctx, input }) => {
       const version = await db.ganttVersion.findUnique({
         where: { id: input.versionId },
-        select: { projectId: true, versionNumber: true },
+        select: { projectId: true, versionNumber: true, status: true },
       });
       if (!version) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Version not found" });
       }
       await assertCanWrite(ctx.user, version.projectId);
+      // H-6 FIX: draft gate on the WRITE path — previously commit/preview
+      // were the only Gantt mutations without it, so an import could
+      // silently overwrite an approved baseline.
+      if (version.status && version.status !== "DRAFT") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Version ${version.versionNumber} is ${version.status} — imports are only allowed on DRAFT versions.`,
+        });
+      }
 
       const result = parseMSPXML(input.xml);
       if (result.tasks.length === 0) {

@@ -479,10 +479,12 @@ describe("dailyReport.updateReport (approval inventory deduction)", () => {
       }),
     );
     expect(txn.remarks).toContain("Auto-deducted from Daily Report DR-001");
-    expect(anyDb.material.update).toHaveBeenCalledWith({
-      where: { id: "m-1" },
-      data: { currentStock: 30 }, // 50 − 20
-    });
+    // H-12 FIX: the deduction is an atomic floored raw UPDATE now.
+    const dec = anyDb.$executeRaw.mock.calls.find((c: any[]) => c[0].join("?").includes('UPDATE "Material"'));
+    expect(dec).toBeDefined();
+    expect(dec[0].join("?")).toContain("GREATEST");
+    expect(dec.slice(1)).toContain("m-1");
+    expect(dec.slice(1)).toContain(20); // 50 − 20
   });
 
   it("clamps the resulting stock at zero (never negative)", async () => {
@@ -497,8 +499,10 @@ describe("dailyReport.updateReport (approval inventory deduction)", () => {
     await caller.updateReport({ reportId: "r-1", status: "approved" });
     // The issue transaction records the FULL consumed qty…
     expect(anyDb.materialTransaction.create.mock.calls[0][0].data.quantity).toBe(20);
-    // …but the stock column floors at 0.
-    expect(anyDb.material.update.mock.calls[0][0].data.currentStock).toBe(0);
+    // …but the stock column floors at 0 (GREATEST in the atomic UPDATE).
+    const dec = anyDb.$executeRaw.mock.calls.find((c: any[]) => c[0].join("?").includes('UPDATE "Material"'));
+    expect(dec).toBeDefined();
+    expect(dec[0].join("?")).toContain("GREATEST");
   });
 
   it("does NOT deduct again when re-approving after a revert (idempotency guard)", async () => {

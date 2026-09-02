@@ -388,12 +388,13 @@ describe("bankGuarantee release/update/delete", () => {
         }),
       })
     );
-    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "bank-1" },
-        data: { currentBalance: { decrement: 7500 } },
-      })
-    );
+    // P2 item 30: the decrement is a guarded atomic raw UPDATE now
+    // (insufficient-funds check in the WHERE clause).
+    const dec1 = anyDb.$executeRaw.mock.calls.find((c: any[]) => c[0].join("?").includes('UPDATE "CompanyBankAccount"'));
+    expect(dec1).toBeDefined();
+    expect(dec1[0].join("?")).toContain('"currentBalance" - ? >= 0');
+    expect(dec1.slice(1)).toContain("bank-1");
+    expect(dec1.slice(1)).toContain(7500);
   });
 
   it("update synchronizes linked Day Book voucher and adjusts bank balances", async () => {
@@ -443,11 +444,12 @@ describe("bankGuarantee release/update/delete", () => {
         }),
       })
     );
-    // Decrements new bank account
-    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
-      where: { id: "bank-2" },
-      data: { currentBalance: { decrement: 9000 } },
-    });
+    // Decrements new bank account (guarded atomic raw UPDATE — P2 item 30)
+    const dec2 = anyDb.$executeRaw.mock.calls.filter((c: any[]) => c[0].join("?").includes('UPDATE "CompanyBankAccount"'));
+    expect(dec2.length).toBeGreaterThan(0);
+    const last = dec2[dec2.length - 1];
+    expect(last.slice(1)).toContain("bank-2");
+    expect(last.slice(1)).toContain(9000);
   });
 
   it("delete removes linked Day Book voucher and restores bank balance", async () => {

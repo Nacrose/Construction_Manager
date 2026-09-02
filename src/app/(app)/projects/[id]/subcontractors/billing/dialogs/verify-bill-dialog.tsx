@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { isQueuedMutationResult } from "@/lib/offline-fetch";
 import {
   Dialog,
   DialogContent,
@@ -111,6 +112,14 @@ export function VerifyBillDialog({
 
   const verifyMut = trpc.subcontractorBill.verifyBill.useMutation({
     onSuccess: (data) => {
+      // H-18 (c): offline-queue path — the synthetic "_queued" reply has no
+      // bill object; reading data.bill.status crashed the dialog.
+      if (isQueuedMutationResult(data)) {
+        toast.success("Verification saved offline — it will sync when you're back online");
+        onOpenChange(false);
+        onSuccess();
+        return;
+      }
       toast.success(
         data.bill.status === "certified"
           ? "Bill verified & certified successfully!"

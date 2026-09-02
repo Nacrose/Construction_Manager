@@ -94,12 +94,12 @@ describe("payment.create — validation", () => {
       "BAD_REQUEST",
     );
     expect(anyDb.payment.create).not.toHaveBeenCalled();
-    expect(anyDb.vendorBill.update).not.toHaveBeenCalled();
+    expect(anyDb.$executeRaw).not.toHaveBeenCalled();
   });
 });
 
 describe("payment.create — journal entry routing", () => {
-  it("settling a vendor bill debits Sundry Creditors and flips partially_paid", async () => {
+  it("settling a vendor bill debits Sundry Creditors via the guarded UPDATE", async () => {
     member("engineer");
     anyDb.vendorBill.findFirst.mockResolvedValue({
       id: "vb-1",
@@ -107,6 +107,7 @@ describe("payment.create — journal entry routing", () => {
       paidAmount: 40,
       netPayable: 100,
     });
+    anyDb.payment.create.mockResolvedValue({ id: "pay-voucher-1" });
     const caller = createCaller(projectOpsRouter, USER);
     await caller.payment.create({ ...basePayment, amount: 30, invoiceNumber: "INV-1" });
 
@@ -115,19 +116,53 @@ describe("payment.create — journal entry routing", () => {
     expect(debitLine.accountCode).toBe("2001");
     expect(debitLine.debit).toBe(30);
 
-    expect(anyDb.vendorBill.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { paidAmount: 70, status: "partially_paid" },
-      }),
-    );
+    // GUARDED SETTLEMENT (audit C-2): settlement goes through the guarded
+    // atomic UPDATE (WHERE id AND paidAmount + amount <= netPayable + 0.01
+    // — status derived in-statement), never a plain absolute write.
+    // Tagged-template call: [strings, ...values] — values carry amount,
+    // id and amount again for the WHERE guard.
+    expect(anyDb.$executeRaw).toHaveBeenCalled();
+    const settleCall = anyDb.$executeRaw.mock.calls[0];
+    const sqlText = settleCall[0].join("?");
+    expect(sqlText).toContain('UPDATE "VendorBill"');
+    expect(sqlText).toContain('"paidAmount" + ? <= "netPayable" + 0.01');
+    expect(settleCall.slice(1)).toContain("vb-1");
+    expect(settleCall.slice(1)).toContain(30);
+
+    // Per-payment bill row back-linked to the voucher (audit H-15 unwind).
     expect(anyDb.vendorPayment.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ vendorBillId: "vb-1", amount: 30 }),
+        data: expect.objectContaining({ vendorBillId: "vb-1", amount: 30, sourcePaymentId: "pay-voucher-1" }),
       }),
     );
   });
 
-  it("full settlement flips the bill to paid", async () => {
+  it("rejects overpayment INSIDE the tx when the guarded UPDATE affects 0 rows", async () => {
+    // C-2 regression pin: even if the pre-tx fast-fail check passes
+    // (stale read), the guarded UPDATE's WHERE clause is authoritative —
+    // rowcount 0 ⇒ overpayment ⇒ the whole transaction throws.
+    member("engineer");
+    anyDb.vendorBill.findFirst.mockResolvedValue({
+      id: "vb-1",
+      billNumber: "INV-1",
+      paidAmount: 40,
+      netPayable: 100,
+    });
+    anyDb.vendorBill.findUnique.mockResolvedValue({
+      paidAmount: 65, // a concurrent payment moved it 40 → 65
+      netPayable: 100,
+    });
+    anyDb.$executeRaw.mockResolvedValue(0); // guard rejected
+    const caller = createCaller(projectOpsRouter, USER);
+    await expectTRPCError(
+      caller.payment.create({ ...basePayment, amount: 30, invoiceNumber: "INV-1" }),
+      "BAD_REQUEST",
+    );
+    // No vendor payment ledger row is written for a rejected payment.
+    expect(anyDb.vendorPayment.create).not.toHaveBeenCalled();
+  });
+
+  it("full settlement is guarded by the same atomic UPDATE", async () => {
     member("engineer");
     anyDb.vendorBill.findFirst.mockResolvedValue({
       id: "vb-1",
@@ -137,9 +172,9 @@ describe("payment.create — journal entry routing", () => {
     });
     const caller = createCaller(projectOpsRouter, USER);
     await caller.payment.create({ ...basePayment, amount: 30, invoiceNumber: "INV-1" });
-    expect(anyDb.vendorBill.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { paidAmount: 100, status: "paid" } }),
-    );
+    const settleCall = anyDb.$executeRaw.mock.calls[0];
+    expect(settleCall[0].join("?")).toContain('UPDATE "VendorBill"');
+    expect(settleCall.slice(1)).toContain(30);
   });
 
   it("unlinked payments debit the category expense account, never a payable", async () => {
@@ -252,6 +287,67 @@ describe("payment.delete", () => {
     );
     expect(anyDb.payment.delete).not.toHaveBeenCalled();
   });
+
+  it("unwinds the settled vendor bill's paidAmount/status in the same tx (H-15)", async () => {
+    member("engineer");
+    anyDb.payment.findFirst.mockResolvedValue({
+      id: "pay-1",
+      projectId: "p-1",
+      paymentDate: new Date("2026-08-01"),
+      amount: 1000,
+      payeeName: "Everest Suppliers",
+      companyBankAccountId: null,
+      netPaid: 1000,
+      payeeType: "vendor",
+      invoiceNumber: "INV-1",
+    });
+    anyDb.journalEntry.findMany.mockResolvedValue([]); // no JEs to reverse
+    anyDb.vendorBill.findFirst.mockResolvedValue({ id: "vb-1", billNumber: "INV-1" });
+
+    const caller = createCaller(projectOpsRouter, USER);
+    await caller.payment.delete({ id: "pay-1", projectId: "p-1" });
+
+    // Guarded atomic decrement of paidAmount + status recomputed in-statement.
+    const unwindCall = anyDb.$executeRaw.mock.calls[0];
+    expect(unwindCall[0].join("?")).toContain('UPDATE "VendorBill"');
+    expect(unwindCall[0].join("?")).toContain("GREATEST");
+    expect(unwindCall.slice(1)).toContain("vb-1");
+    expect(unwindCall.slice(1)).toContain(1000);
+
+    // The per-payment bill row created by payment.create is removed too —
+    // the bill's payment list can't show a payment that no longer exists.
+    expect(anyDb.vendorPayment.deleteMany).toHaveBeenCalledWith({
+      where: { vendorBillId: "vb-1", sourcePaymentId: "pay-1" },
+    });
+    expect(anyDb.payment.delete).toHaveBeenCalledWith({ where: { id: "pay-1" } });
+  });
+
+  it("unwinds a settled subcontractor bill (H-15)", async () => {
+    member("engineer");
+    anyDb.payment.findFirst.mockResolvedValue({
+      id: "pay-2",
+      projectId: "p-1",
+      paymentDate: new Date("2026-08-01"),
+      amount: 500,
+      payeeName: "ABC Constructions",
+      companyBankAccountId: null,
+      netPaid: 500,
+      payeeType: "subcontractor",
+      invoiceNumber: "SUB-1",
+    });
+    anyDb.journalEntry.findMany.mockResolvedValue([]);
+    anyDb.subcontractorBill.findFirst.mockResolvedValue({ id: "sb-1", number: "SUB-1" });
+
+    const caller = createCaller(projectOpsRouter, USER);
+    await caller.payment.delete({ id: "pay-2", projectId: "p-1" });
+
+    const unwindCall = anyDb.$executeRaw.mock.calls[0];
+    expect(unwindCall[0].join("?")).toContain('UPDATE "SubcontractorBill"');
+    expect(unwindCall.slice(1)).toContain("sb-1");
+    expect(anyDb.subcontractorPayment.deleteMany).toHaveBeenCalledWith({
+      where: { subcontractorBillId: "sb-1", sourcePaymentId: "pay-2" },
+    });
+  });
 });
 
 // ─── payment.bulkCreate ─────────────────────────────────────────────────────
@@ -357,9 +453,10 @@ describe("payment.releaseRetention", () => {
     expect(lines[1].accountCode).toBe("1010"); // Bank — NOT 2002 Subcontractor Payables
     expect(lines[1].credit).toBe(3000);
 
+    // RMW FIX: the release tracker bumps via atomic increment now.
     expect(anyDb.subcontractor.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { totalRetentionReleased: 4000 },
+        data: { totalRetentionReleased: { increment: 3000 } },
       }),
     );
   });

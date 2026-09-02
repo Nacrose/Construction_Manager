@@ -72,6 +72,22 @@ function makeQueuedResponse(procedureNames: string[] | null): Response {
 }
 
 /**
+ * H-18 (c): type-guard for the SYNTHETIC "queued" response shape produced
+ * by makeQueuedResponse. When a mutation is enqueued offline, its tRPC
+ * hook resolves with `{ _queued: true, queuedAt, procedure }` INSTEAD of
+ * the real result — consumers MUST branch on this (the old dialogs read
+ * `res.ticket.slipNumber` off it and crashed).
+ */
+export function isQueuedMutationResult(res: unknown): boolean {
+  return (
+    typeof res === "object" &&
+    res !== null &&
+    "_queued" in res &&
+    (res as { _queued?: unknown })._queued === true
+  );
+}
+
+/**
  * Determine if a response is the SW's "offline" stub.
  */
 async function isOfflineResponse(res: Response): Promise<boolean> {

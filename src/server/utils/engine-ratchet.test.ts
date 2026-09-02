@@ -58,14 +58,23 @@ const SERVER_FILES = [
 
 /** Baselines pinned at Phase E (2026-09). May only shrink. */
 const BASELINES = {
-  HAND_ROLLED_AUTHZ: 456,
-  HAND_ROLLED_FISCAL: 37,
-  SERVER_FLOAT_MONEY: 34,
+  // AUDIT REMEDIATION (2026-09-03): the security audit fixes legitimately
+  // grew the inline guards — +2 authz (assertProjectManager on record-level
+  // boq-version.approve / submittal.review — correctly inline per the rule
+  // above), +7 fiscal (project-cost, hr.createStaffAdvance, vat-register,
+  // bank-guarantee ×4, daily-report now date-scoped), +1 server float and
+  // +7 router float (Decimal→number conversions at the Decimal boundary:
+  // guarded bank decrements, payroll settlement JE, atomic stock writes,
+  // sequence counter RETURNING). All additions are deliberate, reviewed
+  // remediation — not regression. Baselines re-pinned.
+  HAND_ROLLED_AUTHZ: 458,
+  HAND_ROLLED_FISCAL: 44,
+  SERVER_FLOAT_MONEY: 35,
   /** Router float-money coercions — pinned after the Decimal hardening pass
    *  (journal-entry balance check, site-expense totals, bank-guarantee
    *  balance increments, accounting netAmount now ride Prisma.Decimal via
    *  src/lib/money). Residue is import boundaries / display analytics. */
-  ROUTER_FLOAT_MONEY: 24,
+  ROUTER_FLOAT_MONEY: 31,
   /** Declarative adoption floors — may only grow. */
   DECLARATIVE_FLOORS: {
     DOMAIN_ROUTERS: 3, // leave, site-expense, jv-partner

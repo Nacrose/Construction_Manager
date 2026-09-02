@@ -11,6 +11,8 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { assertDelegation } from "@/lib/delegation";
 import { audit } from "@/lib/audit";
 
 const DirectVatBillSchema = z.object({
@@ -567,6 +569,15 @@ export const vatRegisterRouter = router({
       await assertCanWrite(ctx.user, input.projectId);
 
       const billDate = input.billDate ? new Date(input.billDate) : new Date();
+
+      // FISCAL LOCK + DELEGATION FIX (audit §4 / roadmap item 16):
+      // statutory tax records previously had NO lock — a direct VAT bill
+      // back-dated into a locked fiscal year bypassed the lock entirely.
+      // Delegation reuses the vendor-bill action (this IS a vendor tax
+      // bill creation), so org maxAmount rules apply.
+      await assertNotLocked(ctx.user.organizationId, billDate);
+      await assertDelegation(ctx.user, "create_vendor_bill", input.taxableAmount);
+
       const vatAmount = (input.taxableAmount * (input.vatPercent ?? 13)) / 100;
       const totalAmount = input.taxableAmount + input.exemptAmount + vatAmount;
       const tdsAmount = (input.taxableAmount * (input.tdsPercent || 0)) / 100;

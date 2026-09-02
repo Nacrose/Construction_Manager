@@ -11,6 +11,7 @@ import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/a
 import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { settleSubcontractorBillInTx } from "@/lib/bill-settlement";
 import { assertDelegation } from "@/lib/delegation";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
 import { transitionEntityState } from "@/server/utils/state-machine";
@@ -172,7 +173,14 @@ export const subcontractorBillRouter = router({
   /** Create a new subcontractor bill with line items. */
   create: protectedProcedure.input(CreateBillSchema).mutation(async ({ ctx, input }) => {
     await assertCanWrite(ctx.user, input.projectId);
-    await assertDelegation(ctx.user, "create_subcontractor_bill");
+    // H-16: delegation WITH the gross amount (items Σ qty×rate — was
+    // called without an amount, silently skipping org maxAmount rules on
+    // one of the largest money paths).
+    await assertDelegation(
+      ctx.user,
+      "create_subcontractor_bill",
+      input.items.reduce((s, it) => s + it.thisQty * it.rate, 0),
+    );
 
     // FISCAL YEAR LOCK — BEFORE any write (matches vendor-bill.create).
     // Previously this ran AFTER the bill row was committed: on a locked
@@ -604,9 +612,6 @@ export const subcontractorBillRouter = router({
         });
       }
 
-      const isFull = newPaidAmount >= bill.netPayable - 0.01;
-      const newStatus = isFull ? "paid" : "certified";
-
       const subName = bill.subcontractor?.name || "Subcontractor";
 
       // ATOMICITY FIX: the bill increment and the payment journal entry
@@ -616,15 +621,28 @@ export const subcontractorBillRouter = router({
       // GL trace of the payment, and no retry path.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
-        // Atomic increment to avoid lost-update race on concurrent payments.
-        // Previously this used `bill.paidAmount + input.amount` (read-then-write)
-        // — two concurrent markPaid calls would race and one payment would be lost.
-        await tx.$executeRaw`
-          UPDATE "SubcontractorBill"
-          SET "paidAmount" = "paidAmount" + ${input.amount},
-              "status" = ${newStatus}
-          WHERE "id" = ${input.billId}
-        `;
+
+        // Per-payment ledger row (mirrors VendorPayment) — audit C-3. The
+        // JE below keys on THIS id; keyed on the bill id, a second
+        // installment violated @@unique([source, sourceRefId]) and
+        // multi-installment payment was functionally locked out.
+        const subPayment = await tx.subcontractorPayment.create({
+          data: {
+            projectId: input.projectId,
+            subcontractorBillId: input.billId,
+            amount: input.amount,
+            paymentMethod: "bank_transfer",
+            createdById: ctx.user.id,
+          },
+        });
+
+        // GUARDED ATOMIC SETTLEMENT (audit C-2): the overpayment guard
+        // lives in the UPDATE's WHERE clause and `status` is derived
+        // inside the same statement (paid | certified). Previously the
+        // increment was atomic but unguarded, with `status` computed from
+        // the stale pre-tx read — two concurrent markPaid calls could
+        // jointly overpay the bill.
+        await settleSubcontractorBillInTx(tx, input.billId, input.amount, bill.number);
 
         // Generate journal entry for subcontractor payment.
         //
@@ -633,12 +651,15 @@ export const subcontractorBillRouter = router({
         // liability-creation JE. Both previously used the same source +
         // sourceRefId, making idempotency checks impossible.
         //
+        // C-3 FIX: sourceRefId is the SubcontractorPayment row id, not the
+        // bill id — installments each get their own JE.
+        //
         // Dr Subcontractor Payables (2002) = input.amount
         //    Cr Bank (1010)               = input.amount
         await createJournalEntry(tx, {
           source: "subcontractor_payment",
-          sourceRefId: input.billId,
-          sourceRefType: "SubcontractorBill",
+          sourceRefId: subPayment.id,
+          sourceRefType: "SubcontractorPayment",
           description: `Subcontractor payment to ${subName} — ${bill.number}`,
           entryDate: new Date(),
           postedById: ctx.user.id,
@@ -675,10 +696,10 @@ export const subcontractorBillRouter = router({
         action: "subcontractor.bill.pay",
         entityType: "subcontractor_bill",
         entityId: input.billId,
-        metadata: { number: bill.number, amount: input.amount, newPaidAmount: updated.paidAmount, isFull },
+        metadata: { number: bill.number, amount: input.amount, newPaidAmount: updated.paidAmount },
       });
 
-      return { bill: updated, remaining: Math.max(0, bill.netPayable - newPaidAmount) };
+      return { bill: updated, remaining: Math.max(0, bill.netPayable - (bill.paidAmount + input.amount)) };
     }),
 
   /** Delete a draft bill. */

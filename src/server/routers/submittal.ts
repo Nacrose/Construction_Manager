@@ -6,7 +6,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 
 import { transitionEntityState } from "@/server/utils/state-machine";
@@ -102,7 +102,10 @@ export const submittalRouter = router({
       id: z.string(),
       status: z.enum(["approved", "rejected", "revise_resubmit"]),
       reviewComments: z.string().optional(),
-      reviewedBy: z.string().optional(),
+      // H-7 FIX: the client-supplied `reviewedBy` field was REMOVED — it
+      // let any caller spoof the recorded reviewer identity. The audit
+      // trail always names the authenticated reviewer now. (Old clients
+      // that still send it have the key stripped by zod.)
       returnedFileData: z.string().optional(),
       returnedFileName: z.string().optional(),
       returnedFileType: z.string().optional(),
@@ -110,14 +113,17 @@ export const submittalRouter = router({
     .mutation(async ({ ctx, input }) => {
       const s = await db.submittal.findUnique({ where: { id: input.id } });
       if (!s) throw new TRPCError({ code: "NOT_FOUND" });
-      await assertCanWrite(ctx.user, s.projectId);
+      // H-7 PRIVILEGE-TIER FIX: the review decision (approve/reject/
+      // revise-resubmit of a consultant submittal) is a project-manager
+      // call, not any implicit engineer.
+      await assertProjectManager(ctx.user, s.projectId);
 
       const { entity: updated } = await transitionEntityState(db, {
         model: "submittal",
         id: input.id,
         targetState: input.status,
         userId: ctx.user.id,
-        userName: input.reviewedBy || ctx.user.name,
+        userName: ctx.user.name,
         notes: input.reviewComments,
         projectId: s.projectId,
         additionalData: {
@@ -134,7 +140,7 @@ export const submittalRouter = router({
         action: "submittal.review",
         entityType: "submittal",
         entityId: s.id,
-        metadata: { number: s.number, status: input.status, reviewedBy: input.reviewedBy || ctx.user.name },
+        metadata: { number: s.number, status: input.status, reviewedBy: ctx.user.name },
       });
       return { submittal: updated };
     }),

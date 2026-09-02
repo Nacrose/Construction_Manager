@@ -28,7 +28,9 @@ import { fiscalYearRouter } from "../fiscal-year";
 
 const anyDb = db as any;
 const ENGINEER = buildUser();
-const SUPERADMIN = buildUser({ isSuperAdmin: true });
+// H-7: rollForwardCatalog rides superAdminProcedure — requires a dedicated
+// admin-session superadmin (isPlatformAdmin + sessionKind "admin").
+const SUPERADMIN = buildUser({ isSuperAdmin: true, isPlatformAdmin: true, sessionKind: "admin" });
 
 function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);

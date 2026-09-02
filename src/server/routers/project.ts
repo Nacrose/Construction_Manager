@@ -456,6 +456,11 @@ export const projectRouter = router({
     .input(AddMemberSchema)
     .mutation(async ({ ctx, input }) => {
       await assertProjectAdmin(ctx.user, input.projectId);
+      // H-8 ESCALATION FIX: coordinators pass assertProjectAdmin, but only
+      // a project manager (or org admin) may mint another project_manager.
+      if (input.role === "project_manager") {
+        await assertProjectManager(ctx.user, input.projectId);
+      }
 
       // Fetch the project so we can verify the new member belongs to the
       // same organization as the project.
@@ -556,6 +561,10 @@ export const projectRouter = router({
     .input(UpdateMemberSchema)
     .mutation(async ({ ctx, input }) => {
       await assertProjectAdmin(ctx.user, input.projectId);
+      // H-8 ESCALATION FIX: coordinators may not grant project_manager.
+      if (input.role === "project_manager") {
+        await assertProjectManager(ctx.user, input.projectId);
+      }
 
       const membership = await db.projectMember.findUnique({
         where: { id: input.memberId },

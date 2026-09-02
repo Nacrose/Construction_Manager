@@ -12,6 +12,7 @@ import { audit } from "@/lib/audit";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
 import { createJournalEntry, vendorPaymentEntry } from "@/lib/journal-entry";
+import { settleVendorBillInTx } from "@/lib/bill-settlement";
 import { formatNpr } from "@/lib/currency";
 
 
@@ -345,6 +346,10 @@ export const vendorBillRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Vendor bill not found." });
       }
 
+      // Fast-fail UX pre-check against the pre-tx read. The AUTHORITATIVE
+      // overpayment guard is the guarded UPDATE inside the transaction
+      // below (settleVendorBillInTx) — two concurrent payments can no
+      // longer both pass this check and jointly overpay (audit C-2).
       const remainingPayable = bill.netPayable - bill.paidAmount;
       if (input.amount > remainingPayable + 0.01) {
         throw new TRPCError({
@@ -352,10 +357,6 @@ export const vendorBillRouter = router({
           message: `Payment amount (${formatNpr(input.amount)}) exceeds remaining net payable amount (${formatNpr(Math.max(0, remainingPayable))}).`,
         });
       }
-
-
-      const isFull = (bill.paidAmount + input.amount) >= bill.netPayable - 0.01;
-      const newStatus = isFull ? "paid" : "partially_paid";
 
       const payment = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
@@ -372,22 +373,24 @@ export const vendorBillRouter = router({
           },
         });
 
-        // Atomic increment to avoid lost-update race on concurrent payments.
-        // Previously this used `bill.paidAmount + input.amount` (read-then-write)
-        // — two concurrent payments would race and one would be lost.
-        await tx.$executeRaw`
-          UPDATE "VendorBill"
-          SET "paidAmount" = "paidAmount" + ${input.amount},
-              "status" = ${newStatus}
-          WHERE "id" = ${input.vendorBillId}
-        `;
+        // GUARDED ATOMIC SETTLEMENT (audit C-2): the overpayment guard
+        // lives in the UPDATE's WHERE clause and the bill `status` is
+        // derived inside the same statement. Previously the increment was
+        // atomic but unguarded, with `status` computed from the stale
+        // pre-tx read — two concurrent payments could jointly overpay.
+        await settleVendorBillInTx(tx, input.vendorBillId, input.amount, bill.billNumber);
 
         // Generate the double-entry journal entry for this payment.
         // Dr Sundry Creditors (vendor payable reduced)
         //    Cr TDS Payable (if TDS deducted)
         //    Cr Bank / Cash (net amount paid out)
+        //
+        // JE IDEMPOTENCY KEY = the VendorPayment row id (audit C-3) — a
+        // second installment on the same bill no longer collides with the
+        // first payment's JE on @@unique([source, sourceRefId]).
         const vendorName = bill.partner?.name || bill.billNumber;
         const jeInput = vendorPaymentEntry({
+          paymentId: p.id,
           vendorBillId: input.vendorBillId,
           vendorName,
           amount: input.amount,
@@ -406,6 +409,12 @@ export const vendorBillRouter = router({
 
         return p;
       });
+
+      // Informational status for the response/audit trail, derived from the
+      // pre-tx read (the AUTHORITATIVE status lives in the DB and was set by
+      // the guarded UPDATE above — two concurrent payments could both show
+      // "paid" here while the DB correctly says otherwise; display-only).
+      const newStatus = bill.paidAmount + input.amount >= bill.netPayable - 0.01 ? "paid" : "partially_paid";
 
       await audit({
         userId: ctx.user.id,

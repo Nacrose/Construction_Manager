@@ -63,7 +63,11 @@ export async function createJournalEntry(
   const totalCredit = addMoney(...input.lines.map((l) => l.credit));
 
   const diff = subMoney(totalDebit, totalCredit);
-  if (diff.abs().gt("0.01")) {
+  // P2 HARDENING (ADR-0001 "fail loud"): the old 0.01 tolerance PERSISTED
+  // 1-paisa imbalances. Every amount is coerced through toMoney (exact 2dp
+  // Decimal) before summing, so a nonzero diff is a REAL imbalance in the
+  // caller's paired derivations — reject it instead of writing it to the GL.
+  if (diff.abs().gt("0")) {
     throw new Error(
       `Unbalanced journal entry: debit=${totalDebit}, credit=${totalCredit}, diff=${diff}. ` +
         `Source: ${input.source}, refId: ${input.sourceRefId ?? "none"}. ` +
@@ -243,8 +247,17 @@ export async function reverseJournalEntry(
  *
  * Dr Sundry Creditors (vendor)   NPR X  (2001)
  *    Cr Bank / Cash               NPR X  (1010/1001)
+ *
+ * IDEMPOTENCY KEY (audit C-3): `sourceRefId` MUST be the VendorPayment row
+ * id — not the bill id. JournalEntry carries
+ * @@unique([source, sourceRefId]); keyed by bill id, a SECOND payment on
+ * the same bill (partial payment / installment / correction) violated the
+ * unique constraint, rolled the whole payment back, and multi-installment
+ * payment was functionally locked out. Keyed per payment, the constraint
+ * correctly dedupes retries of the SAME payment.
  */
 export function vendorPaymentEntry(params: {
+  paymentId: string;
   vendorBillId: string;
   vendorName: string;
   amount: number;
@@ -304,7 +317,7 @@ export function vendorPaymentEntry(params: {
 
   return {
     source: "payment",
-    sourceRefId: params.vendorBillId,
+    sourceRefId: params.paymentId,
     sourceRefType: "VendorPayment",
     description: `Vendor payment to ${params.vendorName}`,
     entryDate: params.date,

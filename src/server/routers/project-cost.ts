@@ -19,6 +19,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { invalidateProjectCache } from "@/lib/cache";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
 
 const MAX_RECEIPT_SIZE = 5 * 1024 * 1024; // 5MB for receipt photos
@@ -157,6 +158,10 @@ export const projectCostRouter = router({
     .input(CreateExpenseSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // FISCAL LOCK FIX (audit §4): project costs had NO lock — a
+      // back-dated cost distorted the actuals of a closed fiscal year.
+      // Check the cost's own date (defaults to today).
+      await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());
 
       // Validate receipt size if provided
       if (input.receiptData) {

@@ -78,6 +78,40 @@ export type PushPayload = {
   data?: Record<string, unknown>;
 };
 
+// ── SSRF GUARD (audit H-3) ─────────────────────────────────────────────
+// The push endpoint is a client-supplied URL that web-push later POSTs to
+// from the SERVER. Without validation, a stored endpoint like
+// http://169.254.169.254/latest/meta-data turned every notification into a
+// server-side request we cannot see (cloud metadata / internal services).
+// Web Push endpoints only ever come from the platform push services, so a
+// strict https+host allowlist is both safe and complete here.
+const PUSH_HOST_ALLOWLIST = [
+  "fcm.googleapis.com", // Chrome / Android (FCM)
+  "push.services.mozilla.com", // Firefox autopush
+  "push.apple.com", // Safari (WN, e.g. web.push.apple.com)
+  "notify.windows.com", // Edge / Chromium on Windows (wns2-*.notify.windows.com)
+];
+
+/**
+ * Validate a push subscription endpoint before it is stored or used.
+ * - https only, no credentials, no non-standard port, ≤2048 chars
+ * - host must be (a subdomain of) a known platform push service
+ */
+export function isAllowedPushEndpoint(endpoint: unknown): boolean {
+  if (typeof endpoint !== "string" || endpoint.length === 0 || endpoint.length > 2048) return false;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  if (url.port && url.port !== "443") return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOST_ALLOWLIST.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+}
+
 /**
  * Send a push notification to a single subscription.
  */
@@ -86,6 +120,9 @@ async function sendToSubscription(sub: {
   p256dh: string;
   auth: string;
 }, payload: PushPayload): Promise<boolean> {
+  // SSRF guard (audit H-3): also enforced at save time, but stored rows
+  // written before that fix must never be sent to either.
+  if (!isAllowedPushEndpoint(sub.endpoint)) return false;
   const webpush = await getWebPush();
   if (!webpush) return false;
 
@@ -142,6 +179,11 @@ export async function savePushSubscription(
   },
   userAgent?: string
 ): Promise<void> {
+  // SSRF guard (audit H-3): reject non-push-service endpoints before they
+  // ever reach the DB.
+  if (!isAllowedPushEndpoint(subscription.endpoint)) {
+    throw new Error("Push endpoint is not an allowed push service");
+  }
   await db.pushSubscription.upsert({
     where: { endpoint: subscription.endpoint },
     create: {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { getFreshDb } from "@/lib/db";
-import { assertCanWrite, assertProjectMember } from "@/lib/authz";
+import { assertCanWrite, assertProjectMember, assertProjectManager } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { TRPCError } from "@trpc/server";
 import { audit } from "@/lib/audit";
@@ -160,8 +160,13 @@ export const variationOrderRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
-      // VO approval generates a journal entry — check fiscal lock for the JE date.
+      // H-7 PRIVILEGE-TIER FIX: APPROVAL rewrites the contract-value BOQ
+      // (merged items) and creates an approved BOQ version + JE — a
+      // project-manager decision, not engineer tier. Draft/submit/reject
+      // stay on the writer tier (the submitter's own workflow).
       if (input.status === "approved") {
+        await assertProjectManager(ctx.user, input.projectId);
+        // VO approval generates a journal entry — check fiscal lock for the JE date.
         await assertNotLocked(ctx.user.organizationId);
       }
       const db = getFreshDb();

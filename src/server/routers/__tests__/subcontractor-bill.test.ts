@@ -308,11 +308,12 @@ describe("subcontractorBill.markPaid", () => {
     expect(anyDb.journalEntry.create).not.toHaveBeenCalled();
   });
 
-  it("full payment → paid, atomic increment, payment JE under its own source", async () => {
+  it("full payment → paid, guarded atomic increment, payment JE under its own source", async () => {
     member("project_manager");
     anyDb.subcontractorBill.findFirst.mockResolvedValue(
       certifiedBill({ paidAmount: 0 }), // net 100000, pay all
     );
+    anyDb.subcontractorPayment.create.mockResolvedValue({ id: "subpay-1" });
     anyDb.subcontractorBill.findUniqueOrThrow.mockResolvedValue({
       id: "bill-1",
       paidAmount: 100000,
@@ -323,16 +324,31 @@ describe("subcontractorBill.markPaid", () => {
 
     expect(res.remaining).toBe(0);
 
-    // Atomic increment via raw UPDATE (not read-then-write)
+    // GUARDED ATOMIC SETTLEMENT (audit C-2): raw UPDATE whose WHERE clause
+    // carries the overpayment guard; status is derived in-statement (CASE
+    // → 'paid'), never passed in from a stale read. Tagged-template call:
+    // [strings, ...values] = [amount, amount, id, amount].
     const rawArgs = anyDb.$executeRaw.mock.calls[0];
+    const sqlText = rawArgs[0].join("?");
+    expect(sqlText).toContain('UPDATE "SubcontractorBill"');
+    expect(sqlText).toContain('"paidAmount" + ? <= "netPayable" + 0.01');
+    expect(sqlText).toContain("THEN 'paid'");
     expect(rawArgs[1]).toBe(100000); // amount
-    expect(rawArgs[2]).toBe("paid"); // new status
     expect(rawArgs[3]).toBe("bill-1"); // id
 
-    // Payment JE uses its OWN source so it is distinguishable from the
-    // bill-liability JE (source-collision fix)
+    // Per-payment ledger row exists (audit C-3 — JE keys on THIS id)
+    expect(anyDb.subcontractorPayment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ subcontractorBillId: "bill-1", amount: 100000 }),
+      }),
+    );
+
+    // Payment JE uses its OWN source + the PAYMENT row id (not the bill id)
+    // so installments no longer collide on @@unique([source, sourceRefId])
     const jeData = anyDb.journalEntry.create.mock.calls[0][0].data;
     expect(jeData.source).toBe("subcontractor_payment");
+    expect(jeData.sourceRefId).toBe("subpay-1");
+    expect(jeData.sourceRefType).toBe("SubcontractorPayment");
     expect(jeData.totalDebit).toBe(100000);
     expect(jeData.lines.create[0]).toMatchObject({
       accountCode: "2002", // Dr Subcontractor Payables
@@ -349,6 +365,7 @@ describe("subcontractorBill.markPaid", () => {
     anyDb.subcontractorBill.findFirst.mockResolvedValue(
       certifiedBill({ paidAmount: 0 }),
     );
+    anyDb.subcontractorPayment.create.mockResolvedValue({ id: "subpay-2" });
     anyDb.subcontractorBill.findUniqueOrThrow.mockResolvedValue({
       id: "bill-1",
       paidAmount: 40000,
@@ -357,8 +374,20 @@ describe("subcontractorBill.markPaid", () => {
     const caller = createCaller(subcontractorBillRouter, PM);
     const res = await caller.markPaid({ ...payInput, amount: 40000 });
 
-    // 40000 < 100000 → not full → stays certified
-    expect(anyDb.$executeRaw.mock.calls[0][2]).toBe("certified");
+    // 40000 < 100000 → not full → stays certified (derived in-statement)
+    expect(anyDb.$executeRaw.mock.calls[0][0].join("?")).toContain("ELSE 'certified'");
     expect(res.remaining).toBe(60000);
+  });
+
+  it("rejects payment when the guarded UPDATE's WHERE-clause guard fails (C-2)", async () => {
+    // Even when the stale pre-tx check passes, a concurrent payment that
+    // moved paidAmount forward makes the guarded UPDATE affect 0 rows →
+    // overpayment error, no JE, no payment row.
+    member("project_manager");
+    anyDb.subcontractorBill.findFirst.mockResolvedValue(certifiedBill({ paidAmount: 0 }));
+    anyDb.$executeRaw.mockResolvedValue(0); // guard rejected
+    const caller = createCaller(subcontractorBillRouter, PM);
+    await expectTRPCError(caller.markPaid(payInput), "BAD_REQUEST");
+    expect(anyDb.journalEntry.create).not.toHaveBeenCalled();
   });
 });

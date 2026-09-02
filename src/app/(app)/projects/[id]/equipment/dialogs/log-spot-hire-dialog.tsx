@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc-client";
+import { isQueuedMutationResult } from "@/lib/offline-fetch";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,14 @@ export function LogSpotHireDialog({
 
   const createMut = trpc.equipment.createSpotHire.useMutation({
     onSuccess: (res) => {
+      // H-18 (c): offline-queue path — the hook may resolve with the
+      // synthetic "_queued" marker instead of a real ticket.
+      if (isQueuedMutationResult(res)) {
+        toast.success("Spot hire saved offline — it will sync when you're back online");
+        onSuccess();
+        onOpenChange(false);
+        return;
+      }
       toast.success(`Spot hire ticket #${res.ticket.slipNumber || res.ticket.id.slice(-4)} logged successfully`);
       onSuccess();
       onOpenChange(false);

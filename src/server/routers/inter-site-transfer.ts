@@ -109,16 +109,63 @@ export const interSiteTransferRouter = router({
             throw new TRPCError({ code: "NOT_FOUND", message: "Origin material not found." });
           }
 
-          const transferRate = input.transferRate > 0 ? input.transferRate : Number(originMat.minStock || 0);
+          // H-13 FIX: store locations must belong to their projects — the
+          // destination store was previously used unverified, so stock
+          // could be routed onto another project's store.
+          if (input.originStoreLocationId) {
+            const originStore = await tx.storeLocation.findFirst({
+              where: { id: input.originStoreLocationId, projectId: input.originProjectId },
+              select: { id: true },
+            });
+            if (!originStore) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "Origin store location not found on the origin project." });
+            }
+          }
+          if (input.destinationStoreLocationId) {
+            const destStore = await tx.storeLocation.findFirst({
+              where: { id: input.destinationStoreLocationId, projectId: input.destinationProjectId },
+              select: { id: true },
+            });
+            if (!destStore) {
+              throw new TRPCError({ code: "NOT_FOUND", message: "Destination store location not found on the destination project." });
+            }
+          }
+
+          // H-13 FIX: NEVER fall back to `minStock` as a transfer rate — it
+          // is a REORDER-LEVEL QUANTITY, not an NPR rate; using it as one
+          // fabricated bogus ProjectCost credit/debit entries on every
+          // transfer that omitted a rate. Explicit rate if provided,
+          // otherwise the material's last known inbound rate (GRN/transfer),
+          // otherwise 0 — the totalAmount > 0 guard below then simply skips
+          // the cost postings instead of inventing value.
+          let transferRate = input.transferRate;
+          if (!transferRate || transferRate <= 0) {
+            const lastInbound = await tx.materialTransaction.findFirst({
+              where: { materialId: originMat.id, type: { in: ["receive", "transfer"] }, rate: { gt: 0 } },
+              orderBy: { date: "desc" },
+              select: { rate: true },
+            });
+            transferRate = lastInbound ? Number(lastInbound.rate) : 0;
+          }
           const totalAmount = new Prisma.Decimal(input.quantity).mul(transferRate);
 
-          // 2. Decrement origin material stock
-          await tx.material.update({
-            where: { id: originMat.id },
-            data: {
-              currentStock: { decrement: input.quantity },
-            },
-          });
+          // 2. Decrement origin material stock — GUARDED atomic decrement
+          // (audit H-13 sufficiency check): the WHERE clause carries the
+          // stock check, so a concurrent issue/transfer can never drive
+          // the origin stock negative. Previously a plain decrement —
+          // negative stock in 1 click.
+          const decremented = await tx.$executeRaw`
+            UPDATE "Material"
+            SET "currentStock" = "currentStock" - ${input.quantity}
+            WHERE "id" = ${originMat.id}
+              AND "currentStock" >= ${input.quantity}
+          `;
+          if (decremented === 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Insufficient stock for ${originMat.name}: available ${Number(originMat.currentStock)} ${originMat.unit}, requested ${input.quantity} ${originMat.unit}.`,
+            });
+          }
 
           // If store location specified, decrement store stock
           if (input.originStoreLocationId) {

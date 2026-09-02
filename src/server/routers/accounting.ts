@@ -965,21 +965,30 @@ export const accountingRouter = router({
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      // Posted entries only — drafts are not part of the ledger.
-      const lines = await db.journalEntryLine.findMany({
+      // H-11 FIX: aggregate in the DATABASE (GROUP BY accountCode) instead
+      // of fetching capped raw lines. The previous findMany({ take: 1000 })
+      // silently truncated at 1,000 GL lines — projects with more than
+      // ~300 posted entries got WRONG totals returned as authoritative,
+      // and assertGlBalanced could false-pass on the truncated set. An
+      // aggregation needs no row cap; grouped sums are computed DB-side
+      // and fed into the same unit-tested aggregator (sums of sums).
+      const groups = await db.journalEntryLine.groupBy({
+        by: ["accountCode"],
         where: {
           projectId: input.projectId,
           journalEntry: { isPosted: true },
         },
-        select: {
-          accountCode: true,
-          accountName: true,
-          debit: true,
-          credit: true,
-        },
+        _sum: { debit: true, credit: true },
+        _max: { accountName: true },
         orderBy: { accountCode: "asc" },
-         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
-       });
+      });
+
+      const lines = groups.map((g) => ({
+        accountCode: g.accountCode,
+        accountName: g._max.accountName ?? g.accountCode,
+        debit: g._sum.debit ?? 0,
+        credit: g._sum.credit ?? 0,
+      }));
 
       const result = aggregateTrialBalance(lines);
       assertGlBalanced(result, { organizationId: ctx.user.organizationId });

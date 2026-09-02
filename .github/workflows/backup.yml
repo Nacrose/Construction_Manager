@@ -1,0 +1,131 @@
+name: Nightly DB Backup
+
+# Nightly logical backup (pg_dump → checksum → offsite upload).
+#
+# WHY THIS EXISTS (audit H-17): scripts/db-backup.sh and an excellent
+# restore runbook (docs/BACKUP_RESTORE_RUNBOOK.md) existed, but NOTHING
+# scheduled them — the logical-backup layer was vapor. PITR alone is a
+# single-provider failure mode for multi-tenant financial data.
+#
+# HOW IT WORKS
+# - Runs nightly at 02:30 UTC against BACKUP_DATABASE_URL (a dedicated,
+#   least-privilege read connection — NOT the app's pooled URL; Neon
+#   offers a direct (non-pooled) endpoint for this).
+# - Dumps with --no-owner/--no-privileges/--clean/--if-exists (portable
+#   restore — see the runbook), gzips, and writes a sha256 checksum —
+#   exactly what scripts/db-backup.sh produces.
+# - Uploads to S3/R2 when AWS credentials + bucket are configured
+#   (preferred: durable, versioned, lifecycle-managed offsite storage),
+#   AND always uploads the dump + checksum as a private workflow artifact
+#   (30-day retention) so the very first run is already protected with
+#   zero extra infrastructure.
+# - Manual trigger: Actions → Nightly DB Backup → Run workflow.
+#
+# RESTORE DRILL (a backup you have never restored is not a backup — see
+# docs/BACKUP_RESTORE_RUNBOOK.md):
+#   1. Download the artifact / S3 object + its .sha256
+#   2. sha256sum -c <file>.sql.gz.sha256
+#   3. createdb restore_test && zcat <file>.sql.gz | psql "$RESTORE_URL"
+#   4. Spot-check: SELECT count(*) FROM "Project"; SELECT sum(debit), sum(credit)
+#      FROM "JournalEntryLine" GROUP BY "journalEntryId" ... (trial balance ties)
+
+on:
+  schedule:
+    - cron: "30 2 * * *" # nightly 02:30 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: pg_dump + checksum + offsite upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Preflight — required repo secret
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL" ]; then
+            echo "::error::Missing repo secret: BACKUP_DATABASE_URL"
+            echo "Set it under Settings → Secrets and variables → Actions."
+            echo "Use a DIRECT (non-pooled) connection string with a least-privilege role."
+            exit 1
+          fi
+
+      - name: Install postgresql-client 16
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsS https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+
+      - name: Dump + checksum (scripts/db-backup.sh)
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          KEEP: "7"
+        run: |
+          chmod +x scripts/db-backup.sh
+          ./scripts/db-backup.sh ./backups
+          gunzip -t ./backups/*.sql.gz   # archive integrity (fail loud)
+          sha256sum -c ./backups/*.sql.gz.sha256
+          zcat ./backups/*.sql.gz | head -20   # human-readable sanity peek in the log
+
+      - name: Verify dump contents (schema present, non-trivial size)
+        run: |
+          FILE=$(ls -1t ./backups/construction-manager-*.sql.gz | head -1)
+          SIZE=$(du -b "$FILE" | cut -f1)
+          echo "Dump size: $SIZE bytes"
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "::error::Dump suspiciously small (<10 KB) — refusing to promote it as a backup."
+            exit 1
+          fi
+          if ! zcat "$FILE" | grep -q 'CREATE TABLE'; then
+            echo "::error::Dump contains no CREATE TABLE statements — investigate before trusting it."
+            exit 1
+          fi
+
+      - name: Upload to S3 / R2 (preferred offsite copy)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.BACKUP_AWS_REGION || 'auto' }}
+          AWS_ENDPOINT_URL: ${{ secrets.BACKUP_AWS_ENDPOINT_URL }}
+          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          KEEP_DAYS: "30"
+        run: |
+          FILE=$(ls -1t ./backups/construction-manager-*.sql.gz | head -1)
+          CHECKSUM="${FILE}.sha256"
+          if [ -z "$BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "::warning::BACKUP_S3_BUCKET / AWS credentials not configured — skipping offsite upload (artifact copy still protects the dump)."
+            exit 0
+          fi
+          aws s3 cp "$FILE"     "s3://$BUCKET/postgres/$(basename "$FILE")"     --sse AES256
+          aws s3 cp "$CHECKSUM" "s3://$BUCKET/postgres/$(basename "$CHECKSUM")" --sse AES256
+          # Retention: prune dumps older than KEEP_DAYS offsite.
+          CUTOFF=$(date -u -d "-${KEEP_DAYS} days" +%s)
+          aws s3api list-objects-v2 --bucket "$BUCKET" --prefix postgres/ \
+            --query 'Contents[?ends_with(Key, `.sql.gz`)].[Key,LastModified]' --output text |
+          while read -r key modified; do
+            [ -z "$key" ] && continue
+            ts=$(date -u -d "$modified" +%s)
+            if [ "$ts" -lt "$CUTOFF" ]; then
+              echo "Pruning s3://$BUCKET/$key"
+              aws s3api delete-object --bucket "$BUCKET" --key "$key"
+              aws s3api delete-object --bucket "$BUCKET" --key "$key.sha256" || true
+            fi
+          done
+
+      - name: Always keep a private artifact copy (30 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: |
+            backups/*.sql.gz
+            backups/*.sql.gz.sha256
+          retention-days: 30
+          if-no-files-found: error

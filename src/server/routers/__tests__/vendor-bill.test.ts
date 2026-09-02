@@ -250,7 +250,7 @@ describe("vendorBill.recordPayment", () => {
     expect(anyDb.vendorPayment.create).not.toHaveBeenCalled();
   });
 
-  it("full payment → status paid + atomic increment + balanced payment JE", async () => {
+  it("full payment → status paid + guarded atomic increment + balanced payment JE keyed to the payment row", async () => {
     member("project_manager");
     anyDb.vendorBill.findFirst.mockResolvedValue({
       id: "bill-1",
@@ -259,6 +259,7 @@ describe("vendorBill.recordPayment", () => {
       billNumber: "B-001",
       partner: { id: "partner-1", name: "Acme" },
     });
+    anyDb.vendorPayment.create.mockResolvedValue({ id: "vp-1" });
 
     const caller = createCaller(vendorBillRouter, PM);
     const res = await caller.recordPayment({ ...payInput, amount: 111500 });
@@ -271,16 +272,26 @@ describe("vendorBill.recordPayment", () => {
     expect(payData.amount).toBe(111500);
     expect(payData.createdById).toBe(PM.id);
 
-    // Atomic increment (NOT read-then-write) via raw UPDATE
+    // GUARDED atomic settlement (audit C-2): single raw UPDATE whose WHERE
+    // clause carries the overpayment guard; status derived in-statement
+    // (CASE → 'paid'), never passed from the stale read.
     expect(anyDb.$executeRaw).toHaveBeenCalledTimes(1);
     const rawArgs = anyDb.$executeRaw.mock.calls[0];
+    const sqlText = rawArgs[0].join("?");
+    expect(sqlText).toContain('UPDATE "VendorBill"');
+    expect(sqlText).toContain('"paidAmount" + ? <= "netPayable" + 0.01');
+    expect(sqlText).toContain("THEN 'paid'");
     expect(rawArgs[1]).toBe(111500); // amount param
-    expect(rawArgs[2]).toBe("paid"); // status param
     expect(rawArgs[3]).toBe("bill-1"); // id param
 
     // Payment JE: Dr 2001 (Sundry Creditors) = Cr 1010 (Bank)
     const jeData = anyDb.journalEntry.create.mock.calls[0][0].data;
     expect(jeData.totalDebit).toBe(111500);
+    // JE idempotency key = the VendorPayment row id (audit C-3) — a second
+    // installment on the same bill no longer violates
+    // @@unique([source, sourceRefId]).
+    expect(jeData.sourceRefId).toBe("vp-1");
+    expect(jeData.sourceRefType).toBe("VendorPayment");
     expect(jeData.totalCredit).toBe(111500);
     expect(jeData.lines.create[0]).toMatchObject({
       accountCode: "2001",

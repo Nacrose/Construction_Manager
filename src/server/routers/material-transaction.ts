@@ -7,6 +7,8 @@ import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
 import { withOrgContext } from "@/lib/rls";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
+import { createJournalEntry } from "@/lib/journal-entry";
 import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
@@ -90,6 +92,9 @@ export const materialTransactionProcedures = {
     .input(TxnSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // NOTE: this lock is dateless by design — createTransaction has no
+      // date input; the MaterialTransaction row always stamps "today", so
+      // the transaction date IS today and checking today is exact.
       await assertNotLocked(ctx.user.organizationId);
       const material = await db.material.findFirst({
         where: { id: input.materialId, projectId: input.projectId },
@@ -299,10 +304,27 @@ export const materialTransactionProcedures = {
           });
         }
 
-        await tx.material.update({
-          where: { id: input.materialId },
-          data: { currentStock: newStock },
-        });
+        // H-12 FIX: atomic guarded stock write — the absolute
+        // `currentStock: newStock` write was a read-modify-write from a
+        // pre-tx read (lost updates under concurrency). increment for
+        // inflows; guarded raw decrement (sufficiency in the WHERE clause)
+        // for issues; no master-stock write for transfers (net 0).
+        if (delta > 0) {
+          await tx.material.update({
+            where: { id: input.materialId },
+            data: { currentStock: { increment: delta } },
+          });
+        } else if (delta < 0) {
+          const decremented = await tx.$executeRaw`
+            UPDATE "Material"
+            SET "currentStock" = "currentStock" - ${-delta}
+            WHERE "id" = ${input.materialId}
+              AND "currentStock" >= ${-delta}
+          `;
+          if (decremented === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient stock level for this transaction." });
+          }
+        }
 
         if (input.gateEntryId) {
           // Engine transition: pending→received, CAS-claimed inside the same
@@ -854,10 +876,7 @@ export const materialTransactionProcedures = {
             },
           });
 
-          await tx.companyBankAccount.update({
-            where: { id: compBank.id },
-            data: { currentBalance: { decrement: netPayable } },
-          });
+          await decrementBankBalanceInTx(tx, compBank.id, netPayable);
         } else {
           // Material is Credit / Due: Log VAT Bill / Payable with bill status
           await tx.vatBill.create({
@@ -887,6 +906,89 @@ export const materialTransactionProcedures = {
         }
 
         // 6. Handle Independent Transportation Payment if Paid Now
+        //
+        // H-9 GL FIX: the ENTIRE direct-purchase flow previously wrote
+        // Payment rows + VatBills + bank decrements with NO journal entry —
+        // the dominant cost class in this domain was invisible in the
+        // trial balance / P&L. Post the standard Nepal purchase JE:
+        //
+        //   Dr 5001 Material / Purchases     = taxableAmount
+        //   Dr 1410 Input VAT Receivable     = vatAmount      (recoverable)
+        //      Cr 2020 TDS Payable           = tdsAmount      (to IRD)
+        //      Cr 1010/1001 Bank/Cash        = netPayable     (paid now)
+        //        — or —
+        //      Cr 2001 Sundry Creditors      = netPayable     (credit/Bahi Khata)
+        //
+        // Balance: Dr = taxable + vat = total; Cr = tds + (total − tds) = total.
+        // JE idempotency: source "material_purchase" keyed on the txn row id.
+        const purchaseCreditAccount =
+          input.paymentStatus === "paid_now" && input.bankAccountId
+            ? input.bankAccountId.includes("cash")
+              ? { accountCode: "1001", accountName: "Cash" }
+              : { accountCode: "1010", accountName: "Bank" }
+            : { accountCode: "2001", accountName: "Sundry Creditors" };
+
+        const purchaseJELines: Array<{
+          accountCode: string;
+          accountName: string;
+          debit: number;
+          credit: number;
+          description: string;
+        }> = [
+          {
+            accountCode: "5001",
+            accountName: "Material Consumption",
+            debit: Math.round(taxableAmount * 100) / 100,
+            credit: 0,
+            description: `Direct material purchase from ${input.supplierName}`,
+          },
+          ...(vatAmount > 0
+            ? [
+                {
+                  accountCode: "1410",
+                  accountName: "Input VAT Receivable",
+                  debit: Math.round(vatAmount * 100) / 100,
+                  credit: 0,
+                  description: `Input VAT on purchase from ${input.supplierName}`,
+                },
+              ]
+            : []),
+          ...(tdsAmount > 0
+            ? [
+                {
+                  accountCode: "2020",
+                  accountName: "TDS Payable",
+                  debit: 0,
+                  credit: Math.round(tdsAmount * 100) / 100,
+                  description: `TDS to deposit on purchase from ${input.supplierName}`,
+                },
+              ]
+            : []),
+          {
+            accountCode: purchaseCreditAccount.accountCode,
+            accountName: purchaseCreditAccount.accountName,
+            debit: 0,
+            credit: Math.round(netPayable * 100) / 100,
+            description:
+              input.paymentStatus === "paid_now"
+                ? `Paid direct material delivery from ${input.supplierName}`
+                : `Payable for direct material delivery from ${input.supplierName}`,
+          },
+        ];
+
+        if (input.totalAmount > 0) {
+          await createJournalEntry(tx, {
+            source: "material_purchase",
+            sourceRefId: txn.id,
+            sourceRefType: "MaterialTransaction",
+            description: `Direct material purchase — ${input.quantity} ${input.unit} ${fullDetails || input.materialName} from ${input.supplierName}`,
+            entryDate: targetDate,
+            postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
+            lines: purchaseJELines.map((l) => ({ ...l, projectId: input.projectId })),
+          });
+        }
+
         if (input.transportationCost > 0) {
           if (input.transportPaidStatus === "paid_now" && input.transportBankAccountId) {
             const tBank = await assertOrgBankAccount(input.transportBankAccountId, ctx.user.organizationId, tx);
@@ -911,10 +1013,37 @@ export const materialTransactionProcedures = {
               },
             });
 
-            await tx.companyBankAccount.update({
-              where: { id: tBank.id },
-              data: { currentBalance: { decrement: input.transportationCost } },
+            // H-9 GL FIX: freight payment JE (Dr 5050 Site Transport Cost /
+            // Cr Bank) — the Payment row previously had no GL trace.
+            await createJournalEntry(tx, {
+              source: "payment_freight",
+              sourceRefId: input.transportInvoiceNo || `FRT-${txn.id}`,
+              sourceRefType: "MaterialTransaction",
+              description: `Freight for ${input.quantity} ${input.unit} ${input.materialName} from ${input.supplierName}`,
+              entryDate: targetDate,
+              postedById: ctx.user.id,
+              organizationId: ctx.user.organizationId ?? undefined,
+              lines: [
+                {
+                  accountCode: "5050",
+                  accountName: "Site Transport Cost",
+                  debit: input.transportationCost,
+                  credit: 0,
+                  description: `Freight — ${input.quantity} ${input.unit} ${input.materialName}`,
+                  projectId: input.projectId,
+                },
+                {
+                  accountCode: input.transportBankAccountId.includes("cash") ? "1001" : "1010",
+                  accountName: input.transportBankAccountId.includes("cash") ? "Cash" : "Bank",
+                  debit: 0,
+                  credit: input.transportationCost,
+                  description: `Freight payment`,
+                  projectId: input.projectId,
+                },
+              ],
             });
+
+            await decrementBankBalanceInTx(tx, tBank.id, input.transportationCost);
           } else if (input.transportIsVat) {
             // Freight is VAT Bill on Credit
             const tTaxable = input.transportationCost / 1.13;
@@ -964,10 +1093,37 @@ export const materialTransactionProcedures = {
             },
           });
 
-          await tx.companyBankAccount.update({
-            where: { id: iBank.id },
-            data: { currentBalance: { decrement: totalIncidental } },
+          // H-9 GL FIX: incidental payment JE (Dr 6006 Site Overhead - Misc /
+          // Cr Bank) — previously no GL trace.
+          await createJournalEntry(tx, {
+            source: "payment_incidental",
+            sourceRefId: `INC-${txn.id}`,
+            sourceRefType: "MaterialTransaction",
+            description: `Unloading / spot expense — ${input.quantity} ${input.unit} ${input.materialName}`,
+            entryDate: targetDate,
+            postedById: ctx.user.id,
+            organizationId: ctx.user.organizationId ?? undefined,
+            lines: [
+              {
+                accountCode: "6006",
+                accountName: "Site Overhead - Misc",
+                debit: totalIncidental,
+                credit: 0,
+                description: `Unloading / spot labor — ${input.incidentalRemarks || "material drop"}`,
+                projectId: input.projectId,
+              },
+              {
+                accountCode: input.incidentalBankAccountId.includes("cash") ? "1001" : "1010",
+                accountName: input.incidentalBankAccountId.includes("cash") ? "Cash" : "Bank",
+                debit: 0,
+                credit: totalIncidental,
+                description: `Unloading / spot expense payment`,
+                projectId: input.projectId,
+              },
+            ],
           });
+
+          await decrementBankBalanceInTx(tx, iBank.id, totalIncidental);
         }
 
         return {

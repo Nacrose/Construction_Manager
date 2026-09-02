@@ -118,10 +118,10 @@ export const chatRouter = router({
   createChannel: protectedProcedure
     .input(z.object({
       projectId: z.string().optional(),
-      name: z.string().min(1),
+      name: z.string().min(1).max(100),
       type: z.enum(["public", "group", "personal", "project_order", "org_order"]).default("group"),
-      description: z.string().optional(),
-      memberIds: z.array(z.string()).optional(), // for group/personal
+      description: z.string().max(500).optional(),
+      memberIds: z.array(z.string()).max(100).optional(), // for group/personal
     }))
     .mutation(async ({ ctx, input }) => {
       if (input.projectId) {
@@ -160,13 +160,31 @@ export const chatRouter = router({
         data: { channelId: channel.id, userId: ctx.user.id, role: "admin" },
       });
 
-      // Add specified members (for group/personal)
+      // Add specified members (for group/personal).
+      // H-4 FIX: memberIds were validated only against "not self" — a user
+      // could add ANOTHER ORG's users to a channel, who were then entitled
+      // to sendMessage/getMessages and PII exposure via the members list.
+      // Every candidate must belong to the caller's organization (same-org
+      // pollution is acceptable UX; cross-org is a tenant breach).
       if (input.memberIds && input.memberIds.length > 0) {
-        await db.chatMember.createMany({
-          data: input.memberIds
-            .filter(id => id !== ctx.user.id)
-            .map(id => ({ channelId: channel.id, userId: id, role: "member" })),
-        });
+        const candidates = input.memberIds.filter(id => id !== ctx.user.id);
+        if (candidates.length > 0) {
+          const orgUsers = await db.user.findMany({
+            where: {
+              id: { in: candidates },
+              organizationId: ctx.user.organizationId ?? "__no_org__",
+            },
+            select: { id: true },
+            take: 1000, // bounded (pagination sweep) — input already capped at 100
+          });
+          const allowedIds = new Set(orgUsers.map(u => u.id));
+          const validIds = candidates.filter(id => allowedIds.has(id));
+          if (validIds.length > 0) {
+            await db.chatMember.createMany({
+              data: validIds.map(id => ({ channelId: channel.id, userId: id, role: "member" })),
+            });
+          }
+        }
       }
 
       // For public/project_order: auto-add all project members
@@ -209,9 +227,15 @@ export const chatRouter = router({
       // could read another project's public channel.
       if (
         !isMember &&
-        (channel.type === "public" || channel.type === "project_order") &&
-        channel.projectId
+        (channel.type === "public" || channel.type === "project_order")
       ) {
+        // H-4 FIX: a PUBLIC channel with projectId=null has no project
+        // scope at all — membership is the only access proof. Previously
+        // the null-project case fell through and any authenticated user
+        // holding the cuid could read the stream.
+        if (!channel.projectId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+        }
         const projectRole = await getProjectRole(ctx.user.id, channel.projectId);
         if (!projectRole) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
@@ -306,12 +330,15 @@ export const chatRouter = router({
   sendMessage: protectedProcedure
     .input(z.object({
       channelId: z.string(),
-      text: z.string().min(1),
-      attachmentData: z.string().optional(),
-      attachmentName: z.string().optional(),
-      attachmentType: z.string().optional(),
-      linkedEntityType: z.string().optional(),
-      linkedEntityId: z.string().optional(),
+      // H-4 FIX: message text and base64 attachments were unbounded — a
+      // single call could park tens of MB in Postgres per row. 4k text,
+      // ~4.5 MB binary as base64.
+      text: z.string().min(1).max(4000),
+      attachmentData: z.string().max(6_000_000).optional(),
+      attachmentName: z.string().max(255).optional(),
+      attachmentType: z.string().max(100).optional(),
+      linkedEntityType: z.string().max(100).optional(),
+      linkedEntityId: z.string().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const channel = await db.chatChannel.findUnique({ where: { id: input.channelId } });
@@ -330,11 +357,20 @@ export const chatRouter = router({
         }
       } else if (channel.type === "public") {
         // Public channels: verify the sender is a member of the project
-        // the channel belongs to.
+        // the channel belongs to. H-4 FIX: a public channel with NO project
+        // requires explicit ChatMember membership — previously it fell
+        // through with no check at all (write-by-cuid across tenants).
         if (channel.projectId) {
           const projectRole = await getProjectRole(ctx.user.id, channel.projectId);
           if (!projectRole) {
             throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
+          }
+        } else {
+          const isMember = await db.chatMember.findUnique({
+            where: { channelId_userId: { channelId: input.channelId, userId: ctx.user.id } },
+          });
+          if (!isMember) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
           }
         }
       } else {

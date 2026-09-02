@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { withOrgContext } from "@/lib/rls";
 
 const CreateStaffSchema = z.object({
@@ -446,6 +447,10 @@ export const hrRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+
+      // FISCAL LOCK FIX (audit §4): staff advances had NO lock — a
+      // back-dated advance distorted a closed fiscal year's actuals.
+      await assertNotLocked(ctx.user.organizationId, input.date ? new Date(input.date) : new Date());
 
       // Cross-project guard: the advance must be issued to a staff member
       // of THIS project — without this, a caller with write access to

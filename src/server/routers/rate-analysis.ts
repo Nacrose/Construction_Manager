@@ -73,7 +73,7 @@ async function resolveItemAndAssert(
 ): Promise<{ id: string; projectId: string; code: string }> {
   const item = await db.boqItem.findUnique({
     where: { id: itemId },
-    select: { id: true, projectId: true, code: true },
+    select: { id: true, projectId: true, code: true, locked: true },
   });
   if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
 
@@ -86,6 +86,24 @@ async function resolveItemAndAssert(
   } catch (err) {
     throw authErrorToTRPC(err);
   }
+
+  // H-5 FIX: route every WRITE through the same baseline-protection gate
+  // as boq.ts. Previously ingredient mutations + analyses + recalcs never
+  // checked `project.boqLocked` / `item.locked`, so an engineer could
+  // rewrite rates on an APPROVED BOQ baseline through this router.
+  if (requireWrite) {
+    const project = await db.project.findUnique({
+      where: { id: item.projectId },
+      select: { boqLocked: true },
+    });
+    if (project?.boqLocked) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "BOQ is locked." });
+    }
+    if (item.locked) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "This BOQ item is locked." });
+    }
+  }
+
   return item;
 }
 
@@ -442,6 +460,14 @@ export const rateAnalysisRouter = router({
       });
 
       if (!sourceAnalysis || !targetAnalysis) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Source or target rate analysis not found." });
+      }
+
+      // H-5 FIX: both analyses must belong to the authorized item — they
+      // were fetched by raw ID, so a guessed cuid allowed a CROSS-ORG copy
+      // (read source ingredients) and a destructive deleteMany on another
+      // project's target analysis.
+      if (sourceAnalysis.boqItemId !== input.itemId || targetAnalysis.boqItemId !== input.itemId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Source or target rate analysis not found." });
       }
 

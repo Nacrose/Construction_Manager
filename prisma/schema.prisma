@@ -323,6 +323,7 @@ model User {
   requisitionsCreated  PurchaseRequisition[]   @relation("RequisitionCreatedBy")
   requisitionsApproved PurchaseRequisition[]   @relation("RequisitionApprovedBy")
   vendorPayments       VendorPayment[]
+  subcontractorPayments SubcontractorPayment[]
   materialMergeLogs    MaterialMergeLog[]
   marketRateRevisions  MarketRateRevisionLog[]
   ganttTemplates       GanttTaskTemplate[]
@@ -461,6 +462,7 @@ model Project {
   storeLocations       StoreLocation[]
   vendorBills          VendorBill[]
   vendorPayments       VendorPayment[]
+  subcontractorPayments SubcontractorPayment[]
   paymentCategories    PaymentCategory[]
   vatBills             VatBill[]
   rateBooks            RateBook[]
@@ -3376,6 +3378,12 @@ model VendorPayment {
   paymentMethod   String   @default("bank_transfer") // bank_transfer | cheque | cash
   referenceNumber String? // Cheque / Bank Txn Ref
   remarks         String?
+  // Loose link back to the Payment voucher row that created this payment
+  // (payment.create's bill-settlement path) — enables exact unwinding when
+  // the voucher is deleted (audit H-15). Null = recorded directly on the
+  // bill (recordPayment path). No FK by design: the voucher and the bill
+  // payment have independent lifecycles.
+  sourcePaymentId String?
   createdById     String?
   createdAt       DateTime @default(now())
 
@@ -3385,6 +3393,46 @@ model VendorPayment {
 
   @@index([projectId])
   @@index([vendorBillId])
+}
+
+// Per-payment ledger rows for subcontractor bill settlement — mirrors
+// VendorPayment. Before this existed, markPaid wrote only the aggregate
+// paidAmount on the bill: no per-payment trail, and the payment JE had to
+// key on the bill id, which made a second (installment) payment violate
+// the JournalEntry @@unique([source, sourceRefId]) constraint (audit C-3).
+model SubcontractorPayment {
+  id                  String   @id @default(cuid())
+  projectId           String
+  subcontractorBillId String
+  amount              Decimal  @db.Decimal(15, 2)
+  paymentDate         DateTime @default(now())
+  paymentMethod       String   @default("bank_transfer") // bank_transfer | cheque | cash
+  referenceNumber     String? // Cheque / Bank Txn Ref
+  remarks             String?
+  // Loose link back to the Payment voucher row that created this payment
+  // (see VendorPayment.sourcePaymentId).
+  sourcePaymentId     String?
+  createdById         String?
+  createdAt           DateTime @default(now())
+
+  project            Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractorBill  SubcontractorBill @relation(fields: [subcontractorBillId], references: [id], onDelete: Cascade)
+  createdBy          User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([subcontractorBillId])
+}
+
+// Atomic document-number sequences (audit P2 item 29). Replaces the
+// racy count()+1 generator: one row per (docType, scopeKey), incremented
+// with INSERT .. ON CONFLICT .. RETURNING inside the caller's transaction.
+model DocumentSequence {
+  id       String @id @default(cuid())
+  docType  String
+  scopeKey String // e.g. "purchase_order:<projectId>" or "journal_entry:<year>"
+  counter  Int    @default(0)
+
+  @@unique([docType, scopeKey])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3519,6 +3567,7 @@ model SubcontractorBill {
   subcontractor Subcontractor           @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
   createdBy     User?                   @relation("SubBillCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   items         SubcontractorBillItem[]
+  payments      SubcontractorPayment[]
 
   @@unique([projectId, number])
   @@index([projectId, subcontractorId])
@@ -3713,6 +3762,11 @@ model JvCommissionPayout {
   agreement     JvPartnerAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
 
   @@index([agreementId, payoutDate])
+  // P2 item 25 + audit §4: one commission payout per IPC — the app-level
+  // integrity check was read-then-write (double-pay race under
+  // concurrency). NULL ipcId rows (manual payouts) are exempt: Postgres
+  // unique indexes allow multiple NULLs.
+  @@unique([ipcId])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -3741,6 +3795,8 @@ model CompanyBankAccount {
   bankReconciliations BankReconciliation[]
 
   @@index([organizationId, status])
+  // P2 item 25: prevents duplicate bank-account registrations per org.
+  @@unique([organizationId, accountNumber])
 }
 
 model HeadOfficeExpense {

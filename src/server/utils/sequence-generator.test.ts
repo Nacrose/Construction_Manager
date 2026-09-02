@@ -23,16 +23,22 @@ describe("Central Atomic Sequence & Voucher Generator", () => {
   describe("getNextSequenceNumber generator", () => {
     it("generates purchase order sequence PO-0001", async () => {
       const mockTx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ counter: 1 }]), // atomic upsert (P2 item 29)
         purchaseOrder: {
           count: vi.fn().mockResolvedValue(0),
         },
       };
       const seq = await getNextSequenceNumber("purchase_order", { projectId: "p-1" }, mockTx as any);
       expect(seq).toBe("PO-0001");
+      // The counter rides an INSERT .. ON CONFLICT .. RETURNING statement.
+      const sql = mockTx.$queryRaw.mock.calls[0][0].join("?");
+      expect(sql).toContain("ON CONFLICT");
+      expect(sql).toContain("RETURNING");
     });
 
     it("generates site expense sequence EXP-005 when 4 existing", async () => {
       const mockTx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ counter: 5 }]), // legacy init: 4 existing + 1
         siteExpense: {
           count: vi.fn().mockResolvedValue(4),
         },
@@ -43,6 +49,7 @@ describe("Central Atomic Sequence & Voucher Generator", () => {
 
     it("generates JV commission payout sequence JV-COMM-003", async () => {
       const mockTx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ counter: 3 }]),
         jvCommissionPayout: {
           count: vi.fn().mockResolvedValue(2),
         },
@@ -53,6 +60,7 @@ describe("Central Atomic Sequence & Voucher Generator", () => {
 
     it("generates journal entry sequence JE-2026-0001", async () => {
       const mockTx = {
+        $queryRaw: vi.fn().mockResolvedValue([{ counter: 1 }]),
         journalEntry: {
           count: vi.fn().mockResolvedValue(0),
         },

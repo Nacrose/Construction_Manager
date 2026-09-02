@@ -27,6 +27,7 @@ import { createJournalEntry } from "@/lib/journal-entry";
 import { subMoney } from "@/lib/money";
 import { hoOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { assertDelegation } from "@/lib/delegation";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 
 export const financeRouter = router({
   /**
@@ -1373,7 +1374,14 @@ export const financeRouter = router({
       // SECURITY: org-wide settlement is an admin-tier financial action.
       // Caller must be an org admin AND belong to an organization.
       assertOrgAdmin(ctx.user);
-      await assertDelegation(ctx.user, "settle_multi_bill");
+      // H-16: delegation WITH the total disbursement amount (was skipped
+      // without an amount, silently bypassing org maxAmount rules on one
+      // of the largest money paths).
+      await assertDelegation(
+        ctx.user,
+        "settle_multi_bill",
+        input.bills.reduce((s, b) => s + b.netPaid, 0),
+      );
       // Pass the payment date (not today) so back-dated payments to
       // locked fiscal years are correctly rejected. Previously this
       // used new Date() which let users bypass the lock by back-dating.
@@ -1589,11 +1597,7 @@ export const financeRouter = router({
         // read-then-write — otherwise two concurrent settle calls racing
         // on the same bank account produce a lost update.
         if (input.companyBankAccountId) {
-          await tx.$executeRaw`
-            UPDATE "CompanyBankAccount"
-            SET "currentBalance" = "currentBalance" - ${totalDisbursement}
-            WHERE "id" = ${input.companyBankAccountId}
-          `;
+          await decrementBankBalanceInTx(tx, input.companyBankAccountId, totalDisbursement);
         }
       });
 
@@ -1753,13 +1757,9 @@ export const financeRouter = router({
           ],
         });
 
-        // Atomic balance decrement inside the same transaction.
+        // Atomic + guarded balance decrement inside the same transaction.
         if (input.bankAccountId) {
-          await tx.$executeRaw`
-            UPDATE "CompanyBankAccount"
-            SET "currentBalance" = "currentBalance" - ${input.amount}
-            WHERE "id" = ${input.bankAccountId}
-          `;
+          await decrementBankBalanceInTx(tx, input.bankAccountId, input.amount);
         }
 
         return exp;

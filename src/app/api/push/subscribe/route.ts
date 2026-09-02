@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { savePushSubscription } from "@/server/utils/push";
+import { savePushSubscription, isAllowedPushEndpoint } from "@/server/utils/push";
 import { ok, unauthorized, badRequest } from "@/lib/api";
 import { assertSameOrigin } from "@/lib/csrf";
 
@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.endpoint || !body?.keys?.p256dh || !body?.keys?.auth) {
     return badRequest("Missing endpoint or keys");
+  }
+
+  // SSRF guard (audit H-3): the endpoint is a URL this server will later
+  // POST to — only platform push services are accepted.
+  if (!isAllowedPushEndpoint(body.endpoint)) {
+    return badRequest("Endpoint is not a recognized push service");
   }
 
   const userAgent = req.headers.get("user-agent") ?? undefined;

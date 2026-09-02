@@ -10,18 +10,24 @@ import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
  * replayed in FIFO order.
  *
  * Each queued item contains:
- *  - id: unique UUID
+ *  - id: unique UUID — ALSO sent as X-Idempotency-Key on replay so the
+ *    server can dedupe when the response was lost after commit
  *  - url: API endpoint (e.g. "/api/trpc/dailyReport.create")
  *  - method: HTTP method
  *  - headers: serialized headers (without auth — added at replay time)
  *  - body: request body (string)
  *  - createdAt: timestamp
- *  - attempts: retry count
+ *  - attempts: retry count (capped at MAX_ATTEMPTS → dead-letter)
  *  - lastError: last error message
  *  - status: pending | syncing | success | failed
  */
 
 export type QueueStatus = "pending" | "syncing" | "success" | "failed";
+
+/** H-18 (d): retry cap — after this many attempts an item is dead-lettered
+ * (stays in the queue as "failed", visible and discardable, but excluded
+ * from automatic replay). 401-auth failures fail on the first attempt. */
+export const MAX_ATTEMPTS = 5;
 
 export interface QueueItem {
   id: string;
@@ -199,14 +205,46 @@ export async function enqueueMutation(item: {
 /**
  * Replay all pending mutations in FIFO order.
  *
+ * H-18 (b): a cross-tab mutex (Web Locks API) guarantees only ONE tab
+ * replays at a time. Previously the SW message handler, the `online`
+ * listeners and the sync page could all replay concurrently — the same
+ * mutation could be replayed twice in parallel.
+ *
+ * H-18 (a): every replay carries `X-Idempotency-Key: <item.id>` so the
+ * server can identify replays of the SAME queue item (a response lost
+ * after server commit no longer silently duplicates the write when the
+ * server-side dedupe is enabled).
+ *
+ * H-18 (d): attempts are capped — an item that failed MAX_ATTEMPTS times
+ * is skipped (dead-lettered) instead of retrying forever.
+ *
  * Returns the number of successfully synced items.
  */
 export async function replayQueue(): Promise<{ success: number; failed: number; remaining: number }> {
+  // Web Locks are available in all modern browsers; degrade gracefully.
+  if (typeof navigator !== "undefined" && "locks" in navigator && navigator.locks) {
+    return navigator.locks.request("cm-offline-replay", async () => replayQueueInner());
+  }
+  return replayQueueInner();
+}
+
+async function replayQueueInner(): Promise<{ success: number; failed: number; remaining: number }> {
   const pending = await dbGetPending();
   let success = 0;
   let failed = 0;
 
   for (const item of pending) {
+    // H-18 (d): dead-letter cap — leave the item visible with its error;
+    // the user can discard it or clear the queue.
+    if (item.attempts >= MAX_ATTEMPTS) {
+      await dbUpdate(item.id, {
+        status: "failed",
+        lastError: `Gave up after ${MAX_ATTEMPTS} attempts — discard this item or edit the source record. ${item.lastError ?? ""}`.trim(),
+      });
+      failed++;
+      continue;
+    }
+
     await dbUpdate(item.id, { status: "syncing" });
 
     try {
@@ -215,6 +253,8 @@ export async function replayQueue(): Promise<{ success: number; failed: number; 
       // A queued mutation replayed after session expiry still hits the
       // 401 path below and is marked failed.
       const headers = new Headers(item.headers);
+      // H-18 (a): idempotency key — stable per queue item across retries.
+      headers.set("X-Idempotency-Key", item.id);
 
       const res = await fetch(item.url, {
         method: item.method,

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { uploadFile, deleteFile } from "@/lib/storage";
 import { isAllowedAttachmentType } from "@/server/utils/workflow-helpers";
@@ -30,7 +30,10 @@ export const dailyReportAttachmentsRouter = router({
         select: { projectId: true },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
-      await assertCanWrite(ctx.user, report.projectId);
+      // DIRECTION FIX (audit §4): viewing report photos is a READ —
+      // clients/inspectors legitimately see them; requiring write access
+      // locked read-only roles out of their own reports.
+      await assertProjectMember(ctx.user, report.projectId);
 
       // Select only metadata columns — NOT the `data` base64 column.
       // Previously this returned ALL columns, so listing attachments
@@ -141,7 +144,8 @@ export const dailyReportAttachmentsRouter = router({
         select: { id: true, data: true, fileType: true, fileName: true, report: { select: { projectId: true } } },
       });
       if (!att) throw new TRPCError({ code: "NOT_FOUND", message: "Attachment not found." });
-      await assertCanWrite(ctx.user, att.report.projectId);
+      // DIRECTION FIX (audit §4): read, not write (see listAttachments).
+      await assertProjectMember(ctx.user, att.report.projectId);
       return { data: att.data, fileType: att.fileType, fileName: att.fileName };
     }),
 

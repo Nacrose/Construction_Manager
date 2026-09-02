@@ -31,6 +31,11 @@ function secret(): Uint8Array {
   return _secret;
 }
 
+// Presence write throttle (audit §4 hot-path fix): at most one
+// lastActiveAt UPDATE per user per minute per server instance.
+const lastActiveWriteAt = new Map<string, number>();
+const PRESENCE_WRITE_INTERVAL_MS = 60_000;
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -290,17 +295,23 @@ export async function getCurrentUser(authHeader?: string | null): Promise<AuthUs
     const effectiveOrgRole = impersonating ? "member" : user.orgRole;
 
     // Refresh lastActiveAt (presence indicator for DMs).
-    // This is non-critical — wrapped in a separate try/catch so that
-    // if the lastActiveAt column doesn't exist yet (before /api/setup
-    // is run), authentication still succeeds.
+    // HOT-PATH FIX (audit §4): getCurrentUser runs on EVERY request, and
+    // this write used to run a per-request UPDATE wrapped in an
+    // information_schema.columns existence check — an obsolete guard from
+    // before lastActiveAt was a schema column (it added a catalog
+    // round-trip to every authenticated request). Now: the check is gone
+    // (the column is part of the schema) and the write is throttled to at
+    // most once per user per minute — enough resolution for presence.
     try {
-      await db.$executeRawUnsafe(
-        `UPDATE "User" SET "lastActiveAt" = NOW() WHERE "id" = $1 AND EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'User' AND column_name = 'lastActiveAt'
-        )`,
-        user.id
-      );
+      const now = Date.now();
+      const lastWrite = lastActiveWriteAt.get(user.id) ?? 0;
+      if (now - lastWrite > PRESENCE_WRITE_INTERVAL_MS) {
+        lastActiveWriteAt.set(user.id, now);
+        await db.$executeRawUnsafe(
+          `UPDATE "User" SET "lastActiveAt" = NOW() WHERE "id" = $1`,
+          user.id
+        );
+      }
     } catch {
       // Non-critical — presence tracking won't work but auth succeeds
     }

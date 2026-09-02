@@ -247,9 +247,22 @@ async function canSeeProject(userId: string, projectId: string): Promise<boolean
 }
 
 async function isProjectManager(userId: string, projectId: string): Promise<boolean> {
+  // POLICY ALIGNMENT FIX (audit §4): this check was explicit-membership-only,
+  // diverging from authz.getProjectRole's implicit policy (org members get
+  // implicit engineer; org admins act as project_manager on every project).
+  // An org admin therefore could not edit org-scoped templates for a project
+  // they implicitly manage. The membership is still required to exist (the
+  // helper gates PROJECT-scoped templates), but org admins bypass the role
+  // comparison exactly like the central authz helpers do.
   const m = await db.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId } },
-    select: { role: true },
+    select: { role: true, user: { select: { orgRole: true } } },
   });
-  return m?.role === "project_manager" || m?.role === "coordinator";
+  if (!m) return false;
+  return (
+    m.role === "project_manager" ||
+    m.role === "coordinator" ||
+    m.user?.orgRole === "org_admin" ||
+    m.user?.orgRole === "owner"
+  );
 }

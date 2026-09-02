@@ -27,13 +27,18 @@ export type DelegationAction =
   | "create_head_office_expense"
   | "release_retention"
   | "record_jv_payout"
-  | "log_direct_material_purchase";
+  | "log_direct_material_purchase"
+  // H-16: payroll moves money like any other path — it previously had NO
+  // DelegationAction at all, so org maxAmount/role rules never applied.
+  | "create_payroll_run"
+  | "disburse_payroll";
 
 const HQ_ONLY_ACTIONS: DelegationAction[] = [
   "create_payment", "bulk_create_payments", "create_vendor_bill",
   "record_vendor_payment", "create_subcontractor_bill", "mark_subcontractor_paid",
   "create_purchase_order", "settle_multi_bill", "create_bank_account",
   "create_head_office_expense", "release_retention", "record_jv_payout",
+  "disburse_payroll",
 ];
 
 export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
@@ -55,6 +60,8 @@ export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
     { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "log_direct_material_purchase", maxAmount: 25000, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: true },
+    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
+    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
   ],
   hybrid_daybook_hq_procure: [
     { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
@@ -72,6 +79,8 @@ export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
     { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
+    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
+    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
   ],
   decentralized_site_and_hq: [
     { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
@@ -89,6 +98,8 @@ export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
     { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
+    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
+    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
   ],
   single_project_jv: [
     { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
@@ -106,6 +117,8 @@ export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
     { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
     { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
+    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
+    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
   ],
 };
 

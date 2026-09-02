@@ -55,7 +55,11 @@ export function buildDbMock(): DbMock {
     ),
     $queryRaw: vi.fn(async () => []),
     $queryRawUnsafe: vi.fn(async () => []),
-    $executeRaw: vi.fn(async () => 0),
+    // Default 1 (one row affected): the guarded settlement/bank UPDATEs
+    // check the rowcount — a defaulted 0 would read as "guard rejected /
+    // row vanished" and fail every happy path. Overpayment-guard tests
+    // mock 0 explicitly.
+    $executeRaw: vi.fn(async () => 1),
     $executeRawUnsafe: vi.fn(async () => 0),
     $disconnect: vi.fn(async () => undefined),
     __isMock: true,

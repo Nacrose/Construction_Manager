@@ -77,6 +77,12 @@ const UpdateIpcItemSchema = z.object({
   section: z.string().nullable().optional(),
 });
 
+// AUDIT FIX (§4 Performance): the material-deduction queries disagreed on
+// caps (recalculateIpc read 1,000 while get/updateItem read 5,000) — the
+// SAME unrecovered-deduction set, producing DIFFERENT net-payable figures
+// per endpoint. All three now share this cap.
+const MAX_DEDUCTIBLE_TXNS = 5000;
+
 // Helper: recalculate gross, retention, deductions, net payable for an IPC
 async function recalculateIpc(tx: any, ipcId: string) {
   const ipc = await tx.ipc.findUnique({
@@ -105,7 +111,7 @@ async function recalculateIpc(tx: any, ipcId: string) {
         isDebitable: true,
         deductedInIpcId: null,
       },
-       take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+       take: MAX_DEDUCTIBLE_TXNS, // shared cap — see AUDIT FIX note above
      });
     materialDeductions = txns.reduce((sum: number, t: any) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
   }
@@ -590,7 +596,7 @@ export const ipcRouter = router({
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
           where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
-          take: 5000,
+          take: MAX_DEDUCTIBLE_TXNS, // shared cap — see AUDIT FIX note above
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }
@@ -654,7 +660,7 @@ export const ipcRouter = router({
       if (ipc.subcontractorId) {
         const txns = await db.materialTransaction.findMany({
           where: { projectId: ipc.projectId, subcontractorId: ipc.subcontractorId, isDebitable: true, deductedInIpcId: null },
-          take: 5000,
+          take: MAX_DEDUCTIBLE_TXNS, // shared cap — see AUDIT FIX note above
         });
         materialDeductions = txns.reduce((sum, t) => sum + (t.quantity * (t.recoveryRate ?? t.rate)), 0);
       }

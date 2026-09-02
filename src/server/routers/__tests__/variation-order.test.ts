@@ -145,7 +145,7 @@ describe("variationOrder.update", () => {
 // ─── updateStatus (approval) ────────────────────────────────────────────────
 describe("variationOrder.updateStatus", () => {
   it("fiscal lock blocks approval BEFORE any VO read", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.fiscalYearLock.findFirst.mockResolvedValue({ fiscalYear: "2082/83" });
     const caller = createCaller(variationOrderRouter, ENGINEER);
     await expectTRPCError(
@@ -156,7 +156,7 @@ describe("variationOrder.updateStatus", () => {
   });
 
   it("non-approved transitions skip the fiscal lock entirely", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
     anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     const caller = createCaller(variationOrderRouter, ENGINEER);
@@ -166,7 +166,7 @@ describe("variationOrder.updateStatus", () => {
   });
 
   it("re-approval of an approved VO is rejected (idempotency guard)", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.variationOrder.findFirst.mockResolvedValue(vo({ status: "approved" }));
     anyDb.variationOrder.findUnique.mockResolvedValue(vo({ status: "approved" }));
     const caller = createCaller(variationOrderRouter, ENGINEER);
@@ -177,7 +177,7 @@ describe("variationOrder.updateStatus", () => {
   });
 
   it("approval merges VO items into the BOQ: baseline frozen, current values replaced", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
     anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.boqItem.findUnique.mockResolvedValue({
@@ -257,7 +257,7 @@ describe("variationOrder.updateStatus", () => {
   });
 
   it("REGRESSION: approval posts NO revenue journal entry (IPC bills it later)", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
     anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.analysisLibrary.findMany.mockResolvedValue([]);
@@ -273,7 +273,7 @@ describe("variationOrder.updateStatus", () => {
   });
 
   it("audit log records the approval with value-change metadata", async () => {
-    member("engineer");
+    member("project_manager") // H-7: approval is PM-tier (PM passes all transitions);
     anyDb.variationOrder.findFirst.mockResolvedValue(vo());
     anyDb.variationOrder.findUnique.mockResolvedValue(vo()); // engine pre-read inside tx
     anyDb.analysisLibrary.findMany.mockResolvedValue([]);

@@ -73,10 +73,11 @@ describe("materialTransaction.createTransaction — stock math", () => {
       quantity: 50,
       rate: 900,
     });
+    // H-12 FIX: inflows are atomic increments (not absolute RMW writes)
     expect(anyDb.material.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "m-1" },
-        data: { currentStock: 150 },
+        data: { currentStock: { increment: 50 } },
       }),
     );
     expect(res.transaction).toBeDefined();
@@ -93,12 +94,17 @@ describe("materialTransaction.createTransaction — stock math", () => {
       quantity: 30,
       rate: 0,
     });
-    expect(anyDb.material.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { currentStock: 70 } }),
-    );
+    // H-12 FIX: issues use a GUARDED atomic decrement (sufficiency check
+    // inside the UPDATE's WHERE clause) — no absolute write.
+    expect(anyDb.material.update).not.toHaveBeenCalled();
+    const issueCall = anyDb.$executeRaw.mock.calls[0];
+    expect(issueCall[0].join("?")).toContain('UPDATE "Material"');
+    expect(issueCall[0].join("?")).toContain('"currentStock" >= ?');
+    expect(issueCall.slice(1)).toContain("m-1");
+    expect(issueCall.slice(1)).toContain(30);
   });
 
-  it("rejects an issue that would drive project stock negative", async () => {
+  it("rejects an issue that would drive project stock negative (pre-tx check)", async () => {
     member("engineer");
     anyDb.material.findFirst.mockResolvedValue(material());
     const caller = createCaller(materialTxnRouter, USER);
@@ -126,9 +132,9 @@ describe("materialTransaction.createTransaction — stock math", () => {
       quantity: 20,
       rate: 0,
     });
-    expect(anyDb.material.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { currentStock: 100 } }),
-    );
+    // H-12 FIX: transfers are net-zero on master stock — no write at all
+    // (was a pointless absolute RMW write of the unchanged value).
+    expect(anyDb.material.update).not.toHaveBeenCalled();
   });
 
   it("rejects a transfer where source and destination stores are identical", async () => {
@@ -523,12 +529,11 @@ describe("materialTransaction.logDirectDelivery", () => {
         data: expect.objectContaining({ amount: 1130, payeeName: "Everest Suppliers" }),
       }),
     );
-    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "bank-1" },
-        data: { currentBalance: { decrement: 1130 } },
-      }),
-    );
+    // P2 item 30: the decrement is a guarded atomic raw UPDATE now.
+    const dec = anyDb.$executeRaw.mock.calls.find((c: any[]) => c[0].join("?").includes('UPDATE "CompanyBankAccount"'));
+    expect(dec).toBeDefined();
+    expect(dec.slice(1)).toContain("bank-1");
+    expect(dec.slice(1)).toContain(1130);
     expect(anyDb.vatBill.create).not.toHaveBeenCalled();
   });
 

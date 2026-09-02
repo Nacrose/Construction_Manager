@@ -208,10 +208,11 @@ describe("jvPartner.recordPayout", () => {
     expect(data.voucherNo).toBe("JV-COMM-001");
     expect(data.tdsAmount).toBe(150); // 1.5% default TDS
     expect(data.netAmount).toBe(9850);
-    expect(anyDb.companyBankAccount.update).toHaveBeenCalledWith({
-      where: { id: "bank-1" },
-      data: { currentBalance: { decrement: 9850 } },
-    });
+    // P2 item 30: the decrement is a guarded atomic raw UPDATE now.
+    const dec = anyDb.$executeRaw.mock.calls.find((c: any[]) => c[0].join("?").includes('UPDATE "CompanyBankAccount"'));
+    expect(dec).toBeDefined();
+    expect(dec.slice(1)).toContain("bank-1");
+    expect(dec.slice(1)).toContain(9850);
   });
 
   it("REJECTS payouts exceeding the outstanding commission balance", async () => {

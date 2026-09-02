@@ -8,10 +8,12 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { invalidateProjectCache } from "@/lib/cache";
 import { withOrgContext } from "@/lib/rls";
-import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, assertProjectAdmin, assertOrgBankAccount } from "@/lib/authz";
 import { computePayrollLine } from "@/server/utils/payroll-calc";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { assertDelegation } from "@/lib/delegation";
+import { decrementBankBalanceInTx } from "@/lib/bank-balance";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const payrollRouter = router({
@@ -286,6 +288,11 @@ export const payrollRouter = router({
       const totalDeductions = computedRecords.reduce((sum, { computed }) => sum + computed.totalDeductions, 0);
       const totalTds = computedRecords.reduce((sum, { computed }) => sum + computed.tdsAmount, 0);
       const totalNetPayable = computedRecords.reduce((sum, { computed }) => sum + computed.netPayable, 0);
+
+      // H-16: delegation gate with the recomputed run total — payroll had
+      // NO DelegationAction at all before, so org role/maxAmount rules
+      // never applied to one of the largest recurring money movements.
+      await assertDelegation(ctx.user, "create_payroll_run", totalNetPayable);
 
       // CRITICAL: payroll-calc.ts clamps `netPayable = Math.max(0, gross - totalDeductions)`.
       // When a staff member's deductions exceed their gross (a real situation
@@ -603,6 +610,10 @@ export const payrollRouter = router({
         runId: z.string(),
         action: z.enum(["approve", "disburse", "reopen"]),
         notes: z.string().optional().nullable(),
+        // H-10: central bank account the net payroll is drawn on. When
+        // set, the account's currentBalance is atomically decremented in
+        // the same transaction as the settlement JE.
+        companyBankAccountId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -611,13 +622,31 @@ export const payrollRouter = router({
       const run = await db.payrollRun.findFirst({
         where: { id: input.runId, projectId: input.projectId },
       });
-      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "Payroll run not found." });
-      await assertNotLocked(ctx.user.organizationId, run.createdAt);
+      if (!run) throw new TRPCError({ code: "NOT_FOUND", message: "PayrollRun not found." });
 
-      // Lifecycle graph (payrollRun): draft→approved→disbursed, with reopen
-      // (approved|disbursed→draft) allowed to fix errors before re-approval.
-      // The engine rejects out-of-order moves (e.g. disburse a draft run) with
-      // BAD_REQUEST instead of silently writing them.
+      // FISCAL LOCK FIX (audit §4): check the PAYROLL MONTH the run is
+      // for, not the row's createdAt — a run created this month for a
+      // locked month passed the old check and back-dated the whole run.
+      const [payrollYear, payrollMonth] = run.month.split("-").map(Number);
+      await assertNotLocked(
+        ctx.user.organizationId,
+        new Date(Date.UTC(payrollYear, (payrollMonth || 1) - 1, 15)),
+      );
+
+      // H-16: delegation on disbursement — money leaves the org.
+      if (input.action === "disburse") {
+        await assertDelegation(ctx.user, "disburse_payroll", Number(run.totalNetPayable));
+      }
+
+      if (input.action === "disburse" && input.companyBankAccountId) {
+        await assertOrgBankAccount(input.companyBankAccountId, ctx.user.organizationId);
+      }
+
+      // Lifecycle graph (payrollRun): draft→approved→disbursed. H-10 FIX:
+      // reopen (→draft) is now allowed only from "approved" — reopening a
+      // DISBURSED run would desync the records from the settlement JE
+      // posted below (the idempotency guard would skip re-posting on the
+      // next disbursement, leaving the ledger permanently wrong).
       const targetState =
         input.action === "approve" ? "approved" : input.action === "disburse" ? "disbursed" : "draft";
       const allowedCurrentStates =
@@ -625,7 +654,7 @@ export const payrollRouter = router({
           ? ["draft"]
           : input.action === "disburse"
             ? ["approved"]
-            : ["approved", "disbursed"];
+            : ["approved"];
 
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
@@ -652,6 +681,53 @@ export const payrollRouter = router({
             where: { payrollRunId: input.runId },
             data: { paymentStatus: "paid" },
           });
+
+          // H-10 SETTLEMENT: the liability JE was posted at draft save
+          // (Dr 5010 Direct Labor / Cr 2030 Salary Payable …) but
+          // disbursement only flipped statuses — Salary Payable was never
+          // debited and no bank movement was recorded, so the trial
+          // balance showed phantom payroll liabilities forever. Settle it:
+          //   Dr 2030 Salary Payable  = totalNetPayable (liability cleared)
+          //      Cr 1010 Bank          = totalNetPayable (cash out)
+          // JE idempotency: @@unique([source, sourceRefId]) keyed on the
+          // run id makes double-posting on retry impossible.
+          const netPayable = Number(run.totalNetPayable);
+          if (netPayable > 0) {
+            await createJournalEntry(tx, {
+              source: "payroll_disbursement",
+              sourceRefId: run.id,
+              sourceRefType: "PayrollRun",
+              description: `Payroll disbursement — ${run.month}`,
+              entryDate: new Date(),
+              postedById: ctx.user.id,
+              organizationId: ctx.user.organizationId ?? undefined,
+              lines: [
+                {
+                  accountCode: "2030",
+                  accountName: "Salary Payable",
+                  debit: netPayable,
+                  credit: 0,
+                  description: `Salary payable settled — ${run.month}`,
+                  projectId: input.projectId,
+                },
+                {
+                  accountCode: "1010",
+                  accountName: "Bank",
+                  debit: 0,
+                  credit: netPayable,
+                  description: `Net payroll disbursed — ${run.month}`,
+                  projectId: input.projectId,
+                },
+              ],
+            });
+          }
+
+          // H-10: atomic bank decrement in the same tx when a central
+          // account is selected (negative-balance guard is enforced
+          // globally per audit P2 item 30).
+          if (input.companyBankAccountId && netPayable > 0) {
+            await decrementBankBalanceInTx(tx, input.companyBankAccountId, netPayable);
+          }
         }
 
         return result.entity;
@@ -682,9 +758,37 @@ export const payrollRouter = router({
       // payroll staff records in project B by their cuid.
       const record = await db.payrollStaffRecord.findFirst({
         where: { id: input.recordId, payrollRun: { projectId: input.projectId } },
-        include: { payrollRun: { select: { createdAt: true } } },
+        include: { payrollRun: { select: { status: true, createdAt: true, month: true } } },
       });
       if (!record) throw new TRPCError({ code: "NOT_FOUND", message: "Staff record not found." });
+
+      // H-7 FIX: payslips can only be marked paid while the RUN is in a
+      // payment-eligible state. Previously a payslip could be flipped to
+      // "paid" (with an arbitrary paidAmount — uncapped against
+      // netPayable) while the run was still a DRAFT, creating phantom
+      // payment state that disbursement never agreed with.
+      const runStatus = record.payrollRun.status;
+      if (runStatus === "draft") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This payroll run is still a draft — disburse the run before marking individual payslips paid.",
+        });
+      }
+
+      // Cap: a payslip can never be marked overpaid against its net payable.
+      const targetPaidAmount =
+        input.paidAmount !== undefined
+          ? input.paidAmount
+          : input.paymentStatus === "paid"
+            ? record.netPayable
+            : record.paidAmount;
+      if (targetPaidAmount > Number(record.netPayable) + 0.01) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Paid amount (${targetPaidAmount}) exceeds the payslip net payable (${Number(record.netPayable)}).`,
+        });
+      }
+
       await assertNotLocked(ctx.user.organizationId, record.payrollRun.createdAt);
 
       const updated = await db.payrollStaffRecord.update({
@@ -693,7 +797,7 @@ export const payrollRouter = router({
           paymentStatus: input.paymentStatus,
           paymentMethod: input.paymentMethod,
           paymentReference: input.paymentReference || null,
-          paidAmount: input.paidAmount !== undefined ? input.paidAmount : input.paymentStatus === "paid" ? record.netPayable : record.paidAmount,
+          paidAmount: targetPaidAmount,
         },
       });
 

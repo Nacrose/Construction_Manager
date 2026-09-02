@@ -320,7 +320,7 @@ const dailyReportCoreRouter = router({
       const { reportId, ...data } = input;
       const report = await db.dailyReport.findUnique({
         where: { id: reportId },
-        select: { id: true, projectId: true, status: true, number: true },
+        select: { id: true, projectId: true, status: true, number: true, reportDate: true },
       });
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
 
@@ -379,7 +379,11 @@ const dailyReportCoreRouter = router({
         // leave a half-approved report (status flipped, deductions
         // blocked) or back-date stock issues into a closed period.
         if (data.status === "submitted" || data.status === "approved") {
-          await assertNotLocked(ctx.user.organizationId);
+          // FISCAL LOCK FIX (audit §4): check the REPORT's date, not today
+          // — a report for a day inside a locked fiscal year could be
+          // approved "today" and back-date its stock issues into the
+          // closed period.
+          await assertNotLocked(ctx.user.organizationId, report.reportDate);
         }
         statusChange = true;
         targetStatus = data.status;
@@ -561,10 +565,15 @@ const dailyReportCoreRouter = router({
                     },
                   });
 
-                  await tx.material.update({
-                    where: { id: cons.materialId },
-                    data: { currentStock: newStock },
-                  });
+                  // H-12 FIX: atomic floored decrement — was a
+                  // read-modify-write absolute write; two concurrent
+                  // approvals could lose a deduction. GREATEST preserves
+                  // the old 0-floor while making the write atomic.
+                  await tx.$executeRaw`
+                    UPDATE "Material"
+                    SET "currentStock" = GREATEST("currentStock" - ${deductQty}, 0)
+                    WHERE "id" = ${cons.materialId}
+                  `;
                 }
               }
             });

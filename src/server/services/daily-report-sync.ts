@@ -453,8 +453,6 @@ async function deductInventoryForReport(
       const material = await tx.material.findUnique({ where: { id: materialId } });
       if (!material) continue;
 
-      const newStock = Math.max(0, material.currentStock - agg.totalQty);
-
       for (const entry of agg.entries) {
         await tx.materialTransaction.create({
           data: {
@@ -472,10 +470,14 @@ async function deductInventoryForReport(
         });
       }
 
-      await tx.material.update({
-        where: { id: materialId },
-        data: { currentStock: newStock },
-      });
+      // H-12 FIX: atomic floored decrement — was a read-modify-write
+      // absolute write from a pre-tx read (lost updates under concurrent
+      // report syncs); GREATEST preserves the old 0-floor atomically.
+      await tx.$executeRaw`
+        UPDATE "Material"
+        SET "currentStock" = GREATEST("currentStock" - ${agg.totalQty}, 0)
+        WHERE "id" = ${materialId}
+      `;
     }
   });
 }

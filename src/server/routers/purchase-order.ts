@@ -293,10 +293,11 @@ export const purchaseOrderRouter = router({
                 where: { id: item.materialId },
               });
               if (material) {
-                const newStock = material.currentStock + remainingToReceive;
+                // H-12 FIX: atomic increment — was a read-modify-write
+                // absolute write (lost updates under concurrency).
                 await tx.material.update({
                   where: { id: item.materialId },
-                  data: { currentStock: newStock },
+                  data: { currentStock: { increment: remainingToReceive } },
                 });
 
                 await tx.materialTransaction.create({

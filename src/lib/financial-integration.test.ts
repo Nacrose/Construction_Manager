@@ -44,6 +44,7 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
 
       // The vendorPaymentEntry helper checks that amount = tdsDeducted + netPaid
       const je = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "bill-1",
         vendorName: "ABC Suppliers Pvt. Ltd.",
         amount: billAmount,
@@ -76,6 +77,7 @@ describe("Financial Integration — End-to-End Journal Entry Flows", () => {
 
     it("generates balanced JE for a cash payment with no TDS", () => {
       const je = vendorPaymentEntry({
+        paymentId: "vp-test-1",
         vendorBillId: "bill-2",
         vendorName: "Local Hardware Shop",
         amount: 5000,

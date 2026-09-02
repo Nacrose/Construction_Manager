@@ -687,7 +687,9 @@ export const rfiRouter = router({
         select: { projectId: true, project: { select: { organizationId: true } } },
       });
       if (!rfi) throw new TRPCError({ code: "NOT_FOUND", message: "RFI not found." });
-      await assertProjectMember(ctx.user, rfi.projectId);
+      // DIRECTION FIX (audit §4): uploading an attachment is a WRITE —
+      // assertProjectMember admitted read-only roles (client/inspector).
+      await assertCanWrite(ctx.user, rfi.projectId);
 
       // MIME whitelist — prevents upload of executable / script-bearing
       // formats that could be served back as active content.

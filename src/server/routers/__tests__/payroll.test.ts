@@ -173,6 +173,7 @@ describe("payroll.updateRunStatus", () => {
     mockRun({
       id: "run-1",
       projectId: "p-1",
+      month: "2025-01",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-01-15"),
@@ -193,6 +194,7 @@ describe("payroll.updateRunStatus", () => {
     mockRun({
       id: "run-1",
       projectId: "p-1",
+      month: "2026-02",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -224,6 +226,7 @@ describe("payroll.updateRunStatus", () => {
     mockRun({
       id: "run-1",
       projectId: "p-1",
+      month: "2026-02",
       status: "draft",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -254,6 +257,7 @@ describe("payroll.updateRunStatus", () => {
     mockRun({
       id: "run-1",
       projectId: "p-1",
+      month: "2026-02",
       status: "approved",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),
@@ -280,6 +284,7 @@ describe("payroll.updateRunStatus", () => {
     mockRun({
       id: "run-1",
       projectId: "p-1",
+      month: "2026-02",
       status: "draft",
       totalNetPayable: 20790,
       createdAt: new Date("2025-02-01"),

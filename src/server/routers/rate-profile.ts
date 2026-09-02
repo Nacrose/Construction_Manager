@@ -9,6 +9,42 @@ import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 
 const CATEGORIES = ["district_rate", "supplier_quotation", "contractor_negotiated"] as const;
 
+/**
+ * OWNERSHIP GUARD (audit C-1): RateProfile/RateProfileItem/BoqIngredient
+ * are child tables with NO organizationId/projectId column and NO RLS
+ * coverage — `assertCanWrite` alone authorizes the caller on their OWN
+ * project, then the mutation would touch rows by raw cuid. Every item
+ * write must therefore resolve the parent profile scoped to
+ * `input.projectId` first (the router already did exactly this in
+ * batchApply — this helper extends the same pin to every path).
+ */
+async function assertProfileInProject(profileId: string, projectId: string) {
+  const profile = await db.rateProfile.findFirst({
+    where: { id: profileId, projectId },
+    select: { id: true },
+  });
+  if (!profile) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found in this project." });
+  }
+  return profile;
+}
+
+/**
+ * OWNERSHIP GUARD for a single item (audit C-1): the item must live under
+ * a profile that belongs to the caller's project. Joins
+ * RateProfileItem → rateProfile → projectId.
+ */
+async function assertItemInProject(itemId: string, profileId: string, projectId: string) {
+  const item = await db.rateProfileItem.findFirst({
+    where: { id: itemId, rateProfileId: profileId, rateProfile: { projectId } },
+    select: { id: true },
+  });
+  if (!item) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Rate item not found in this profile." });
+  }
+  return item;
+}
+
 export const rateProfileRouter = router({
   /** List all rate profiles for a project. */
   list: protectedProcedure
@@ -135,6 +171,9 @@ export const rateProfileRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // C-1: verify the profile belongs to the caller's project before
+      // attaching an item to it (was: raw profileId insert).
+      await assertProfileInProject(input.profileId, input.projectId);
       const item = await db.rateProfileItem.create({
         data: {
           rateProfileId: input.profileId,
@@ -163,6 +202,9 @@ export const rateProfileRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { projectId, profileId, itemId, ...data } = input;
       await assertCanWrite(ctx.user, projectId);
+      // C-1: the item must live under the caller's project's profile
+      // (was: update by raw itemId — cross-tenant write).
+      await assertItemInProject(itemId, profileId, projectId);
       const updated = await db.rateProfileItem.update({ where: { id: itemId }, data });
       return { item: updated };
     }),
@@ -172,6 +214,8 @@ export const rateProfileRouter = router({
     .input(z.object({ projectId: z.string(), profileId: z.string(), itemId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // C-1: ownership pin before delete (was: delete by raw itemId).
+      await assertItemInProject(input.itemId, input.profileId, input.projectId);
       await db.rateProfileItem.delete({ where: { id: input.itemId } });
       return { ok: true };
     }),
@@ -195,6 +239,8 @@ export const rateProfileRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      // C-1: ownership pin before create (same as addItem).
+      await assertProfileInProject(input.profileId, input.projectId);
 
       const rates = [input.rate1, input.rate2];
       if (input.rate3 !== undefined) rates.push(input.rate3);
@@ -225,6 +271,18 @@ export const rateProfileRouter = router({
         include: { items: true },
       });
       if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found in this project." });
+
+      // C-1 (batchApply half): the target analysis must belong to this
+      // project too — ingredients were previously fetched by raw
+      // rateAnalysisId, letting a guessed cuid rewrite ANOTHER org's
+      // BoqIngredient rates. Join RateAnalysis → boqItem → projectId.
+      const analysis = await db.rateAnalysis.findFirst({
+        where: { id: input.rateAnalysisId, boqItem: { projectId: input.projectId } },
+        select: { id: true },
+      });
+      if (!analysis) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Rate analysis not found in this project." });
+      }
 
       // Build lookup: lowercase material name -> item
       const lookup = new Map<string, { id: string; unit: string; rate: number }>();

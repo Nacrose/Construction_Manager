@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
+import { Prisma } from "@prisma/client";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
@@ -59,25 +60,45 @@ async function executeGeneratePOs(
 ) {
   await assertCanWrite(user, input.projectId);
 
-  // Fetch details for all requested requisition items
-  const reqItemIds = input.items.map((i) => i.requisitionItemId);
-  const reqItems = await db.purchaseRequisitionItem.findMany({
-    where: {
-      id: { in: reqItemIds },
-      requisition: { projectId: input.projectId, status: { in: ["approved", "partially_ordered"] } },
-    },
-    include: {
-      requisition: true,
-      material: true,
-      quotes: true,
-      poItems: {
-        include: {
-          purchaseOrder: { select: { status: true } },
+  const generatedPOs: any[] = [];
+  const affectedRequisitionIds = new Set<string>();
+
+  // H-14 FIX: item fetch, row locking, and remaining-quantity validation
+  // all happen INSIDE the transaction. Previously the items (including
+  // their ordered quantities) were read BEFORE the tx and never
+  // re-checked inside — two concurrent generatePOs runs both passed the
+  // validation and double-committed the same requisition items.
+  await db.$transaction(async (tx) => {
+    await withOrgContext(tx, user.organizationId, !!user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
+
+    const reqItemIds = input.items.map((i) => i.requisitionItemId);
+
+    // Serialize concurrent generations over the same requisition lines:
+    // FOR UPDATE row locks (acquired in sorted order to avoid lock-order
+    // deadlocks) block the second run's read until the first commits, so
+    // its re-validation sees the fresh poItems.
+    await tx.$queryRaw`
+      SELECT "id" FROM "PurchaseRequisitionItem"
+      WHERE "id" IN (${Prisma.join([...reqItemIds].sort())})
+      FOR UPDATE
+    `;
+
+    const reqItems = await tx.purchaseRequisitionItem.findMany({
+      where: {
+        id: { in: reqItemIds },
+        requisition: { projectId: input.projectId, status: { in: ["approved", "partially_ordered"] } },
+      },
+      include: {
+        requisition: true,
+        material: true,
+        quotes: true,
+        poItems: {
+          include: {
+            purchaseOrder: { select: { status: true } },
+          },
         },
       },
-    },
-     take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
-   });
+    });
 
   if (reqItems.length === 0) {
     throw new TRPCError({
@@ -86,7 +107,8 @@ async function executeGeneratePOs(
     });
   }
 
-  // Map requested quantities and validate limits
+  // Map requested quantities and validate limits — against the FRESH
+  // (locked, in-tx) ordered quantities.
   const itemMap = new Map<string, { dbItem: (typeof reqItems)[0]; qtyToOrder: number }>();
   for (const reqInput of input.items) {
     const dbItem = reqItems.find((i) => i.id === reqInput.requisitionItemId);
@@ -122,12 +144,7 @@ async function executeGeneratePOs(
     itemsByVendor[partnerId].push(val);
   }
 
-  const generatedPOs: any[] = [];
-  const affectedRequisitionIds = new Set<string>();
-
-  await db.$transaction(async (tx) => {
-    await withOrgContext(tx, user.organizationId, !!user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
-    for (const [partnerId, group] of Object.entries(itemsByVendor)) {
+  for (const [partnerId, group] of Object.entries(itemsByVendor)) {
       // Fetch partner details
       const partner = await tx.partner.findUnique({
         where: { id: partnerId },
