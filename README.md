@@ -7,6 +7,7 @@
 > **⚠️ Core System Scope & Positioning**:
 > **This platform is built EXCLUSIVELY for Construction Contractors, Joint Ventures (JVs), and Builders.**
 > **This is NOT a Client / Consultant / Owner portal.**
+> **This is an OFFICE-USE web application** — built for desktop browsers in a head-office / site-office setting, used by staff on a stable internet connection. It is **online-only by design**: NOT an offline-capable app, NOT a PWA, and NOT a mobile app (responsive enough for a laptop, but no mobile-specific workflows and no app-store build).
 > Every workflow is engineered around contractor reality: site material deliveries, subcontractor labor bills, Bahi Khata Day Books, VAT & TDS compliance, BOQ rate analysis, plant & equipment fleet logs, and Joint Venture royalty/equity sharing.
 
 A comprehensive construction enterprise management platform tailored for contractor and JV operations in Nepal (DoR / DUDBC / NEA standards) — encompassing BOQ & rate analysis, Day Book & cash-basis accounting, centralized finance & payables, Gantt scheduling, RFI workflows, site daily reports, IPC progress claims, variations, equipment fleet, staff HR, and multi-site inventory.
@@ -368,11 +369,13 @@ npx tsc --noEmit
 
 - Multi-tenancy / organization support
 - Role-based dashboard variants
-- Mobile-responsive field-report submission
-- Offline-first daily reports with sync
 - Real-time RFI collaboration (WebSocket)
 - Excel import for BOQ
 - Email/notification system
 - Audit log UI
 - Variation Order approval workflow
 - IPC auto-calculation from BOQ progress
+
+> **Out of scope (product decision):** offline mode / offline-first sync, PWA, and
+> mobile-app builds. This is an office-use, online-only web application for desktop
+> browsers — field data still flows through office staff, not a field mobile client.
