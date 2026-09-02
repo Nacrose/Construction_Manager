@@ -24,7 +24,10 @@ export const dynamic = "force-dynamic";
  * Concurrency-safe — the per-row CAS claim means overlapping invocations
  * (Vercel Cron retries, manual triggers) cannot double-deliver a row.
  *
- * Schedule: vercel.json crons (every 5 minutes). Register additional
+ * Schedule: GitHub Actions cron (workflow `cron.yml`, every 5 minutes).
+ * NOT vercel.json `crons` — Vercel's Hobby plan rejects sub-daily
+ * schedules at deployment validation, which broke all auto-deploys.
+ * Register additional
  * event processors via registerOutboxProcessor(); this route needs no
  * changes as the processor set grows.
  *

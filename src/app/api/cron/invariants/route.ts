@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  *    catches it instead of silently reporting PASS.
  *
  * SECURITY: this endpoint is only reachable with the CRON_SECRET bearer
- * token (Vercel Cron attaches it automatically when the env var exists).
+ * token (the GitHub Actions scheduler in `cron.yml` sends it; Vercel Cron
+ * would attach the same header automatically when the env var exists).
  * Previously an unset CRON_SECRET made the endpoint fully public — and
  * each invocation scans every org's ledger, i.e. an unauthenticated
  * cost/DoS handle. It now fails CLOSED: no secret configured, no run.

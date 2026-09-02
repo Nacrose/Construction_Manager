@@ -94,6 +94,55 @@ the login page.
 In Vercel → Project → Settings → Domains, add your custom domain.
 Vercel will guide you through DNS configuration.
 
+## 6. Scheduled background jobs (outbox dispatch + invariant probes)
+
+Two background jobs keep production healthy:
+
+| Job | Endpoint | Schedule | Purpose |
+|-----|----------|----------|---------|
+| Outbox dispatch | `GET /api/cron/outbox` | every 5 minutes | Delivers `OutboxEvent` rows (e.g. `lifecycle.transitioned` notifications); reaps rows stuck in `processing` |
+| Invariant probes | `GET /api/cron/invariants` | hourly | GL trial-balance balance check per org + live RLS tenant-isolation probe |
+
+Both endpoints are **fail-closed**: they only run when the caller sends
+`Authorization: Bearer <CRON_SECRET>`, and they refuse to start at all if
+`CRON_SECRET` is unset.
+
+### Why GitHub Actions instead of vercel.json `crons`?
+
+Vercel's **Hobby plan only allows cron schedules of once per day**. A
+`vercel.json` declaring `*/5 * * * *` or `0 * * * *` makes every deployment
+fail validation before a build even starts — the commit gets a red
+"Deployment failed." status and no build ever appears in the dashboard
+(this actually happened and blocked all auto-deploys on 2026-09-02; see
+commit that introduced it, and `.github/workflows/cron.yml` header comment).
+Since the repo is public, GitHub Actions minutes are free and the scheduler
+lives in-repo. If the project moves to Vercel Pro, the schedules can move
+back into `vercel.json` `crons` and `.github/workflows/cron.yml` retired.
+
+### Required configuration
+
+1. **Vercel** → Project → Settings → Environment Variables:
+   - `CRON_SECRET` = a random 32+ char string (`openssl rand -hex 32`),
+     enabled for Production (+ Preview if desired). Without it both
+     endpoints return 503 (fail-closed).
+2. **GitHub** → repo → Settings → Secrets and variables → Actions:
+   - `CRON_SECRET` = the same value as on Vercel
+   - `SITE_URL` = the production origin, e.g. `https://your-app.vercel.app`
+     (or your custom domain). Until these exist, the Cron workflow fails
+     with an explicit "Missing repo secret(s)" message.
+
+### Notes
+
+- GitHub Actions scheduled workflows can be delayed a few minutes under
+  peak load; the outbox design (per-row CAS claims + stuck-row reaping)
+  makes delayed or overlapping ticks safe — only delivery latency grows.
+- Manual one-off run: **Actions → Cron → Run workflow** (runs both jobs).
+- Caveat: `SITE_URL`/`CRON_SECRET` are repo-level secrets, so any branch's
+  workflow can read them. They only grant access to two endpoints that
+  trigger background processing — an acceptable surface for this project;
+  move them to GitHub *Environments* scoped to `production` if that ever
+  changes.
+
 ---
 
 ## Local development with Docker Postgres
