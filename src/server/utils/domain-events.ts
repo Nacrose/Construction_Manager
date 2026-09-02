@@ -21,6 +21,7 @@ export type DomainEventType =
   | "payment.created"
   | "material.po_created"
   | "gl.imbalance.detected"
+  | "tenant.isolation.violation"
   /** Generic lifecycle transition (state machine) — model + from/to in metadata. */
   | "lifecycle.transitioned";
 
