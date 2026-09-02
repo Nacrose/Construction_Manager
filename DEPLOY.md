@@ -46,10 +46,8 @@ git push -u origin main
    - `SETUP_SECRET` = (any random string — REQUIRED to call `/api/setup` and
      `/api/seed`; without it first-run setup will refuse to run)
    - Optionally, storage variables — see `.env.example` for the full list
-     (`STORAGE_PROVIDER`, `BLOB_READ_WRITE_TOKEN` for Vercel Blob). Default
-     `local` provider keeps files private and streams them via the
-     authenticated `/api/files/[key]` route; on Vercel, link a Blob store and
-     set `STORAGE_PROVIDER=vercel-blob`.
+     (`STORAGE_PROVIDER`, R2/S3 keys). Default `local` provider keeps files
+     private and streams them via the authenticated `/api/files/[key]` route.
 6. Click **Deploy**
 
 > **Note on superadmin bootstrap:** do NOT rely on

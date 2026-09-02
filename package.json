@@ -21,11 +21,13 @@
     "db:regenerate-baseline": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/migrations/0_init/migration.sql",
     "ci:verify": "npx eslint . --max-warnings 1200 && NODE_OPTIONS=\"--max-old-space-size=8192\" npx tsc --noEmit && npm test && NODE_OPTIONS=\"--max-old-space-size=8192\" npm run build",
     "postinstall": "prisma generate && node scripts/patch-prisma-decimal-types.mjs"
+
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1088.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
