@@ -513,7 +513,7 @@ export const chatRouter = router({
 
   /** Add members to a group channel. */
   addMembers: protectedProcedure
-    .input(z.object({ channelId: z.string(), userIds: z.array(z.string()) }))
+    .input(z.object({ channelId: z.string(), userIds: z.array(z.string()).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const member = await db.chatMember.findUnique({
         where: { channelId_userId: { channelId: input.channelId, userId: ctx.user.id } },
@@ -717,10 +717,14 @@ export const chatRouter = router({
         ],
       };
 
-      // Scope to same org if user is in one
-      if (ctx.user.organizationId) {
-        where.AND.push({ organizationId: ctx.user.organizationId });
+      // Scope to same org if user is in one. Org-less callers used to
+      // get an unscoped user directory (all tenants) — that is now an
+      // empty result: with no org there is no legitimate peer set to
+      // search, and the directory would be a cross-tenant PII leak.
+      if (!ctx.user.organizationId) {
+        return { users: [] };
       }
+      where.AND.push({ organizationId: ctx.user.organizationId });
 
       const users = await db.user.findMany({
         where,
@@ -833,10 +837,20 @@ export const chatRouter = router({
   getPresence: protectedProcedure
     .input(z.object({ userIds: z.array(z.string()).max(100) }))
     .query(async ({ ctx, input }) => {
+      // Org-scoped presence: without this filter, any authed user could
+      // probe arbitrary user ids across tenants and get back names plus
+      // last-active timestamps (the same gap getOrCreateDM closed for
+      // DMs). Org-less callers (legacy/superadmin) only ever see their
+      // own presence.
       const users = await db.user.findMany({
-        where: { id: { in: input.userIds } },
+        where: {
+          id: { in: input.userIds },
+          ...(ctx.user.organizationId
+            ? { organizationId: ctx.user.organizationId }
+            : { id: ctx.user.id }),
+        },
         select: { id: true, lastActiveAt: true, name: true },
-         take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
+         take: 100, // bounded (pagination sweep) — input is capped at 100
        });
 
       const now = new Date();
@@ -871,6 +885,39 @@ export const chatRouter = router({
         },
       });
       if (!channel) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // IDOR guard: read receipts expose the other member's name and
+      // lastActiveAt (presence). The caller must have channel access
+      // under the SAME policy as getMessages/getChannelMembers —
+      // previously any authed user with a channel cuid could read
+      // another tenant's DM metadata.
+      const isMember = channel.members.some((m) => m.userId === ctx.user.id);
+      if (!isMember) {
+        if (channel.type === "personal" || channel.type === "group") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+        }
+        if (
+          (channel.type === "public" || channel.type === "project_order") &&
+          channel.projectId
+        ) {
+          const projectRole = await getProjectRole(ctx.user.id, channel.projectId);
+          if (!projectRole) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this project." });
+          }
+        }
+        if (channel.type === "org_order") {
+          if (!ctx.user.organizationId || !channel.createdById) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this channel." });
+          }
+          const creator = await db.user.findUnique({
+            where: { id: channel.createdById },
+            select: { organizationId: true },
+          });
+          if (!creator || creator.organizationId !== ctx.user.organizationId) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "You're not a member of this organization." });
+          }
+        }
+      }
 
       // For personal channels, return the other user's read receipt
       if (channel.type === "personal") {
