@@ -37,7 +37,7 @@ export type RateAnalysisInspectorProps = {
 const LIB_TABS = [
   { id: "client_estimate", name: "Client's Estimate", short: "Estimate", color: "text-emerald-400 border-emerald-500/40 bg-emerald-950/40 shadow-[0_0_10px_rgba(16,185,129,0.15)]" },
   { id: "contractor_bid", name: "Contractor Bid", short: "Bid (Tender)", color: "text-amber-400 border-amber-500/40 bg-amber-950/40 shadow-[0_0_10px_rgba(245,158,11,0.15)]" },
-  { id: "contractor_actual", name: "Contractor's Actual", short: "Actual Cost", color: "text-cyan-400 border-cyan-500/40 bg-cyan-950/40 shadow-[0_0_10px_rgba(6,182,212,0.15)]" },
+  { id: "contractor_actual", name: "Contractor's Actual", short: "Actual Cost", color: "text-info border-info/40 bg-cyan-950/40 shadow-[0_0_10px_rgba(6,182,212,0.15)]" },
 ];
 
 export function RateAnalysisInspector({

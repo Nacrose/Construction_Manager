@@ -289,7 +289,7 @@ export function MissingScansTab({
           {missingPurchases.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 font-mono">
-                <Package className="h-3.5 w-3.5 text-blue-600" />
+                <Package className="h-3.5 w-3.5 text-info" />
                 Missing Purchase / Inward Scans ({missingPurchases.length})
               </h4>
               <ConstructionTable
@@ -306,7 +306,7 @@ export function MissingScansTab({
           {missingSales.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 font-mono">
-                <FileCheck className="h-3.5 w-3.5 text-blue-600" />
+                <FileCheck className="h-3.5 w-3.5 text-info" />
                 Missing Client IPC / Sales Invoices ({missingSales.length})
               </h4>
               <ConstructionTable

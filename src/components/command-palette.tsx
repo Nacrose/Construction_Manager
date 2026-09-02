@@ -324,26 +324,26 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-xl p-0 border border-[#c7d8e8] bg-white text-slate-900 shadow-2xl rounded-2xl overflow-hidden gap-0">
+      <DialogContent className="max-w-xl p-0 border border-[var(--border)] bg-card text-foreground shadow-2xl rounded-2xl overflow-hidden gap-0">
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
 
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#e2edf7] bg-[#f8fbfe]">
-          <Search className="h-4 w-4 text-[#0284c7]" />
-          <span className="text-xs font-mono font-bold text-slate-800 uppercase tracking-wider">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--input)] bg-[#f8fbfe]">
+          <Search className="h-4 w-4 text-[var(--primary)]" />
+          <span className="text-xs font-mono font-bold text-foreground/90 uppercase tracking-wider">
             Quick Navigation & Search [Cmd+K]
           </span>
           {isSearching && (
-            <Loader2 className="h-3.5 w-3.5 text-[#0284c7] animate-spin ml-1" />
+            <Loader2 className="h-3.5 w-3.5 text-[var(--primary)] animate-spin ml-1" />
           )}
-          <div className="ml-auto flex items-center gap-1 text-[10px] font-mono text-slate-500">
-            <span className="px-1.5 py-0.5 rounded border border-[#c7d8e8] bg-[#e5eef7] text-slate-700 font-bold">ESC</span> to exit
+          <div className="ml-auto flex items-center gap-1 text-[10px] font-mono text-muted-foreground">
+            <span className="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--background)] text-foreground/80 font-bold">ESC</span> to exit
           </div>
         </div>
 
         {/* Search Input */}
-        <div className="flex items-center px-4 py-2.5 border-b border-[#e2edf7] bg-white">
-          <Search className="h-4 w-4 text-slate-400 mr-2 shrink-0" />
+        <div className="flex items-center px-4 py-2.5 border-b border-[var(--input)] bg-card">
+          <Search className="h-4 w-4 text-muted-foreground/80 mr-2 shrink-0" />
           <Input
             autoFocus
             value={query}
@@ -353,14 +353,14 @@ export function CommandPalette() {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search projects, RFIs, reports — or type a destination..."
-            className="h-8 border-none bg-transparent font-sans text-xs text-slate-900 focus-visible:ring-0 focus-visible:ring-offset-0 px-0 placeholder:text-slate-400"
+            className="h-8 border-none bg-transparent font-sans text-xs text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 px-0 placeholder:text-muted-foreground/80"
           />
         </div>
 
         {/* Results List */}
         <div className="max-h-[420px] overflow-y-auto p-2">
           {allItems.length === 0 && !isSearching ? (
-            <div className="py-8 text-center text-xs font-sans text-slate-500">
+            <div className="py-8 text-center text-xs font-sans text-muted-foreground">
               {query.length >= 2
                 ? `No results found for "${query}"`
                 : "No matching destination found"}
@@ -369,7 +369,7 @@ export function CommandPalette() {
             Array.from(grouped.entries()).map(([category, items]) => (
               <div key={category} className="mb-2">
                 {/* Category label */}
-                <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">
+                <div className="px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
                   {category}
                 </div>
                 {items.map((cmd) => {
@@ -384,18 +384,18 @@ export function CommandPalette() {
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all text-xs font-sans",
                         isSelected
-                          ? "bg-[#e5eef7] text-[#0284c7] border border-[#c7d8e8] font-bold shadow-xs"
-                          : "text-slate-700 hover:bg-slate-50"
+                          ? "bg-[var(--background)] text-[var(--primary)] border border-[var(--border)] font-bold shadow-xs"
+                          : "text-foreground/80 hover:bg-muted/60"
                       )}
                     >
-                      <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-[#0284c7]" : "text-slate-400")} />
+                      <Icon className={cn("h-4 w-4 shrink-0", isSelected ? "text-[var(--primary)]" : "text-muted-foreground/80")} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate">{cmd.title}</p>
                         {cmd.subtitle && (
-                          <p className="text-[10px] text-slate-500 font-mono truncate">{cmd.subtitle}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">{cmd.subtitle}</p>
                         )}
                       </div>
-                      {isSelected && <CornerDownLeft className="h-3.5 w-3.5 text-[#0284c7] shrink-0" />}
+                      {isSelected && <CornerDownLeft className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />}
                     </div>
                   );
                 })}

@@ -333,21 +333,21 @@ export function ConstructionTable<T extends Record<string, any>>({
   return (
     <div className={cn("space-y-2", className)}>
       {/* Table Toolbar Strip (Single Action Bar) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-lg border border-[#c7d8e8] bg-white level-2-surface shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-lg border border-[var(--border)] bg-card level-2-surface shadow-xs">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Recessed Inset Search Box */}
           <div className="relative min-w-[200px] max-w-sm flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/80" />
             <Input
               placeholder={searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-7 text-xs bg-[#f0f6fc] text-slate-900 rounded-md border-[#c5d7e8] focus:border-[#0284c7] placeholder:text-slate-400 font-mono shadow-inner"
+              className="pl-8 h-7 text-xs bg-[#f0f6fc] text-foreground rounded-md border-[#c5d7e8] focus:border-[var(--primary)] placeholder:text-muted-foreground/80 font-mono shadow-inner"
             />
           </div>
 
           {subtitle && (
-            <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+            <span className="text-[11px] text-muted-foreground font-mono hidden sm:inline">
               {filteredData.length} records
             </span>
           )}
@@ -361,10 +361,10 @@ export function ConstructionTable<T extends Record<string, any>>({
             size="sm"
             variant="outline"
             onClick={() => setIsCompact(!isCompact)}
-            className="h-7 px-2.5 text-xs gap-1.5 font-semibold bg-[#f0f6fc] text-slate-700 border-[#c5d7e8] hover:text-slate-950 rounded-md snappy-btn"
+            className="h-7 px-2.5 text-xs gap-1.5 font-semibold bg-[#f0f6fc] text-foreground/80 border-[#c5d7e8] hover:text-foreground rounded-md snappy-btn"
             title={isCompact ? "Switch to Comfortable Row Density" : "Switch to Compact Density"}
           >
-            <LayoutList className="h-3.5 w-3.5 text-[#0284c7]" />
+            <LayoutList className="h-3.5 w-3.5 text-[var(--primary)]" />
             <span className="hidden sm:inline">{isCompact ? "Compact" : "Comfortable"}</span>
           </Button>
 
@@ -388,34 +388,34 @@ export function ConstructionTable<T extends Record<string, any>>({
 
       {/* Main Table Body (Ultra-Compact 26px Density with Matrix Typography) */}
       {filteredData.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[#c7d8e8] p-8 text-center bg-white">
+        <div className="rounded-lg border border-dashed border-[var(--border)] p-8 text-center bg-card">
           {emptyState?.icon ? (
-            <emptyState.icon className="mx-auto h-7 w-7 text-slate-400 mb-1.5" />
+            <emptyState.icon className="mx-auto h-7 w-7 text-muted-foreground/80 mb-1.5" />
           ) : (
-            <Sparkles className="mx-auto h-7 w-7 text-slate-400 mb-1.5" />
+            <Sparkles className="mx-auto h-7 w-7 text-muted-foreground/80 mb-1.5" />
           )}
-          <p className="text-xs font-semibold text-slate-800">
+          <p className="text-xs font-semibold text-foreground/90">
             {emptyState?.title || "No Records Found"}
           </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             {emptyState?.description || "No records match your active search or filter criteria."}
           </p>
           {emptyState?.action && <div className="mt-3">{emptyState.action}</div>}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[#c7d8e8] bg-white shadow-xs">
+        <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-card shadow-xs">
           <table className="w-full text-left text-xs font-mono">
-            <thead className="border-b border-[#c7d8e8] bg-[#edf4fa] uppercase text-[10px] text-slate-600 font-bold sticky top-0 z-10 select-none">
+            <thead className="border-b border-[var(--border)] bg-[var(--muted)] uppercase text-[10px] text-muted-foreground font-bold sticky top-0 z-10 select-none">
               <tr>
                 {selectable && (
                   <th className="w-8 px-2.5 py-1.5 text-center">
                     <button
                       type="button"
                       onClick={toggleSelectAll}
-                      className="text-slate-400 hover:text-slate-800 transition-colors"
+                      className="text-muted-foreground/80 hover:text-foreground/90 transition-colors"
                     >
                       {allSelected ? (
-                        <CheckSquare className="h-3.5 w-3.5 text-[#0284c7]" />
+                        <CheckSquare className="h-3.5 w-3.5 text-[var(--primary)]" />
                       ) : (
                         <Square className="h-3.5 w-3.5" />
                       )}
@@ -427,7 +427,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                     key={col.key}
                     style={{ width: col.width }}
                     className={cn(
-                      "font-extrabold tracking-wide text-slate-700",
+                      "font-extrabold tracking-wide text-foreground/80",
                       isCompact ? "px-2.5 py-1.5" : "px-3 py-2",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
@@ -439,7 +439,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#edf4fa]">
+            <tbody className="divide-y divide-[var(--muted)]">
               {visibleRows.map((node, rIdx) => {
                 const row = node.row;
                 const id = rowKey(row);
@@ -460,14 +460,14 @@ export function ConstructionTable<T extends Record<string, any>>({
                     className={cn(
                       "transition-colors group",
                       (onRowClick || renderRowPreview) && "cursor-pointer hover:bg-[#f0f7ff]",
-                      isSelected ? "bg-[#e0f2fe]" : "hover:bg-[#f0f7ff]"
+                      isSelected ? "bg-[var(--accent)]" : "hover:bg-[#f0f7ff]"
                     )}
                   >
                     {selectable && (
                       <td className="px-2.5 py-1 text-center" onClick={(e) => toggleRowSelect(id, e)}>
-                        <button type="button" className="text-slate-400 hover:text-slate-800">
+                        <button type="button" className="text-muted-foreground/80 hover:text-foreground/90">
                           {isSelected ? (
-                            <CheckSquare className="h-3.5 w-3.5 text-[#0284c7]" />
+                            <CheckSquare className="h-3.5 w-3.5 text-[var(--primary)]" />
                           ) : (
                             <Square className="h-3.5 w-3.5" />
                           )}
@@ -498,12 +498,12 @@ export function ConstructionTable<T extends Record<string, any>>({
                                 <button
                                   type="button"
                                   onClick={(e) => toggleExpand(id, e)}
-                                  className="p-0.5 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100"
+                                  className="p-0.5 text-muted-foreground/80 hover:text-foreground/90 rounded hover:bg-muted"
                                 >
                                   {isExpanded ? (
-                                    <ChevronDown className="h-3.5 w-3.5 text-[#0284c7]" />
+                                    <ChevronDown className="h-3.5 w-3.5 text-[var(--primary)]" />
                                   ) : (
-                                    <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/80" />
                                   )}
                                 </button>
                               ) : (
@@ -511,7 +511,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                               )}
 
                               {row[wbsKey] && (
-                                <span className="font-bold text-[10px] text-[#0369a1] bg-sky-100 px-1 py-0.2 rounded border border-sky-200">
+                                <span className="font-bold text-[10px] text-[var(--primary)] bg-info/15 px-1 py-0.2 rounded border border-info/30">
                                   {row[wbsKey]}
                                 </span>
                               )}
@@ -537,7 +537,7 @@ export function ConstructionTable<T extends Record<string, any>>({
 
             {/* Summary Footer Row */}
             {hasAnySummary && (
-              <tfoot className="border-t-2 border-[#c7d8e8] bg-[#edf4fa] font-bold text-slate-900">
+              <tfoot className="border-t-2 border-[var(--border)] bg-[var(--muted)] font-bold text-foreground">
                 <tr>
                   {selectable && <td />}
                   {columns.map((col, idx) => {
@@ -555,7 +555,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                         <td
                           key={col.key}
                           className={cn(
-                            "text-right text-[#0369a1] font-bold font-matrix",
+                            "text-right text-[var(--primary)] font-bold font-matrix",
                             isCompact ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-xs"
                           )}
                         >
@@ -593,7 +593,7 @@ export function ConstructionTable<T extends Record<string, any>>({
           >
             {loadMore.isLoadingMore ? (
               <>
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#0284c7] border-t-transparent" />
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
                 Loading…
               </>
             ) : (
@@ -605,11 +605,11 @@ export function ConstructionTable<T extends Record<string, any>>({
 
       {/* Floating Bulk Action Drawer */}
       {selectedRowsList.length > 0 && bulkActions && bulkActions.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 rounded-xl border border-[#c7d8e8] bg-white/95 backdrop-blur-xl shadow-xl text-xs font-mono text-slate-900 animate-in fade-in slide-in-from-bottom-4">
-          <span className="font-bold text-[#0284c7]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 rounded-xl border border-[var(--border)] bg-white/95 backdrop-blur-xl shadow-xl text-xs font-mono text-foreground animate-in fade-in slide-in-from-bottom-4">
+          <span className="font-bold text-[var(--primary)]">
             {selectedRowsList.length} row{selectedRowsList.length > 1 ? "s" : ""} selected
           </span>
-          <div className="h-4 w-[1px] bg-slate-200" />
+          <div className="h-4 w-[1px] bg-secondary" />
           <div className="flex items-center gap-2">
             {bulkActions.map((action, idx) => (
               <Button
@@ -627,7 +627,7 @@ export function ConstructionTable<T extends Record<string, any>>({
               size="sm"
               variant="ghost"
               onClick={() => setSelectedIds({})}
-              className="h-7 text-xs text-slate-500 hover:text-slate-900"
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
             >
               Clear
             </Button>
@@ -638,9 +638,9 @@ export function ConstructionTable<T extends Record<string, any>>({
       {/* Row Preview Slide-Out Drawer (Sheet) */}
       {renderRowPreview && (
         <Sheet open={Boolean(previewRow)} onOpenChange={(open) => !open && setPreviewRow(null)}>
-          <SheetContent className="w-full sm:max-w-xl bg-white border-l border-[#c7d8e8] text-slate-900 backdrop-blur-2xl p-6 overflow-y-auto z-50">
-            <SheetHeader className="mb-4 pb-3 border-b border-[#c7d8e8]">
-              <SheetTitle className="text-base font-bold font-mono text-slate-900">
+          <SheetContent className="w-full sm:max-w-xl bg-card border-l border-[var(--border)] text-foreground backdrop-blur-2xl p-6 overflow-y-auto z-50">
+            <SheetHeader className="mb-4 pb-3 border-b border-[var(--border)]">
+              <SheetTitle className="text-base font-bold font-mono text-foreground">
                 {previewRow && rowPreviewTitle ? rowPreviewTitle(previewRow) : "Record Overview"}
               </SheetTitle>
             </SheetHeader>
@@ -672,7 +672,7 @@ function renderFormattedValue(value: any, colFormat?: ColumnFormat): React.React
       }
     case "badge":
       return (
-        <Badge variant="outline" className="text-[10px] uppercase font-mono bg-sky-50 border-sky-200 text-[#0369a1] font-semibold">
+        <Badge variant="outline" className="text-[10px] uppercase font-mono bg-info/10 border-info/30 text-[var(--primary)] font-semibold">
           {String(value)}
         </Badge>
       );
@@ -711,13 +711,13 @@ export function useConfirmDelete() {
 
   const dialog = (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-md bg-white border border-[#c7d8e8] text-slate-900 shadow-2xl backdrop-blur-xl">
+      <DialogContent className="max-w-md bg-card border border-[var(--border)] text-foreground shadow-2xl backdrop-blur-xl">
         <DialogHeader>
           <div className="flex items-center gap-2.5 text-rose-600">
             <AlertTriangle className="h-5 w-5" />
             <DialogTitle className="text-base font-bold font-mono">{config.title}</DialogTitle>
           </div>
-          <DialogDescription className="text-xs text-slate-600 mt-2 font-mono">
+          <DialogDescription className="text-xs text-muted-foreground mt-2 font-mono">
             {config.description}
           </DialogDescription>
         </DialogHeader>
@@ -726,7 +726,7 @@ export function useConfirmDelete() {
             size="sm"
             variant="outline"
             onClick={() => setIsOpen(false)}
-            className="h-8 text-xs font-mono bg-[#f0f6fc] text-slate-700 border-[#c5d7e8]"
+            className="h-8 text-xs font-mono bg-[#f0f6fc] text-foreground/80 border-[#c5d7e8]"
           >
             Cancel
           </Button>

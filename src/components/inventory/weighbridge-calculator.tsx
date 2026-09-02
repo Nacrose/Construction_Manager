@@ -84,7 +84,7 @@ export function WeighbridgeCalculator({ initialUnit = "cum", onApply }: Weighbri
   };
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/50 via-white to-sky-50/30 dark:from-indigo-950/20 dark:via-background dark:to-sky-950/10 p-4 space-y-4 shadow-sm">
+    <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/50 via-white to-info/70/30 dark:from-indigo-950/20 dark:via-background dark:to-info/70/10 p-4 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-lg bg-indigo-600 text-white shadow-sm">

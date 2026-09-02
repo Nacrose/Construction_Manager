@@ -171,7 +171,7 @@ export function MaterialsInventoryTab({
         row.original.subCategory ? (
           <Badge
             variant="outline"
-            className="bg-blue-50/50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 border-blue-200 text-[10px] py-0 font-mono"
+            className="bg-info/50 text-info dark:bg-[var(--navy-deep)]/30 dark:text-info/80 border-info/30 text-[10px] py-0 font-mono"
           >
             {row.original.subCategory}
           </Badge>

@@ -39,7 +39,7 @@ export function MaterialsOrdersTab({
           <Button
             size="sm"
             onClick={() => setCreatePOOpen(true)}
-            className="h-7.5 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+            className="h-7.5 text-xs gap-1.5 bg-info hover:bg-info text-white rounded-lg"
           >
             <Plus className="h-3.5 w-3.5" /> Draft Purchase Order
           </Button>
@@ -59,9 +59,9 @@ export function MaterialsOrdersTab({
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {data.purchaseOrders.map((po: any) => {
-            let statusBadge = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+            let statusBadge = "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80";
             if (po.status === "issued")
-              statusBadge = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
+              statusBadge = "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
             if (po.status === "received")
               statusBadge =
                 "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
@@ -152,7 +152,7 @@ export function MaterialsOrdersTab({
                         <Button
                           size="sm"
                           variant="default"
-                          className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                          className="h-7 text-xs bg-info hover:bg-info text-white rounded-md"
                           onClick={() =>
                             updatePOStatusMutation.mutate({
                               projectId,

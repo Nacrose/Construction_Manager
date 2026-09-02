@@ -50,13 +50,13 @@ export function ProductionDashboardTab({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Card className="bg-card shadow-sm border-blue-500/20">
+          <Card className="bg-card shadow-sm border-info/20">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground">
                   Today Concrete Dispatched
                 </p>
-                <Factory className="h-4 w-4 text-blue-600" />
+                <Factory className="h-4 w-4 text-info" />
               </div>
               <p className="text-2xl font-bold font-mono text-foreground mt-1">
                 {summaryData?.concreteToday ?? 0}{" "}
@@ -133,7 +133,7 @@ export function ProductionDashboardTab({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Fuel className="h-4 w-4 text-blue-600" /> Plant Silos & Bunkers Live Stock Levels
+                  <Fuel className="h-4 w-4 text-info" /> Plant Silos & Bunkers Live Stock Levels
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Bulk cement silos, aggregate stockyard bins, and bitumen storage tanks.
@@ -269,7 +269,7 @@ export function ProductionDashboardTab({
                   </span>
                   {selectedCalcMix.targetSlumpMm && (
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <Droplets className="h-3 w-3 text-blue-500" /> Slump:{" "}
+                      <Droplets className="h-3 w-3 text-info" /> Slump:{" "}
                       {selectedCalcMix.targetSlumpMm} mm
                     </span>
                   )}

@@ -370,7 +370,7 @@ export function UnrecognizedMaterialsTab({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelect(item.id)}
-                        className="mt-1 rounded border-gray-300 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer shrink-0"
+                        className="mt-1 rounded border-border text-amber-600 focus:ring-amber-500 h-3.5 w-3.5 cursor-pointer shrink-0"
                       />
                     )}
 
@@ -490,7 +490,7 @@ export function UnrecognizedMaterialsTab({
                         <CheckCircle2 className="h-3 w-3" /> Mapped
                       </Badge>
                     ) : item.status === "promoted" ? (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-1 px-2 py-1 text-xs">
+                      <Badge variant="outline" className="bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 gap-1 px-2 py-1 text-xs">
                         <CheckCircle2 className="h-3 w-3" /> Promoted
                       </Badge>
                     ) : (

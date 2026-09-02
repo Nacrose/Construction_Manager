@@ -65,7 +65,7 @@ export function ScopeBadge({
     <Badge
       variant="outline"
       className={cn(
-        "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 text-[9px] gap-0.5 shrink-0 whitespace-nowrap font-medium",
+        "bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 text-[9px] gap-0.5 shrink-0 whitespace-nowrap font-medium",
         className
       )}
       title="Organization Catalog Item"

@@ -29,7 +29,7 @@ function npr(n: number) {
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: "Active", color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-950" },
   stored_on_site: { label: "Stored on Site", color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-950" },
-  returned: { label: "Returned", color: "text-slate-500", bg: "bg-slate-100 dark:bg-slate-800" },
+  returned: { label: "Returned", color: "text-muted-foreground", bg: "bg-muted dark:bg-[var(--navy-mid)]" },
 };
 
 export function RentalsTab({ projectId }: { projectId: string }) {
@@ -72,8 +72,8 @@ export function RentalsTab({ projectId }: { projectId: string }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <Card className="p-3"><div className="text-lg font-bold text-emerald-600">{rentalStats.activeCount}</div><div className="text-[9px] text-muted-foreground uppercase">Active</div></Card>
           <Card className="p-3"><div className="text-lg font-bold text-amber-600">{rentalStats.storedCount}</div><div className="text-[9px] text-muted-foreground uppercase">Stored</div></Card>
-          <Card className="p-3"><div className="text-lg font-bold text-slate-500">{rentalStats.returnedCount}</div><div className="text-[9px] text-muted-foreground uppercase">Returned</div></Card>
-          <Card className="p-3"><div className="text-lg font-bold text-blue-600">{npr(rentalStats.dailyAccruing)}</div><div className="text-[9px] text-muted-foreground uppercase">Daily Accruing</div></Card>
+          <Card className="p-3"><div className="text-lg font-bold text-muted-foreground">{rentalStats.returnedCount}</div><div className="text-[9px] text-muted-foreground uppercase">Returned</div></Card>
+          <Card className="p-3"><div className="text-lg font-bold text-info">{npr(rentalStats.dailyAccruing)}</div><div className="text-[9px] text-muted-foreground uppercase">Daily Accruing</div></Card>
         </div>
       )}
 
@@ -136,7 +136,7 @@ export function RentalsTab({ projectId }: { projectId: string }) {
                   {/* Crew cost */}
                   {r.crewDailyCost > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs border-t pt-2">
-                      <div><span className="text-muted-foreground">Crew cost/day:</span> <span className="font-medium text-blue-600">{npr(r.crewDailyCost)}</span></div>
+                      <div><span className="text-muted-foreground">Crew cost/day:</span> <span className="font-medium text-info">{npr(r.crewDailyCost)}</span></div>
                       <div><span className="text-muted-foreground">Total crew:</span> <span className="font-medium">{npr(r.crewDailyCost * r.billableDays)}</span></div>
                       <div><span className="text-muted-foreground">Total project:</span> <span className="font-bold text-primary">{npr(r.totalProjectCost)}</span></div>
                       <div><span className="text-muted-foreground">Daily rate (all):</span> <span className="font-bold">{npr(r.totalDailyRate)}/day</span></div>

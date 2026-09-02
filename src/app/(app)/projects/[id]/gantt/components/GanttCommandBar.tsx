@@ -208,7 +208,7 @@ export function GanttCommandBar({
     (showConflicts ? 1 : 0) + (showVariance ? 1 : 0) + (showEVM ? 1 : 0);
 
   return (
-    <div className="shrink-0 flex items-center justify-between gap-1.5 px-2.5 h-9 border border-slate-800/90 rounded-lg bg-slate-950/95 backdrop-blur-md z-15 font-mono text-[11px] shadow-2xs select-none">
+    <div className="shrink-0 flex items-center justify-between gap-1.5 px-2.5 h-9 border border-border/90 rounded-lg bg-[var(--navy-deep)]/95 backdrop-blur-md z-15 font-mono text-[11px] shadow-2xs select-none">
       {/* ── LEFT SECTION: Mode, Version & Overlay ────────────────────────── */}
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Mode Switcher Pill */}
@@ -428,10 +428,10 @@ export function GanttCommandBar({
                 }}
                 className={cn(
                   "flex items-center gap-1.5 text-xs cursor-pointer",
-                  showEVM && "font-bold text-cyan-400"
+                  showEVM && "font-bold text-info"
                 )}
               >
-                <TrendingUp className="h-3 w-3 text-cyan-400" />
+                <TrendingUp className="h-3 w-3 text-info" />
                 Earned Value (EVM)
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -659,7 +659,7 @@ export function GanttCommandBar({
           <button
             type="button"
             onClick={onOpenTemplates}
-            className="flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/90 px-2.5 h-7 text-[10px] font-mono font-semibold text-slate-200 hover:border-emerald-500/80 hover:text-emerald-400 hover:bg-slate-800 transition-all cursor-pointer whitespace-nowrap shadow-2xs"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-[var(--navy-mid)]/90 px-2.5 h-7 text-[10px] font-mono font-semibold text-foreground hover:border-emerald-500/80 hover:text-emerald-400 hover:bg-[var(--navy-mid)] transition-all cursor-pointer whitespace-nowrap shadow-2xs"
             title="Open Work Package & Structure Template Library"
           >
             <Layers className="h-3.5 w-3.5 text-emerald-400" />

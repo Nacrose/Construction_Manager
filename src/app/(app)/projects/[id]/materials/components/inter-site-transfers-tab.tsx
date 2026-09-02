@@ -57,11 +57,11 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       sortable: true,
       searchable: true,
       render: (val, t) => (
-        <div className="font-mono text-xs font-bold text-slate-900 flex items-center gap-1.5">
+        <div className="font-mono text-xs font-bold text-foreground flex items-center gap-1.5">
           {t.originProjectId === projectId ? (
             <ArrowUpRight className="h-3.5 w-3.5 text-amber-400" />
           ) : (
-            <ArrowDownLeft className="h-3.5 w-3.5 text-[#0284c7]" />
+            <ArrowDownLeft className="h-3.5 w-3.5 text-[var(--primary)]" />
           )}
           <span>{t.transferNo}</span>
         </div>
@@ -74,10 +74,10 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
         const isOutbound = t.originProjectId === projectId;
         return (
           <div className="text-xs">
-            <span className={`font-semibold ${isOutbound ? "text-amber-400" : "text-[#0284c7]"}`}>
+            <span className={`font-semibold ${isOutbound ? "text-amber-400" : "text-[var(--primary)]"}`}>
               {isOutbound ? `OUT ➔ ${t.destinationProject?.name || "Other Site"}` : `IN ⬅ ${t.originProject?.name || "Other Site"}`}
             </span>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-[10px] text-muted-foreground">
               {isOutbound ? `Code: ${t.destinationProject?.code}` : `Code: ${t.originProject?.code}`}
             </div>
           </div>
@@ -91,8 +91,8 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       searchable: true,
       render: (val, t) => (
         <div className="text-xs">
-          <div className="font-semibold text-slate-900">{t.material?.name || "Material"}</div>
-          <div className="font-mono text-[#0284c7] font-bold">
+          <div className="font-semibold text-foreground">{t.material?.name || "Material"}</div>
+          <div className="font-mono text-[var(--primary)] font-bold">
             {Number(t.quantity).toLocaleString()} {t.unit}
           </div>
         </div>
@@ -104,8 +104,8 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       sortable: true,
       render: (val, t) => (
         <div className="text-xs font-mono">
-          <div className="text-slate-900 font-bold">{formatNpr(Number(t.totalAmount || 0))}</div>
-          <div className="text-[10px] text-slate-500">@{formatNpr(Number(t.transferRate || 0))}/{t.unit}</div>
+          <div className="text-foreground font-bold">{formatNpr(Number(t.totalAmount || 0))}</div>
+          <div className="text-[10px] text-muted-foreground">@{formatNpr(Number(t.transferRate || 0))}/{t.unit}</div>
         </div>
       ),
     },
@@ -114,8 +114,8 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       header: "Vehicle & Chalan",
       render: (val, t) => (
         <div className="text-xs">
-          <div className="text-slate-800 font-mono">{t.vehicleNo || "—"}</div>
-          <div className="text-[10px] text-slate-500">{t.chalanNo || t.driverName || "Direct Move"}</div>
+          <div className="text-foreground/90 font-mono">{t.vehicleNo || "—"}</div>
+          <div className="text-[10px] text-muted-foreground">{t.chalanNo || t.driverName || "Direct Move"}</div>
         </div>
       ),
     },
@@ -124,7 +124,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       header: "Date",
       sortable: true,
       render: (val, t) => (
-        <div className="text-xs text-slate-700 font-mono">
+        <div className="text-xs text-foreground/80 font-mono">
           {t.dispatchDate ? format(new Date(t.dispatchDate), "dd MMM yyyy") : "—"}
         </div>
       ),
@@ -136,7 +136,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       render: (val, t) => {
         if (t.status === "received") {
           return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-[#0284c7] border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/30">
               <CheckCircle2 className="h-3 w-3" /> Received
             </span>
           );
@@ -164,7 +164,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
               size="sm"
               onClick={() => handleReceive(t)}
               disabled={receivingId === t.id}
-              className="h-7 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold rounded-lg shadow-sm"
+              className="h-7 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold rounded-lg shadow-sm"
             >
               {receivingId === t.id ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -175,7 +175,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
           );
         }
 
-        return <span className="text-[11px] text-gray-500 font-mono">—</span>;
+        return <span className="text-[11px] text-muted-foreground font-mono">—</span>;
       },
     },
   ];
@@ -183,18 +183,18 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
   return (
     <div className="space-y-3">
       {/* Top Toolbar */}
-      <div className="flex items-center justify-between p-3 rounded-2xl border border-[#c7d8e8] bg-white">
+      <div className="flex items-center justify-between p-3 rounded-2xl border border-[var(--border)] bg-card">
         <div className="flex items-center gap-2">
-          <ArrowRightLeft className="h-4 w-4 text-[#0284c7]" />
-          <span className="text-xs font-bold text-slate-900">Inter-Site Resource Movements (आन्तरिक सामाग्री स्थानान्तरण)</span>
-          <span className="text-[11px] text-slate-500">— Transfer surplus materials between sites with automatic project cost balancing</span>
+          <ArrowRightLeft className="h-4 w-4 text-[var(--primary)]" />
+          <span className="text-xs font-bold text-foreground">Inter-Site Resource Movements (आन्तरिक सामाग्री स्थानान्तरण)</span>
+          <span className="text-[11px] text-muted-foreground">— Transfer surplus materials between sites with automatic project cost balancing</span>
         </div>
 
         {canWrite && (
           <Button
             size="sm"
             onClick={() => setTransferDialogOpen(true)}
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-slate-900 font-bold gap-1.5 shadow-md rounded-xl"
+            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold gap-1.5 shadow-md rounded-xl"
           >
             <Plus className="h-3.5 w-3.5" />
             + New Transfer

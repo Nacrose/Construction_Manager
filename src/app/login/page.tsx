@@ -43,17 +43,14 @@ function LoginScene() {
         <ThemeToggle />
       </div>
 
-      {/* Grid pattern overlay */}
-      <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage: `
-            linear-gradient(oklch(1 0 0 / 1) 1px, transparent 1px),
-            linear-gradient(90deg, oklch(1 0 0 / 1) 1px, transparent 1px)
-          `,
-          backgroundSize: "60px 60px",
-        }}
-      />
+      {/* Drafting grid overlay */}
+      <div className="blueprint-grid-strong absolute inset-0" />
+      {/* Sheet registration marks */}
+      <div className="bp-corners pointer-events-none absolute inset-3" />
+      {/* Title strip */}
+      <div className="spec-label absolute bottom-4 left-5 text-white/40">
+        CM-OS · DWG NO. A-001 · SHEET 01 OF 01 · REV C
+      </div>
 
       <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
         <LoginCard />
@@ -143,10 +140,12 @@ function LoginCard() {
             <HardHat className="h-7 w-7 text-navy-deep" style={{ color: "oklch(0.22 0.07 258)" }} />
           </motion.div>
         </div>
+        <div className="spec-label spec-label-amber mb-2 text-amber-400/90">General Arrangement</div>
         <h1 className="text-3xl font-bold tracking-tight text-white font-sans">
-          Contractor <span className="text-emerald-400 font-mono text-sm tracking-widest font-normal">OS</span>
+          Contractor <span className="font-mono text-sm tracking-widest font-normal text-amber-400">OS</span>
         </h1>
-        <p className="mt-1.5 text-xs text-white/60">
+        <div className="dimension-line anim-draw-x mx-auto mt-3 w-40" />
+        <p className="mt-2.5 text-xs text-white/60">
           Construction Enterprise &amp; Site Management Platform
         </p>
       </motion.div>

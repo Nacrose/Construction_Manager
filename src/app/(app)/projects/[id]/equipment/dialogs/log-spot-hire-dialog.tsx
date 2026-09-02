@@ -264,7 +264,7 @@ export function LogSpotHireDialog({
                   step="0.5"
                   value={hoursWorked}
                   onChange={(e) => setHoursWorked(parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs font-mono font-bold text-blue-600"
+                  className="h-8 text-xs font-mono font-bold text-info"
                   required
                 />
               </div>

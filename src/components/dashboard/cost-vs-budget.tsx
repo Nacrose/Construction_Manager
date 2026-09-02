@@ -13,10 +13,10 @@ type Props = {
 
 const CATEGORIES = [
   { key: "material", label: "Material", color: "bg-amber-500" },
-  { key: "labor", label: "Labor", color: "bg-blue-500" },
+  { key: "labor", label: "Labor", color: "bg-info/70" },
   { key: "equipment", label: "Equipment", color: "bg-purple-500" },
   { key: "subcontractor", label: "Subcontractor", color: "bg-emerald-500" },
-  { key: "overhead", label: "Overhead", color: "bg-slate-500" },
+  { key: "overhead", label: "Overhead", color: "bg-muted/600" },
 ];
 
 export function CostVsBudget({ projectId }: Props) {
@@ -50,11 +50,11 @@ export function CostVsBudget({ projectId }: Props) {
         <div className="grid grid-cols-3 gap-3 font-mono">
           <div className="rounded-lg border p-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Budget</div>
-            <div className="text-lg font-bold text-slate-700 dark:text-slate-300">{formatNpr(data.totalBudget)}</div>
+            <div className="text-lg font-bold text-foreground/80 dark:text-foreground/80">{formatNpr(data.totalBudget)}</div>
           </div>
           <div className="rounded-lg border p-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Actual</div>
-            <div className="text-lg font-bold text-blue-600">{formatNpr(data.totalActual)}</div>
+            <div className="text-lg font-bold text-info">{formatNpr(data.totalActual)}</div>
           </div>
           <div className={cn("rounded-lg border p-3", variancePositive ? "border-emerald-200 bg-emerald-50/30" : "border-red-200 bg-red-50/30")}>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Variance</div>
@@ -73,7 +73,7 @@ export function CostVsBudget({ projectId }: Props) {
           </div>
           <div className="h-3 rounded-full bg-muted overflow-hidden">
             <div
-              className={cn("h-full transition-all", data.totalActual / data.totalBudget > 1 ? "bg-red-500" : "bg-blue-500")}
+              className={cn("h-full transition-all", data.totalActual / data.totalBudget > 1 ? "bg-red-500" : "bg-info/70")}
               style={{ width: `${Math.min(100, data.totalBudget > 0 ? (data.totalActual / data.totalBudget) * 100 : 0)}%` }}
             />
           </div>

@@ -198,7 +198,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
   }
 
   const LIB_CONFIG: Record<string, { label: string; short: string; color: string; badge: string }> = {
-    client_estimate: { label: "Client's Estimate", short: "Estimate", color: "text-sky-600 dark:text-sky-400", badge: "billing" },
+    client_estimate: { label: "Client's Estimate", short: "Estimate", color: "text-info dark:text-info/80", badge: "billing" },
     contractor_bid: { label: "Contractor Bid", short: "Bid", color: "text-amber-600 dark:text-amber-400", badge: "bid" },
     contractor_actual: { label: "Contractor's Actual", short: "Actual", color: "text-purple-600 dark:text-purple-400", badge: "costing" },
   };
@@ -333,7 +333,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
                           const lookup = lib === "client_estimate" ? est : lib === "contractor_bid" ? bid : act;
                           const val = lookup?.ratePerUnit ?? 0;
                           return (
-                            <td key={lib} className={`px-3 py-1.5 text-right font-medium ${lib === "client_estimate" ? "text-sky-400" : lib === "contractor_bid" ? "text-amber-400" : "text-purple-400"}`}>
+                            <td key={lib} className={`px-3 py-1.5 text-right font-medium ${lib === "client_estimate" ? "text-info/80" : lib === "contractor_bid" ? "text-amber-400" : "text-purple-400"}`}>
                               {val > 0 ? formatNpr(val) : <span className="italic text-muted-foreground">—</span>}
                             </td>
                           );

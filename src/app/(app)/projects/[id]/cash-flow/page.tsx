@@ -36,19 +36,19 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={FIN_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Single-Row Action & Timeline Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
+          <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
             <span>Forecast Horizon:</span>
-            <span className="font-bold text-[#0284c7]">{months} Months</span>
+            <span className="font-bold text-[var(--primary)]">{months} Months</span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground font-mono">Period:</span>
             <Select value={String(months)} onValueChange={(v) => setMonths(parseInt(v))}>
-              <SelectTrigger className="h-9 w-32 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl font-mono">
+              <SelectTrigger className="h-9 w-32 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl font-mono">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono">
                 <SelectItem value="6">6 months</SelectItem>
                 <SelectItem value="12">12 months</SelectItem>
                 <SelectItem value="18">18 months</SelectItem>
@@ -74,7 +74,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3 w-3" /> Total Planned
               </p>
-              <p className="mt-1 text-lg font-semibold text-blue-600">
+              <p className="mt-1 text-lg font-semibold text-info">
                 {formatNpr(data.totals.totalPlanned)}
               </p>
             </Card>
@@ -172,7 +172,7 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                   {data.months.map((m) => (
                     <TableRow key={m.month} className="font-mono text-xs">
                       <TableCell className="font-medium">{m.label}</TableCell>
-                      <TableCell className="text-right text-blue-600">{formatNpr(m.plannedCost)}</TableCell>
+                      <TableCell className="text-right text-info">{formatNpr(m.plannedCost)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNpr(m.actualCost)}</TableCell>
                       <TableCell className="text-right text-purple-600">{formatNpr(m.ipcPaid)}</TableCell>
                       <TableCell className="text-right font-semibold">{formatNpr(m.netCashFlow)}</TableCell>
@@ -206,7 +206,7 @@ function CashFlowChart({ months }: { months: Array<{ label: string; plannedCost:
       {/* Legend */}
       <div className="flex gap-4 text-xs">
         <span className="flex items-center gap-1">
-          <span className="h-3 w-3 rounded bg-blue-500" /> Planned
+          <span className="h-3 w-3 rounded bg-info/70" /> Planned
         </span>
         <span className="flex items-center gap-1">
           <span className="h-3 w-3 rounded bg-amber-500" /> Actual Costs
@@ -223,7 +223,7 @@ function CashFlowChart({ months }: { months: Array<{ label: string; plannedCost:
             <div className="flex items-end h-full gap-0.5 w-full justify-center">
               {/* Planned */}
               <div
-                className="w-1/3 bg-blue-500 rounded-t hover:bg-blue-600 transition-colors"
+                className="w-1/3 bg-info/70 rounded-t hover:bg-info transition-colors"
                 style={{ height: `${(m.plannedCost / maxVal) * 100}%`, minHeight: m.plannedCost > 0 ? "2px" : "0" }}
                 title={`Planned: ${formatNpr(m.plannedCost)}`}
               />
@@ -284,7 +284,7 @@ function CumulativeChart({ months }: { months: Array<{ label: string; cumulative
     <div className="space-y-2 font-mono">
       <div className="flex gap-4 text-xs">
         <span className="flex items-center gap-1">
-          <span className="h-0.5 w-4 bg-blue-500" /> Cumulative Planned
+          <span className="h-0.5 w-4 bg-info/70" /> Cumulative Planned
         </span>
         <span className="flex items-center gap-1">
           <span className="h-0.5 w-4 bg-emerald-500" /> Cumulative Actual

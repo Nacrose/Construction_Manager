@@ -159,7 +159,7 @@ function RevisionDocContent({ params }: { params: Promise<{ id: string; versionI
         <h3 className="mb-3 text-sm font-bold uppercase tracking-wide">Approval</h3>
         <div className="mb-6 grid grid-cols-2 gap-6">
           {/* Submitted by */}
-          <div className="border-2 border-dashed border-gray-300 p-4">
+          <div className="border-2 border-dashed border-border p-4">
             <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase">Submitted By</p>
             <p className="text-sm font-medium">{submittedBy?.name || "—"}</p>
             <p className="text-xs text-muted-foreground">{submittedBy?.email || "—"}</p>
@@ -167,7 +167,7 @@ function RevisionDocContent({ params }: { params: Promise<{ id: string; versionI
             <div className="mt-8 border-t pt-1 text-[10px] text-muted-foreground">Signature</div>
           </div>
           {/* Approved by */}
-          <div className="border-2 border-dashed border-gray-300 p-4">
+          <div className="border-2 border-dashed border-border p-4">
             <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase">Approved By (Client)</p>
             <p className="text-sm font-medium">{approvedBy?.name || "________________________"}</p>
             <p className="text-xs text-muted-foreground">{approvedBy?.email || ""}</p>

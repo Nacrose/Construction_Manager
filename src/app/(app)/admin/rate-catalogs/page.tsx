@@ -30,7 +30,7 @@ export default function AdminGlobalCatalogsPage() {
             <BookOpen className="h-4 w-4 text-amber-500" /> Material Catalog
           </TabsTrigger>
           <TabsTrigger value="rate-catalogs" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <Tag className="h-4 w-4 text-blue-500" /> Rate Catalogs
+            <Tag className="h-4 w-4 text-info" /> Rate Catalogs
           </TabsTrigger>
           <TabsTrigger value="uncataloged" className="gap-2 text-xs font-semibold px-4 py-1.5 relative">
             <Layers className="h-4 w-4 text-purple-500" /> Uncataloged Materials

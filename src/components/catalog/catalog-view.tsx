@@ -211,7 +211,7 @@ export function CatalogView({
                             {/* LEVEL 2: Group Row */}
                             <tr
                               onClick={() => toggleGroup(category, groupName)}
-                              className="bg-slate-700/15 dark:bg-zinc-800/40 hover:bg-slate-700/25 cursor-pointer select-none transition-colors border-b border-border/60"
+                              className="bg-[var(--navy-mid)]/15 dark:bg-zinc-800/40 hover:bg-[var(--navy-mid)]/25 cursor-pointer select-none transition-colors border-b border-border/60"
                             >
                               <td colSpan={totalCols} className="py-1 px-2.5">
                                 <div className="flex items-center gap-2">

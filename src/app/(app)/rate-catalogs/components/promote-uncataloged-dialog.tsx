@@ -191,7 +191,7 @@ export function PromoteUncatalogedDialog({
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               {level === "global" ? (
-                <Globe className="h-5 w-5 text-blue-500" />
+                <Globe className="h-5 w-5 text-info" />
               ) : (
                 <Building2 className="h-5 w-5 text-amber-500" />
               )}

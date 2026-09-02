@@ -261,7 +261,7 @@ export default function GanttPdfPrintPage({
   }
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-card min-h-screen">
       {/* Dynamic CSS Print rule injection to enforce exact paper size, margin and page breaks */}
       <style dangerouslySetInnerHTML={{ __html: `
         @page {
@@ -292,13 +292,13 @@ export default function GanttPdfPrintPage({
       `}} />
 
       {/* Sheets Mapping */}
-      <div className="flex flex-col items-center gap-6 p-6 bg-slate-100/50 no-print-bg print:p-0 print:bg-white print:gap-0">
+      <div className="flex flex-col items-center gap-6 p-6 bg-muted/50 no-print-bg print:p-0 print:bg-card print:gap-0">
         {Array.from({ length: numHorizontalPages }).map((_, pIdx) => {
           const isFirstPage = pIdx === 0;
           return (
             <div
               key={pIdx}
-              className="print-page bg-white border border-slate-300 shadow-xl relative shrink-0 flex flex-col overflow-hidden text-slate-900"
+              className="print-page bg-card border border-border shadow-xl relative shrink-0 flex flex-col overflow-hidden text-foreground"
               style={{
                 width: `${pageWpx}px`,
                 height: `${pageHpx}px`,
@@ -307,22 +307,22 @@ export default function GanttPdfPrintPage({
               }}
             >
               {/* Header — fixed height so all pages align identically when taped side-by-side */}
-              <div className="shrink-0 border-b-2 border-slate-300 mb-4" style={{ height: "88px", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "12px" }}>
+              <div className="shrink-0 border-b-2 border-border mb-4" style={{ height: "88px", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "12px" }}>
                 {isFirstPage ? (
                   <div className="flex justify-between items-end">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         {settings.showLogo && (
-                          <div className="h-7 w-7 rounded bg-slate-900 flex items-center justify-center font-bold text-white text-[10px]">
+                          <div className="h-7 w-7 rounded bg-[var(--navy-mid)] flex items-center justify-center font-bold text-white text-[10px]">
                             CM
                           </div>
                         )}
-                        <h2 className="text-xl font-bold tracking-tight text-slate-900">{settings.documentTitle}</h2>
+                        <h2 className="text-xl font-bold tracking-tight text-foreground">{settings.documentTitle}</h2>
                       </div>
-                      <p className="text-xs font-medium text-slate-500 italic">{settings.documentSubtitle}</p>
+                      <p className="text-xs font-medium text-muted-foreground italic">{settings.documentSubtitle}</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-200">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground bg-muted/60 p-2 rounded border border-border">
                       {settings.showProjectName && (
                         <>
                           <span className="font-semibold">Project:</span>
@@ -351,21 +351,21 @@ export default function GanttPdfPrintPage({
                   </div>
                 ) : (
                   <div className="flex items-end justify-between">
-                    <span className="text-xs font-semibold text-slate-500 italic">{settings.documentTitle} — Schedule Continued...</span>
-                    <span className="text-xs text-slate-400">Page {pIdx + 1} of {numHorizontalPages}</span>
+                    <span className="text-xs font-semibold text-muted-foreground italic">{settings.documentTitle} — Schedule Continued...</span>
+                    <span className="text-xs text-muted-foreground/80">Page {pIdx + 1} of {numHorizontalPages}</span>
                   </div>
                 )}
               </div>
 
               {/* Gantt chart main body layout */}
-              <div className="flex-1 flex overflow-hidden border border-slate-200 rounded bg-white">
+              <div className="flex-1 flex overflow-hidden border border-border rounded bg-card">
                 {/* WBS and Tasks column pane repeated on all split pages for context */}
                 {isFirstPage && (
                   <div
-                    className="shrink-0 border-r border-slate-200 flex flex-col bg-slate-55"
+                    className="shrink-0 border-r border-border flex flex-col bg-[var(--navy-mid)]"
                     style={{ width: `${totalLeftColumnsWidth}px` }}
                   >
-                  <div className="h-12 shrink-0 flex items-center border-b border-slate-200 px-1 text-[9px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100">
+                  <div className="h-12 shrink-0 flex items-center border-b border-border px-1 text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-muted">
                     {settings.showWBSColumn && <span className="text-center shrink-0" style={{ width: settings.columnWidths.wbs }}>WBS</span>}
                     <span className="flex-1 pl-1 shrink-0" style={{ width: settings.columnWidths.task }}>Task</span>
                     {settings.showDatesColumn && <span className="text-center shrink-0" style={{ width: settings.columnWidths.dates }}>Dates</span>}
@@ -373,11 +373,11 @@ export default function GanttPdfPrintPage({
                     {settings.showProgressColumn && <span className="text-center shrink-0" style={{ width: settings.columnWidths.progress }}>%</span>}
                   </div>
 
-                  <div className="flex-1 overflow-hidden text-[10px] text-slate-800 divide-y divide-slate-100 bg-white">
+                  <div className="flex-1 overflow-hidden text-[10px] text-foreground/90 divide-y divide-slate-100 bg-card">
                     {flattened.map(({ task, depth }, idx) => (
                       <div key={task.id} className="flex items-center px-1" style={{ height: `${rowHeights[idx]}px`, paddingLeft: `${depth * 8 + 4}px` }}>
                         {settings.showWBSColumn && (
-                          <span className="text-slate-400 font-mono text-[9px] shrink-0" style={{ width: settings.columnWidths.wbs }}>
+                          <span className="text-muted-foreground/80 font-mono text-[9px] shrink-0" style={{ width: settings.columnWidths.wbs }}>
                             {idx + 1}
                           </span>
                         )}
@@ -385,12 +385,12 @@ export default function GanttPdfPrintPage({
                           {task.name}
                         </span>
                         {settings.showDatesColumn && (
-                          <span className="text-slate-500 text-[9px] shrink-0" style={{ width: settings.columnWidths.dates }}>
+                          <span className="text-muted-foreground text-[9px] shrink-0" style={{ width: settings.columnWidths.dates }}>
                             {format(new Date(task.startDate), "MMM dd")}
                           </span>
                         )}
                         {settings.showDurationColumn && (
-                          <span className="text-slate-500 text-center shrink-0" style={{ width: settings.columnWidths.duration }}>
+                          <span className="text-muted-foreground text-center shrink-0" style={{ width: settings.columnWidths.duration }}>
                             {task.duration || 1}d
                           </span>
                         )}
@@ -406,9 +406,9 @@ export default function GanttPdfPrintPage({
               )}
 
                 {/* Timeline display: Shifts horizontally to show the current segment on split sheets */}
-                <div className="flex-1 overflow-hidden flex flex-col bg-white">
+                <div className="flex-1 overflow-hidden flex flex-col bg-card">
                   {/* Timeline header segment */}
-                  <div className="h-12 shrink-0 border-b border-slate-200 bg-slate-50 relative overflow-hidden">
+                  <div className="h-12 shrink-0 border-b border-border bg-muted/60 relative overflow-hidden">
                     <div style={{ width: `${svgWidth}px`, transform: `translateX(-${getTimelineTranslationX(pIdx)}px)` }}>
                       <svg height={48} width={svgWidth} className="block">
                         <TimelineHeader dayLabels={dayLabels} dayWidth={calculatedDayWidth} zoom="week" days={days || 30} svgWidth={svgWidth} />
@@ -529,7 +529,7 @@ export default function GanttPdfPrintPage({
               </div>
 
               {/* Footer */}
-              <div className="border-t border-slate-200 pt-2 mt-3 flex justify-between items-center text-[9px] text-slate-400">
+              <div className="border-t border-border pt-2 mt-3 flex justify-between items-center text-[9px] text-muted-foreground/80">
                 <span>{settings.footerNote}</span>
                 <span>Page {pIdx + 1} of {numHorizontalPages}</span>
                 {settings.showPrintDate && (

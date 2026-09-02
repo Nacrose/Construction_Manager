@@ -7,7 +7,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-auto rounded border border-border bg-card/75 backdrop-blur-md shadow-[0_0_16px_rgba(0,255,102,0.08)]"
+      className="relative w-full overflow-auto rounded-[5px] border border-border bg-card/90 shadow-[0_1px_3px_rgba(19,42,69,0.05)]"
     >
       <table
         data-slot="table"
@@ -23,7 +23,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
     <thead
       data-slot="table-header"
       className={cn(
-        "sticky top-0 z-10 bg-muted/90 backdrop-blur-md border-b border-border/80 text-primary font-mono",
+        "sticky top-0 z-10 bg-muted/95 backdrop-blur-sm border-b-[1.5px] border-amber/40 text-muted-foreground font-mono",
         className
       )}
       {...props}
@@ -59,7 +59,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-primary/10 data-[state=selected]:bg-primary/20 border-b border-border/40 transition-colors duration-100 font-mono",
+        "hover:bg-amber/[0.07] data-[state=selected]:bg-amber/15 border-b border-border/40 transition-colors duration-100 font-mono",
         className
       )}
       {...props}
@@ -72,7 +72,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-primary h-8.5 px-3 py-2 text-left align-middle text-[11px] font-mono font-bold uppercase tracking-wider whitespace-nowrap",
+        "text-muted-foreground h-8 px-3 py-1.5 text-left align-middle text-[10px] font-mono font-bold uppercase tracking-[0.12em] whitespace-nowrap",
         "[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         "cursor-default select-none",
         className
@@ -87,7 +87,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "px-3 py-2 align-middle whitespace-nowrap text-xs font-mono text-foreground tabular-nums",
+        "px-3 py-1.5 align-middle whitespace-nowrap text-xs font-mono text-foreground tabular-nums",
         "[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}

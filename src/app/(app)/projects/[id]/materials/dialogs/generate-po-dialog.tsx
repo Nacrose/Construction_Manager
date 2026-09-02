@@ -208,7 +208,7 @@ export function GeneratePODialog({
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+            <FileSpreadsheet className="h-5 w-5 text-info" />
             {title}
           </DialogTitle>
           <DialogDescription className="text-xs">{description}</DialogDescription>
@@ -223,14 +223,14 @@ export function GeneratePODialog({
                 ⚡ Automatic (Vendor Grouped)
               </TabsTrigger>
               <TabsTrigger value="manual" className="flex items-center gap-1.5 text-xs">
-                <Sliders className="h-3.5 w-3.5 text-blue-500" />
+                <Sliders className="h-3.5 w-3.5 text-info" />
                 🛠️ Selective / Phased Order
               </TabsTrigger>
             </TabsList>
 
             {/* MODE A: AUTOMATIC */}
             <TabsContent value="auto" className="space-y-4 m-0">
-              <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-xl p-3.5 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+              <div className="bg-info/50 dark:bg-[var(--navy-deep)]/20 border border-info/30 dark:border-info/30 rounded-xl p-3.5 text-xs text-info dark:text-info/80 flex items-start gap-2.5">
                 <Zap className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold">Automatic Vendor Breakdown</p>
@@ -250,7 +250,7 @@ export function GeneratePODialog({
                   >
                     <div className="flex items-center justify-between border-b pb-2">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200">
+                        <Badge variant="outline" className="bg-info/10 dark:bg-[var(--navy-deep)] text-info dark:text-info/80 border-info/30">
                           PO #{idx + 1}
                         </Badge>
                         <span className="font-bold text-sm flex items-center gap-1.5">
@@ -413,7 +413,7 @@ export function GeneratePODialog({
             size="sm"
             onClick={handleSubmit}
             disabled={generateMut.isPending || items.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px]"
+            className="bg-info hover:bg-info text-white min-w-[140px]"
           >
             {generateMut.isPending ? (
               <>

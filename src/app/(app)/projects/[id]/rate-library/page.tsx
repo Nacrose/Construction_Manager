@@ -33,7 +33,7 @@ export default function RateLibraryPage({ params }: { params: Promise<{ id: stri
       <ModuleTabs projectId={id} tabs={RES_TABS} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-[3px]">
-        <TabsList className="bg-[#f8fbfe] border border-[#c7d8e8] p-1 rounded-xl h-10 flex w-fit">
+        <TabsList className="bg-[#f8fbfe] border border-[var(--border)] p-1 rounded-xl h-10 flex w-fit">
           <TabsTrigger value="materials" className="gap-2 text-xs font-semibold px-4 py-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-black">
             <BookOpen className="h-4 w-4" /> Material Catalog
           </TabsTrigger>

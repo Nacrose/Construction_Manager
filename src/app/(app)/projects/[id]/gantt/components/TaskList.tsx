@@ -172,17 +172,17 @@ export function TaskList({
               setDropIndicator(null);
             }}
             className={cn(
-              "flex items-center border-b border-slate-800/70 text-xs transition-all cursor-pointer group relative overflow-hidden",
-              isDragging && "opacity-40 bg-slate-900",
+              "flex items-center border-b border-border/70 text-xs transition-all cursor-pointer group relative overflow-hidden",
+              isDragging && "opacity-40 bg-[var(--navy-mid)]",
               isDropBefore && "border-t-2 border-t-emerald-400 shadow-[0_-2px_8px_rgba(52,211,153,0.5)]",
               isDropAfter && "border-b-2 border-b-emerald-400 shadow-[0_2px_8px_rgba(52,211,153,0.5)]",
               isSelected
-                ? "bg-primary/20 border-l-2 border-l-primary text-slate-100"
+                ? "bg-primary/20 border-l-2 border-l-primary text-foreground"
                 : isHovered
-                  ? "bg-slate-800/60 text-slate-100"
+                  ? "bg-[var(--navy-mid)]/60 text-foreground"
                   : idx % 2 === 0
-                    ? "bg-slate-950/80 hover:bg-slate-850/50 text-slate-300"
-                    : "bg-slate-900/40 hover:bg-slate-850/50 text-slate-300",
+                    ? "bg-[var(--navy-deep)]/80 hover:bg-[var(--navy-mid)]/50 text-muted-foreground"
+                    : "bg-[var(--navy-mid)]/40 hover:bg-[var(--navy-mid)]/50 text-muted-foreground",
             )}
             style={{ height: rowHeights[idx] }}
             onClick={() => onSelectTask(task.id)}
@@ -194,7 +194,7 @@ export function TaskList({
             onMouseLeave={() => onHoverTask(null)}
           >
             {/* WBS code column with vertical divider and drag grip */}
-            <div className="w-8 shrink-0 flex items-center justify-center border-r border-slate-800/70 h-full px-0.5" title={`WBS: ${task.code || idx + 1}`}>
+            <div className="w-8 shrink-0 flex items-center justify-center border-r border-border/70 h-full px-0.5" title={`WBS: ${task.code || idx + 1}`}>
               <span className="text-[10px] font-mono text-emerald-400 font-bold truncate">
                 {task.code || idx + 1}
               </span>
@@ -210,7 +210,7 @@ export function TaskList({
                 {children ? (
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
-                    className="rounded p-0.5 mt-0.5 -ml-0.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer shrink-0"
+                    className="rounded p-0.5 mt-0.5 -ml-0.5 hover:bg-[var(--navy-mid)] text-muted-foreground/80 hover:text-foreground cursor-pointer shrink-0"
                   >
                     <ChevronRight className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-90")} />
                   </button>
@@ -220,29 +220,29 @@ export function TaskList({
                 )}
                 <div className="flex-1 min-w-0">
                   <span
-                    className="text-[11px] font-medium leading-[14px] text-left whitespace-normal break-words text-slate-200 block"
+                    className="text-[11px] font-medium leading-[14px] text-left whitespace-normal break-words text-foreground block"
                     title={task.name}
                   >
                     {task.name}
                   </span>
                 </div>
-                <span className="text-[9.5px] text-slate-400 font-mono shrink-0 mt-0.5">({pct}%)</span>
+                <span className="text-[9.5px] text-muted-foreground/80 font-mono shrink-0 mt-0.5">({pct}%)</span>
               </div>
 
               {/* Subtitle row: Dates & Compact Indent Arrows */}
               <div className="flex items-center justify-between min-w-0 gap-1 pl-0.5">
-                <div className="text-[8.5px] text-slate-400 font-mono truncate leading-tight flex-1 min-w-0">
+                <div className="text-[8.5px] text-muted-foreground/80 font-mono truncate leading-tight flex-1 min-w-0">
                   {formatTaskDateRange(start, end, dur)}
                 </div>
                 {canWrite && (
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 bg-slate-900/90 rounded border border-slate-700/70 px-0.5 shadow-sm">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 bg-[var(--navy-mid)]/90 rounded border border-border/70 px-0.5 shadow-sm">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         reorderMutation.mutate({ projectId, taskId: task.id, direction: "indent" });
                       }}
                       title="Indent (Nest under task above)"
-                      className="px-1 py-0.2 text-[9px] font-mono text-slate-300 hover:text-emerald-400 hover:bg-slate-800 rounded cursor-pointer leading-none"
+                      className="px-1 py-0.2 text-[9px] font-mono text-muted-foreground hover:text-emerald-400 hover:bg-[var(--navy-mid)] rounded cursor-pointer leading-none"
                     >
                       →
                     </button>
@@ -253,7 +253,7 @@ export function TaskList({
                           reorderMutation.mutate({ projectId, taskId: task.id, direction: "outdent" });
                         }}
                         title="Outdent (Move 1 level up)"
-                        className="px-1 py-0.2 text-[9px] font-mono text-slate-300 hover:text-emerald-400 hover:bg-slate-800 rounded cursor-pointer leading-none"
+                        className="px-1 py-0.2 text-[9px] font-mono text-muted-foreground hover:text-emerald-400 hover:bg-[var(--navy-mid)] rounded cursor-pointer leading-none"
                       >
                         ←
                       </button>
@@ -275,11 +275,11 @@ export function TaskList({
           <div
             key={`ghost-row-${k}`}
             className={cn(
-              "flex items-center h-[38px] border-b border-slate-800/60 pointer-events-none select-none",
-              rowIdx % 2 === 0 ? "bg-slate-950/80" : "bg-slate-900/40"
+              "flex items-center h-[38px] border-b border-border/60 pointer-events-none select-none",
+              rowIdx % 2 === 0 ? "bg-[var(--navy-deep)]/80" : "bg-[var(--navy-mid)]/40"
             )}
           >
-            <div className="w-12 shrink-0 border-r border-slate-800/60 h-full" />
+            <div className="w-12 shrink-0 border-r border-border/60 h-full" />
             <div className="flex-1" />
           </div>
         );

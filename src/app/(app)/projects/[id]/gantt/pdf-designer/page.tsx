@@ -307,57 +307,57 @@ export default function GanttPdfDesignerPage({
 
   if (isLoading || !scheduleData) {
     return (
-      <div className="flex h-screen bg-slate-900 text-slate-100 items-center justify-center">
+      <div className="flex h-screen bg-[var(--navy-mid)] text-foreground items-center justify-center">
         <div className="space-y-4 text-center">
           <RefreshCw className="h-10 w-10 animate-spin text-emerald-500 mx-auto" />
-          <p className="text-sm text-slate-400">Loading Gantt Print Designer...</p>
+          <p className="text-sm text-muted-foreground/80">Loading Gantt Print Designer...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+    <div className="flex h-screen overflow-hidden bg-[var(--navy-deep)] text-foreground font-sans">
       {/* 1. LEFT SIDEBAR PANEL */}
-      <div className={`${sidebarOpen ? "w-[380px]" : "w-[64px]"} shrink-0 border-r border-slate-800 bg-slate-900 flex flex-col z-20 transition-all duration-300`}>
+      <div className={`${sidebarOpen ? "w-[380px]" : "w-[64px]"} shrink-0 border-r border-border bg-[var(--navy-mid)] flex flex-col z-20 transition-all duration-300`}>
         {/* Sidebar Header */}
-        <div className={`p-4 border-b border-slate-800 flex items-center ${sidebarOpen ? "justify-between" : "justify-center"} overflow-hidden shrink-0`}>
+        <div className={`p-4 border-b border-border flex items-center ${sidebarOpen ? "justify-between" : "justify-center"} overflow-hidden shrink-0`}>
           {sidebarOpen ? (
             <>
               <div className="flex items-center gap-2 shrink-0">
-                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-800" asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-[var(--navy-mid)]" asChild>
                   <a href={`/projects/${id}/gantt`}>
-                    <ChevronLeft className="h-4 w-4 text-slate-400" />
+                    <ChevronLeft className="h-4 w-4 text-muted-foreground/80" />
                   </a>
                 </Button>
                 <h1 className="text-base font-semibold tracking-tight text-white truncate">Gantt PDF Designer</h1>
               </div>
-              <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-800 shrink-0 text-slate-400" onClick={() => setSidebarOpen(false)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-[var(--navy-mid)] shrink-0 text-muted-foreground/80" onClick={() => setSidebarOpen(false)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </>
           ) : (
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-800 text-slate-400" onClick={() => setSidebarOpen(true)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-[var(--navy-mid)] text-muted-foreground/80" onClick={() => setSidebarOpen(true)}>
               <Settings className="h-4 w-4" />
             </Button>
           )}
         </div>
 
         {/* Sidebar Tab Selector */}
-        <div className={`flex bg-slate-950/40 ${sidebarOpen ? "p-1" : "flex-col p-1 gap-2"} border-b border-slate-800 text-xs font-medium shrink-0`}>
-          <button onClick={() => { setActiveTab("layout"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "layout" ? "bg-slate-800 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`} title="Setup">
+        <div className={`flex bg-[var(--navy-deep)]/40 ${sidebarOpen ? "p-1" : "flex-col p-1 gap-2"} border-b border-border text-xs font-medium shrink-0`}>
+          <button onClick={() => { setActiveTab("layout"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "layout" ? "bg-[var(--navy-mid)] text-white font-semibold" : "text-muted-foreground/80 hover:text-foreground"}`} title="Setup">
             <Layout className="h-4 w-4" />
             {sidebarOpen && <span className="ml-2">Setup</span>}
           </button>
-          <button onClick={() => { setActiveTab("header"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "header" ? "bg-slate-800 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`} title="Header">
+          <button onClick={() => { setActiveTab("header"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "header" ? "bg-[var(--navy-mid)] text-white font-semibold" : "text-muted-foreground/80 hover:text-foreground"}`} title="Header">
             <FileText className="h-4 w-4" />
             {sidebarOpen && <span className="ml-2">Header</span>}
           </button>
-          <button onClick={() => { setActiveTab("columns"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "columns" ? "bg-slate-800 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`} title="Columns">
+          <button onClick={() => { setActiveTab("columns"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "columns" ? "bg-[var(--navy-mid)] text-white font-semibold" : "text-muted-foreground/80 hover:text-foreground"}`} title="Columns">
             <Columns className="h-4 w-4" />
             {sidebarOpen && <span className="ml-2">Columns</span>}
           </button>
-          <button onClick={() => { setActiveTab("footer"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "footer" ? "bg-slate-800 text-white font-semibold" : "text-slate-400 hover:text-slate-200"}`} title="Footer">
+          <button onClick={() => { setActiveTab("footer"); setSidebarOpen(true); }} className={`flex-1 py-2 flex items-center justify-center rounded transition-colors ${activeTab === "footer" ? "bg-[var(--navy-mid)] text-white font-semibold" : "text-muted-foreground/80 hover:text-foreground"}`} title="Footer">
             <Layers className="h-4 w-4" />
             {sidebarOpen && <span className="ml-2">Footer</span>}
           </button>
@@ -369,49 +369,49 @@ export default function GanttPdfDesignerPage({
           {/* TAB 1: LAYOUT & PAGE SETUP */}
           {activeTab === "layout" && (
             <div className="space-y-4">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Layout className="h-3.5 w-3.5" /> Page Layout Setup</h2>
+              <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5"><Layout className="h-3.5 w-3.5" /> Page Layout Setup</h2>
               
               <div className="space-y-2">
-                <Label className="text-xs text-slate-300">Paper Size</Label>
+                <Label className="text-xs text-muted-foreground">Paper Size</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={settings.paperSize === "A3" ? "default" : "outline"} onClick={() => updateSetting("paperSize", "A3")} className={settings.paperSize === "A3" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-slate-700 hover:bg-slate-800"}>A3 (Landscape)</Button>
-                  <Button size="sm" variant={settings.paperSize === "A4" ? "default" : "outline"} onClick={() => updateSetting("paperSize", "A4")} className={settings.paperSize === "A4" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-slate-700 hover:bg-slate-800"}>A4 (Draft checking)</Button>
+                  <Button size="sm" variant={settings.paperSize === "A3" ? "default" : "outline"} onClick={() => updateSetting("paperSize", "A3")} className={settings.paperSize === "A3" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-border hover:bg-[var(--navy-mid)]"}>A3 (Landscape)</Button>
+                  <Button size="sm" variant={settings.paperSize === "A4" ? "default" : "outline"} onClick={() => updateSetting("paperSize", "A4")} className={settings.paperSize === "A4" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-border hover:bg-[var(--navy-mid)]"}>A4 (Draft checking)</Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs text-slate-300">Orientation</Label>
+                <Label className="text-xs text-muted-foreground">Orientation</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={settings.orientation === "landscape" ? "default" : "outline"} onClick={() => updateSetting("orientation", "landscape")} className={settings.orientation === "landscape" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-slate-700 hover:bg-slate-800"}>Landscape</Button>
-                  <Button size="sm" variant={settings.orientation === "portrait" ? "default" : "outline"} onClick={() => updateSetting("orientation", "portrait")} className={settings.orientation === "portrait" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-slate-700 hover:bg-slate-800"}>Portrait</Button>
+                  <Button size="sm" variant={settings.orientation === "landscape" ? "default" : "outline"} onClick={() => updateSetting("orientation", "landscape")} className={settings.orientation === "landscape" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-border hover:bg-[var(--navy-mid)]"}>Landscape</Button>
+                  <Button size="sm" variant={settings.orientation === "portrait" ? "default" : "outline"} onClick={() => updateSetting("orientation", "portrait")} className={settings.orientation === "portrait" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-border hover:bg-[var(--navy-mid)]"}>Portrait</Button>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <Label className="text-xs text-slate-300">Page Margins (mm)</Label>
-                  <span className="text-xs text-slate-400 font-mono">{settings.margin}mm</span>
+                  <Label className="text-xs text-muted-foreground">Page Margins (mm)</Label>
+                  <span className="text-xs text-muted-foreground/80 font-mono">{settings.margin}mm</span>
                 </div>
                 <Slider value={[settings.margin]} onValueChange={([val]) => updateSetting("margin", val)} min={5} max={30} step={1} className="py-2" />
               </div>
 
-              <div className="pt-2 border-t border-slate-800 space-y-4">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Timeline Fit Mode</h3>
+              <div className="pt-2 border-t border-border space-y-4">
+                <h3 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Timeline Fit Mode</h3>
                 
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                  <div className="flex items-center justify-between bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                     <div className="space-y-0.5">
-                      <Label className="text-xs text-slate-200 font-medium">Fit to 1 Page Width</Label>
-                      <p className="text-[10px] text-slate-400">Scale timeline to fit exactly on page width</p>
+                      <Label className="text-xs text-foreground font-medium">Fit to 1 Page Width</Label>
+                      <p className="text-[10px] text-muted-foreground/80">Scale timeline to fit exactly on page width</p>
                     </div>
                     <Switch checked={settings.timelineFitMode === "fit-width"} onCheckedChange={(checked) => updateSetting("timelineFitMode", checked ? "fit-width" : "multi-page")} />
                   </div>
 
                   {settings.timelineFitMode === "multi-page" && (
-                    <div className="space-y-2.5 p-3 bg-slate-950/20 rounded border border-slate-800/80">
+                    <div className="space-y-2.5 p-3 bg-[var(--navy-deep)]/20 rounded border border-border/80">
                       <div className="flex justify-between items-center">
-                        <Label className="text-xs text-slate-300">Timeline Width (Day Zoom)</Label>
-                        <span className="text-xs text-slate-400 font-mono">{settings.customDayWidth}px/day</span>
+                        <Label className="text-xs text-muted-foreground">Timeline Width (Day Zoom)</Label>
+                        <span className="text-xs text-muted-foreground/80 font-mono">{settings.customDayWidth}px/day</span>
                       </div>
                       <Slider value={[settings.customDayWidth]} onValueChange={([val]) => updateSetting("customDayWidth", val)} min={2} max={45} step={1} className="py-1" />
                       <div className="flex gap-2">
@@ -429,39 +429,39 @@ export default function GanttPdfDesignerPage({
           {/* TAB 2: DOCUMENT HEADER DETAILS */}
           {activeTab === "header" && (
             <div className="space-y-4">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Header Configurations</h2>
+              <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Header Configurations</h2>
               
               <div className="space-y-2">
-                <Label className="text-xs text-slate-300">Document Title</Label>
-                <Input value={settings.documentTitle} onChange={(e) => updateSetting("documentTitle", e.target.value)} className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
+                <Label className="text-xs text-muted-foreground">Document Title</Label>
+                <Input value={settings.documentTitle} onChange={(e) => updateSetting("documentTitle", e.target.value)} className="bg-[var(--navy-deep)] border-border text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs text-slate-300">Document Subtitle</Label>
-                <Input value={settings.documentSubtitle} onChange={(e) => updateSetting("documentSubtitle", e.target.value)} className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
+                <Label className="text-xs text-muted-foreground">Document Subtitle</Label>
+                <Input value={settings.documentSubtitle} onChange={(e) => updateSetting("documentSubtitle", e.target.value)} className="bg-[var(--navy-deep)] border-border text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
               </div>
 
-              <div className="pt-2 border-t border-slate-800 space-y-3">
-                <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Show Info Metadata</Label>
+              <div className="pt-2 border-t border-border space-y-3">
+                <Label className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider">Show Info Metadata</Label>
                 
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Logo Placeholder</Label>
+                  <Label className="text-xs text-muted-foreground">Logo Placeholder</Label>
                   <Switch checked={settings.showLogo} onCheckedChange={(checked) => updateSetting("showLogo", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Project Name</Label>
+                  <Label className="text-xs text-muted-foreground">Project Name</Label>
                   <Switch checked={settings.showProjectName} onCheckedChange={(checked) => updateSetting("showProjectName", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Client Name</Label>
+                  <Label className="text-xs text-muted-foreground">Client Name</Label>
                   <Switch checked={settings.showClientName} onCheckedChange={(checked) => updateSetting("showClientName", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Date Range (Start/End)</Label>
+                  <Label className="text-xs text-muted-foreground">Date Range (Start/End)</Label>
                   <Switch checked={settings.showDateRange} onCheckedChange={(checked) => updateSetting("showDateRange", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Project Progress Tag</Label>
+                  <Label className="text-xs text-muted-foreground">Project Progress Tag</Label>
                   <Switch checked={settings.showProgress} onCheckedChange={(checked) => updateSetting("showProgress", checked)} />
                 </div>
               </div>
@@ -471,95 +471,95 @@ export default function GanttPdfDesignerPage({
           {/* TAB 3: TASK COLUMNS & WIDTHS */}
           {activeTab === "columns" && (
             <div className="space-y-4">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Columns className="h-3.5 w-3.5" /> Columns Visibility & Widths</h2>
+              <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5"><Columns className="h-3.5 w-3.5" /> Columns Visibility & Widths</h2>
 
               <div className="space-y-3">
                 {/* WBS Column */}
-                <div className="space-y-1.5 bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                <div className="space-y-1.5 bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-200">WBS Code Column</Label>
+                    <Label className="text-xs font-medium text-foreground">WBS Code Column</Label>
                     <Switch checked={settings.showWBSColumn} onCheckedChange={(checked) => updateSetting("showWBSColumn", checked)} />
                   </div>
                   {settings.showWBSColumn && (
                     <div className="flex gap-2 items-center pt-1.5">
-                      <Label className="text-[10px] text-slate-400 shrink-0 w-16">Width (px)</Label>
+                      <Label className="text-[10px] text-muted-foreground/80 shrink-0 w-16">Width (px)</Label>
                       <Slider value={[settings.columnWidths.wbs]} onValueChange={([val]) => updateColumnWidth("wbs", val)} min={30} max={90} step={5} className="flex-1" />
-                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">{settings.columnWidths.wbs}px</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/80 w-8 text-right">{settings.columnWidths.wbs}px</span>
                     </div>
                   )}
                 </div>
 
                 {/* Task Name Column */}
-                <div className="space-y-1.5 bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                <div className="space-y-1.5 bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-200">Task Description Column</Label>
+                    <Label className="text-xs font-medium text-foreground">Task Description Column</Label>
                     <span className="text-[10px] text-emerald-400">Required</span>
                   </div>
                   <div className="flex gap-2 items-center pt-1.5">
-                    <Label className="text-[10px] text-slate-400 shrink-0 w-16">Width (px)</Label>
+                    <Label className="text-[10px] text-muted-foreground/80 shrink-0 w-16">Width (px)</Label>
                     <Slider value={[settings.columnWidths.task]} onValueChange={([val]) => updateColumnWidth("task", val)} min={120} max={300} step={10} className="flex-1" />
-                    <span className="text-[10px] font-mono text-slate-400 w-8 text-right">{settings.columnWidths.task}px</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/80 w-8 text-right">{settings.columnWidths.task}px</span>
                   </div>
                 </div>
 
                 {/* Dates Column */}
-                <div className="space-y-1.5 bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                <div className="space-y-1.5 bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-200">Dates Column (Start/End)</Label>
+                    <Label className="text-xs font-medium text-foreground">Dates Column (Start/End)</Label>
                     <Switch checked={settings.showDatesColumn} onCheckedChange={(checked) => updateSetting("showDatesColumn", checked)} />
                   </div>
                   {settings.showDatesColumn && (
                     <div className="flex gap-2 items-center pt-1.5">
-                      <Label className="text-[10px] text-slate-400 shrink-0 w-16">Width (px)</Label>
+                      <Label className="text-[10px] text-muted-foreground/80 shrink-0 w-16">Width (px)</Label>
                       <Slider value={[settings.columnWidths.dates]} onValueChange={([val]) => updateColumnWidth("dates", val)} min={80} max={200} step={10} className="flex-1" />
-                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">{settings.columnWidths.dates}px</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/80 w-8 text-right">{settings.columnWidths.dates}px</span>
                     </div>
                   )}
                 </div>
 
                 {/* Duration Column */}
-                <div className="space-y-1.5 bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                <div className="space-y-1.5 bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-200">Duration Column</Label>
+                    <Label className="text-xs font-medium text-foreground">Duration Column</Label>
                     <Switch checked={settings.showDurationColumn} onCheckedChange={(checked) => updateSetting("showDurationColumn", checked)} />
                   </div>
                   {settings.showDurationColumn && (
                     <div className="flex gap-2 items-center pt-1.5">
-                      <Label className="text-[10px] text-slate-400 shrink-0 w-16">Width (px)</Label>
+                      <Label className="text-[10px] text-muted-foreground/80 shrink-0 w-16">Width (px)</Label>
                       <Slider value={[settings.columnWidths.duration]} onValueChange={([val]) => updateColumnWidth("duration", val)} min={40} max={120} step={5} className="flex-1" />
-                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">{settings.columnWidths.duration}px</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/80 w-8 text-right">{settings.columnWidths.duration}px</span>
                     </div>
                   )}
                 </div>
 
                 {/* Progress Column */}
-                <div className="space-y-1.5 bg-slate-950/30 p-2.5 rounded border border-slate-800">
+                <div className="space-y-1.5 bg-[var(--navy-deep)]/30 p-2.5 rounded border border-border">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-200">Progress (%) Column</Label>
+                    <Label className="text-xs font-medium text-foreground">Progress (%) Column</Label>
                     <Switch checked={settings.showProgressColumn} onCheckedChange={(checked) => updateSetting("showProgressColumn", checked)} />
                   </div>
                   {settings.showProgressColumn && (
                     <div className="flex gap-2 items-center pt-1.5">
-                      <Label className="text-[10px] text-slate-400 shrink-0 w-16">Width (px)</Label>
+                      <Label className="text-[10px] text-muted-foreground/80 shrink-0 w-16">Width (px)</Label>
                       <Slider value={[settings.columnWidths.progress]} onValueChange={([val]) => updateColumnWidth("progress", val)} min={40} max={120} step={5} className="flex-1" />
-                      <span className="text-[10px] font-mono text-slate-400 w-8 text-right">{settings.columnWidths.progress}px</span>
+                      <span className="text-[10px] font-mono text-muted-foreground/80 w-8 text-right">{settings.columnWidths.progress}px</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-800 space-y-3">
-                <Label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Timeline Visual Settings</Label>
+              <div className="pt-2 border-t border-border space-y-3">
+                <Label className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider">Timeline Visual Settings</Label>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Show Baseline comparison</Label>
+                  <Label className="text-xs text-muted-foreground">Show Baseline comparison</Label>
                   <Switch checked={settings.showBaseline} onCheckedChange={(checked) => updateSetting("showBaseline", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Highlight Critical Path</Label>
+                  <Label className="text-xs text-muted-foreground">Highlight Critical Path</Label>
                   <Switch checked={settings.highlightCriticalPath} onCheckedChange={(checked) => updateSetting("highlightCriticalPath", checked)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-slate-300">Show Dependency Arrows</Label>
+                  <Label className="text-xs text-muted-foreground">Show Dependency Arrows</Label>
                   <Switch checked={settings.showDependencies} onCheckedChange={(checked) => updateSetting("showDependencies", checked)} />
                 </div>
               </div>
@@ -569,15 +569,15 @@ export default function GanttPdfDesignerPage({
           {/* TAB 4: DOCUMENT FOOTER DETAILS */}
           {activeTab === "footer" && (
             <div className="space-y-4">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Footer & Notes Settings</h2>
+              <h2 className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Footer & Notes Settings</h2>
               
               <div className="space-y-2">
-                <Label className="text-xs text-slate-300">Footer Text Note</Label>
-                <Input value={settings.footerNote} onChange={(e) => updateSetting("footerNote", e.target.value)} className="bg-slate-950 border-slate-800 text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
+                <Label className="text-xs text-muted-foreground">Footer Text Note</Label>
+                <Input value={settings.footerNote} onChange={(e) => updateSetting("footerNote", e.target.value)} className="bg-[var(--navy-deep)] border-border text-white placeholder-slate-600 focus-visible:ring-emerald-500" />
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                <Label className="text-xs text-slate-300">Include Printed Date & Time</Label>
+              <div className="flex items-center justify-between pt-2 border-t border-border">
+                <Label className="text-xs text-muted-foreground">Include Printed Date & Time</Label>
                 <Switch checked={settings.showPrintDate} onCheckedChange={(checked) => updateSetting("showPrintDate", checked)} />
               </div>
             </div>
@@ -586,7 +586,7 @@ export default function GanttPdfDesignerPage({
         )}
 
         {/* Bottom Print Button */}
-        <div className={`p-4 border-t border-slate-800 flex items-center ${sidebarOpen ? "justify-end" : "justify-center"} shrink-0`}>
+        <div className={`p-4 border-t border-border flex items-center ${sidebarOpen ? "justify-end" : "justify-center"} shrink-0`}>
           <Button size={sidebarOpen ? "sm" : "icon"} className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handlePrint} title="Print PDF">
             <Printer className="h-3.5 w-3.5" />
             {sidebarOpen && <span className="ml-1.5">Print PDF</span>}
@@ -595,30 +595,30 @@ export default function GanttPdfDesignerPage({
       </div>
 
       {/* 2. DESIGNER WORKSPACE CANVAS */}
-      <div className="flex-1 bg-slate-950 overflow-auto p-8 flex flex-col items-start select-none relative font-sans relative">
-        <div className="min-w-fit w-full mb-4 flex justify-between items-center text-xs text-slate-400 sticky left-0 top-0 z-10 bg-slate-950/90 py-2 border-b border-slate-800 backdrop-blur-sm">
+      <div className="flex-1 bg-[var(--navy-deep)] overflow-auto p-8 flex flex-col items-start select-none relative font-sans relative">
+        <div className="min-w-fit w-full mb-4 flex justify-between items-center text-xs text-muted-foreground/80 sticky left-0 top-0 z-10 bg-[var(--navy-deep)]/90 py-2 border-b border-border backdrop-blur-sm">
           <div className="flex gap-4 items-center">
-            <span>Paper: <b className="text-slate-200">{settings.paperSize} ({settings.orientation})</b></span>
-            <span>Scale: <b className="text-slate-200">{Math.round(calculatedDayWidth * 10) / 10}px/day</b></span>
+            <span>Paper: <b className="text-foreground">{settings.paperSize} ({settings.orientation})</b></span>
+            <span>Scale: <b className="text-foreground">{Math.round(calculatedDayWidth * 10) / 10}px/day</b></span>
             {settings.timelineFitMode === "multi-page" && (
               <span>Horizontal pages: <b className="text-emerald-400">{numHorizontalPages} pages wide</b></span>
             )}
             
             {/* Zoom Toolbar */}
-            <div className="flex items-center gap-1 bg-slate-900 rounded border border-slate-800 p-0.5 ml-4">
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-white" onClick={() => setCanvasZoom(z => Math.max(20, z - 10))}>
+            <div className="flex items-center gap-1 bg-[var(--navy-mid)] rounded border border-border p-0.5 ml-4">
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground/80 hover:text-white" onClick={() => setCanvasZoom(z => Math.max(20, z - 10))}>
                 <Minus className="h-3 w-3" />
               </Button>
               <span className="w-12 text-center text-xs font-mono">{canvasZoom}%</span>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-white" onClick={() => setCanvasZoom(z => Math.min(200, z + 10))}>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground/80 hover:text-white" onClick={() => setCanvasZoom(z => Math.min(200, z + 10))}>
                 <Plus className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" className="h-6 px-2 text-[10px] text-slate-400 hover:text-white" onClick={() => setCanvasZoom(100)}>
+              <Button variant="ghost" className="h-6 px-2 text-[10px] text-muted-foreground/80 hover:text-white" onClick={() => setCanvasZoom(100)}>
                 Fit
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-[11px] bg-slate-900 border border-slate-800/80 px-2 py-1 rounded text-slate-300 font-sans shrink-0">
+          <div className="flex items-center gap-1 text-[11px] bg-[var(--navy-mid)] border border-border/80 px-2 py-1 rounded text-muted-foreground font-sans shrink-0">
             <Eye className="h-3.5 w-3.5 text-emerald-400" /> Print layout preview mode
           </div>
         </div>
@@ -630,7 +630,7 @@ export default function GanttPdfDesignerPage({
             return (
               <div
                 key={pIdx}
-                className="bg-white border border-slate-300 shadow-2xl relative shrink-0 flex flex-col overflow-hidden text-slate-900 transition-all duration-300 font-sans"
+                className="bg-card border border-border shadow-2xl relative shrink-0 flex flex-col overflow-hidden text-foreground transition-all duration-300 font-sans"
                 style={{
                   width: `${pageWpx}px`,
                   minHeight: `${pageHpx}px`,
@@ -638,24 +638,24 @@ export default function GanttPdfDesignerPage({
                 }}
               >
                 {/* 1. Print Document Header — fixed height so all pages align identically */}
-                <div className="shrink-0 border-b-2 border-slate-300 mb-4 font-sans" style={{ height: "88px", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "12px" }}>
+                <div className="shrink-0 border-b-2 border-border mb-4 font-sans" style={{ height: "88px", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "12px" }}>
                   {isFirstPage ? (
                     <div className="flex justify-between items-end">
                       {/* Left: Title & Subtitle */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           {settings.showLogo && (
-                            <div className="h-7 w-7 rounded bg-slate-900 flex items-center justify-center font-bold text-white text-[10px]">
+                            <div className="h-7 w-7 rounded bg-[var(--navy-mid)] flex items-center justify-center font-bold text-white text-[10px]">
                               CM
                             </div>
                           )}
-                          <h2 className="text-xl font-bold tracking-tight text-slate-900">{settings.documentTitle}</h2>
+                          <h2 className="text-xl font-bold tracking-tight text-foreground">{settings.documentTitle}</h2>
                         </div>
-                        <p className="text-xs font-medium text-slate-500 italic">{settings.documentSubtitle}</p>
+                        <p className="text-xs font-medium text-muted-foreground italic">{settings.documentSubtitle}</p>
                       </div>
 
                       {/* Right: Info metadata columns */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-600 bg-slate-50 p-2 rounded border border-slate-200 font-sans">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-muted-foreground bg-muted/60 p-2 rounded border border-border font-sans">
                         {settings.showProjectName && (
                           <>
                             <span className="font-semibold">Project:</span>
@@ -684,22 +684,22 @@ export default function GanttPdfDesignerPage({
                     </div>
                   ) : (
                     <div className="flex items-end justify-between">
-                      <span className="text-xs font-semibold text-slate-500 italic">{settings.documentTitle} — Schedule Continued...</span>
-                      <span className="text-xs text-slate-400">Page {pIdx + 1} of {numHorizontalPages}</span>
+                      <span className="text-xs font-semibold text-muted-foreground italic">{settings.documentTitle} — Schedule Continued...</span>
+                      <span className="text-xs text-muted-foreground/80">Page {pIdx + 1} of {numHorizontalPages}</span>
                     </div>
                   )}
                 </div>
 
                 {/* 2. Print Gantt chart body viewport */}
-                <div className="flex-1 flex overflow-hidden border border-slate-200 rounded font-sans bg-white">
+                <div className="flex-1 flex overflow-hidden border border-border rounded font-sans bg-card">
                   {/* Column 1: Task list pane (Only on Page 1) */}
                   {isFirstPage && (
                     <div
-                      className="shrink-0 border-r border-slate-200 flex flex-col bg-slate-50 font-sans"
+                      className="shrink-0 border-r border-border flex flex-col bg-muted/60 font-sans"
                       style={{ width: `${totalLeftColumnsWidth}px` }}
                     >
                       {/* Fake header line */}
-                      <div className="h-12 shrink-0 flex items-center border-b border-slate-200 px-1 text-[9px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 font-sans">
+                      <div className="h-12 shrink-0 flex items-center border-b border-border px-1 text-[9px] font-bold text-muted-foreground uppercase tracking-wider bg-muted font-sans">
                         {settings.showWBSColumn && <span className="text-center shrink-0" style={{ width: settings.columnWidths.wbs }}>WBS</span>}
                         <span className="flex-1 pl-1 shrink-0" style={{ width: settings.columnWidths.task }}>Task</span>
                         {settings.showDatesColumn && <span className="text-center shrink-0" style={{ width: settings.columnWidths.dates }}>Dates</span>}
@@ -708,11 +708,11 @@ export default function GanttPdfDesignerPage({
                       </div>
 
                       {/* Mock list mapping to show preview widths */}
-                      <div className="flex-1 overflow-hidden text-[10px] text-slate-800 divide-y divide-slate-100 bg-white font-sans">
+                      <div className="flex-1 overflow-hidden text-[10px] text-foreground/90 divide-y divide-slate-100 bg-card font-sans">
                         {flattened.map(({ task, depth }, idx) => (
                           <div key={task.id} className="flex items-center px-1 font-sans" style={{ height: `${rowHeights[idx]}px`, paddingLeft: `${depth * 8 + 4}px` }}>
                             {settings.showWBSColumn && (
-                              <span className="text-slate-400 font-mono text-[9px] shrink-0" style={{ width: settings.columnWidths.wbs }}>
+                              <span className="text-muted-foreground/80 font-mono text-[9px] shrink-0" style={{ width: settings.columnWidths.wbs }}>
                                 {idx + 1}
                               </span>
                             )}
@@ -720,12 +720,12 @@ export default function GanttPdfDesignerPage({
                               {task.name}
                             </span>
                             {settings.showDatesColumn && (
-                              <span className="text-slate-500 text-[9px] shrink-0 font-sans" style={{ width: settings.columnWidths.dates }}>
+                              <span className="text-muted-foreground text-[9px] shrink-0 font-sans" style={{ width: settings.columnWidths.dates }}>
                                 {format(new Date(task.startDate), "MMM dd")}
                               </span>
                             )}
                             {settings.showDurationColumn && (
-                              <span className="text-slate-500 text-center shrink-0" style={{ width: settings.columnWidths.duration }}>
+                              <span className="text-muted-foreground text-center shrink-0" style={{ width: settings.columnWidths.duration }}>
                                 {task.duration || 1}d
                               </span>
                             )}
@@ -741,9 +741,9 @@ export default function GanttPdfDesignerPage({
                   )}
 
                   {/* Column 2: Timeline calendar viewport */}
-                  <div className="flex-1 overflow-hidden flex flex-col relative bg-white font-sans">
+                  <div className="flex-1 overflow-hidden flex flex-col relative bg-card font-sans">
                     {/* Header: Months/Weeks */}
-                    <div className="h-12 shrink-0 border-b border-slate-200 bg-slate-50 relative font-sans" style={{ width: `${svgWidth}px`, transform: `translateX(-${getTimelineTranslationX(pIdx)}px)` }}>
+                    <div className="h-12 shrink-0 border-b border-border bg-muted/60 relative font-sans" style={{ width: `${svgWidth}px`, transform: `translateX(-${getTimelineTranslationX(pIdx)}px)` }}>
                       <svg height={48} width={svgWidth} className="block">
                         <TimelineHeader dayLabels={dayLabels} dayWidth={calculatedDayWidth} zoom="week" days={days || 30} svgWidth={svgWidth} />
                       </svg>
@@ -859,7 +859,7 @@ export default function GanttPdfDesignerPage({
                 </div>
 
                 {/* 3. Print Document Footer */}
-                <div className="border-t border-slate-200 pt-2 mt-3 flex justify-between items-center text-[9px] text-slate-400 font-sans">
+                <div className="border-t border-border pt-2 mt-3 flex justify-between items-center text-[9px] text-muted-foreground/80 font-sans">
                   <span>{settings.footerNote}</span>
                   <span>Page {pIdx + 1} of {numHorizontalPages}</span>
                   {settings.showPrintDate && (

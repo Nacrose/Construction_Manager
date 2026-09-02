@@ -284,7 +284,7 @@ export function ViewRfiDialog({
         {/* HEADER — no custom X button, DialogContent provides one */}
         <div className="flex shrink-0 items-center px-4 py-2 border-b border-border bg-card">
           <DialogTitle className="flex items-center gap-2 m-0 text-sm font-semibold text-foreground">
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-info" />
             {rfi?.number || <Skeleton className="h-5 w-32" />}
           </DialogTitle>
         </div>
@@ -448,7 +448,7 @@ export function ViewRfiDialog({
                           resp.decision === "approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                           resp.decision === "rejected" ? "bg-red-50 text-red-700 border-red-200" :
                           resp.decision === "clarifications_requested" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                          "bg-blue-50 text-blue-700 border-blue-200"
+                          "bg-info/10 text-info border-info/30"
                         }`}>
                           {resp.decision.replace(/_/g, " ")}
                         </Badge>

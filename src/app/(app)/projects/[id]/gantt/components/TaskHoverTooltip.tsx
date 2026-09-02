@@ -117,10 +117,10 @@ function TaskHoverTooltipContent({
   return (
     <div
       style={{ left: `${left}px`, top: `${top}px` }}
-      className="fixed z-40 w-72 pointer-events-none rounded-xl border border-slate-700/80 bg-slate-900/95 p-3 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 font-sans text-xs text-slate-200 select-none ring-1 ring-white/10"
+      className="fixed z-40 w-72 pointer-events-none rounded-xl border border-border/80 bg-[var(--navy-mid)]/95 p-3 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 font-sans text-xs text-foreground select-none ring-1 ring-white/10"
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2 mb-2">
+      <div className="flex items-start justify-between gap-2 border-b border-border pb-2 mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-0.5">
             {task.code && (
@@ -146,7 +146,7 @@ function TaskHoverTooltipContent({
           </span>
         )}
         {task.taskType === "elapsed_curing" && (
-          <span className="shrink-0 flex items-center gap-1 text-[9px] font-semibold text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/60">
+          <span className="shrink-0 flex items-center gap-1 text-[9px] font-semibold text-info bg-cyan-950/60 px-1.5 py-0.5 rounded border border-info/40">
             <Droplets className="h-2.5 w-2.5" /> Curing
           </span>
         )}
@@ -164,18 +164,18 @@ function TaskHoverTooltipContent({
 
       {/* Date Ranges (Dual BS + AD) */}
       <div className="space-y-1.5 mb-2.5">
-        <div className="rounded-lg bg-slate-800/60 p-2 border border-slate-700/50 space-y-1">
+        <div className="rounded-lg bg-[var(--navy-mid)]/60 p-2 border border-border/50 space-y-1">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-slate-400 flex items-center gap-1">
+            <span className="text-muted-foreground/80 flex items-center gap-1">
               <Calendar className="h-3 w-3 text-emerald-400" /> Bikram Sambat:
             </span>
             <span className="font-mono text-emerald-300 font-medium">
               {bsStartDisplay} → {bsEndDisplay}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[10px] text-slate-400">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground/80">
             <span>Gregorian (AD):</span>
-            <span className="font-mono text-slate-300">
+            <span className="font-mono text-muted-foreground">
               {format(start, "d MMM yyyy")} → {format(end, "d MMM yyyy")}
             </span>
           </div>
@@ -184,19 +184,19 @@ function TaskHoverTooltipContent({
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-3 gap-1.5 mb-2.5 text-center">
-        <div className="rounded-lg bg-slate-800/40 p-1.5 border border-slate-800">
-          <div className="text-[10px] text-slate-400">Duration</div>
-          <div className="font-mono font-semibold text-slate-100">{dur} Days</div>
+        <div className="rounded-lg bg-[var(--navy-mid)]/40 p-1.5 border border-border">
+          <div className="text-[10px] text-muted-foreground/80">Duration</div>
+          <div className="font-mono font-semibold text-foreground">{dur} Days</div>
         </div>
 
-        <div className="rounded-lg bg-slate-800/40 p-1.5 border border-slate-800">
-          <div className="text-[10px] text-slate-400">Progress</div>
+        <div className="rounded-lg bg-[var(--navy-mid)]/40 p-1.5 border border-border">
+          <div className="text-[10px] text-muted-foreground/80">Progress</div>
           <div className="font-mono font-semibold text-emerald-400">{task.progress ?? 0}%</div>
         </div>
 
-        <div className="rounded-lg bg-slate-800/40 p-1.5 border border-slate-800">
-          <div className="text-[10px] text-slate-400">Total Float</div>
-          <div className={cn("font-mono font-semibold", isCritical ? "text-red-400" : "text-slate-200")}>
+        <div className="rounded-lg bg-[var(--navy-mid)]/40 p-1.5 border border-border">
+          <div className="text-[10px] text-muted-foreground/80">Total Float</div>
+          <div className={cn("font-mono font-semibold", isCritical ? "text-red-400" : "text-foreground")}>
             {totalFloat !== undefined ? `${totalFloat}d` : "0d"}
           </div>
         </div>
@@ -204,7 +204,7 @@ function TaskHoverTooltipContent({
 
       {/* Progress Bar */}
       <div className="mb-2">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--navy-mid)]">
           <div
             className={cn(
               "h-full rounded-full transition-all",
@@ -220,20 +220,20 @@ function TaskHoverTooltipContent({
       </div>
 
       {/* Resources & Predecessors */}
-      <div className="space-y-1 text-[11px] text-slate-400">
+      <div className="space-y-1 text-[11px] text-muted-foreground/80">
         {task.laborCount ? (
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <Users className="h-3 w-3 text-cyan-400" />
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Users className="h-3 w-3 text-info" />
             <span>Assigned Crew: <strong className="text-white font-mono">{task.laborCount} Men</strong></span>
           </div>
         ) : null}
 
         {predecessors.length > 0 && (
-          <div className="flex items-center gap-1.5 text-slate-300 truncate">
+          <div className="flex items-center gap-1.5 text-muted-foreground truncate">
             <Link2 className="h-3 w-3 text-indigo-400 shrink-0" />
             <span className="truncate">
               Predecessors ({predecessors.length}):{" "}
-              <span className="text-slate-400 font-mono">
+              <span className="text-muted-foreground/80 font-mono">
                 {predecessors.map((p: any) => p.code || p.name).join(", ")}
               </span>
             </span>

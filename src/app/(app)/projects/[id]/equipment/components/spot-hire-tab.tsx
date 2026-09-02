@@ -177,7 +177,7 @@ export function SpotHireTab({
       header: "Duration",
       align: "right",
       render: (_, t) => (
-        <span className="font-bold text-blue-600 font-mono text-xs">
+        <span className="font-bold text-info font-mono text-xs">
           {t.hireType === "trip" ? `${t.tripCount} tr` : `${t.hoursWorked}h`}
         </span>
       ),
@@ -301,7 +301,7 @@ export function SpotHireTab({
       header: "Total Hours",
       align: "right",
       render: (_, v) => (
-        <span className="font-mono text-blue-600 font-semibold text-xs">
+        <span className="font-mono text-info font-semibold text-xs">
           {v.totalHours.toFixed(1)} hrs
         </span>
       ),
@@ -438,7 +438,7 @@ export function SpotHireTab({
               <strong className="text-foreground">Total Tickets:</strong> {summary.totalTickets}
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-info dark:text-info/80 font-semibold">
               {summary.totalHours.toFixed(1)} hrs
             </span>
             <span className="text-muted-foreground/40">│</span>

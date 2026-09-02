@@ -113,13 +113,13 @@ function DockIcon({
               className={cn(
                 "snappy-btn relative flex h-9 w-9 items-center justify-center rounded-lg select-none cursor-pointer group",
                 active 
-                  ? "rail-btn-active bg-white text-[#0369a1] border border-[#0284c7] shadow-sm font-bold" 
-                  : "text-slate-600 hover:bg-white/80 hover:text-slate-950 hover:shadow-xs"
+                  ? "rail-btn-active bg-card text-[var(--primary)] border border-[var(--primary)] shadow-sm font-bold" 
+                  : "text-muted-foreground hover:bg-white/80 hover:text-foreground hover:shadow-xs"
               )}
             >
-              <Icon className={cn("h-4 w-4 transition-transform", active ? "text-[#0284c7] scale-110" : "group-hover:text-[#0284c7] group-hover:scale-105")} />
+              <Icon className={cn("h-4 w-4 transition-transform", active ? "text-[var(--primary)] scale-110" : "group-hover:text-[var(--primary)] group-hover:scale-105")} />
               {active && (
-                <span className={cn("absolute flex h-1.5 w-1.5 rounded-full bg-[#0284c7] shadow-[0_0_4px_#0284c7]",
+                <span className={cn("absolute flex h-1.5 w-1.5 rounded-full bg-[var(--primary)] shadow-[0_0_4px_#d97706]",
                   position === "bottom" && "bottom-0.5 left-1/2 -translate-x-1/2",
                   position === "top" && "top-0.5 left-1/2 -translate-x-1/2",
                   position === "left" && "left-0.5 top-1/2 -translate-y-1/2",
@@ -132,7 +132,7 @@ function DockIcon({
         <TooltipContent
           side={tooltipSide}
           sideOffset={8}
-          className="text-xs font-mono font-bold bg-slate-900 border border-slate-700 text-white shadow-xl px-2.5 py-1 rounded-md z-[100] animate-in fade-in zoom-in-95 duration-100"
+          className="text-xs font-mono font-bold bg-[var(--navy-mid)] border border-border text-white shadow-xl px-2.5 py-1 rounded-md z-[100] animate-in fade-in zoom-in-95 duration-100"
         >
           {item.label}
         </TooltipContent>
@@ -143,7 +143,7 @@ function DockIcon({
 
 function DockDivider({ position }: { position: DockPosition }) {
   const isHorizontal = position === "top" || position === "bottom";
-  return <div className={cn("shrink-0 bg-slate-300/80 rounded-full", isHorizontal ? "h-6 w-[1px] mx-0.5" : "w-6 h-[1px] my-0.5")} />;
+  return <div className={cn("shrink-0 bg-secondary/80 rounded-full", isHorizontal ? "h-6 w-[1px] mx-0.5" : "w-6 h-[1px] my-0.5")} />;
 }
 
 export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
@@ -255,8 +255,8 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
             <TooltipTrigger asChild>
               <Link href="/projects" className={cn(
                 "fixed z-50 flex h-7 w-7 items-center justify-center rounded-md",
-                "bg-white border border-[#bdd1e5] text-[#0284c7] shadow-sm",
-                "hover:bg-[#e0f2fe] hover:border-[#0284c7] transition-all",
+                "bg-card border border-[var(--border)] text-[var(--primary)] shadow-sm",
+                "hover:bg-[var(--accent)] hover:border-[var(--primary)] transition-all",
                 position === "bottom" && "bottom-20 left-3",
                 position === "top" && "top-20 left-3",
                 position === "left" && "left-20 top-3",
@@ -275,7 +275,7 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
         className={cn(
-          "fixed z-50 flex items-center gap-1 p-1 sculpted-sidebar rounded-xl border border-[#bdd1e5] shadow-lg",
+          "fixed z-50 flex items-center gap-1 p-1 sculpted-sidebar rounded-xl border border-[var(--border)] shadow-lg",
           "transition-all duration-200 ease-out",
           isHorizontal ? "flex-row" : "flex-col",
           positionClass,
@@ -339,14 +339,14 @@ export function AppDock({ onNavigate }: { onNavigate?: () => void }) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-white/80 transition-colors" title={user?.name}>
-              <Avatar className="h-7 w-7 ring-1 ring-[#0284c7]/40">
-                <AvatarFallback className="bg-gradient-to-br from-[#0284c7] to-[#0369a1] text-white text-[10px] font-bold">
+              <Avatar className="h-7 w-7 ring-1 ring-[var(--primary)]/40">
+                <AvatarFallback className="bg-gradient-to-br from-[var(--primary)] to-[var(--primary)] text-white text-[10px] font-bold">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side={tooltipSide} align="center" className="w-56 bg-white border border-[#c7d8e8] text-slate-900 shadow-xl">
+          <DropdownMenuContent side={tooltipSide} align="center" className="w-56 bg-card border border-[var(--border)] text-foreground shadow-xl">
             <DropdownMenuLabel className="flex flex-col">
               <span className="font-semibold">{user?.name || "Contractor User"}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.email || "contractor@os.com"}</span>

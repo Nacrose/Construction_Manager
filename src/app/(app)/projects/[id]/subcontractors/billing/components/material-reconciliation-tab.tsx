@@ -133,7 +133,7 @@ export function MaterialReconciliationTab({
       header: "Returned",
       align: "right",
       render: (_, item) => (
-        <span className="text-blue-600 font-mono text-xs">
+        <span className="text-info font-mono text-xs">
           {item.returnedQty > 0 ? item.returnedQty.toLocaleString() : "—"}
         </span>
       ),
@@ -153,7 +153,7 @@ export function MaterialReconciliationTab({
       header: "Theoretical Req",
       align: "right",
       render: (_, item) => (
-        <span className="text-blue-600 dark:text-blue-400 font-mono text-xs font-medium">
+        <span className="text-info dark:text-info/80 font-mono text-xs font-medium">
           {item.theoreticalReq.toLocaleString()}
         </span>
       ),
@@ -294,7 +294,7 @@ export function MaterialReconciliationTab({
                   <div key={i} className="p-2 rounded bg-muted/30 border text-[11px] space-y-0.5">
                     <div className="flex justify-between font-bold">
                       <span>{tx.slipNo || `Slip #${i + 1}`}</span>
-                      <span className={tx.type === "issue" ? "text-emerald-600" : "text-blue-600"}>
+                      <span className={tx.type === "issue" ? "text-emerald-600" : "text-info"}>
                         {tx.type === "issue" ? "+" : "-"}{tx.quantity} {item.unit}
                       </span>
                     </div>

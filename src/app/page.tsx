@@ -75,13 +75,13 @@ export default function RootPage() {
   if (status === "error") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#eef5fc] p-4">
-        <div className="max-w-md w-full bg-white border border-[#c7d8e8] shadow-2xl rounded-2xl p-7 text-center space-y-4">
+        <div className="max-w-md w-full bg-card border border-[var(--border)] shadow-2xl rounded-2xl p-7 text-center space-y-4">
           <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <h1 className="text-base font-bold text-slate-900 font-sans">Setup & Initialization Notice</h1>
-            <p className="text-xs text-slate-600 font-sans leading-relaxed">{message}</p>
+            <h1 className="text-base font-bold text-foreground font-sans">Setup & Initialization Notice</h1>
+            <p className="text-xs text-muted-foreground font-sans leading-relaxed">{message}</p>
           </div>
           <Button
             onClick={() => window.location.reload()}

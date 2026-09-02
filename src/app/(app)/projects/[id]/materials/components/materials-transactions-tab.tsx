@@ -73,7 +73,7 @@ export function MaterialsTransactionsTab({
         else if (t === "issue")
           color = "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
         else if (t === "transfer")
-          color = "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
+          color = "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
         return (
           <Badge variant="secondary" className={`${color} text-[10px] font-medium capitalize`}>
             {t}

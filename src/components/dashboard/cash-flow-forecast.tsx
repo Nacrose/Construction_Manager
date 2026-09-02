@@ -80,7 +80,7 @@ export function CashFlowForecast({ projectId }: Props) {
         {(s.totalRetention > 0 || s.totalAdvanceRecovered > 0) && (
           <div className="flex items-center gap-4 text-[10px] text-muted-foreground border-t pt-2">
             {s.totalRetention > 0 && <span>Retention held: <strong className="text-amber-600">{formatNpr(s.totalRetention)}</strong></span>}
-            {s.totalAdvanceRecovered > 0 && <span>Advance recovered: <strong className="text-blue-600">{formatNpr(s.totalAdvanceRecovered)}</strong></span>}
+            {s.totalAdvanceRecovered > 0 && <span>Advance recovered: <strong className="text-info">{formatNpr(s.totalAdvanceRecovered)}</strong></span>}
           </div>
         )}
       </CardContent>

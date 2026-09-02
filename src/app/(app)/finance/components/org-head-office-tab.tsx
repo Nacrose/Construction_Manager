@@ -235,22 +235,22 @@ export function OrgHeadOfficeTab() {
 
       {/* Log Expense Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-          <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <Building className="h-5 w-5 text-[#0284c7]" />
+        <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+          <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Building className="h-5 w-5 text-[var(--primary)]" />
               Log Head Office Expense (मुख्यालय खर्च)
             </DialogTitle>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-white">
+          <form onSubmit={handleSubmit} className="p-6 space-y-3.5 text-xs bg-card">
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-slate-700">Expense Category *</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Expense Category *</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+                <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                   <SelectItem value="Office Rent">Office Rent (मुख्यालय भाडा)</SelectItem>
                   <SelectItem value="Audit & Tax Fees">Audit &amp; Tax Consultancy (लेखा परीक्षण तथा कर)</SelectItem>
                   <SelectItem value="Electricity & Internet">Electricity, Water &amp; Internet</SelectItem>
@@ -263,25 +263,25 @@ export function OrgHeadOfficeTab() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-slate-700">Particulars / Description *</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Particulars / Description *</Label>
               <Input
                 required
                 placeholder="e.g. Head office rent for Shrawan 2081"
-                className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                 value={particulars}
                 onChange={(e) => setParticulars(e.target.value)}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[11px] font-semibold text-slate-700">Amount (NPR) *</Label>
+              <Label className="text-[11px] font-semibold text-foreground/80">Amount (NPR) *</Label>
               <Input
                 required
                 type="number"
                 step="any"
                 min="0"
                 placeholder="e.g. 25000"
-                className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                className="h-9 text-xs font-mono font-bold bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
@@ -289,20 +289,20 @@ export function OrgHeadOfficeTab() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-slate-700">Date (AD)</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Date (AD)</Label>
                 <Input
                   type="date"
-                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                  className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                   value={date}
                   onChange={(e) => handleDateChange(e.target.value)}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-slate-700">Miti (BS)</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Miti (BS)</Label>
                 <Input
                   placeholder="2081-05-15"
-                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 font-bold text-[#0284c7] focus:border-[#0284c7]"
+                  className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground font-bold text-[var(--primary)] focus:border-[var(--primary)]"
                   value={miti}
                   onChange={(e) => setMiti(e.target.value)}
                 />
@@ -311,12 +311,12 @@ export function OrgHeadOfficeTab() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-slate-700">Payment Mode</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Payment Mode</Label>
                 <Select value={paymentMode} onValueChange={setPaymentMode}>
-                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+                  <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                  <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                     <SelectItem value="bank_transfer">Bank Transfer (IPS/Online)</SelectItem>
                     <SelectItem value="cheque">Cheque (चेक)</SelectItem>
                     <SelectItem value="cash">Cash (नगद)</SelectItem>
@@ -326,12 +326,12 @@ export function OrgHeadOfficeTab() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-slate-700">Paid From Account</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Paid From Account</Label>
                 <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                  <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+                  <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                     <SelectValue placeholder="Select bank" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+                  <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                     {bankAccounts.map((b) => (
                       <SelectItem key={b.id} value={b.id}>
                         {b.bankName} ({b.accountType})
@@ -344,18 +344,18 @@ export function OrgHeadOfficeTab() {
 
             {paymentMode === "cheque" && (
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold text-slate-700">Cheque Number</Label>
+                <Label className="text-[11px] font-semibold text-foreground/80">Cheque Number</Label>
                 <Input
                   placeholder="e.g. CHQ-990182"
-                  className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                  className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                   value={chequeNo}
                   onChange={(e) => setChequeNo(e.target.value)}
                 />
               </div>
             )}
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[var(--border)] text-muted-foreground hover:bg-muted">
                 Cancel
               </Button>
               <Button type="submit" size="sm" disabled={createMutation.isPending} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">

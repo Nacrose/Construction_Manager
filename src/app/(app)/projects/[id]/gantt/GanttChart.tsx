@@ -455,7 +455,7 @@ function GanttChartContent({
         createVersionMutation={createVersionMutation}
       />
 
-      <div className="flex-1 min-h-0 mt-1.5 border border-slate-800/90 rounded-lg overflow-hidden shadow-xs">
+      <div className="flex-1 min-h-0 mt-1.5 border border-border/90 rounded-lg overflow-hidden shadow-xs">
         {showEVM || showConflicts || (isExecution && showVariance) ? (
           <GanttAnalysisModals
             showEVM={showEVM}

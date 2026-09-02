@@ -125,11 +125,11 @@ export function MaterialNameInput({
       statusIndicator = (
         <Badge
           variant="outline"
-          className="bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 text-[10px] gap-1 px-1.5 py-0 cursor-pointer"
+          className="bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 text-[10px] gap-1 px-1.5 py-0 cursor-pointer"
           onClick={() => setIsOpen(true)}
           title="This base material exists in your catalog. You can add a new specification or select existing."
         >
-          <Sparkles className="h-2.5 w-2.5 text-blue-500" /> Existing Group
+          <Sparkles className="h-2.5 w-2.5 text-info" /> Existing Group
         </Badge>
       );
     } else if (topMatch && topMatch.score >= 0.65) {
@@ -255,7 +255,7 @@ export function MaterialNameInput({
                               <Globe className="h-2 w-2" /> Global
                             </Badge>
                           ) : match.scope === "org" ? (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 gap-0.5">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-info/10 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80 border-info/30 gap-0.5">
                               <Building2 className="h-2 w-2" /> Org
                             </Badge>
                           ) : (

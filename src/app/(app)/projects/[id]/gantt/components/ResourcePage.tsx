@@ -212,7 +212,7 @@ export function ResourcePage({ tasks, rangeStart, days, isLoading }: ResourcePag
 
     const groups: ResourceGroup[] = [];
     const typeConfig: { type: string; label: string; icon: React.ReactNode }[] = [
-      { type: "material", label: "Materials", icon: <Package className="h-4 w-4 text-blue-600" /> },
+      { type: "material", label: "Materials", icon: <Package className="h-4 w-4 text-info" /> },
       { type: "labor", label: "Labor", icon: <Users className="h-4 w-4 text-emerald-600" /> },
       { type: "equipment", label: "Equipment", icon: <Wrench className="h-4 w-4 text-amber-600" /> },
       { type: "overhead", label: "Overhead", icon: <Receipt className="h-4 w-4 text-purple-600" /> },

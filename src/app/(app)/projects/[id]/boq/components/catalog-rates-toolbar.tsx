@@ -194,7 +194,7 @@ export function CatalogRatesToolbar({
             variant="outline"
             className="h-8 text-xs gap-1 text-muted-foreground hover:text-foreground"
           >
-            <Columns className="h-3.5 w-3.5 text-blue-500" />
+            <Columns className="h-3.5 w-3.5 text-info" />
             Columns ({visibleDistricts.length}/{allDistricts.length})
           </Button>
         </PopoverTrigger>
@@ -248,7 +248,7 @@ export function CatalogRatesToolbar({
               onClick={onShowManageDistricts}
               className="gap-2 cursor-pointer text-xs"
             >
-              <Settings className="h-3.5 w-3.5 text-blue-500" /> Manage Districts
+              <Settings className="h-3.5 w-3.5 text-info" /> Manage Districts
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

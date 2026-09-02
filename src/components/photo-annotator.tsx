@@ -403,7 +403,7 @@ export function PhotoAnnotator({ imageSrc, open, onOpenChange, onSave }: PhotoAn
                   onBlur={handleTextSubmit}
                   autoFocus
                   placeholder="Type text…"
-                  className="rounded border-2 border-primary bg-white px-2 py-1 text-sm shadow-lg"
+                  className="rounded border-2 border-primary bg-card px-2 py-1 text-sm shadow-lg"
                   style={{ color }}
                 />
               </div>

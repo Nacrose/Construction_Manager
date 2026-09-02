@@ -160,7 +160,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
       header: "IPC Qty",
       align: "right",
       render: (_, r) => (
-        <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+        <span className="font-mono text-xs font-bold text-info dark:text-info/80">
           {r.ipcQty > 0 ? r.ipcQty.toLocaleString() : "—"}
         </span>
       ),
@@ -295,9 +295,9 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
             </div>
           </Card>
 
-          <Card className="p-3 border-l-4 border-l-blue-500 shadow-xs">
+          <Card className="p-3 border-l-4 border-l-info shadow-xs">
             <div className="text-[10px] uppercase font-mono text-muted-foreground">Client IPC Certified</div>
-            <div className="text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-0.5">
+            <div className="text-base font-bold font-mono text-info dark:text-info/80 mt-0.5">
               {formatNpr(summary.totalIpcAmount, { compact: true })}
             </div>
             <div className="text-[11px] text-muted-foreground font-mono mt-0.5">

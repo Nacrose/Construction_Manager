@@ -173,9 +173,9 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           className={cn("text-[9px] px-1.5 py-0 capitalize", {
             "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":
               item.category === "skilled",
-            "bg-slate-100 text-slate-700 dark:bg-slate-800": item.category === "unskilled",
+            "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)]": item.category === "unskilled",
             "bg-amber-100 text-amber-800 dark:bg-amber-950": item.category === "supervisor",
-            "bg-sky-100 text-sky-800 dark:bg-sky-950": item.category === "staff",
+            "bg-info/15 text-info dark:bg-[var(--navy-deep)]": item.category === "staff",
             "bg-purple-100 text-purple-800 dark:bg-purple-950": item.category === "operator",
           })}
         >
@@ -231,7 +231,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "leave"
-                ? "bg-slate-600 text-white border-slate-600"
+                ? "bg-[var(--navy-mid)] text-white border-border"
                 : "bg-card text-muted-foreground border-border hover:bg-muted"
             )}
           >
@@ -249,7 +249,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "overtime"
-                ? "bg-blue-600 text-white border-blue-600"
+                ? "bg-info text-white border-info"
                 : "bg-card text-muted-foreground border-border hover:bg-muted"
             )}
           >
@@ -287,7 +287,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
           onChange={(e) => updateItemByStaffId(item.staffId, { overtime: parseFloat(e.target.value) || 0 })}
           className={cn(
             "h-6 w-16 text-xs text-right font-mono p-1",
-            item.overtime > 0 && "font-bold text-blue-600 border-blue-300"
+            item.overtime > 0 && "font-bold text-info border-info/40"
           )}
         />
       ),
@@ -449,11 +449,11 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
             Absent: {absentCount}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-slate-500">
+          <span className="text-muted-foreground">
             Leave: {leaveCount}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-blue-600 dark:text-blue-400 font-semibold">
+          <span className="text-info dark:text-info/80 font-semibold">
             ⏱ OT Hours: {totalOvertime}h
           </span>
         </div>

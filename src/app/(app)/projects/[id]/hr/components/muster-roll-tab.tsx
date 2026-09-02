@@ -149,8 +149,8 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
         if (st === "present") return <span className="font-bold text-emerald-600 dark:text-emerald-400">P</span>;
         if (st === "half_day") return <span className="font-bold text-amber-600 dark:text-amber-400">HD</span>;
         if (st === "absent") return <span className="font-bold text-red-600 dark:text-red-400">A</span>;
-        if (st === "leave") return <span className="font-bold text-sky-600 dark:text-sky-400">L</span>;
-        if (st === "overtime") return <span className="font-bold text-blue-600 dark:text-blue-400 text-[9px]">{day.overtime}h</span>;
+        if (st === "leave") return <span className="font-bold text-info dark:text-info/80">L</span>;
+        if (st === "overtime") return <span className="font-bold text-info dark:text-info/80 text-[9px]">{day.overtime}h</span>;
         return <span className="text-muted-foreground/30">—</span>;
       },
     })),
@@ -176,7 +176,7 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
       key: "totalOvertimeHours",
       header: "OT(h)",
       align: "right",
-      render: (_, r) => <span className="text-blue-600 dark:text-blue-400">{r.totalOvertimeHours || "—"}</span>,
+      render: (_, r) => <span className="text-info dark:text-info/80">{r.totalOvertimeHours || "—"}</span>,
     },
     {
       key: "estimatedGross",
@@ -254,7 +254,7 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
               Present Man-Days: {summary.totalPresentManDays}
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-info dark:text-info/80 font-semibold">
               ⏱ Total OT: {summary.totalOtHours} hrs
             </span>
           </div>

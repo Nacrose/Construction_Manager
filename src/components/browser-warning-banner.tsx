@@ -125,18 +125,18 @@ export function IOSHeartbeatWarning() {
   if (!show) return null;
 
   return (
-    <div className="sticky top-0 z-30 w-full border-b border-blue-500/30 bg-blue-500/10 backdrop-blur">
+    <div className="sticky top-0 z-30 w-full border-b border-info/40 bg-info/10 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2 text-xs">
-        <Clock className="h-4 w-4 text-blue-500 shrink-0" />
+        <Clock className="h-4 w-4 text-info shrink-0" />
         <div className="flex-1 min-w-0">
-          <span className="text-blue-800 dark:text-blue-300">
+          <span className="text-info dark:text-info/80">
             Welcome back — it&rsquo;s been a while. iOS may clear your offline data if you don&rsquo;t
             open this app regularly. All caught up now.
           </span>
         </div>
         <button
           onClick={() => setShow(false)}
-          className="shrink-0 rounded p-1 text-blue-500/60 hover:bg-blue-500/20 hover:text-blue-700"
+          className="shrink-0 rounded p-1 text-info/60 hover:bg-info/20 hover:text-info"
           aria-label="Dismiss"
         >
           <X className="h-3.5 w-3.5" />

@@ -71,8 +71,8 @@ export default function VariationsPage() {
     <AnimatedPage className="space-y-4 pb-8">
       <Tabs defaultValue="orders">
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
-          <TabsList className="bg-[#f8fbfe] border border-[#c7d8e8] p-0.5 rounded-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
+          <TabsList className="bg-[#f8fbfe] border border-[var(--border)] p-0.5 rounded-xl">
             <TabsTrigger value="orders" className="text-xs rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-medium">
               Variation Orders ({vos?.length || 0})
             </TabsTrigger>
@@ -86,13 +86,13 @@ export default function VariationsPage() {
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search VO number/title..."
-                className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"
+                className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
             </div>
             {canWrite && (
-              <Button onClick={() => setCreateOpen(true)} size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0">
+              <Button onClick={() => setCreateOpen(true)} size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition gap-1.5 shrink-0">
                 <Plus className="h-3.5 w-3.5" /> + New Variation Order
               </Button>
             )}

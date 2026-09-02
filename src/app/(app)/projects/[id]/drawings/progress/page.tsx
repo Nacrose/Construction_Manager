@@ -193,7 +193,7 @@ export default function PhotoProgressPage({
                 key={dateStr}
                 className={cn(
                   "transition-all",
-                  isSelected && "border-primary shadow-[0_0_12px_rgba(0,255,102,0.2)]",
+                  isSelected && "border-primary shadow-[0_0_12px_rgba(245,158,11,0.2)]",
                   compareMode && "cursor-pointer hover:border-primary/60"
                 )}
                 onClick={() => compareMode && toggleDateSelection(dateStr)}

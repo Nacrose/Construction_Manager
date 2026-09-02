@@ -143,7 +143,7 @@ export function ExcelPasteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 border border-primary/40 bg-card/95 backdrop-blur-2xl shadow-[0_0_40px_rgba(0,255,102,0.2)] rounded-lg overflow-hidden">
+      <DialogContent className="max-w-3xl p-0 border border-primary/40 bg-card/95 backdrop-blur-2xl shadow-[0_0_40px_rgba(245,158,11,0.2)] rounded-lg overflow-hidden">
         <DialogHeader className="p-4 border-b border-border bg-muted/60">
           <DialogTitle className="flex items-center gap-2 font-mono text-sm uppercase text-primary">
             <FileSpreadsheet className="h-4 w-4" /> Excel Direct Paste & BOQ Ingest
@@ -215,7 +215,7 @@ export function ExcelPasteDialog({
             size="sm"
             onClick={handleImport}
             disabled={parsedRows.length === 0 || isImporting}
-            className="font-mono text-xs font-bold gap-1.5 shadow-[0_0_12px_rgba(0,255,102,0.3)]"
+            className="font-mono text-xs font-bold gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
           >
             <Plus className="h-3.5 w-3.5" />
             {isImporting ? "Importing Items..." : `Import ${parsedRows.length} BOQ Items`}

@@ -50,14 +50,14 @@ export function VendorsTab({ projectId }: { projectId: string }) {
             <Card key={v.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setDetailId(v.id)}>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-9 w-9 rounded-md bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
-                    <Building2 className="h-4 w-4 text-blue-600" />
+                  <div className="h-9 w-9 rounded-md bg-info/10 dark:bg-[var(--navy-deep)] flex items-center justify-center">
+                    <Building2 className="h-4 w-4 text-info" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate">{v.name}</p>
                     {v.contact && <p className="text-xs text-muted-foreground truncate">{v.contact}</p>}
                   </div>
-                  <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", v.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" : "bg-slate-100 text-slate-500 dark:bg-slate-800")}>{v.status}</span>
+                  <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", v.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" : "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)]")}>{v.status}</span>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                   <span>📦 {v.stats.totalRentals} rentals</span>
@@ -140,7 +140,7 @@ function VendorDetailDialog({ vendorId, projectId, onClose }: { vendorId: string
             {/* Cost summary */}
             {stats && (
               <div className="grid grid-cols-3 gap-2">
-                <Card className="p-3 text-center"><div className="text-sm font-bold text-blue-600">{npr(stats.totalBilled)}</div><div className="text-[9px] text-muted-foreground uppercase">Total Billed</div></Card>
+                <Card className="p-3 text-center"><div className="text-sm font-bold text-info">{npr(stats.totalBilled)}</div><div className="text-[9px] text-muted-foreground uppercase">Total Billed</div></Card>
                 <Card className="p-3 text-center"><div className="text-sm font-bold text-red-600">{npr(stats.totalDeductions)}</div><div className="text-[9px] text-muted-foreground uppercase">Deductions</div></Card>
                 <Card className="p-3 text-center"><div className="text-sm font-bold text-emerald-600">{npr(stats.netPayable)}</div><div className="text-[9px] text-muted-foreground uppercase">Net Payable</div></Card>
               </div>
@@ -160,7 +160,7 @@ function VendorDetailDialog({ vendorId, projectId, onClose }: { vendorId: string
                     <span className={cn("rounded px-1 text-[9px] uppercase shrink-0",
                       r.status === "active" ? "bg-emerald-100 text-emerald-700" :
                       r.status === "stored_on_site" ? "bg-amber-100 text-amber-700" :
-                      "bg-slate-100 text-slate-500"
+                      "bg-muted text-muted-foreground"
                     )}>{r.status.replace(/_/g, " ")}</span>
                     {r.totalDeductions > 0 && <span className="text-[9px] text-red-600 shrink-0">-{npr(r.totalDeductions)}</span>}
                   </div>

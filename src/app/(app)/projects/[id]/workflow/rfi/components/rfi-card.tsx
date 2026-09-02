@@ -18,7 +18,7 @@ function UserAvatar({ name, className }: { name: string; className?: string }) {
     ? name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
     : "U";
   return (
-    <div className={cn("flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[8.5px] font-bold text-white bg-slate-600 dark:bg-slate-700 select-none", className)}>
+    <div className={cn("flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[8.5px] font-bold text-white bg-[var(--navy-mid)] dark:bg-[var(--navy-mid)] select-none", className)}>
       {initials}
     </div>
   );
@@ -64,7 +64,7 @@ export function RfiCard({
 
   const statusBorderColor = cn(
     rfi.status === "draft" && "border-l-slate-400 dark:border-l-slate-700",
-    rfi.status === "submitted" && "border-l-blue-500 dark:border-l-blue-600",
+    rfi.status === "submitted" && "border-l-info dark:border-l-info",
     rfi.status === "approved" && "border-l-emerald-500 dark:border-l-emerald-600",
     rfi.status === "rejected" && "border-l-red-500 dark:border-l-red-600",
     rfi.status === "closed" && "border-l-zinc-400 dark:border-l-zinc-700"
@@ -181,7 +181,7 @@ export function RfiCard({
           <RfiStatusBadge status={rfi.status} />
           <div className="flex gap-1">
             <Button variant="ghost" size="icon" className="h-6.5 w-6.5 rounded-md hover:bg-muted" onClick={() => onView(rfi.id)} title="View"><Eye className="h-3.5 w-3.5 text-muted-foreground" /></Button>
-            {canSubmit && <ConfirmActionButton icon={<Send className="h-3 w-3" />} title="Submit RFI" description={`Submit ${rfi.number} for review?`} onConfirm={() => onAction(rfi.id, "submit")} className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30 dark:border-blue-900" />}
+            {canSubmit && <ConfirmActionButton icon={<Send className="h-3 w-3" />} title="Submit RFI" description={`Submit ${rfi.number} for review?`} onConfirm={() => onAction(rfi.id, "submit")} className="text-info border-info/30 hover:bg-info/10 dark:hover:bg-[var(--navy-deep)]/30 dark:border-info/30" />}
             {canResubmit && <ConfirmActionButton icon={<RotateCcw className="h-3 w-3" />} title="Resubmit RFI" description={`Resubmit ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "resubmit")} className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-950/30 dark:border-purple-900" />}
             {canApprove && <ConfirmActionButton icon={<Check className="h-3 w-3" />} title="Approve RFI" description={`Approve ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "approve")} className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 dark:border-emerald-900" />}
             {canReject && <ConfirmActionButton icon={<XIcon className="h-3 w-3" />} title="Reject RFI" description={`Reject ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "reject")} className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 dark:border-red-900" />}

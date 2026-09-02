@@ -115,7 +115,7 @@ export function ConstructionForm<T extends Record<string, any>>({
         <div className={cn("grid gap-4", gridCols)}>{children}</div>
 
         {/* Standardized Form Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#c7d8e8]">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">
           {onCancel && (
             <Button
               type="button"
@@ -123,7 +123,7 @@ export function ConstructionForm<T extends Record<string, any>>({
               size="sm"
               disabled={isPending || disabled}
               onClick={onCancel}
-              className="h-9 px-4 text-xs font-mono bg-transparent border-[#c7d8e8] hover:bg-slate-50 text-slate-700"
+              className="h-9 px-4 text-xs font-mono bg-transparent border-[var(--border)] hover:bg-muted/60 text-foreground/80"
             >
               {cancelLabel}
             </Button>
@@ -133,7 +133,7 @@ export function ConstructionForm<T extends Record<string, any>>({
             type="submit"
             size="sm"
             disabled={isPending || disabled}
-            className="h-9 px-5 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-500 text-slate-900 shadow-sm"
+            className="h-9 px-5 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-500 text-foreground shadow-sm"
           >
             {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitLabel}
@@ -187,7 +187,7 @@ export function FormTextField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center gap-1">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center gap-1">
         {label}
         {required && <span className="text-red-400">*</span>}
       </Label>
@@ -198,14 +198,14 @@ export function FormTextField({
         disabled={disabled}
         placeholder={placeholder}
         className={cn(
-          "h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 placeholder:text-gray-500 rounded-xl focus:border-[#0284c7]",
+          "h-9 text-xs bg-card border-[var(--border)] text-foreground placeholder:text-muted-foreground rounded-xl focus:border-[var(--primary)]",
           error && "border-red-500/50 focus:border-red-500"
         )}
       />
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -239,9 +239,9 @@ export function FormNumberField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center gap-1">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center gap-1">
         {label}
-        {unit && <span className="text-slate-500 font-mono text-[10px]">({unit})</span>}
+        {unit && <span className="text-muted-foreground font-mono text-[10px]">({unit})</span>}
         {required && <span className="text-red-400">*</span>}
       </Label>
       <div className="relative">
@@ -255,13 +255,13 @@ export function FormNumberField({
           disabled={disabled}
           placeholder={placeholder}
           className={cn(
-            "h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 placeholder:text-gray-500 rounded-xl focus:border-[#0284c7]",
+            "h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground placeholder:text-muted-foreground rounded-xl focus:border-[var(--primary)]",
             unit && "pr-12",
             error && "border-red-500/50 focus:border-red-500"
           )}
         />
         {unit && (
-          <span className="absolute right-3 top-2.5 text-[10px] font-mono text-slate-500 pointer-events-none">
+          <span className="absolute right-3 top-2.5 text-[10px] font-mono text-muted-foreground pointer-events-none">
             {unit}
           </span>
         )}
@@ -269,7 +269,7 @@ export function FormNumberField({
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -302,7 +302,7 @@ export function FormCurrencyField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center justify-between">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center justify-between">
         <span className="flex items-center gap-1">
           {label}
           {required && <span className="text-red-400">*</span>}
@@ -315,7 +315,7 @@ export function FormCurrencyField({
       </Label>
 
       <div className="relative">
-        <span className="absolute left-3 top-2.5 text-[10px] font-mono text-slate-500 font-semibold pointer-events-none">
+        <span className="absolute left-3 top-2.5 text-[10px] font-mono text-muted-foreground font-semibold pointer-events-none">
           NPR
         </span>
         <Input
@@ -327,7 +327,7 @@ export function FormCurrencyField({
           disabled={disabled}
           placeholder={placeholder}
           className={cn(
-            "pl-12 h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 placeholder:text-gray-500 rounded-xl focus:border-[#0284c7]",
+            "pl-12 h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground placeholder:text-muted-foreground rounded-xl focus:border-[var(--primary)]",
             error && "border-red-500/50 focus:border-red-500"
           )}
         />
@@ -342,7 +342,7 @@ export function FormCurrencyField({
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -365,7 +365,7 @@ export function FormNepaliDateField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center gap-1">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center gap-1">
         {label}
         {required && <span className="text-red-400">*</span>}
       </Label>
@@ -374,14 +374,14 @@ export function FormNepaliDateField({
         onChange={(date) => setValue(name, date ? date.toISOString() : null)}
         disabled={disabled}
         className={cn(
-          "w-full h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-xl",
+          "w-full h-9 text-xs bg-card border-[var(--border)] text-foreground rounded-xl",
           error && "border-red-500/50"
         )}
       />
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -409,20 +409,20 @@ export function FormSelectField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center gap-1">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center gap-1">
         {label}
         {required && <span className="text-red-400">*</span>}
       </Label>
       <Select value={value} onValueChange={(val) => setValue(name, val)} disabled={disabled}>
         <SelectTrigger
           className={cn(
-            "h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 rounded-xl focus:border-[#0284c7]",
+            "h-9 text-xs bg-card border-[var(--border)] text-foreground rounded-xl focus:border-[var(--primary)]",
             error && "border-red-500/50"
           )}
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+        <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
           {options.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
@@ -433,7 +433,7 @@ export function FormSelectField({
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -461,7 +461,7 @@ export function FormTextareaField({
 
   return (
     <div className={cn("space-y-1.5", colSpanClasses[colSpan], className)}>
-      <Label className="text-xs text-slate-700 font-medium flex items-center gap-1">
+      <Label className="text-xs text-foreground/80 font-medium flex items-center gap-1">
         {label}
         {required && <span className="text-red-400">*</span>}
       </Label>
@@ -472,14 +472,14 @@ export function FormTextareaField({
         disabled={disabled}
         placeholder={placeholder}
         className={cn(
-          "text-xs bg-white border-[#c7d8e8] text-slate-900 placeholder:text-gray-500 rounded-xl focus:border-[#0284c7] resize-none",
+          "text-xs bg-card border-[var(--border)] text-foreground placeholder:text-muted-foreground rounded-xl focus:border-[var(--primary)] resize-none",
           error && "border-red-500/50 focus:border-red-500"
         )}
       />
       {error ? (
         <p className="text-[10px] text-red-400 font-mono">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>
+        <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>
       ) : null}
     </div>
   );
@@ -501,14 +501,14 @@ export function FormSwitchField({
   return (
     <div
       className={cn(
-        "flex items-center justify-between p-3 rounded-xl bg-white border border-[#c7d8e8]",
+        "flex items-center justify-between p-3 rounded-xl bg-card border border-[var(--border)]",
         colSpanClasses[colSpan],
         className
       )}
     >
       <div className="space-y-0.5">
-        <Label className="text-xs text-slate-800 font-medium cursor-pointer">{label}</Label>
-        {helperText && <p className="text-[10px] text-slate-500 font-mono">{helperText}</p>}
+        <Label className="text-xs text-foreground/90 font-medium cursor-pointer">{label}</Label>
+        {helperText && <p className="text-[10px] text-muted-foreground font-mono">{helperText}</p>}
       </div>
       <Switch
         checked={checked}

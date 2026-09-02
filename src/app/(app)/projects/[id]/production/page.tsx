@@ -131,8 +131,8 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
       <ModuleTabs projectId={id} tabs={RES_TABS} />
 
       {/* Single-Row Action & Tab Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
-        <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
+        <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
           <span>Batch Plants & Asphalt Production ({plants.length} Plants, {tickets.length} Tickets)</span>
         </div>
 

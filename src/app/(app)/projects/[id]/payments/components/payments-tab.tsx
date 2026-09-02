@@ -126,8 +126,8 @@ export function PaymentsTab({
           }
           return (
             <div>
-              <div className="font-bold text-slate-900 leading-tight">{bsMiti}</div>
-              <div className="text-[10px] text-slate-500 leading-tight">
+              <div className="font-bold text-foreground leading-tight">{bsMiti}</div>
+              <div className="text-[10px] text-muted-foreground leading-tight">
                 {format(new Date(row.paymentDate), "yyyy-MM-dd")}
               </div>
             </div>
@@ -140,19 +140,19 @@ export function PaymentsTab({
         render: (val, row) =>
           val ? (
             <div className="flex flex-col">
-              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-bold text-[#0284c7] border-[#c7d8e8] w-fit">
+              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-bold text-[var(--primary)] border-[var(--border)] w-fit">
                 {val}
               </Badge>
               {row.accountingSoftware && (
-                <span className="text-[9px] text-slate-500 uppercase mt-0.5">
+                <span className="text-[9px] text-muted-foreground uppercase mt-0.5">
                   {row.accountingSoftware}
                 </span>
               )}
             </div>
           ) : row.chequeNo ? (
-            <span className="text-[10px] text-slate-500 font-mono">Chq: {row.chequeNo}</span>
+            <span className="text-[10px] text-muted-foreground font-mono">Chq: {row.chequeNo}</span>
           ) : (
-            <span className="text-gray-500">—</span>
+            <span className="text-muted-foreground">—</span>
           ),
       },
       {
@@ -160,9 +160,9 @@ export function PaymentsTab({
         header: "Category & Head",
         render: (val, row) => (
           <div>
-            <div className="font-bold text-slate-900 truncate text-xs">{val || "General"}</div>
+            <div className="font-bold text-foreground truncate text-xs">{val || "General"}</div>
             {row.subCategory && (
-              <div className="text-[10px] text-slate-500 truncate">↳ {row.subCategory}</div>
+              <div className="text-[10px] text-muted-foreground truncate">↳ {row.subCategory}</div>
             )}
           </div>
         ),
@@ -173,10 +173,10 @@ export function PaymentsTab({
         className: "font-sans",
         render: (val, row) => (
           <div>
-            <div className="font-semibold text-slate-900 truncate max-w-[220px] text-xs">{val}</div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 font-mono">
+            <div className="font-semibold text-foreground truncate max-w-[220px] text-xs">{val}</div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono">
               {row.partyPan && <span>PAN: {row.partyPan}</span>}
-              {row.notes && <span className="truncate max-w-[200px] text-gray-500">{row.notes}</span>}
+              {row.notes && <span className="truncate max-w-[200px] text-muted-foreground">{row.notes}</span>}
             </div>
           </div>
         ),
@@ -186,11 +186,11 @@ export function PaymentsTab({
         header: "Mode / Account",
         render: (val, row) => (
           <div>
-            <div className="capitalize text-slate-700 font-medium text-xs">
+            <div className="capitalize text-foreground/80 font-medium text-xs">
               {val?.replace(/_/g, " ") || "—"}
             </div>
             {row.bankAccount && (
-              <div className="text-[10px] text-slate-500 truncate max-w-[120px]">
+              <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">
                 {row.bankAccount}
               </div>
             )}
@@ -202,7 +202,7 @@ export function PaymentsTab({
         header: "Gross Amount",
         align: "right",
         summary: "sum",
-        className: "text-slate-800 font-bold",
+        className: "text-foreground/90 font-bold",
         render: (val) => formatNpr(val),
       },
       {
@@ -218,7 +218,7 @@ export function PaymentsTab({
         header: "Net Paid",
         align: "right",
         summary: "sum",
-        className: "text-[#0284c7] font-bold font-mono",
+        className: "text-[var(--primary)] font-bold font-mono",
         render: (val) => formatNpr(val),
       },
       {
@@ -231,13 +231,13 @@ export function PaymentsTab({
               variant="ghost"
               size="icon"
               onClick={() => setViewScanUrl(val)}
-              className="h-6 w-6 text-[#0284c7] hover:bg-emerald-500/20"
+              className="h-6 w-6 text-[var(--primary)] hover:bg-emerald-500/20"
               title="View Voucher Scan"
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
           ) : (
-            <span className="text-gray-600">—</span>
+            <span className="text-muted-foreground">—</span>
           ),
       },
       ...(canWrite
@@ -251,7 +251,7 @@ export function PaymentsTab({
                   variant="ghost"
                   size="icon"
                   onClick={() => setDeleteTarget({ id: idVal, amount: row.amount, payeeName: row.payeeName })}
-                  className="h-6 w-6 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                  className="h-6 w-6 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -275,25 +275,25 @@ export function PaymentsTab({
   return (
     <div className="space-y-3">
       {/* Single-Line Summary Strip (Khatabook Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-[#c7d8e8] bg-white text-xs font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-[var(--border)] bg-card text-xs font-mono">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Total Disbursements:</span>
+            <span className="text-muted-foreground">Total Disbursements:</span>
             <span className="font-bold text-red-400">NPR {formatNpr(stats?.totalPaid || 0)}</span>
           </div>
           <div className="h-3 w-[1px] bg-white/10" />
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">TDS Remitted:</span>
+            <span className="text-muted-foreground">TDS Remitted:</span>
             <span className="font-bold text-amber-400">NPR {formatNpr(stats?.totalTds || 0)}</span>
           </div>
           <div className="h-3 w-[1px] bg-white/10" />
           <div className="flex items-center gap-2">
-            <span className="text-slate-500">Net Cash Outflow:</span>
-            <span className="font-bold text-[#0284c7]">NPR {formatNpr((stats?.totalPaid || 0) - (stats?.totalTds || 0))}</span>
+            <span className="text-muted-foreground">Net Cash Outflow:</span>
+            <span className="font-bold text-[var(--primary)]">NPR {formatNpr((stats?.totalPaid || 0) - (stats?.totalTds || 0))}</span>
           </div>
         </div>
 
-        <div className="text-[11px] text-gray-500 font-mono">
+        <div className="text-[11px] text-muted-foreground font-mono">
           {payments.length} Payments Recorded
         </div>
       </div>
@@ -318,10 +318,10 @@ export function PaymentsTab({
             {/* Category Filter */}
             <div className="w-32">
               <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-lg">
+                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-emerald-500/30 text-xs">
+                <SelectContent className="bg-card border-emerald-500/30 text-xs">
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.name}>
@@ -335,10 +335,10 @@ export function PaymentsTab({
             {/* Payee Type Filter */}
             <div className="w-28">
               <Select value={filterPayeeType} onValueChange={setFilterPayeeType}>
-                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-lg">
+                <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Payees" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-emerald-500/30 text-xs">
+                <SelectContent className="bg-card border-emerald-500/30 text-xs">
                   <SelectItem value="all">All Payees</SelectItem>
                   <SelectItem value="vendor">Vendor</SelectItem>
                   <SelectItem value="subcontractor">Subcontractor</SelectItem>
@@ -355,7 +355,7 @@ export function PaymentsTab({
                   size="sm"
                   variant="outline"
                   onClick={() => setCatManagerOpen(true)}
-                  className="h-8 px-2.5 text-xs font-mono text-amber-400 border-amber-500/30 bg-[#f8fbfe] hover:bg-slate-50 rounded-lg gap-1"
+                  className="h-8 px-2.5 text-xs font-mono text-amber-400 border-amber-500/30 bg-[#f8fbfe] hover:bg-muted/60 rounded-lg gap-1"
                 >
                   <FolderTree className="h-3 w-3" /> Categories
                 </Button>
@@ -364,7 +364,7 @@ export function PaymentsTab({
                   size="sm"
                   variant="outline"
                   onClick={() => setBulkImportOpen(true)}
-                  className="h-8 px-2.5 text-xs font-mono text-purple-400 border-purple-500/30 bg-[#f8fbfe] hover:bg-slate-50 rounded-lg gap-1"
+                  className="h-8 px-2.5 text-xs font-mono text-purple-400 border-purple-500/30 bg-[#f8fbfe] hover:bg-muted/60 rounded-lg gap-1"
                 >
                   <UploadCloud className="h-3 w-3" /> Import
                 </Button>
@@ -372,7 +372,7 @@ export function PaymentsTab({
                 <Button
                   size="sm"
                   onClick={() => setAddOpen(true)}
-                  className="h-8 px-3 text-xs font-semibold amber-cta-btn rounded-lg shadow-[0_0_15px_rgba(0,255,102,0.25)] gap-1"
+                  className="h-8 px-3 text-xs font-semibold amber-cta-btn rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.25)] gap-1"
                 >
                   <Plus className="h-3 w-3" /> + Record Payment
                 </Button>
@@ -417,11 +417,11 @@ export function PaymentsTab({
 
       {/* Scanned Document Viewer Modal */}
       <Dialog open={Boolean(viewScanUrl)} onOpenChange={() => setViewScanUrl(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] p-4 flex flex-col font-sans bg-white border-[#c7d8e8] text-slate-900">
+        <DialogContent className="max-w-3xl max-h-[85vh] p-4 flex flex-col font-sans bg-card border-[var(--border)] text-foreground">
           <DialogHeader>
             <DialogTitle className="text-sm font-bold">Attached Payment Voucher / Receipt</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto flex items-center justify-center p-2 bg-[#f8fbfe] rounded-xl border border-[#c7d8e8] min-h-[300px]">
+          <div className="flex-1 overflow-auto flex items-center justify-center p-2 bg-[#f8fbfe] rounded-xl border border-[var(--border)] min-h-[300px]">
             {viewScanUrl?.startsWith("data:application/pdf") ? (
               <iframe src={viewScanUrl} className="w-full h-[60vh] rounded" title="Payment Voucher PDF" />
             ) : viewScanUrl ? (
@@ -429,7 +429,7 @@ export function PaymentsTab({
             ) : null}
           </div>
           <DialogFooter>
-            <Button size="sm" onClick={() => setViewScanUrl(null)} className="h-8 text-xs bg-white/10 hover:bg-white/20 text-slate-900 rounded-xl">
+            <Button size="sm" onClick={() => setViewScanUrl(null)} className="h-8 text-xs bg-white/10 hover:bg-white/20 text-foreground rounded-xl">
               Close
             </Button>
           </DialogFooter>

@@ -179,7 +179,7 @@ export function AddLogDialog({
         <DialogTitle className="text-base font-bold flex items-center justify-between">
           <span>Log Run Hours & Activity Output</span>
           {isKmUnit && (
-            <span className="text-[10.5px] font-normal px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+            <span className="text-[10.5px] font-normal px-2 py-0.5 rounded-full bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80">
               Kilometer (km) Vehicle
             </span>
           )}
@@ -329,7 +329,7 @@ export function AddLogDialog({
             {/* Calculations Banner */}
             <div className="col-span-2 flex items-center justify-between text-xs pt-1 border-t border-border/40 text-muted-foreground">
               <div className="flex items-center gap-1.5">
-                <Calculator className="h-3.5 w-3.5 text-blue-600" />
+                <Calculator className="h-3.5 w-3.5 text-info" />
                 <span>Computed Run:</span>
                 <strong className="text-foreground font-mono">
                   {computedDuration.toFixed(1)} {isKmUnit ? "km" : "hrs"}
@@ -509,7 +509,7 @@ export function AddLogDialog({
         </div>
 
         <DialogFooter className="pt-2">
-          <Button type="submit" disabled={mutation.isPending} className="h-8.5 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1">
+          <Button type="submit" disabled={mutation.isPending} className="h-8.5 text-xs bg-info hover:bg-info text-white gap-1">
             {mutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Save Run Log
           </Button>

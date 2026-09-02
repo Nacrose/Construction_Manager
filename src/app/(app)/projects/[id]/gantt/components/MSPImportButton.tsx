@@ -164,7 +164,7 @@ export function MSPImportButton({
               {(preview.resourceCount > 0 || preview.assignmentCount > 0) && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded border p-2 text-center">
-                    <p className="text-lg font-bold text-blue-600">{preview.resourceCount}</p>
+                    <p className="text-lg font-bold text-info">{preview.resourceCount}</p>
                     <p className="text-[10px] text-muted-foreground uppercase">Resources</p>
                   </div>
                   <div className="rounded border p-2 text-center">

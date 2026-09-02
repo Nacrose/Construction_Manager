@@ -45,7 +45,7 @@ const statusMap: Record<string, StatusConfig> = {
   draft: {
     label: "Draft",
     labelNp: "मस्यौदा",
-    className: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+    className: "bg-muted/600/10 text-muted-foreground border-border",
     icon: FileText,
   },
   submitted: {
@@ -63,13 +63,13 @@ const statusMap: Record<string, StatusConfig> = {
   checked: {
     label: "Checked",
     labelNp: "जाँच गरिएको",
-    className: "bg-sky-500/10 text-sky-300 border-sky-500/30",
+    className: "bg-info/10 text-info/90 border-info/40",
     icon: ShieldCheck,
   },
   verified: {
     label: "Verified",
     labelNp: "प्रमाणित",
-    className: "bg-sky-500/10 text-sky-300 border-sky-500/30",
+    className: "bg-info/10 text-info/90 border-info/40",
     icon: ShieldCheck,
   },
   approved: {
@@ -87,7 +87,7 @@ const statusMap: Record<string, StatusConfig> = {
   in_progress: {
     label: "In Progress",
     labelNp: "प्रगतिमा",
-    className: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+    className: "bg-info/10 text-info/80 border-info/40",
     icon: PlayCircle,
   },
   rejected: {
@@ -105,7 +105,7 @@ const statusMap: Record<string, StatusConfig> = {
   partially_paid: {
     label: "Partially Paid",
     labelNp: "आंशिक भुक्तानी",
-    className: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+    className: "bg-info/10 text-info/80 border-info/40",
     icon: Coins,
   },
   paid: {
@@ -158,7 +158,7 @@ export function StatusBadge({
   const config = statusMap[normStatus] || {
     label: effectiveLabel || normStatus.replace(/_/g, " "),
     labelNp: "",
-    className: "bg-gray-500/10 text-gray-300 border-gray-500/30",
+    className: "bg-muted/600/10 text-muted-foreground/80 border-border/30",
     icon: FileText,
   };
 

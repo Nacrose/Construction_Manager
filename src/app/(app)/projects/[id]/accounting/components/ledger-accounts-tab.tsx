@@ -263,7 +263,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       {a.type === "vendor" ? (
-                        <Building2 className="h-3 w-3 text-blue-500 shrink-0" />
+                        <Building2 className="h-3 w-3 text-info shrink-0" />
                       ) : a.type === "subcontractor" ? (
                         <Users className="h-3 w-3 text-purple-500 shrink-0" />
                       ) : a.type === "bank" || a.type === "cash" ? (

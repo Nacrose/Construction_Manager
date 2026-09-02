@@ -125,7 +125,7 @@ export function CreateRateCatalogDialog({
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Copy className="h-3.5 w-3.5 text-blue-500" /> Adopt Parent Catalog
+                  <Copy className="h-3.5 w-3.5 text-info" /> Adopt Parent Catalog
                 </button>
                 <button
                   type="button"

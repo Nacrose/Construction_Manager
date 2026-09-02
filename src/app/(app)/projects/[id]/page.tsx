@@ -116,11 +116,11 @@ export default function ProjectDetailPage({
   return (
     <AnimatedPage className="space-y-8 pb-8">
       {/* Premium Gradient Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-white shadow-xl dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--navy-mid)] via-slate-800 to-[var(--navy-mid)] p-8 text-white shadow-xl dark:from-[var(--navy-deep)] dark:via-slate-900 dark:to-[var(--navy-deep)]">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="relative z-10">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-4">
             <Link href="/projects" className="hover:text-white transition-colors">
               Projects
             </Link>
@@ -133,7 +133,7 @@ export default function ProjectDetailPage({
                 {project.name}
               </h1>
               {project.description && (
-                <p className="mt-2 max-w-2xl text-slate-300 text-lg">
+                <p className="mt-2 max-w-2xl text-muted-foreground text-lg">
                   {project.description}
                 </p>
               )}
@@ -435,7 +435,7 @@ function ModuleLink({
   return (
     <Link
       href={href}
-      className="group flex items-start gap-3 rounded border border-border bg-card p-3 transition-all duration-150 hover:border-primary hover:shadow-[0_0_14px_rgba(0,255,102,0.22)] hover:bg-primary/5"
+      className="group flex items-start gap-3 rounded border border-border bg-card p-3 transition-all duration-150 hover:border-primary hover:shadow-[0_0_14px_rgba(245,158,11,0.22)] hover:bg-primary/5"
     >
       <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary border border-primary/30 group-hover:border-primary transition-colors">
         <Icon className="h-4 w-4" />

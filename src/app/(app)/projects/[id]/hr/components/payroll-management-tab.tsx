@@ -133,7 +133,7 @@ export function PayrollManagementTab({
         key: "overtimeHours",
         header: "OT(h)",
         align: "right",
-        className: "text-blue-600",
+        className: "text-info",
         render: (val) => (val > 0 ? `${val}h` : "—"),
       },
       {
@@ -253,7 +253,7 @@ export function PayrollManagementTab({
               size="sm"
               onClick={() => setConfirmAction("approve")}
               disabled={updateStatusMut.isPending}
-              className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1 px-2.5"
+              className="h-7 text-xs bg-info hover:bg-info text-white font-semibold gap-1 px-2.5"
             >
               <Award className="h-3 w-3" /> PM Approve
             </Button>
@@ -280,7 +280,7 @@ export function PayrollManagementTab({
               <strong className="text-foreground">Workforce:</strong> {summary.totalStaff}
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-info dark:text-info/80 font-semibold">
               Gross: NPR {formatNpr(summary.totalGross)}
             </span>
             <span className="text-muted-foreground/40">│</span>
@@ -288,7 +288,7 @@ export function PayrollManagementTab({
               Advances: -{formatNpr(summary.totalAdvanceRecoveries)}
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span className="text-slate-600 dark:text-slate-400">
+            <span className="text-muted-foreground dark:text-muted-foreground/80">
               Mess/TDS: -{formatNpr(summary.totalMessDeductions + summary.totalTds)}
             </span>
           </div>
@@ -353,7 +353,7 @@ export function PayrollManagementTab({
                   <div className="flex justify-between"><span>Days ({selectedPayslip.effectiveDays}):</span><span>{formatNpr(selectedPayslip.regularPay)}</span></div>
                   <div className="flex justify-between"><span>OT ({selectedPayslip.overtimeHours}h):</span><span>{formatNpr(selectedPayslip.overtimePay)}</span></div>
                   <div className="flex justify-between"><span>Allowances:</span><span>{formatNpr(selectedPayslip.allowances)}</span></div>
-                  <div className="flex justify-between font-bold text-blue-600 border-t pt-1">
+                  <div className="flex justify-between font-bold text-info border-t pt-1">
                     <span>Gross Pay:</span><span>{formatNpr(selectedPayslip.regularPay + selectedPayslip.overtimePay + selectedPayslip.allowances)}</span>
                   </div>
                 </div>
@@ -361,8 +361,8 @@ export function PayrollManagementTab({
                 <div className="border rounded p-2 bg-card space-y-1">
                   <p className="font-semibold text-foreground uppercase text-[9px] border-b pb-0.5">Deductions</p>
                   <div className="flex justify-between text-amber-600"><span>Advance:</span><span>-{formatNpr(selectedPayslip.advanceDeduction)}</span></div>
-                  <div className="flex justify-between text-slate-500"><span>Mess:</span><span>-{formatNpr(selectedPayslip.messDeduction)}</span></div>
-                  <div className="flex justify-between text-slate-500"><span>TDS / Other:</span><span>-{formatNpr(selectedPayslip.tdsAmount + selectedPayslip.otherDeductions)}</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>Mess:</span><span>-{formatNpr(selectedPayslip.messDeduction)}</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>TDS / Other:</span><span>-{formatNpr(selectedPayslip.tdsAmount + selectedPayslip.otherDeductions)}</span></div>
                   <div className="flex justify-between font-bold text-rose-600 border-t pt-1">
                     <span>Total Ded.:</span>
                     <span>-{formatNpr(selectedPayslip.advanceDeduction + selectedPayslip.messDeduction + selectedPayslip.tdsAmount + selectedPayslip.otherDeductions)}</span>

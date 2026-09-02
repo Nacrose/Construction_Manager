@@ -149,7 +149,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
       header: "Source",
       render: (_, t) =>
         t.rfi ? (
-          <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400">{t.rfi.number}</span>
+          <span className="text-[10px] font-mono text-info dark:text-info/80">{t.rfi.number}</span>
         ) : t.ganttTask ? (
           <span className="text-[10px] font-mono">{t.ganttTask.code}</span>
         ) : (
@@ -190,7 +190,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
               ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
               : t.executionStatus === "uncompleted"
               ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+              : "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80"
           )}
         >
           {t.executionStatus?.replace("_", " ")}
@@ -383,7 +383,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-mono">Total Tasks</div>
                         </div>
                         <div className="rounded-md border p-3 text-center bg-muted/20">
-                          <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">{worksData.stats.tasksDone}</div>
+                          <div className="text-xl font-bold font-mono text-info dark:text-info/80">{worksData.stats.tasksDone}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-mono">Done</div>
                         </div>
                         <div className="rounded-md border p-3 text-center bg-muted/20">
@@ -423,7 +423,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                                       ? "bg-emerald-100 text-emerald-700"
                                       : rfi.status === "submitted"
                                       ? "bg-amber-100 text-amber-700"
-                                      : "bg-slate-100 text-slate-600"
+                                      : "bg-muted text-muted-foreground"
                                   )}
                                 >
                                   {rfi.status}

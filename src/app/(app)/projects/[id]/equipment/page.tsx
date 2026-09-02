@@ -230,7 +230,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                   <DropdownMenuTrigger asChild>
                     <Button
                       size="sm"
-                      className="h-6.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] shadow-xs gap-1 rounded-md shrink-0"
+                      className="h-6.5 px-2.5 bg-info hover:bg-info text-white font-semibold text-[11px] shadow-xs gap-1 rounded-md shrink-0"
                     >
                       <Zap className="h-3 w-3" />
                       + Action
@@ -255,9 +255,9 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setLogOpen(true)}
-                      className="cursor-pointer gap-2 text-xs py-2 text-blue-700 dark:text-blue-300 font-medium rounded-lg"
+                      className="cursor-pointer gap-2 text-xs py-2 text-info dark:text-info/80 font-medium rounded-lg"
                     >
-                      <CalendarClock className="h-4 w-4 text-blue-600" />
+                      <CalendarClock className="h-4 w-4 text-info" />
                       <div>
                         <div className="font-semibold text-foreground">
                           Log Run Hours &amp; Activity

@@ -270,7 +270,7 @@ export function AddMaterialDialog({
         {resourceType === "material" && currentPresets.length > 0 && (
           <div className="space-y-1 bg-muted/20 p-2.5 rounded-lg border text-xs">
             <span className="text-[10px] text-muted-foreground font-semibold block flex items-center gap-1">
-              <Layers className="h-3 w-3 text-blue-500" /> Quick Size Presets for {category}:
+              <Layers className="h-3 w-3 text-info" /> Quick Size Presets for {category}:
             </span>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {currentPresets.map((preset) => (
@@ -281,7 +281,7 @@ export function AddMaterialDialog({
                   className={cn(
                     "px-2 py-0.5 text-[10px] font-medium rounded-full border transition-all",
                     subCategory === preset
-                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      ? "bg-info text-white border-info shadow-xs"
                       : "bg-card hover:bg-muted text-foreground border-border"
                   )}
                 >
@@ -351,7 +351,7 @@ export function AddMaterialDialog({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-[10px] text-gray-300">Opening Stock Qty ({unit || "units"})</Label>
+                <Label className="text-[10px] text-muted-foreground/80">Opening Stock Qty ({unit || "units"})</Label>
                 <Input
                   value={openingStock}
                   onChange={(e) => setOpeningStock(e.target.value)}
@@ -362,7 +362,7 @@ export function AddMaterialDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-gray-300">Unit Valuation Rate (NPR/{unit || "unit"})</Label>
+                <Label className="text-[10px] text-muted-foreground/80">Unit Valuation Rate (NPR/{unit || "unit"})</Label>
                 <Input
                   value={openingRate}
                   onChange={(e) => setOpeningRate(e.target.value)}
@@ -377,7 +377,7 @@ export function AddMaterialDialog({
         )}
 
         <DialogFooter className="pt-2">
-          <Button size="sm" type="submit" disabled={mutation.isPending || !name || !unit} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button size="sm" type="submit" disabled={mutation.isPending || !name || !unit} className="bg-info hover:bg-info text-white">
             {mutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             Add {resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} to Resource Library
           </Button>

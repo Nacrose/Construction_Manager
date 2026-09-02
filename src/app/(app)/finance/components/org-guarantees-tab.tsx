@@ -34,7 +34,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   bid_bond: {
     label: "Bid Bond / Tender Security",
     labelNp: "बोलपत्र जमानत",
-    color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    color: "bg-info/20 text-info/80 border-info/40",
   },
   performance_bond: {
     label: "Performance Security",
@@ -59,7 +59,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   other: {
     label: "Other Guarantee",
     labelNp: "अन्य जमानत",
-    color: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    color: "bg-muted/600/20 text-muted-foreground/80 border-border",
   },
 };
 
@@ -194,7 +194,7 @@ export function OrgGuaranteesTab() {
         render: (marginVal, g) => (
           <div className="font-mono">
             <div className="text-amber-400 font-bold">M: Rs. {formatNpr(marginVal)}</div>
-            <div className="text-blue-400 text-[10px]">C: Rs. {formatNpr(g.commissionPaid)}</div>
+            <div className="text-info/80 text-[10px]">C: Rs. {formatNpr(g.commissionPaid)}</div>
           </div>
         ),
       },
@@ -298,36 +298,36 @@ export function OrgGuaranteesTab() {
     <div className="space-y-3">
       {/* 4 Summary KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Total Active Exposure</span>
-          <div className="text-base font-bold font-matrix text-slate-900 mt-1">
+        <div className="bg-card p-3 rounded-lg border border-[var(--border)] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Total Active Exposure</span>
+          <div className="text-base font-bold font-matrix text-foreground mt-1">
             {formatNpr(kpis.totalActiveExposure, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{kpis.activeCount} active & extended bonds</span>
+          <span className="text-[10px] text-muted-foreground/80 font-mono mt-0.5">{kpis.activeCount} active & extended bonds</span>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Blocked Margin (FD/Cash)</span>
+        <div className="bg-card p-3 rounded-lg border border-[var(--border)] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Blocked Margin (FD/Cash)</span>
           <div className="text-base font-bold font-matrix text-[#b45309] mt-1">
             {formatNpr(kpis.totalMarginHeld, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Bank collateral locked</span>
+          <span className="text-[10px] text-muted-foreground/80 font-mono mt-0.5">Bank collateral locked</span>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Commission Paid to Banks</span>
-          <div className="text-base font-bold font-matrix text-[#0369a1] mt-1">
+        <div className="bg-card p-3 rounded-lg border border-[var(--border)] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Commission Paid to Banks</span>
+          <div className="text-base font-bold font-matrix text-[var(--primary)] mt-1">
             {formatNpr(kpis.totalCommissionPaid, { compact: true, prefix: "NPR" })}
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Total finance charges</span>
+          <span className="text-[10px] text-muted-foreground/80 font-mono mt-0.5">Total finance charges</span>
         </div>
 
-        <div className="bg-white p-3 rounded-lg border border-[#c7d8e8] shadow-xs flex flex-col justify-between">
-          <span className="text-[10px] uppercase font-mono text-slate-500 tracking-wider">Expiring in 30 Days (जोखिम)</span>
+        <div className="bg-card p-3 rounded-lg border border-[var(--border)] shadow-xs flex flex-col justify-between">
+          <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Expiring in 30 Days (जोखिम)</span>
           <div className={cn("text-base font-bold font-matrix mt-1", kpis.expiringWithin30DaysCount > 0 ? "text-rose-600 animate-pulse" : "text-emerald-700")}>
             {kpis.expiringWithin30DaysCount} Bonds
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">Require renewal / release</span>
+          <span className="text-[10px] text-muted-foreground/80 font-mono mt-0.5">Require renewal / release</span>
         </div>
       </div>
 
@@ -349,7 +349,7 @@ export function OrgGuaranteesTab() {
             <Button
               size="sm"
               onClick={() => setCreateDialogOpen(true)}
-              className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+              className="amber-cta-btn text-foreground font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Issue First Guarantee</span>
@@ -360,10 +360,10 @@ export function OrgGuaranteesTab() {
           <div className="flex items-center gap-1.5">
             <div className="w-36">
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-slate-800 rounded-md font-mono">
+                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-foreground/90 rounded-md font-mono">
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                   <SelectItem value="all">⚡ All Types</SelectItem>
                   <SelectItem value="bid_bond">Bid Bonds / Tender</SelectItem>
                   <SelectItem value="performance_bond">Performance Bonds</SelectItem>
@@ -376,10 +376,10 @@ export function OrgGuaranteesTab() {
 
             <div className="w-28">
               <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-slate-800 rounded-md font-mono">
+                <SelectTrigger className="h-7 text-xs bg-[#f0f6fc] border-[#c5d7e8] text-foreground/90 rounded-md font-mono">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-[#c7d8e8] text-xs text-slate-900">
+                <SelectContent className="bg-card border-[var(--border)] text-xs text-foreground">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="extended">Extended</SelectItem>
@@ -392,7 +392,7 @@ export function OrgGuaranteesTab() {
             <Button
               size="sm"
               onClick={() => setCreateDialogOpen(true)}
-              className="amber-cta-btn text-slate-950 font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
+              className="amber-cta-btn text-foreground font-bold text-xs h-7 px-2.5 shadow-sm inline-flex items-center gap-1.5"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Guarantee</span>

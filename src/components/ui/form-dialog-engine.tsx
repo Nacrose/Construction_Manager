@@ -57,23 +57,23 @@ export function FormDialogEngine({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "w-full bg-[#f8fbfe] border border-[#c7d8e8] shadow-2xl p-0 overflow-hidden rounded-2xl",
+          "w-full bg-[#f8fbfe] border border-[var(--border)] shadow-2xl p-0 overflow-hidden rounded-2xl",
           maxWidthClasses[maxWidth],
           aspectRatio === "16/10" && "aspect-[16/10] max-h-[92vh] flex flex-col",
           className
         )}
       >
         {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b border-[#c7d8e8] bg-white/80 shrink-0 flex flex-row items-center justify-between gap-4">
+        <DialogHeader className="px-6 py-4 border-b border-[var(--border)] bg-white/80 shrink-0 flex flex-row items-center justify-between gap-4">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
-              <DialogTitle className="text-base font-bold text-slate-900 font-sans tracking-tight">
+              <DialogTitle className="text-base font-bold text-foreground font-sans tracking-tight">
                 {title}
               </DialogTitle>
               {badge}
             </div>
             {description && (
-              <DialogDescription className="text-xs text-slate-500 font-normal">
+              <DialogDescription className="text-xs text-muted-foreground font-normal">
                 {description}
               </DialogDescription>
             )}

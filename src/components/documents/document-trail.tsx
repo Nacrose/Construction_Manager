@@ -36,9 +36,9 @@ const DOC_TYPE_CONFIG = {
   generated_pdf: {
     label: "Generated PDF",
     icon: FileText,
-    color: "text-blue-600",
-    bg: "bg-blue-50 dark:bg-blue-950/30",
-    border: "border-blue-200 dark:border-blue-900",
+    color: "text-info",
+    bg: "bg-info/10 dark:bg-[var(--navy-deep)]/30",
+    border: "border-info/30 dark:border-info/30",
   },
   signed_hardcopy: {
     label: "Signed Hardcopy",

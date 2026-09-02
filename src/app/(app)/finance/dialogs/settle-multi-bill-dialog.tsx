@@ -154,23 +154,23 @@ export function SettleMultiBillDialog({
   };
 
   return (
-    <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-white border border-[#c7d8e8] text-slate-900 rounded-2xl shadow-2xl overflow-hidden font-sans">
-      <div className="px-6 py-4 border-b border-[#e2edf7] bg-[#f8fbfe] flex items-center justify-between">
+    <DialogContent className="sm:max-w-[760px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
+      <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
         <div>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
-            <CreditCard className="h-5 w-5 text-[#0284c7]" />
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <CreditCard className="h-5 w-5 text-[var(--primary)]" />
             Central Settlement: {supplierName} (भुक्तानी फर्स्यौट)
           </DialogTitle>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs bg-white">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs bg-card">
         {/* Bill Allocations List */}
         <div className="space-y-2">
-          <Label className="text-[11px] font-semibold text-slate-700 uppercase font-mono">
+          <Label className="text-[11px] font-semibold text-foreground/80 uppercase font-mono">
             Selected Bills to Settle ({bills.length} Bills)
           </Label>
-          <div className="rounded-xl border border-[#c7d8e8] bg-slate-50 divide-y divide-[#e2edf7] max-h-48 overflow-y-auto">
+          <div className="rounded-xl border border-[var(--border)] bg-muted/60 divide-y divide-[var(--input)] max-h-48 overflow-y-auto">
             {bills.map((b) => {
               const alloc = billAllocations[b.id] || { amountToPay: b.balanceDue, tdsPercent: 1.5 };
               const tds = (alloc.amountToPay * alloc.tdsPercent) / 100;
@@ -180,20 +180,20 @@ export function SettleMultiBillDialog({
                 <div key={b.id} className="p-2.5 flex items-center justify-between gap-3 text-xs">
                   <div>
                     <div className="flex items-center gap-1.5 font-mono">
-                      <span className="text-[10px] bg-sky-100 text-[#0284c7] px-1.5 py-0.5 rounded font-bold border border-[#bae6fd]">
+                      <span className="text-[10px] bg-info/15 text-[var(--primary)] px-1.5 py-0.5 rounded font-bold border border-[#bae6fd]">
                         {b.projectCode}
                       </span>
-                      <span className="font-bold text-slate-900">Bill #{b.billNumber}</span>
+                      <span className="font-bold text-foreground">Bill #{b.billNumber}</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 font-mono font-matrix">
+                    <div className="text-[11px] text-muted-foreground mt-0.5 font-mono font-matrix">
                       Balance Due: {formatNpr(b.balanceDue)}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 font-mono">
                     <div className="text-right">
-                      <div className="text-[10px] text-slate-500 font-matrix">TDS (1.5%): -{formatNpr(tds)}</div>
-                      <div className="font-bold text-slate-900 font-matrix">Net: {formatNpr(net)}</div>
+                      <div className="text-[10px] text-muted-foreground font-matrix">TDS (1.5%): -{formatNpr(tds)}</div>
+                      <div className="font-bold text-foreground font-matrix">Net: {formatNpr(net)}</div>
                     </div>
                     <div className="w-28">
                       <Input
@@ -201,7 +201,7 @@ export function SettleMultiBillDialog({
                         min="0"
                         max={b.balanceDue}
                         step="any"
-                        className="h-8 text-xs font-mono font-bold text-right bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+                        className="h-8 text-xs font-mono font-bold text-right bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
                         value={alloc.amountToPay}
                         onChange={(e) => handleAmountChange(b.id, e.target.value)}
                       />
@@ -214,14 +214,14 @@ export function SettleMultiBillDialog({
         </div>
 
         {/* Central Bank Account & Payment Mode */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-[#c7d8e8]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/60 p-3 rounded-xl border border-[var(--border)]">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Pay From Central Bank Account</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Pay From Central Bank Account</Label>
             <Select value={selectedBankId} onValueChange={setSelectedBankId}>
-              <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+              <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                 <SelectValue placeholder="Select bank account..." />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                 {bankAccounts.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>
                     {acc.bankName} ({acc.accountNumber}) — Bal: {formatNpr(acc.currentBalance || 0)}
@@ -232,12 +232,12 @@ export function SettleMultiBillDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Payment Mode</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Payment Mode</Label>
             <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)}>
-              <SelectTrigger className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 font-mono focus:border-[#0284c7]">
+              <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-mono focus:border-[var(--primary)]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs font-mono shadow-xl rounded-xl">
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs font-mono shadow-xl rounded-xl">
                 <SelectItem value="cheque">Cheque (चेक)</SelectItem>
                 <SelectItem value="bank_transfer">Bank Transfer / NCHL</SelectItem>
                 <SelectItem value="connectips">ConnectIPS</SelectItem>
@@ -250,33 +250,33 @@ export function SettleMultiBillDialog({
         {/* Cheque # and Dates */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">
+            <Label className="text-[11px] font-semibold text-foreground/80">
               {paymentMode === "cheque" ? "Cheque Number *" : "Ref / Txn ID"}
             </Label>
             <Input
               required={paymentMode === "cheque"}
               placeholder="e.g. 048912"
-              className="h-9 text-xs font-mono font-bold bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+              className="h-9 text-xs font-mono font-bold bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
               value={chequeNo}
               onChange={(e) => setChequeNo(e.target.value)}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Date (AD)</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Date (AD)</Label>
             <Input
               type="date"
-              className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+              className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
               value={paymentDate}
               onChange={(e) => handleDateChange(e.target.value)}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold text-slate-700">Nepali Miti (BS)</Label>
+            <Label className="text-[11px] font-semibold text-foreground/80">Nepali Miti (BS)</Label>
             <Input
               placeholder="2081-05-15"
-              className="h-9 text-xs font-mono bg-white border-[#c7d8e8] text-slate-900 font-bold text-[#0284c7] focus:border-[#0284c7]"
+              className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground font-bold text-[var(--primary)] focus:border-[var(--primary)]"
               value={paymentMiti}
               onChange={(e) => setPaymentMiti(e.target.value)}
             />
@@ -285,33 +285,33 @@ export function SettleMultiBillDialog({
 
         {/* Notes */}
         <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold text-slate-700">Payment Remarks / Cheque Narration</Label>
+          <Label className="text-[11px] font-semibold text-foreground/80">Payment Remarks / Cheque Narration</Label>
           <Input
             placeholder="e.g. Lump-sum payment for Road & Building cement supply"
-            className="h-9 text-xs bg-white border-[#c7d8e8] text-slate-900 focus:border-[#0284c7]"
+            className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
 
         {/* Total Cheque Summary Banner */}
-        <div className="bg-sky-50 border border-[#bae6fd] p-3.5 rounded-xl flex items-center justify-between">
+        <div className="bg-info/10 border border-[#bae6fd] p-3.5 rounded-xl flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-mono text-slate-500">
+            <div className="text-[10px] uppercase font-mono text-muted-foreground">
               Total Cheque / Disbursement
             </div>
-            <div className="text-lg font-bold font-mono text-[#0284c7] font-matrix">
+            <div className="text-lg font-bold font-mono text-[var(--primary)] font-matrix">
               {formatNpr(totalNetDisbursement)}
             </div>
           </div>
-          <div className="text-right text-xs font-mono text-slate-600 font-matrix">
+          <div className="text-right text-xs font-mono text-muted-foreground font-matrix">
             <div>Gross Total: {formatNpr(totalGross)}</div>
             <div>TDS (1.5%): -{formatNpr(totalTds)}</div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#e2edf7]">
-          <Button type="button" variant="outline" size="sm" onClick={onDone} className="h-8 text-xs border-[#c7d8e8] text-slate-600 hover:bg-slate-100">
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
+          <Button type="button" variant="outline" size="sm" onClick={onDone} className="h-8 text-xs border-[var(--border)] text-muted-foreground hover:bg-muted">
             Cancel
           </Button>
           <Button type="submit" size="sm" disabled={settleMutation.isPending || totalNetDisbursement <= 0} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">

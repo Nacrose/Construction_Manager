@@ -138,7 +138,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
               </div>
               <div className="rounded border p-2 text-center">
                 <div className="text-[9px] text-muted-foreground uppercase">Issued</div>
-                <div className="font-bold text-blue-600">{data.summary.totalIssued.toFixed(1)}</div>
+                <div className="font-bold text-info">{data.summary.totalIssued.toFixed(1)}</div>
               </div>
               <div className="rounded border p-2 text-center">
                 <div className="text-[9px] text-muted-foreground uppercase">Variance</div>
@@ -160,7 +160,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
                     <th className="p-1.5 text-left font-medium text-muted-foreground">Material</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Open</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground text-emerald-600">+ Recv</th>
-                    <th className="p-1.5 text-right font-medium text-muted-foreground text-blue-600">− Issue</th>
+                    <th className="p-1.5 text-right font-medium text-muted-foreground text-info">− Issue</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Exp.</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Actual</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Var.</th>
@@ -178,7 +178,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
                         </td>
                         <td className="p-1.5 text-right tabular-nums">{m.opening.toFixed(1)}</td>
                         <td className="p-1.5 text-right tabular-nums text-emerald-600">{m.received > 0 ? `+${m.received.toFixed(1)}` : "—"}</td>
-                        <td className="p-1.5 text-right tabular-nums text-blue-600">{m.issued > 0 ? `−${m.issued.toFixed(1)}` : "—"}</td>
+                        <td className="p-1.5 text-right tabular-nums text-info">{m.issued > 0 ? `−${m.issued.toFixed(1)}` : "—"}</td>
                         <td className="p-1.5 text-right tabular-nums font-medium">{m.expectedClosing.toFixed(1)}</td>
                         <td className="p-1.5 text-right tabular-nums">{m.actualClosing.toFixed(1)}</td>
                         <td className={cn("p-1.5 text-right tabular-nums font-bold", !hasVariance ? "text-muted-foreground" : m.variance < 0 ? "text-red-600" : "text-emerald-600")}>

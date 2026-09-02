@@ -78,15 +78,15 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
       <ModuleTabs projectId={id} tabs={DOCS_TABS} />
       <div className="space-y-4 pb-8">
         {/* Single-Row Action & Filter Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[#c7d8e8] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
           <div className="flex items-center gap-2 flex-1 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search drawing number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl" />
+              <Input placeholder="Search drawing number or title..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl" />
             </div>
             <Select value={discipline} onValueChange={setDiscipline}>
-              <SelectTrigger className="h-9 w-36 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+              <SelectTrigger className="h-9 w-36 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                 <SelectItem value="all">All disciplines</SelectItem>
                 <SelectItem value="civil">Civil</SelectItem>
                 <SelectItem value="structural">Structural</SelectItem>
@@ -96,21 +96,21 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
               </SelectContent>
             </Select>
             <Select value={setId} onValueChange={setSetId}>
-              <SelectTrigger className="h-9 w-40 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-900 rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent className="bg-white border-[#c7d8e8] text-slate-900 text-xs">
+              <SelectTrigger className="h-9 w-40 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
                 <SelectItem value="all">All sets</SelectItem>
                 {sets.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} ({s._count.drawings})</SelectItem>)}
                 <SelectItem value="none">Unassigned</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[#c7d8e8] text-slate-700 hover:text-slate-900 rounded-xl" onClick={() => setCreateSetOpen(true)}>
+            <Button variant="outline" size="sm" className="h-9 px-3 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground/80 hover:text-foreground rounded-xl" onClick={() => setCreateSetOpen(true)}>
               <FolderPlus className="h-3.5 w-3.5 mr-1" /> New Set
             </Button>
           </div>
 
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(0,255,102,0.3)] transition gap-1.5 shrink-0 font-sans">
+              <Button size="sm" className="h-9 px-4 text-xs font-bold amber-cta-btn rounded-xl shadow-[0_0_20px_rgba(245,158,11,0.3)] transition gap-1.5 shrink-0 font-sans">
                 <Plus className="h-3.5 w-3.5" /> + Upload Drawing
               </Button>
             </DialogTrigger>
@@ -169,8 +169,8 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
                       {d.drawingSet && <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400">{d.drawingSet.name}</span>}
                       {d.discipline && <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium capitalize", DISCIPLINE_COLORS[d.discipline])}>{d.discipline}</span>}
                       <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", approval.bg, approval.color)}>{approval.label}</span>
-                      {d._count.revisions > 0 && <span className="inline-flex items-center gap-0.5 rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[9px]"><GitBranch className="h-2.5 w-2.5" /> {d._count.revisions} rev</span>}
-                      {d._count.rfis > 0 && <span className="inline-flex items-center gap-0.5 rounded bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 text-[9px]"><FileQuestion className="h-2.5 w-2.5" /> {d._count.rfis}</span>}
+                      {d._count.revisions > 0 && <span className="inline-flex items-center gap-0.5 rounded bg-muted dark:bg-[var(--navy-mid)] px-1.5 py-0.5 text-[9px]"><GitBranch className="h-2.5 w-2.5" /> {d._count.revisions} rev</span>}
+                      {d._count.rfis > 0 && <span className="inline-flex items-center gap-0.5 rounded bg-info/15 dark:bg-[var(--navy-deep)] text-info dark:text-info/80 px-1.5 py-0.5 text-[9px]"><FileQuestion className="h-2.5 w-2.5" /> {d._count.rfis}</span>}
                     </div>
                     {d.ganttTask && <p className="text-[10px] text-muted-foreground">📋 <span className="font-mono">{d.ganttTask.code}</span> {d.ganttTask.name}</p>}
                   </div>

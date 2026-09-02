@@ -98,7 +98,7 @@ export function SalesRegisterTab({
         sortable: true,
         render: (val) => (
           <div className="font-bold text-foreground flex items-center gap-1 font-mono">
-            <FileCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+            <FileCheck className="h-3.5 w-3.5 text-info shrink-0" />
             <span>{val}</span>
           </div>
         ),

@@ -207,7 +207,7 @@ export function PreviewModal({
         <DialogHeader>
           <DialogTitle>Preview — {entityType}</DialogTitle>
         </DialogHeader>
-        <div className="flex justify-center bg-slate-100 dark:bg-slate-900 p-4 rounded">
+        <div className="flex justify-center bg-muted dark:bg-[var(--navy-mid)] p-4 rounded">
           <ReportRenderer layout={layout} entityType={entityType} data={data} scale={0.8} />
         </div>
         <DialogFooter>
@@ -282,7 +282,7 @@ export function HelpDialog({
             </h3>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <strong className="text-blue-600">Text</strong> — free text with{" "}
+                <strong className="text-info">Text</strong> — free text with{" "}
                 <code className="bg-muted px-1 rounded text-[10px]">{`{{tokens}}`}</code> that get
                 replaced with live data.
               </div>
@@ -299,7 +299,7 @@ export function HelpDialog({
                 placeholder. Upload (&lt;500KB) or paste URL.
               </div>
               <div>
-                <strong className="text-slate-600">Divider</strong> — horizontal or vertical line,
+                <strong className="text-muted-foreground">Divider</strong> — horizontal or vertical line,
                 custom thickness/color.
               </div>
               <div>

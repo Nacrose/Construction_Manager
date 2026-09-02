@@ -157,7 +157,7 @@ export function AddEquipDialog({ projectId, onDone }: { projectId: string; onDon
           </div>
         </div>
         <DialogFooter className="pt-2">
-          <Button type="submit" disabled={mutation.isPending} className="h-8.5 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1">
+          <Button type="submit" disabled={mutation.isPending} className="h-8.5 text-xs bg-info hover:bg-info text-white gap-1">
             {mutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Register Equipment
           </Button>

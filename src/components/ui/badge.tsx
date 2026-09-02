@@ -5,22 +5,22 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded px-2 py-0.5 text-[11px] font-mono font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1.5 [&>svg]:pointer-events-none transition-colors select-none",
+  "inline-flex items-center justify-center rounded-[3px] px-1.5 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-[0.08em] w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none transition-colors select-none",
   {
     variants: {
       variant: {
         default:
-          "border border-primary/40 bg-primary/10 text-primary shadow-[0_0_8px_rgba(0,255,102,0.15)]",
+          "border border-amber/50 bg-amber/10 text-primary",
         secondary:
           "border border-border/80 bg-secondary/80 text-secondary-foreground",
         destructive:
-          "border border-destructive/40 bg-destructive/10 text-destructive shadow-[0_0_8px_rgba(239,68,68,0.15)]",
+          "border border-destructive/40 bg-destructive/10 text-destructive",
         outline:
           "border border-border bg-transparent text-foreground",
         amber:
-          "border border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.15)]",
+          "border border-amber/50 bg-amber/15 text-primary",
         cyan:
-          "border border-cyan-500/40 bg-cyan-500/10 text-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.15)]",
+          "border border-info/40 bg-cyan-500/10 text-info dark:text-info",
       },
     },
     defaultVariants: {

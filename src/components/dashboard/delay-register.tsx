@@ -49,7 +49,7 @@ export function DelayRegister({ projectId }: Props) {
           ))}
           {Object.entries(data.stats.byReason).map(([reason, count]) => {
             const Icon = REASON_ICONS[reason] ?? AlertTriangle;
-            return <span key={reason} className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs capitalize"><Icon className="inline h-2.5 w-2.5 mr-0.5" />{reason}: {count}</span>;
+            return <span key={reason} className="rounded bg-muted dark:bg-[var(--navy-mid)] px-2 py-0.5 text-xs capitalize"><Icon className="inline h-2.5 w-2.5 mr-0.5" />{reason}: {count}</span>;
           })}
         </div>
         <div className="space-y-1 max-h-64 overflow-y-auto">

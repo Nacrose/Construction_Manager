@@ -48,7 +48,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   performance_bond: {
     label: "Performance Security",
     labelNp: "कार्यसम्पादन जमानत",
-    color: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200",
+    color: "bg-info/10 text-info dark:bg-[var(--navy-deep)]/50 dark:text-info/80 border-info/30",
   },
   advance_payment: {
     label: "Mobilization APG",
@@ -68,12 +68,12 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   bid_bond: {
     label: "Bid Bond / EMD",
     labelNp: "बोलपत्र जमानत",
-    color: "bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-slate-200",
+    color: "bg-muted/60 text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80 border-border",
   },
   other: {
     label: "Other Guarantee",
     labelNp: "अन्य जमानत",
-    color: "bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-slate-200",
+    color: "bg-muted/60 text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80 border-border",
   },
 };
 
@@ -220,7 +220,7 @@ export default function BankGuaranteesPage({
         const isReleased = g.status === "released";
         if (isReleased) {
           return (
-            <Badge variant="outline" className="bg-slate-100 text-slate-700 dark:bg-slate-800 text-[10px]">
+            <Badge variant="outline" className="bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] text-[10px]">
               Released
             </Badge>
           );
@@ -347,12 +347,12 @@ export default function BankGuaranteesPage({
       <div className="space-y-4 p-4">
         {/* KPI Strip */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="border-l-4 border-l-blue-500 shadow-xs bg-card">
+          <Card className="border-l-4 border-l-info shadow-xs bg-card">
             <CardContent className="p-3.5 space-y-1">
               <div className="text-[10px] font-mono text-muted-foreground uppercase">
                 Active Guarantees
               </div>
-              <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">
+              <div className="text-xl font-bold font-mono text-info dark:text-info/80">
                 {formatNpr(kpis?.totalActiveExposure || 0, { compact: true })}
               </div>
               <div className="text-[11px] text-muted-foreground font-mono">
@@ -439,7 +439,7 @@ export default function BankGuaranteesPage({
           <Button
             size="sm"
             onClick={() => setAddOpen(true)}
-            className="h-8 text-xs gap-1.5 font-mono bg-blue-600 hover:bg-blue-700 text-white"
+            className="h-8 text-xs gap-1.5 font-mono bg-info hover:bg-info text-white"
           >
             <Plus className="h-3.5 w-3.5" />
             Add Guarantee

@@ -221,7 +221,7 @@ export function GanttAnalysisModals({
               </div>
               <div className="rounded-lg border bg-card p-3">
                 <p className="text-[10px] text-muted-foreground uppercase">Leveling Proposals</p>
-                <p className="text-xl font-bold text-sky-600">{conflictsData.proposals.length}</p>
+                <p className="text-xl font-bold text-info">{conflictsData.proposals.length}</p>
               </div>
             </div>
 
@@ -281,9 +281,9 @@ export function GanttAnalysisModals({
             </div>
 
             {conflictsData.proposals.length > 0 && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50/30 p-3">
+              <div className="rounded-lg border border-info/30 bg-info/30 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-sky-700">
+                  <p className="text-xs font-semibold text-info">
                     💡 Auto-Leveling Proposals
                   </p>
                   <button
@@ -298,7 +298,7 @@ export function GanttAnalysisModals({
                       });
                     }}
                     disabled={applyLevelingMutation.isPending}
-                    className="flex items-center gap-1 rounded bg-sky-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                    className="flex items-center gap-1 rounded bg-info px-2 py-1 text-[10px] font-medium text-white hover:bg-info/80 disabled:opacity-50"
                     title="Apply all leveling proposals"
                   >
                     {applyLevelingMutation.isPending ? (
@@ -323,10 +323,10 @@ export function GanttAnalysisModals({
                       <span className="text-muted-foreground font-mono">
                         {safeFormat(p.currentStart, "dd MMM")} →
                       </span>
-                      <span className="font-mono font-bold text-sky-600">
+                      <span className="font-mono font-bold text-info">
                         {safeFormat(p.newStart, "dd MMM")}
                       </span>
-                      <span className="rounded bg-sky-100 px-1 text-sky-700 font-bold">
+                      <span className="rounded bg-info/15 px-1 text-info font-bold">
                         +{p.delayDays}d
                       </span>
                     </div>
@@ -464,9 +464,9 @@ export function GanttAnalysisModals({
                               : row.status === "ahead"
                                 ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
                                 : row.status === "completed"
-                                  ? "bg-sky-50 text-sky-600 border border-sky-200"
+                                  ? "bg-info/10 text-info border border-info/30"
                                   : row.status === "not_started"
-                                    ? "bg-gray-50 text-gray-500 border border-gray-200"
+                                    ? "bg-muted/60 text-muted-foreground border border-border"
                                     : "bg-emerald-50 text-emerald-600 border border-emerald-200"
                           }`}
                         >

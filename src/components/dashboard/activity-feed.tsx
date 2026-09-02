@@ -18,14 +18,14 @@ type Props = {
 };
 
 const ACTION_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
-  "rfi.": { icon: FileText, color: "text-blue-600", label: "RFI" },
+  "rfi.": { icon: FileText, color: "text-info", label: "RFI" },
   "daily_report.": { icon: ClipboardCheck, color: "text-emerald-600", label: "Daily Report" },
   "daily_program.": { icon: CloudSun, color: "text-purple-600", label: "Daily Program" },
-  "project.": { icon: Activity, color: "text-slate-600", label: "Project" },
+  "project.": { icon: Activity, color: "text-muted-foreground", label: "Project" },
   "boq.": { icon: Package, color: "text-amber-600", label: "BOQ" },
   "gantt.": { icon: Activity, color: "text-indigo-600", label: "Schedule" },
   "material.": { icon: Package, color: "text-orange-600", label: "Material" },
-  "equipment.": { icon: Wrench, color: "text-cyan-600", label: "Equipment" },
+  "equipment.": { icon: Wrench, color: "text-info", label: "Equipment" },
   "hr.": { icon: Users, color: "text-pink-600", label: "HR" },
   "approved_doc.": { icon: Shield, color: "text-teal-600", label: "Document" },
   "project_cost.": { icon: DollarSign, color: "text-green-600", label: "Cost" },
@@ -36,7 +36,7 @@ function getActionConfig(action: string) {
   for (const [prefix, cfg] of Object.entries(ACTION_CONFIG)) {
     if (action.startsWith(prefix)) return cfg;
   }
-  return { icon: Activity, color: "text-slate-600", label: "Other" };
+  return { icon: Activity, color: "text-muted-foreground", label: "Other" };
 }
 
 export function ActivityFeed({ projectId, limit = 50 }: Props) {

@@ -56,7 +56,7 @@ export function RetentionTab({ projectId }: { projectId: string }) {
       key: "ipcRetention",
       header: "IPC Retention",
       align: "right",
-      render: (_, r) => <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">{formatNpr(r.ipcRetention)}</span>,
+      render: (_, r) => <span className="font-mono text-xs text-info dark:text-info/80 font-medium">{formatNpr(r.ipcRetention)}</span>,
     },
     {
       key: "released",
@@ -110,7 +110,7 @@ export function RetentionTab({ projectId }: { projectId: string }) {
             <div className="text-[9px] text-muted-foreground uppercase font-mono">Released to Date</div>
           </Card>
           <Card className="p-3 text-center bg-card">
-            <div className="text-lg font-bold font-mono text-blue-600 dark:text-blue-400">{formatNpr(totals.totalIpcRetention)}</div>
+            <div className="text-lg font-bold font-mono text-info dark:text-info/80">{formatNpr(totals.totalIpcRetention)}</div>
             <div className="text-[9px] text-muted-foreground uppercase font-mono">Total IPC Retention</div>
           </Card>
           <Card className="p-3 text-center bg-card">

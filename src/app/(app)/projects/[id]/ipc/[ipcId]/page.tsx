@@ -29,9 +29,9 @@ type _DebitItem = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  draft: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  certified: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  certified: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   paid: "bg-emerald-600 text-white",
 };
@@ -194,7 +194,7 @@ export default function IpcDetailPage({
                   <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
                   {ipc.period && <span className="text-sm text-muted-foreground">{ipc.period}</span>}
                   {ipc.subcontractor && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 gap-1 text-xs">
+                    <Badge variant="outline" className="bg-info/10 text-info dark:bg-[var(--navy-deep)] dark:text-info/80 gap-1 text-xs">
                       <Users className="h-3.5 w-3.5" /> Subcontractor Bill
                     </Badge>
                   )}
@@ -205,12 +205,12 @@ export default function IpcDetailPage({
                 </p>
               </div>
               {ipc.subcontractor && (
-                <Card className="bg-blue-50/50 border-blue-200 dark:bg-slate-900 dark:border-slate-800 p-3 max-w-xs shrink-0">
+                <Card className="bg-info/50 border-info/30 dark:bg-[var(--navy-mid)] dark:border-border p-3 max-w-xs shrink-0">
                   <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-blue-600" />
+                    <Users className="h-5 w-5 text-info" />
                     <div>
                       <p className="text-xs text-muted-foreground">Assigned Subcontractor</p>
-                      <p className="text-sm font-bold text-blue-950 dark:text-blue-200">{ipc.subcontractor.name}</p>
+                      <p className="text-sm font-bold text-[var(--ink)] dark:text-info/80">{ipc.subcontractor.name}</p>
                     </div>
                   </div>
                 </Card>
@@ -420,9 +420,9 @@ export default function IpcDetailPage({
             {/* Premium secure digital stamps */}
             <div className="mt-8 border-t pt-6 grid grid-cols-3 gap-6 print:gap-4 print:mt-6">
               {/* Stamp 1: Prepared */}
-              <div className="border border-blue-200 dark:border-blue-900 rounded-lg p-3 bg-blue-50/20 dark:bg-blue-950/10 flex flex-col items-center text-center">
-                <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 tracking-wider uppercase">Prepared By</p>
-                <div className="my-2 border border-dashed border-blue-400 dark:border-blue-700 px-3 py-1 text-xs font-serif font-bold text-blue-800 dark:text-blue-300 select-none bg-white dark:bg-slate-900">
+              <div className="border border-info/30 dark:border-info/30 rounded-lg p-3 bg-info/20 dark:bg-[var(--navy-deep)]/10 flex flex-col items-center text-center">
+                <p className="text-[10px] font-bold text-info dark:text-info/80 tracking-wider uppercase">Prepared By</p>
+                <div className="my-2 border border-dashed border-info/50 dark:border-info/40 px-3 py-1 text-xs font-serif font-bold text-info dark:text-info/80 select-none bg-card dark:bg-[var(--navy-mid)]">
                   CONSTRUCTION MGR
                   <br />
                   <span className="text-[8px] font-mono tracking-tight font-normal">SECURE STAMP</span>
@@ -436,7 +436,7 @@ export default function IpcDetailPage({
                 <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 tracking-wider uppercase">Checked By</p>
                 {ipc.status === "checked" || ipc.status === "approved" || ipc.status === "paid" ? (
                   <>
-                    <div className="my-2 border border-dashed border-purple-400 dark:border-purple-700 px-3 py-1 text-xs font-serif font-bold text-purple-800 dark:text-purple-300 select-none bg-white dark:bg-slate-900">
+                    <div className="my-2 border border-dashed border-purple-400 dark:border-purple-700 px-3 py-1 text-xs font-serif font-bold text-purple-800 dark:text-purple-300 select-none bg-card dark:bg-[var(--navy-mid)]">
                       VERIFIED OK
                       <br />
                       <span className="text-[8px] font-mono tracking-tight font-normal">SECURE STAMP</span>
@@ -453,7 +453,7 @@ export default function IpcDetailPage({
                 <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider uppercase">Approved By</p>
                 {ipc.status === "approved" || ipc.status === "paid" ? (
                   <>
-                    <div className="my-2 border border-dashed border-emerald-400 dark:border-emerald-700 px-3 py-1 text-xs font-serif font-bold text-emerald-800 dark:text-emerald-300 select-none bg-white dark:bg-slate-900">
+                    <div className="my-2 border border-dashed border-emerald-400 dark:border-emerald-700 px-3 py-1 text-xs font-serif font-bold text-emerald-800 dark:text-emerald-300 select-none bg-card dark:bg-[var(--navy-mid)]">
                       APPROVED
                       <br />
                       <span className="text-[8px] font-mono tracking-tight font-normal">SECURE STAMP</span>

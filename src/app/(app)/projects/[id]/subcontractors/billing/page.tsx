@@ -198,7 +198,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-[10px] text-blue-600"
+                className="h-6 text-[10px] text-info"
                 onClick={() => submitMut.mutate({ projectId: id, billId: bill.id })}
                 disabled={submitMut.isPending}
               >
@@ -515,10 +515,10 @@ function BillDetailView({
           <ReceiptText className="h-5 w-5 text-violet-500" />
           {bill.number}
           <Badge variant="secondary" className={cn("capitalize text-[10px] ml-2", {
-            "bg-slate-100 text-slate-700": bill.status === "draft",
+            "bg-muted text-foreground/80": bill.status === "draft",
             "bg-amber-100 text-amber-700": bill.status === "submitted",
             "bg-teal-100 text-teal-800": bill.status === "verified",
-            "bg-blue-100 text-blue-700": bill.status === "certified",
+            "bg-info/15 text-info": bill.status === "certified",
             "bg-emerald-100 text-emerald-700": bill.status === "paid",
             "bg-red-100 text-red-700": bill.status === "disputed",
           })}>
@@ -660,7 +660,7 @@ function BillDetailView({
         {bill.status === "draft" && canWrite && (
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-mono text-xs"
+            className="bg-info hover:bg-info text-white font-mono text-xs"
             onClick={() => submitMut.mutate({ projectId, billId: bill.id })}
             disabled={submitMut.isPending}
           >

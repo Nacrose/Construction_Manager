@@ -134,25 +134,25 @@ export default function SubmittalsPage({ params }: { params: Promise<{ id: strin
         {stats && (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono">
             {[
-              { label: "Total", value: stats.total, color: "text-slate-700" },
-              { label: "Draft", value: stats.draft, color: "text-slate-500" },
+              { label: "Total", value: stats.total, color: "text-foreground/80" },
+              { label: "Draft", value: stats.draft, color: "text-muted-foreground" },
               { label: "Submitted", value: stats.submitted, color: "text-amber-700" },
               { label: "Approved", value: stats.approved, color: "text-emerald-700" },
               { label: "Rejected", value: stats.rejected, color: "text-rose-700" },
               { label: "Revise", value: stats.revise, color: "text-orange-700" },
             ].map((s) => (
-              <Card key={s.label} className="p-3 text-center bg-white border-[#c7d8e8] shadow-xs rounded-xl">
+              <Card key={s.label} className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl">
                 <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-[10px] text-slate-500 uppercase">{s.label}</div>
+                <div className="text-[10px] text-muted-foreground uppercase">{s.label}</div>
               </Card>
             ))}
           </div>
         )}
 
         {/* Action Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[#c7d8e8] bg-[#e5eef7]">
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-700">
-            <FileCheck className="h-4 w-4 text-[#0284c7]" />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
+          <div className="flex items-center gap-2 text-xs font-mono text-foreground/80">
+            <FileCheck className="h-4 w-4 text-[var(--primary)]" />
             <span className="font-bold">Technical Submittals &amp; Approvals Register</span>
           </div>
 
