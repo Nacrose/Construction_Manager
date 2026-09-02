@@ -53,7 +53,12 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
     status: statusFilter,
   });
 
-  const { data: partnersData } = trpc.partner.listPartners.useQuery({ projectId, type: "material_supplier" });
+  const { data: partnersData } = trpc.partner.listPartners.useQuery({
+    projectId,
+    type: "material_supplier",
+    // Deliberate max page: consumed as a picker list inside bill dialogs.
+    limit: 500,
+  });
   const { data: posData } = trpc.purchaseOrder.list.useQuery({ projectId });
 
   const [createBillOpen, setCreateBillOpen] = useState(false);

@@ -44,7 +44,11 @@ const ROLE_COLORS: Record<string, string> = {
 export default function TeamPage() {
   const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState<"members" | "organization">("members");
-  const { data, isLoading } = trpc.project.listOrgUsers.useQuery();
+  const usersQuery = trpc.project.listOrgUsers.useInfiniteQuery(
+    {},
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const isLoading = usersQuery.isLoading;
   const { data: orgData, isLoading: orgLoading } = trpc.project.getOrgProfile.useQuery();
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
@@ -121,7 +125,7 @@ export default function TeamPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const users = data?.users ?? [];
+  const users = usersQuery.data ? usersQuery.data.pages.flatMap((p) => p.users) : [];
 
   return (
     <div className="space-y-4 pb-8">
@@ -210,6 +214,7 @@ export default function TeamPage() {
                   No users yet. Click "Add User" to create your first team member.
                 </div>
               ) : (
+                <>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -298,6 +303,14 @@ export default function TeamPage() {
                     ))}
                   </TableBody>
                 </Table>
+                {usersQuery.hasNextPage && (
+                  <div className="flex justify-center border-t border-border/60 pt-3">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => usersQuery.fetchNextPage()} disabled={usersQuery.isFetchingNextPage}>
+                      {usersQuery.isFetchingNextPage ? "Loading…" : "Load more members"}
+                    </Button>
+                  </div>
+                )}
+                </>
               )}
             </CardContent>
           </Card>

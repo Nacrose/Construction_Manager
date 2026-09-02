@@ -24,8 +24,11 @@ export function VendorsTab({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const { data, isLoading } = trpc.equipment.listVendors.useQuery({ projectId });
-  const vendors = data?.vendors ?? [];
+  const vendorsQuery = trpc.equipment.listVendors.useInfiniteQuery(
+    { projectId },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const vendors = vendorsQuery.data ? vendorsQuery.data.pages.flatMap((p) => p.vendors) : [];
 
   return (
     <div className="space-y-4">
@@ -36,7 +39,7 @@ export function VendorsTab({ projectId }: { projectId: string }) {
         </Dialog>
       </div>
 
-      {isLoading ? <Skeleton className="h-64" /> : vendors.length === 0 ? (
+      {vendorsQuery.isLoading ? <Skeleton className="h-64" /> : vendors.length === 0 ? (
         <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <Building2 className="h-12 w-12 text-muted-foreground/40 mb-2" />
           <p className="text-sm text-muted-foreground">No equipment vendors registered.</p>
@@ -67,6 +70,13 @@ export function VendorsTab({ projectId }: { projectId: string }) {
               </CardContent>
             </Card>
           ))}
+          {vendorsQuery.hasNextPage && (
+            <div className="sm:col-span-2 lg:col-span-3 flex justify-center">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => vendorsQuery.fetchNextPage()} disabled={vendorsQuery.isFetchingNextPage}>
+                {vendorsQuery.isFetchingNextPage ? "Loading…" : "Load more vendors"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

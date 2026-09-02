@@ -54,12 +54,15 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.partner.listPartners.useQuery({
-    projectId: id,
-    type: filterType === "all" ? undefined : filterType,
-  });
+  const partnersQuery = trpc.partner.listPartners.useInfiniteQuery(
+    {
+      projectId: id,
+      type: filterType === "all" ? undefined : filterType,
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
 
-  const partners = data?.partners ?? [];
+  const partners = partnersQuery.data ? partnersQuery.data.pages.flatMap((p) => p.partners) : [];
   const canWrite = Boolean(
     projectInfo?.myRole &&
       projectInfo.myRole !== "client" &&
@@ -333,7 +336,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
             </div>
 
             {/* Table */}
-            {isLoading ? (
+            {partnersQuery.isLoading ? (
               <Skeleton className="h-96 w-full rounded-xl" />
             ) : (
               <DataTable
@@ -342,6 +345,15 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
                 searchColumn="name"
                 searchPlaceholder="Search vendor name, code, contact..."
                 onRowClick={(row) => setDetailPartner(row)}
+                footerContent={
+                  partnersQuery.hasNextPage ? (
+                    <div className="flex justify-center py-2">
+                      <Button variant="outline" size="sm" onClick={() => partnersQuery.fetchNextPage()} disabled={partnersQuery.isFetchingNextPage}>
+                        {partnersQuery.isFetchingNextPage ? "Loading…" : "Load more vendors"}
+                      </Button>
+                    </div>
+                  ) : undefined
+                }
               />
             )}
           </>

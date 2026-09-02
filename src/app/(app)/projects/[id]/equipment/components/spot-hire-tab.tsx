@@ -38,19 +38,28 @@ export function SpotHireTab({
 
   const utils = trpc.useUtils();
 
-  const { data, isLoading, refetch, isFetching } = trpc.equipment.listSpotHires.useQuery({
-    projectId,
-    isBilled: billedFilter === "all" ? undefined : billedFilter === "billed",
-  });
+  const spotHiresQuery = trpc.equipment.listSpotHires.useInfiniteQuery(
+    {
+      projectId,
+      isBilled: billedFilter === "all" ? undefined : billedFilter === "billed",
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const { refetch, isFetching } = spotHiresQuery;
 
   const { data: statementsData, isLoading: isStatementsLoading } =
     trpc.equipment.getVendorHireStatement.useQuery({ projectId });
 
-  const { data: vendorList } = trpc.equipment.listVendors.useQuery({ projectId });
+  const { data: vendorList } = trpc.equipment.listVendors.useQuery({
+    projectId,
+    // Deliberate max page: consumed as a picker list for the hire dialog.
+    limit: 500,
+  });
   const { data: boqData } = trpc.boq.list.useQuery({ projectId });
 
-  const tickets = data?.tickets || [];
-  const summary = data?.summary;
+  const tickets = spotHiresQuery.data ? spotHiresQuery.data.pages.flatMap((p) => p.tickets) : [];
+  // Summary is a whole-set DB aggregate (not per-page) — read it from page 0.
+  const summary = spotHiresQuery.data?.pages[0]?.summary;
   const statements = statementsData?.statements || [];
 
   const deleteMut = trpc.equipment.deleteSpotTicket.useMutation({
@@ -457,9 +466,18 @@ export function SpotHireTab({
         <ConstructionTable
           data={tickets}
           columns={slipColumns}
-          isLoading={isLoading}
+          isLoading={spotHiresQuery.isLoading}
           searchPlaceholder="Search spot tickets by vendor, machine, registration..."
           searchFilterKeys={["vendorName", "machineName", "registrationNo", "equipmentType", "remarks"]}
+          loadMore={
+            spotHiresQuery.hasNextPage
+              ? {
+                  onLoadMore: () => spotHiresQuery.fetchNextPage(),
+                  isLoadingMore: spotHiresQuery.isFetchingNextPage,
+                  label: "Load more tickets",
+                }
+              : undefined
+          }
         />
       ) : (
         <ConstructionTable

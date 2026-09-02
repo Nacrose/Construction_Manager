@@ -38,8 +38,8 @@ export function EditRfiDialog({
   const utils = trpc.useUtils();
   const { data: ganttTasks } = trpc.gantt.list.useQuery({ projectId });
   const { data: boqData } = trpc.boq.list.useQuery({ projectId });
-  const { data: drawingsData } = trpc.document.listDrawings.useQuery({ projectId });
-  const { data: subcontractorsData } = trpc.partner.listSubcontractors.useQuery({ projectId });
+  const { data: drawingsData } = trpc.document.listDrawings.useQuery({ projectId, limit: 500 });
+  const { data: subcontractorsData } = trpc.partner.listSubcontractors.useQuery({ projectId, limit: 500 });
 
   const [items, setItems] = useState<{ boqItemId: string; quantity: string; paymentType: "payable" | "unpayable" | "temporary" }[]>(() => {
     return (rfi.items || []).map((it) => ({

@@ -19,7 +19,7 @@ export function AddIpcDialog({ projectId, onDone }: { projectId: string; onDone:
   const [vatPercent, setVatPercent] = useState("13");
   const [tdsPercent, setTdsPercent] = useState("0");
 
-  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({ projectId });
+  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({ projectId, limit: 500 });
 
   const mutation = trpc.ipc.create.useMutation({
     onSuccess: () => {

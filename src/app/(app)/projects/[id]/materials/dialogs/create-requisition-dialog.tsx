@@ -50,6 +50,7 @@ export function CreateRequisitionDialog({
   const { data: partnersData } = trpc.partner.listPartners.useQuery({
     projectId,
     type: "material_supplier",
+    limit: 500, // picker dialog: pull the deepest allowed page
   });
   const partners = (partnersData?.partners || []) as PartnerType[];
 

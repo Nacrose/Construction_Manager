@@ -60,9 +60,16 @@ export function OrgHeadOfficeTab() {
   const { data: banksData } = trpc.finance.orgBankAccounts.useQuery();
   const bankAccounts = banksData?.accounts || [];
 
-  const { data, isLoading } = trpc.finance.listHeadOfficeExpenses.useQuery();
-  const expenses: HeadOfficeExpense[] = (data?.expenses || []) as HeadOfficeExpense[];
-  const total = data?.total || 0;
+  const expensesQuery = trpc.finance.listHeadOfficeExpenses.useInfiniteQuery(
+    {},
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const isLoading = expensesQuery.isLoading;
+  const expenses: HeadOfficeExpense[] = (
+    expensesQuery.data ? expensesQuery.data.pages.flatMap((p) => p.expenses) : []
+  ) as HeadOfficeExpense[];
+  // `total` is a whole-set DB aggregate (not per-page) — read it from page 0.
+  const total = expensesQuery.data?.pages[0]?.total || 0;
 
   const createMutation = trpc.finance.createHeadOfficeExpense.useMutation({
     onSuccess: () => {
@@ -207,6 +214,15 @@ export function OrgHeadOfficeTab() {
         searchPlaceholder="Search category, particulars, cheque..."
         searchFilterKeys={["category", "particulars", "chequeNo"]}
         summaryFooterLabel="Total Overheads"
+        loadMore={
+          expensesQuery.hasNextPage
+            ? {
+                onLoadMore: () => expensesQuery.fetchNextPage(),
+                isLoadingMore: expensesQuery.isFetchingNextPage,
+                label: "Load more expenses",
+              }
+            : undefined
+        }
         exportExcel={{
           filename: `HeadOffice_Expenses_${format(new Date(), "yyyy-MM-dd")}`,
           sheetName: "HOExpenses",

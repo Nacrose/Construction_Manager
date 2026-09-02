@@ -19,6 +19,7 @@ import { CsvImportForm } from "./components/csv-import-form";
 import {
   Plus,
   Inbox,
+  Loader2,
   Download,
   KanbanSquare,
   LayoutGrid,
@@ -66,11 +67,18 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
 
-  const { data, isLoading, error } = trpc.workflow.rfi.list.useQuery({
-    projectId: id,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    q: search || undefined,
-  });
+  const rfisQuery = trpc.workflow.rfi.list.useInfiniteQuery(
+    {
+      projectId: id,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      q: search || undefined,
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const data = rfisQuery.data;
+  const isLoading = rfisQuery.isLoading;
+  const error = rfisQuery.error;
+  const allRfis = data ? data.pages.flatMap((p) => p.rfis) : [];
 
   const myRole = projectInfo?.myRole;
   const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
@@ -104,7 +112,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
 
   // Client-side filtering for extra fields
   const filteredRfis = useMemo(() => {
-    return (data?.rfis || []).filter((rfi) => {
+    return allRfis.filter((rfi) => {
       if (priorityFilter !== "all" && rfi.priority !== priorityFilter) return false;
       if (disciplineFilter !== "all") {
         if (disciplineFilter === "none" && rfi.discipline) return false;
@@ -119,7 +127,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
       }
       return true;
     });
-  }, [data?.rfis, priorityFilter, disciplineFilter, fromDate, toDate]);
+  }, [allRfis, priorityFilter, disciplineFilter, fromDate, toDate]);
 
   const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === filteredRfis.length && filteredRfis.length > 0) {
@@ -305,7 +313,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
               </DialogTrigger>
               <CreateRfiDialog
                 projectId={id}
-                existingCount={data?.rfis.length ?? 0}
+                existingCount={allRfis.length ?? 0}
                 onCreated={() => setCreateOpen(false)}
                 onCancel={() => setCreateOpen(false)}
               />
@@ -334,7 +342,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
         setFromDate={setFromDate}
         toDate={toDate}
         setToDate={setToDate}
-        rfis={data?.rfis || []}
+        rfis={allRfis}
         searchInputRef={searchInputRef}
       />
 
@@ -377,6 +385,22 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
           isCompact={isCompact}
           setViewRfiId={setViewRfiId}
         />
+      )}
+
+      {/* Load more — keyset pagination (server caps each page) */}
+      {!isLoading && !error && rfisQuery.hasNextPage && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs font-mono"
+            onClick={() => rfisQuery.fetchNextPage()}
+            disabled={rfisQuery.isFetchingNextPage}
+          >
+            {rfisQuery.isFetchingNextPage && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            Load more RFIs
+          </Button>
+        </div>
       )}
 
       {/* Batch Actions Bar */}

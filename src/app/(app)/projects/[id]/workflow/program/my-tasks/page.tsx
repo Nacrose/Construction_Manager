@@ -66,7 +66,11 @@ export default function MyTasksPage({
   const [editQty, setEditQty] = useState<string>("");
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.workflow.dailyProgram.listPrograms.useQuery({ projectId: id });
+  const { data, isLoading } = trpc.workflow.dailyProgram.listPrograms.useQuery({
+    projectId: id,
+    // Deliberate max page: consumed via programDate lookup, not a scrolled list.
+    limit: 500,
+  });
   const utils = trpc.useUtils();
 
   const allPrograms = (data?.programs as unknown as Program[]) || [];

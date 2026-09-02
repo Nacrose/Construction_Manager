@@ -30,7 +30,11 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
   const { data: summaryData, isLoading: summaryLoading } =
     trpc.plantProduction.getProductionSummary.useQuery({ projectId: id });
   const { data: plantsData } = trpc.plantProduction.listPlants.useQuery({ projectId: id });
-  const { data: mixDesignsData } = trpc.plantProduction.listMixDesigns.useQuery({ projectId: id });
+  const { data: mixDesignsData } = trpc.plantProduction.listMixDesigns.useQuery({
+    projectId: id,
+    // Deliberate max page: mix designs are searched by id (find below), not scrolled.
+    limit: 500,
+  });
   const { data: ticketsData, isLoading: ticketsLoading } =
     trpc.plantProduction.listBatchTickets.useQuery({
       projectId: id,

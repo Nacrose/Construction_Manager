@@ -57,7 +57,7 @@ export function TeamManager({
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = trpc.project.listMembers.useQuery(
-    { projectId },
+    { projectId, limit: 500 }, // deliberate max page: full roster for count + role editing
     { initialData: { members: initialMembers, hasMore: false, nextCursor: null } }
   );
 

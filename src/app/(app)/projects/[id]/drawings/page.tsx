@@ -59,15 +59,18 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
     onError: (e) => toast.error(e.message),
   });
 
-  const { data, isLoading } = trpc.document.listDrawings.useQuery({
-    projectId: id,
-    discipline: discipline === "all" ? null : discipline,
-    q: search || null,
-    setId: setId === "all" ? null : setId,
-  });
+  const drawingsQuery = trpc.document.listDrawings.useInfiniteQuery(
+    {
+      projectId: id,
+      discipline: discipline === "all" ? null : discipline,
+      q: search || null,
+      setId: setId === "all" ? null : setId,
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
   const { data: ganttData } = trpc.gantt.list.useQuery({ projectId: id });
-  const { data: setsData } = trpc.document.listSets.useQuery({ projectId: id });
-  const drawings = data?.drawings ?? [];
+  const { data: setsData } = trpc.document.listSets.useQuery({ projectId: id, limit: 500 });
+  const drawings = drawingsQuery.data ? drawingsQuery.data.pages.flatMap((p) => p.drawings) : [];
   const sets = setsData?.sets ?? [];
 
   return (
@@ -116,7 +119,7 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
         </div>
 
       {/* Drawings grid */}
-      {isLoading ? (
+      {drawingsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-48" />)}</div>
       ) : drawings.length === 0 ? (
         <Card><CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -175,6 +178,13 @@ export default function DrawingsPage({ params }: { params: Promise<{ id: string 
               </Card>
             );
           })}
+          {drawingsQuery.hasNextPage && (
+            <div className="sm:col-span-2 lg:col-span-3 flex justify-center py-1">
+              <Button variant="outline" size="sm" className="h-9 text-xs rounded-xl" onClick={() => drawingsQuery.fetchNextPage()} disabled={drawingsQuery.isFetchingNextPage}>
+                {drawingsQuery.isFetchingNextPage ? "Loading…" : "Load more drawings"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

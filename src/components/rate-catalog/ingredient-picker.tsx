@@ -51,7 +51,7 @@ export function IngredientPicker({
 
   // If projectId is provided, search from project Resource Library; otherwise fallback to catalog search
   const { data: projectResources, isLoading: isProjectLoading } = trpc.material.listByType.useQuery(
-    { projectId: projectId!, resourceType, search: query },
+    { projectId: projectId!, resourceType, search: query, limit: 500 },
     { enabled: !!projectId && open }
   );
 

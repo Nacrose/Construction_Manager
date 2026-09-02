@@ -77,7 +77,7 @@ export default function ProjectDetailPage({
   const { data, isLoading, error } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
 
   const { data: submittedRfis } = trpc.workflow.rfi.list.useQuery(
-    { projectId: id, status: "submitted" },
+    { projectId: id, status: "submitted", limit: 500 },
     { enabled: data?.myRole === "project_manager" || data?.myRole === "coordinator" },
   );
 

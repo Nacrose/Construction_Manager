@@ -47,6 +47,8 @@ interface DataTableProps<TData, TValue> {
   enableZebraStriping?: boolean;
   enableSearch?: boolean;
   onRowClick?: (row: TData) => void;
+  /** Extra content rendered below the pager — e.g. a keyset "Load more" button. */
+  footerContent?: React.ReactNode;
 }
 
 export function DataTable<TData, TValue>({
@@ -61,6 +63,7 @@ export function DataTable<TData, TValue>({
   enableZebraStriping = true,
   enableSearch = true,
   onRowClick,
+  footerContent,
 }: DataTableProps<TData, TValue>) {
   const { getPref, setPref } = useUserPreferences();
 
@@ -303,6 +306,7 @@ export function DataTable<TData, TValue>({
           </div>
         </div>
       </div>
+      {footerContent}
     </div>
   );
 }

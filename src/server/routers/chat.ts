@@ -249,11 +249,17 @@ export const chatRouter = router({
 
       const hasMore = messages.length > input.limit;
       const items = hasMore ? messages.slice(0, -1) : messages;
+      // Keyset cursor for "load older": the OLDEST loaded row. items is in
+      // DESC order here, so that's items[0]. Capture it BEFORE items.reverse()
+      // below — reverse() mutates in place, and the previous code read
+      // items[items.length - 1] AFTER reversing, which handed back the newest
+      // message id and made the next page overlap with the current one.
+      const oldestId = items[0]?.id ?? null;
 
       return {
         messages: items.reverse(),
         hasMore,
-        nextCursor: hasMore ? items[items.length - 1]?.id : null,
+        nextCursor: hasMore ? oldestId : null,
       };
     }),
 

@@ -51,27 +51,36 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const [typeFilter, setTypeFilter] = useState("all");
 
-  // Fetch approved documents from multiple sources
-  const { data: reports, isLoading: isRepLoading } = trpc.workflow.dailyReport.listReports.useQuery({ projectId: id });
-  const { data: rfiData, isLoading: isRfiLoading } = trpc.workflow.rfi.list.useQuery({ projectId: id });
+  // Fetch approved documents from multiple sources (paginated sources use infinite queries)
+  const reportsQuery = trpc.workflow.dailyReport.listReports.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const rfiQuery = trpc.workflow.rfi.list.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const drawingsQuery = trpc.document.listDrawings.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
   const { data: ipcData, isLoading: isIpcLoading } = trpc.ipc.list.useQuery({ projectId: id });
-  const { data: drawingData, isLoading: isDrawLoading } = trpc.document.listDrawings.useQuery({ projectId: id });
   const { data: corrData, isLoading: isCorrLoading } = trpc.correspondence.list.useQuery({ projectId: id });
   const { data: approvedDocs, isLoading: isAppLoading } = trpc.approvedDocument.list.useQuery({ entityType: "daily_report", entityId: id, projectId: id });
   const { data: submittalData, isLoading: isSubLoading } = trpc.submittal.list.useQuery({ projectId: id });
 
-  const isLoading = isRepLoading || isRfiLoading || isIpcLoading || isDrawLoading || isCorrLoading || isAppLoading || isSubLoading;
+  const isLoading = reportsQuery.isLoading || rfiQuery.isLoading || isIpcLoading || drawingsQuery.isLoading || isCorrLoading || isAppLoading || isSubLoading;
 
   // Aggregate all documents
   const allDocs: Array<{ id: string; type: string; number: string; title: string; status: string; date: string; href: string }> = [];
 
   // Daily reports (approved/archived)
-  (reports?.reports ?? []).filter((r: any) => r.status === "approved" || r.status === "archived").forEach((r: any) => {
+  (reportsQuery.data ? reportsQuery.data.pages.flatMap((p) => p.reports) : []).filter((r: any) => r.status === "approved" || r.status === "archived").forEach((r: any) => {
     allDocs.push({ id: r.id, type: "daily_report", number: r.number, title: `Daily Report — ${format(new Date(r.reportDate), "dd MMM yyyy")}`, status: r.status, date: r.reportDate, href: `/projects/${id}/workflow/reports/${r.id}` });
   });
 
   // RFIs (approved/closed)
-  (rfiData?.rfis ?? []).filter((r: any) => r.status === "approved" || r.status === "closed").forEach((r: any) => {
+  (rfiQuery.data ? rfiQuery.data.pages.flatMap((p) => p.rfis) : []).filter((r: any) => r.status === "approved" || r.status === "closed").forEach((r: any) => {
     allDocs.push({ id: r.id, type: "rfi", number: r.number, title: r.subject, status: r.status, date: r.createdAt, href: `/projects/${id}/workflow/rfi` });
   });
 
@@ -81,7 +90,7 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
   });
 
   // Drawings (approved)
-  (drawingData?.drawings ?? []).filter((d: any) => d.approvalStatus?.startsWith("approved")).forEach((d: any) => {
+  (drawingsQuery.data ? drawingsQuery.data.pages.flatMap((p) => p.drawings) : []).filter((d: any) => d.approvalStatus?.startsWith("approved")).forEach((d: any) => {
     allDocs.push({ id: d.id, type: "drawing", number: d.number, title: `${d.title} — Rev ${d.revision}`, status: d.approvalStatus, date: d.approvedAt ?? d.updatedAt, href: `/projects/${id}/drawings` });
   });
 
@@ -192,6 +201,20 @@ export default function DocumentCenterPage({ params }: { params: Promise<{ id: s
           onRowClick={(row) => router.push(row.href)}
           searchPlaceholder="Search approved documents by number, title, type..."
           searchFilterKeys={["number", "title", "type", "status"]}
+          loadMore={
+            reportsQuery.hasNextPage || rfiQuery.hasNextPage || drawingsQuery.hasNextPage
+              ? {
+                  onLoadMore: () => {
+                    if (reportsQuery.hasNextPage) reportsQuery.fetchNextPage();
+                    if (rfiQuery.hasNextPage) rfiQuery.fetchNextPage();
+                    if (drawingsQuery.hasNextPage) drawingsQuery.fetchNextPage();
+                  },
+                  isLoadingMore:
+                    reportsQuery.isFetchingNextPage || rfiQuery.isFetchingNextPage || drawingsQuery.isFetchingNextPage,
+                  label: "Load more documents",
+                }
+              : undefined
+          }
         />
       </div>
     </>

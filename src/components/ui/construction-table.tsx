@@ -96,6 +96,12 @@ export type ConstructionTableProps<T> = {
     action?: React.ReactNode;
   };
   headerActions?: React.ReactNode;
+  /** Keyset "Load more" footer — pass the infinite-query trigger + spinner state. */
+  loadMore?: {
+    onLoadMore: () => void;
+    isLoadingMore: boolean;
+    label?: string;
+  };
   summaryFooterLabel?: string;
   initialDensity?: "compact" | "comfortable";
   className?: string;
@@ -122,6 +128,7 @@ export function ConstructionTable<T extends Record<string, any>>({
   exportExcel,
   emptyState,
   headerActions,
+  loadMore,
   summaryFooterLabel = "Total",
   initialDensity = "compact",
   className,
@@ -571,6 +578,28 @@ export function ConstructionTable<T extends Record<string, any>>({
               </tfoot>
             )}
           </table>
+        </div>
+      )}
+
+      {/* Load More Footer — keyset pagination handoff from the caller's infinite query */}
+      {!isLoading && data.length > 0 && loadMore && (
+        <div className="flex justify-center py-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadMore.onLoadMore}
+            disabled={loadMore.isLoadingMore}
+            className="h-8 text-xs gap-1.5 font-semibold"
+          >
+            {loadMore.isLoadingMore ? (
+              <>
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#0284c7] border-t-transparent" />
+                Loading…
+              </>
+            ) : (
+              loadMore.label || "Load more"
+            )}
+          </Button>
         </div>
       )}
 

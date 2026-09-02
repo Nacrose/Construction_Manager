@@ -80,7 +80,7 @@ export function AddProgramDialog({
   const { data: rfiData, isLoading: rfisLoading } = trpc.workflow.dailyProgram.listAvailableRfis.useQuery({ projectId });
 
   // Fetch Backlog tasks (Postponed / uncompleted tasks)
-  const { data: backlogData, isLoading: backlogLoading } = trpc.workflow.dailyProgram.listBacklogTasks.useQuery({ projectId });
+  const { data: backlogData, isLoading: backlogLoading } = trpc.workflow.dailyProgram.listBacklogTasks.useQuery({ projectId, limit: 500 });
 
   // Fetch BOQ items for ingredient lookup (edit mode)
   const { data: boqData } = trpc.boq.list.useQuery({ projectId });

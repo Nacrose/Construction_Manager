@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useRef, useEffect } from "react";
+import { use, useState, useRef, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -41,11 +41,14 @@ export default function CommunicationPage({ params }: { params: Promise<{ id: st
     }
   }, [channels.length]);
 
-  // Poll for new messages every 5 seconds (upgrade to WebSocket later)
-  const { data: messagesData, isLoading: messagesLoading } = trpc.chat.getMessages.useQuery(
+  // Poll for new messages every 5 seconds (upgrade to WebSocket later).
+  // Infinite query: "Load older" prepends history; page 1 keeps refetching on
+  // the poll so new messages arrive without disturbing older cached pages.
+  const messagesQuery = trpc.chat.getMessages.useInfiniteQuery(
     { channelId: selectedChannelId ?? "", limit: 50 },
-    { enabled: !!selectedChannelId, refetchInterval: 5000 }
+    { enabled: !!selectedChannelId, refetchInterval: 5000, getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
   );
+  const messagesLoading = messagesQuery.isLoading;
 
   const sendMut = trpc.chat.sendMessage.useMutation({
     onSuccess: () => { setMessageText(""); utils.chat.getMessages.invalidate({ channelId: selectedChannelId! }); utils.chat.listChannels.invalidate({ projectId: id }); },
@@ -54,25 +57,31 @@ export default function CommunicationPage({ params }: { params: Promise<{ id: st
 
   const markReadMut = trpc.chat.markRead.useMutation({ onSuccess: () => utils.chat.listChannels.invalidate({ projectId: id }) });
 
+  const messages = useMemo(() => {
+    const flat = messagesQuery.data ? messagesQuery.data.pages.flatMap((p) => p.messages) : [];
+    // Pages are newest-first blocks (each internally ASC) — flatten then
+    // re-sort chronologically so display order is correct across pages.
+    return [...flat].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [messagesQuery.data]);
+
   // Mark messages as read when viewing
   useEffect(() => {
-    if (selectedChannelId && messagesData?.messages?.length) {
-      const lastMsg = messagesData.messages[messagesData.messages.length - 1];
+    if (selectedChannelId && messages.length) {
+      const lastMsg = messages[messages.length - 1];
       markReadMut.mutate({ channelId: selectedChannelId, lastMessageId: lastMsg.id });
     }
-  }, [selectedChannelId, messagesData?.messages?.length]);
+  }, [selectedChannelId, messages.length]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messagesData?.messages?.length]);
+  }, [messages.length]);
 
   const handleSend = () => {
     if (!messageText.trim() || !selectedChannelId) return;
     sendMut.mutate({ channelId: selectedChannelId, text: messageText.trim() });
   };
 
-  const messages = messagesData?.messages ?? [];
   const selectedChannel = channels.find(c => c.id === selectedChannelId);
 
   return (
@@ -170,6 +179,17 @@ export default function CommunicationPage({ params }: { params: Promise<{ id: st
                       </div>
                     </div>
                   ))
+                )}
+                {messagesQuery.hasNextPage && (
+                  <div className="flex justify-center py-1">
+                    <button
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                      onClick={() => messagesQuery.fetchNextPage()}
+                      disabled={messagesQuery.isFetchingNextPage}
+                    >
+                      {messagesQuery.isFetchingNextPage ? "Loading older messages…" : "Load older messages"}
+                    </button>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>

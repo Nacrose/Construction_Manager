@@ -38,12 +38,19 @@ export function RentalsTab({ projectId }: { projectId: string }) {
   const [crewDialogId, setCrewDialogId] = useState<string | null>(null);
   const [damageDialogId, setDamageDialogId] = useState<string | null>(null);
 
-  const { data, isLoading } = trpc.equipment.listRentals.useQuery({ projectId });
+  const rentalsQuery = trpc.equipment.listRentals.useInfiniteQuery(
+    { projectId },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
   const { data: rentalStats } = trpc.equipment.rentalStats.useQuery({ projectId });
   const { data: equipData } = trpc.equipment.list.useQuery({ projectId });
-  const { data: vendorData } = trpc.equipment.listVendors.useQuery({ projectId });
+  const { data: vendorData } = trpc.equipment.listVendors.useQuery({
+    projectId,
+    // Deliberate max page: consumed as a picker list inside CreateRentalDialog.
+    limit: 500,
+  });
 
-  const rentals = data?.rentals ?? [];
+  const rentals = rentalsQuery.data ? rentalsQuery.data.pages.flatMap((p) => p.rentals) : [];
 
   const markStoredMut = trpc.equipment.markStored.useMutation({
     onSuccess: () => { utils.equipment.listRentals.invalidate({ projectId }); utils.equipment.rentalStats.invalidate({ projectId }); toast.success("Marked as stored — rent stopped"); },
@@ -94,7 +101,7 @@ export function RentalsTab({ projectId }: { projectId: string }) {
       </div>
 
       {/* Rental cards */}
-      {isLoading ? <Skeleton className="h-64" /> : rentals.length === 0 ? (
+      {rentalsQuery.isLoading ? <Skeleton className="h-64" /> : rentals.length === 0 ? (
         <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <Truck className="h-12 w-12 text-muted-foreground/40 mb-2" />
           <p className="text-sm text-muted-foreground">No equipment rentals yet.</p>
@@ -180,6 +187,13 @@ export function RentalsTab({ projectId }: { projectId: string }) {
               </Card>
             );
           })}
+          {rentalsQuery.hasNextPage && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => rentalsQuery.fetchNextPage()} disabled={rentalsQuery.isFetchingNextPage}>
+                {rentalsQuery.isFetchingNextPage ? "Loading…" : "Load more rentals"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

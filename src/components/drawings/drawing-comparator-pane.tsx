@@ -15,7 +15,7 @@ export function DrawingComparatorPane({ projectId }: { projectId: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: boqData, isLoading: boqLoading } = trpc.boq.list.useQuery({ projectId });
-  const { data: rfiData, isLoading: rfiLoading } = trpc.workflow.rfi.list.useQuery({ projectId });
+  const { data: rfiData, isLoading: rfiLoading } = trpc.workflow.rfi.list.useQuery({ projectId, limit: 500 });
 
   const filteredBoq = (boqData?.items ?? []).filter(
     (i) =>

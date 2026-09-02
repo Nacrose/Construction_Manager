@@ -83,7 +83,11 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
   const [verifyBillId, setVerifyBillId] = useState<string | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({ projectId: id });
+  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({
+    projectId: id,
+    // Deliberate max page: feeds ledger tabs and billing pickers, not a scrolled list.
+    limit: 500,
+  });
   const { data: billsData, isLoading } = trpc.subcontractorBill.list.useQuery({
     projectId: id,
     subcontractorId: subFilter === "all" ? undefined : subFilter,

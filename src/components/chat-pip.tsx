@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -118,12 +118,18 @@ export function ChatPiP() {
     }
   }, [channels.length, selectedChannelId]);
 
-  // Poll for new messages every 5s when open
-  const { data: messagesData, isLoading: messagesLoading } =
-    trpc.chat.getMessages.useQuery(
-      { channelId: selectedChannelId ?? "", limit: 50 },
-      { enabled: !!selectedChannelId && state === "open", refetchInterval: 5000 }
-    );
+  // Poll for new messages every 5s when open. Infinite query: "Load older"
+  // prepends history; page 1 keeps refetching on the 5s poll so new messages
+  // arrive without disturbing older cached pages.
+  const messagesQuery = trpc.chat.getMessages.useInfiniteQuery(
+    { channelId: selectedChannelId ?? "", limit: 50 },
+    {
+      enabled: !!selectedChannelId && state === "open",
+      refetchInterval: 5000,
+      getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined),
+    }
+  );
+  const messagesLoading = messagesQuery.isLoading;
 
   const sendMut = trpc.chat.sendMessage.useMutation({
     onSuccess: () => {
@@ -157,7 +163,14 @@ export function ChatPiP() {
     onError: (e) => toast.error(e.message),
   });
 
-  const messages = messagesData?.messages ?? [];
+  const messages = useMemo(() => {
+    const flat = messagesQuery.data ? messagesQuery.data.pages.flatMap((p) => p.messages) : [];
+    // Pages are newest-first blocks (each internally ASC) — flatten then
+    // re-sort chronologically so display order is correct across pages.
+    return [...flat].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [messagesQuery.data]);
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
 
   // For personal channels: fetch other user's read receipt for "seen" indicator
@@ -518,7 +531,19 @@ export function ChatPiP() {
             No messages yet. Start the conversation!
           </div>
         ) : (
-          messages.map((msg) => {
+          <>
+          {messagesQuery.hasNextPage && (
+            <div className="flex justify-center pb-1">
+              <button
+                className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                onClick={() => messagesQuery.fetchNextPage()}
+                disabled={messagesQuery.isFetchingNextPage}
+              >
+                {messagesQuery.isFetchingNextPage ? "Loading older messages…" : "Load older messages"}
+              </button>
+            </div>
+          )}
+          {messages.map((msg) => {
             const isOwn = msg.user?.id === currentUserId;
             // For personal channels: show read checkmark if other user has read this message
             const isRead = isOwn && isPersonalChannel && messageStatus?.lastReadMessageId
@@ -584,7 +609,8 @@ export function ChatPiP() {
               )}
             </div>
           );
-          })
+          })}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>

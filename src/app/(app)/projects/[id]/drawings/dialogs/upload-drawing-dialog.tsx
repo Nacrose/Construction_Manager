@@ -51,7 +51,7 @@ export function UploadDrawingDialog({
 
   // Fetch existing drawings for the target project to enable smart revision stacking
   const { data: drawingsData } = trpc.document.listDrawings.useQuery(
-    { projectId: targetProjectId || null },
+    { projectId: targetProjectId || null, limit: 500 },
     { enabled: !!targetProjectId }
   );
   const existingDrawings = useMemo(() => {

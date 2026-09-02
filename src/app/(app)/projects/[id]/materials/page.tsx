@@ -4,6 +4,7 @@ import { use, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { AnimatedPage } from "@/components/ui/animated-page";
+import { Button } from "@/components/ui/button";
 import { LowStockAlerts } from "@/components/inventory/low-stock-alerts";
 import { ReconciliationReport } from "@/components/inventory/reconciliation-report";
 import { ModuleTabs } from "@/components/module-tabs";
@@ -72,11 +73,19 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   // Queries
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.material.list.useQuery({ projectId: id });
-  const { data: txnsData, isLoading: isTxnsLoading } =
-    trpc.material.listTransactions.useQuery({ projectId: id });
-  const { data: gateData, isLoading: isGateLoading } =
-    trpc.material.listGateEntries.useQuery({ projectId: id });
-  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({ projectId: id });
+  const txnsQuery = trpc.material.listTransactions.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const gateQuery = trpc.material.listGateEntries.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const { data: subsData } = trpc.partner.listSubcontractors.useQuery({
+    projectId: id,
+    // Deliberate max page: consumed as picker lists inside dialogs.
+    limit: 500,
+  });
   const { data: reqsData, isLoading: isReqsLoading } = trpc.requisition.list.useQuery({
     projectId: id,
   });
@@ -90,6 +99,9 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const gateData = { gateEntries: gateQuery.data ? gateQuery.data.pages.flatMap((p) => p.gateEntries) : [] };
+  const allTxns = txnsQuery.data ? txnsQuery.data.pages.flatMap((p) => p.transactions) : [];
 
   const canWrite = Boolean(
     projectInfo?.myRole &&
@@ -157,7 +169,7 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   }, [data?.materials, stockFilter]);
 
   const pendingGateCount =
-    gateData?.gateEntries?.filter((g) => g.status === "pending").length ?? 0;
+    gateData?.gateEntries.filter((g) => g.status === "pending").length ?? 0;
   const pendingReqCount =
     reqsData?.requisitions?.filter(
       (r) => r.status === "pending_approval" || r.status === "submitted"
@@ -280,21 +292,39 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
 
           {/* 5. GATE LOGISTICS & WEIGHBRIDGE */}
           {activeTab === "gate" && (
-            <MaterialsGateTab
-              canWrite={canWrite}
-              isGateLoading={isGateLoading}
-              gateData={gateData}
-              setAddGateOpen={setAddGateOpen}
-              openGateVerification={openGateVerification}
-            />
+            <>
+              <MaterialsGateTab
+                canWrite={canWrite}
+                isGateLoading={gateQuery.isLoading}
+                gateData={gateData}
+                setAddGateOpen={setAddGateOpen}
+                openGateVerification={openGateVerification}
+              />
+              {gateQuery.hasNextPage && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => gateQuery.fetchNextPage()} disabled={gateQuery.isFetchingNextPage}>
+                    {gateQuery.isFetchingNextPage ? "Loading…" : "Load more gate entries"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {/* 6. TRANSACTIONS LEDGER */}
           {activeTab === "transactions" && (
-            <MaterialsTransactionsTab
-              isTxnsLoading={isTxnsLoading}
-              transactions={(txnsData?.transactions || []) as any}
-            />
+            <>
+              <MaterialsTransactionsTab
+                isTxnsLoading={txnsQuery.isLoading}
+                transactions={allTxns as any}
+              />
+              {txnsQuery.hasNextPage && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => txnsQuery.fetchNextPage()} disabled={txnsQuery.isFetchingNextPage}>
+                    {txnsQuery.isFetchingNextPage ? "Loading…" : "Load more transactions"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {/* 7. 3-WAY MATCH & VENDOR BILLS */}

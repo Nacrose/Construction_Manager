@@ -42,12 +42,17 @@ export default function OrgDrawingsPage() {
   const { data: projectsData } = trpc.project.list.useQuery();
   const projects = projectsData?.projects || [];
 
-  const { data, isLoading } = trpc.document.listDrawings.useQuery({
-    projectId: selectedProjectId === "all" ? null : selectedProjectId,
-    discipline: discipline === "all" ? null : discipline,
-  });
+  const drawingsQuery = trpc.document.listDrawings.useInfiniteQuery(
+    {
+      projectId: selectedProjectId === "all" ? null : selectedProjectId,
+      discipline: discipline === "all" ? null : discipline,
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
 
-  const drawings = (data?.drawings ?? []) as DrawingItem[];
+  const drawings = (drawingsQuery.data
+    ? drawingsQuery.data.pages.flatMap((p) => p.drawings)
+    : []) as DrawingItem[];
 
   // Metric summaries
   const totalDrawings = drawings.length;
@@ -269,8 +274,16 @@ export default function OrgDrawingsPage() {
       {/* Table */}
       <ConstructionTable<DrawingItem>
         data={drawings}
+        loadMore={
+          drawingsQuery.hasNextPage
+            ? {
+                onLoadMore: () => drawingsQuery.fetchNextPage(),
+                isLoadingMore: drawingsQuery.isFetchingNextPage,
+              }
+            : undefined
+        }
         columns={columns}
-        isLoading={isLoading}
+        isLoading={drawingsQuery.isLoading}
         searchPlaceholder="Search drawing #, title, project, file..."
         exportExcel={{
           filename: `Company_Drawings_Vault_${format(new Date(), "yyyy-MM-dd")}`,

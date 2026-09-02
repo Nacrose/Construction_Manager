@@ -64,20 +64,37 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.equipment.list.useQuery({ projectId: id });
-  const { data: logsData, isLoading: isLogsLoading } = trpc.equipment.listLogs.useQuery({
-    projectId: id,
-  });
-  const { data: spotHiresData } = trpc.equipment.listSpotHires.useQuery({ projectId: id });
-  const { data: maintData, isLoading: isMaintLoading } = trpc.equipment.listMaintenance.useQuery({
-    projectId: id,
-  });
+  const logsQuery = trpc.equipment.listLogs.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const spotHiresQuery = trpc.equipment.listSpotHires.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const maintQuery = trpc.equipment.listMaintenance.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
   const { data: efficiencyData } = trpc.equipment.getEfficiencyStats.useQuery({ projectId: id });
-  const { data: rentalsData } = trpc.equipment.listRentals.useQuery({ projectId: id });
+  const rentalsQuery = trpc.equipment.listRentals.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
   const { data: taskStatsData, isLoading: isTaskStatsLoading } =
     trpc.equipment.getTaskEquipmentStats.useQuery({ projectId: id });
 
-  const { data: vendorList } = trpc.equipment.listVendors.useQuery({ projectId: id });
+  const { data: vendorList } = trpc.equipment.listVendors.useQuery({
+    projectId: id,
+    // Deliberate max page: consumed as a picker list for the hire dialog.
+    limit: 500,
+  });
   const { data: boqData } = trpc.boq.list.useQuery({ projectId: id });
+
+  const allLogs = logsQuery.data ? logsQuery.data.pages.flatMap((p) => p.logs) : [];
+  const allTickets = spotHiresQuery.data ? spotHiresQuery.data.pages.flatMap((p) => p.tickets) : [];
+  const allMaint = maintQuery.data ? maintQuery.data.pages.flatMap((p) => p.maintenance) : [];
+  const allRentals = rentalsQuery.data ? rentalsQuery.data.pages.flatMap((p) => p.rentals) : [];
 
   const updateStatusMutation = trpc.equipment.updateStatus.useMutation({
     onSuccess: () => {
@@ -102,13 +119,13 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   );
 
   const allEquipment = (data?.equipment || []) as Equipment[];
-  const pendingMaintCount = (maintData?.maintenance || []).filter(
+  const pendingMaintCount = allMaint.filter(
     (m) => m.status === "pending"
   ).length;
-  const activeRentalsCount = (rentalsData?.rentals || []).filter(
+  const activeRentalsCount = allRentals.filter(
     (r) => r.status === "active"
   ).length;
-  const spotTicketsCount = spotHiresData?.tickets.length || 0;
+  const spotTicketsCount = allTickets.length;
 
   const fuelReconciliation = allEquipment.map((e: any) => {
     const stat = efficiencyData?.stats.find((s) => s.equipmentId === e.id);
@@ -136,7 +153,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
       id: "logs" as const,
       label: "Logbook",
       Icon: CalendarClock,
-      badge: logsData?.logs.length,
+      badge: allLogs.length,
     },
     {
       id: "spot" as const,
@@ -309,12 +326,21 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
 
           {/* 2. LOGBOOK & ACTIVITY TAB */}
           {activeTab === "logs" && (
-            <EquipmentLogsTab
-              isLogsLoading={isLogsLoading}
-              logs={(logsData?.logs || []) as EquipmentLog[]}
-              isTaskStatsLoading={isTaskStatsLoading}
-              taskStats={taskStatsData?.taskStats || []}
-            />
+            <>
+              <EquipmentLogsTab
+                isLogsLoading={logsQuery.isLoading}
+                logs={allLogs as EquipmentLog[]}
+                isTaskStatsLoading={isTaskStatsLoading}
+                taskStats={taskStatsData?.taskStats || []}
+              />
+              {logsQuery.hasNextPage && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => logsQuery.fetchNextPage()} disabled={logsQuery.isFetchingNextPage}>
+                    {logsQuery.isFetchingNextPage ? "Loading…" : "Load more logs"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {/* 3. SPOT & CASUAL HIRE TAB */}
@@ -324,13 +350,22 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
 
           {/* 4. MAINTENANCE TAB */}
           {activeTab === "maintenance" && (
-            <EquipmentMaintenanceTab
-              isMaintLoading={isMaintLoading}
-              maintenance={(maintData?.maintenance || []) as Maintenance[]}
-              canWrite={canWrite}
-              setActiveMaintId={setActiveMaintId}
-              setResolveOpen={setResolveOpen}
-            />
+            <>
+              <EquipmentMaintenanceTab
+                isMaintLoading={maintQuery.isLoading}
+                maintenance={allMaint as Maintenance[]}
+                canWrite={canWrite}
+                setActiveMaintId={setActiveMaintId}
+                setResolveOpen={setResolveOpen}
+              />
+              {maintQuery.hasNextPage && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => maintQuery.fetchNextPage()} disabled={maintQuery.isFetchingNextPage}>
+                    {maintQuery.isFetchingNextPage ? "Loading…" : "Load more maintenance records"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
 
           {/* 5. FUEL AUDIT TAB */}

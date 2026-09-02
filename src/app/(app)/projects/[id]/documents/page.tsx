@@ -36,12 +36,22 @@ export default function DocumentsPage({ params }: { params: Promise<{ id: string
   const [addOpen, setAddOpen] = useState(false);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.document.listDocuments.useQuery({ projectId: id });
+  const docsQuery = trpc.document.listDocuments.useInfiniteQuery(
+    { projectId: id },
+    {
+      getNextPageParam: (last) =>
+        // Documents take paging priority; transmittals ride the same cursor.
+        last.documentsHasMore ? last.documentsNextCursor : last.transmittalsHasMore ? last.transmittalsNextCursor : undefined,
+    }
+  );
+  const data = docsQuery.data;
+  const allDocs = data ? data.pages.flatMap((p) => p.documents) : [];
+  const allTransmittals = data ? data.pages.flatMap((p) => p.transmittals) : [];
 
   const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
-  const filtered = data?.documents.filter(
+  const filtered = allDocs.filter(
     (d) => d.number.toLowerCase().includes(search.toLowerCase()) || d.title.toLowerCase().includes(search.toLowerCase())
-  ) as Doc[] | undefined;
+  ) as Doc[];
 
   return (
     <AnimatedPage className="space-y-6 pb-8">
@@ -66,7 +76,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ id: string
         <Input placeholder="Search documents…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
       </div>
 
-      {isLoading ? <Skeleton className="h-64" /> : !filtered?.length ? (
+      {docsQuery.isLoading ? <Skeleton className="h-64" /> : !filtered?.length ? (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <Inbox className="h-12 w-12 text-muted-foreground" /><p className="text-sm text-muted-foreground">No documents yet.</p>
         </Card>
@@ -95,15 +105,22 @@ export default function DocumentsPage({ params }: { params: Promise<{ id: string
               </CardContent>
             </Card>
           ))}
+          {docsQuery.hasNextPage && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" onClick={() => docsQuery.fetchNextPage()} disabled={docsQuery.isFetchingNextPage}>
+                {docsQuery.isFetchingNextPage ? "Loading…" : "Load more documents"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {data && data.transmittals.length > 0 && (
+      {allTransmittals.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-medium"><Send className="h-4 w-4" /> Recent Transmittals</h3>
             <div className="space-y-2">
-              {data.transmittals.slice(0, 5).map((t) => (
+              {allTransmittals.slice(0, 5).map((t) => (
                 <div key={t.id} className="flex items-center justify-between text-sm">
                   <span className="font-mono text-xs">{t.number}</span>
                   <span className="text-muted-foreground">To: {t.sentTo}</span>

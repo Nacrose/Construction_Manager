@@ -62,7 +62,13 @@ export default function DailyProgramPage({
   });
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.workflow.dailyProgram.listPrograms.useQuery({ projectId: id });
+  const { data, isLoading } = trpc.workflow.dailyProgram.listPrograms.useQuery({
+    projectId: id,
+    // Deliberate max page: this list is searched by programDate (find below),
+    // not scrolled — pull the deepest page the server allows instead of wiring
+    // load-more into a date picker.
+    limit: 500,
+  });
   const utils = trpc.useUtils();
 
   const canWrite = !!(
@@ -72,10 +78,11 @@ export default function DailyProgramPage({
   );
   const isPm = projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 
-  const { data: backlogData } = trpc.workflow.dailyProgram.listBacklog.useQuery(
+  const backlogQuery = trpc.workflow.dailyProgram.listBacklog.useInfiniteQuery(
     { projectId: id },
-    { enabled: !!data?.programs.length }
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined), enabled: !!data?.programs.length }
   );
+  const backlogData = backlogQuery.data;
 
   const [selectedBacklogIds, setSelectedBacklogIds] = useState<Set<string>>(new Set());
   const [backlogTargetId, setBacklogTargetId] = useState<string>("");
@@ -120,7 +127,7 @@ export default function DailyProgramPage({
   });
 
   const allPrograms = (data?.programs as unknown as Program[]) || [];
-  const backlogTasks = backlogData?.backlogTasks || [];
+  const backlogTasks = backlogData ? backlogData.pages.flatMap((p) => p.backlogTasks) : [];
 
   // Find program matching selectedDate
   const currentProgram = useMemo(() => {
@@ -578,6 +585,20 @@ export default function DailyProgramPage({
                   })}
                 </tbody>
               </table>
+              {backlogQuery.hasNextPage && (
+                <div className="flex justify-center border-t border-border/60 py-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs font-mono"
+                    onClick={() => backlogQuery.fetchNextPage()}
+                    disabled={backlogQuery.isFetchingNextPage}
+                  >
+                    {backlogQuery.isFetchingNextPage && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                    Load more backlog
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </MatrixPanel>

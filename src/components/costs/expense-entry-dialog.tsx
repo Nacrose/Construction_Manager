@@ -66,7 +66,7 @@ export function ExpenseEntryDialog({ open, onOpenChange, projectId }: Props) {
   const [boqItemId, setBoqItemId] = useState<string>("");
 
   // Fetch subcontractors for the optional link
-  const { data: subData } = trpc.partner.listSubcontractors.useQuery({ projectId });
+  const { data: subData } = trpc.partner.listSubcontractors.useQuery({ projectId, limit: 500 });
 
   const createMut = trpc.projectCost.create.useMutation({
     onSuccess: () => {

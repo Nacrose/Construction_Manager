@@ -34,7 +34,12 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
   const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data: subsData, isLoading } = trpc.partner.listSubcontractors.useQuery({ projectId: id });
+  const subsQuery = trpc.partner.listSubcontractors.useInfiniteQuery(
+    { projectId: id },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const isLoading = subsQuery.isLoading;
+  const subs = subsQuery.data ? subsQuery.data.pages.flatMap((p) => p.subcontractors) : [];
 
   const { data: ledgerData, isLoading: isLedgerLoading } = trpc.partner.getSubcontractor.useQuery(
     { projectId: id, subId: selectedSubId || "" },
@@ -228,14 +233,14 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                     <Skeleton className="h-14 w-full" />
                     <Skeleton className="h-14 w-full" />
                   </div>
-                ) : !subsData?.subcontractors.length ? (
+                ) : !subs.length ? (
                   <div className="flex flex-col items-center gap-2 p-8 text-center text-muted-foreground">
                     <Users className="h-10 w-10 opacity-40" />
                     <p className="text-sm font-medium">No subcontractors added yet.</p>
                   </div>
                 ) : (
                   <ul className="divide-y max-h-[60vh] overflow-y-auto">
-                    {subsData.subcontractors.map((sub) => {
+                    {subs.map((sub) => {
                       const active = selectedSubId === sub.id;
                       const initials = sub.name
                         .split(" ")
@@ -271,6 +276,13 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                         </li>
                       );
                     })}
+                    {subsQuery.hasNextPage && (
+                      <li className="flex justify-center py-2">
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => subsQuery.fetchNextPage()} disabled={subsQuery.isFetchingNextPage}>
+                          {subsQuery.isFetchingNextPage ? "Loading…" : "Load more subcontractors"}
+                        </Button>
+                      </li>
+                    )}
                   </ul>
                 )}
               </CardContent>

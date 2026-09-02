@@ -127,11 +127,16 @@ export default function DailyReportsPage({
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
 
-  const { data, isLoading } = trpc.workflow.dailyReport.listReports.useQuery({
-    projectId: id,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    q: search || undefined,
-  });
+  const reportsQuery = trpc.workflow.dailyReport.listReports.useInfiniteQuery(
+    {
+      projectId: id,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      q: search || undefined,
+    },
+    { getNextPageParam: (last) => (last.hasMore ? last.nextCursor : undefined) }
+  );
+  const data = reportsQuery.data;
+  const allReports = data ? data.pages.flatMap((p) => p.reports) : [];
 
   const utils = trpc.useUtils();
 
@@ -150,7 +155,7 @@ export default function DailyReportsPage({
       if (e.message?.includes("already exists")) {
         const today = new Date();
         const dateStr = format(today, "yyyyMMdd");
-        const existing = (data?.reports || []).filter(r => r.number.startsWith(`DSR-${dateStr}`));
+        const existing = allReports.filter(r => r.number.startsWith(`DSR-${dateStr}`));
         const suffix = existing.length + 1;
         createMutation.mutate({ projectId: id, number: `DSR-${dateStr}-${suffix}`, reportDate: today.toISOString() });
       } else {
@@ -171,7 +176,7 @@ export default function DailyReportsPage({
   });
 
   // Client-side date filter
-  const filteredReports = (data?.reports || []).filter(r => {
+  const filteredReports = allReports.filter(r => {
     if (filterDate) {
       const rd = new Date(r.reportDate);
       const fd = new Date(filterDate);
@@ -276,7 +281,7 @@ export default function DailyReportsPage({
       </div>
 
       {/* ───────── Reports table ───────── */}
-      {isLoading ? (
+      {reportsQuery.isLoading ? (
         <Skeleton className="h-64" />
       ) : !filteredReports.length ? (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
@@ -362,6 +367,20 @@ export default function DailyReportsPage({
                 ))}
               </TableBody>
             </Table>
+            {reportsQuery.hasNextPage && (
+              <div className="flex justify-center border-t border-border/60 py-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs font-mono"
+                  onClick={() => reportsQuery.fetchNextPage()}
+                  disabled={reportsQuery.isFetchingNextPage}
+                >
+                  {reportsQuery.isFetchingNextPage && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                  Load more reports
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
