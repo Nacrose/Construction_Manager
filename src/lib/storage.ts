@@ -4,14 +4,18 @@
  * Dev mode: saves to a PRIVATE ./uploads/ directory (outside public/) —
  * files are ONLY reachable through the authenticated /api/files/[key]
  * route, which enforces tenant isolation via the StoredFile registry.
- * Production: pluggable S3/R2/Blob backend via env vars, also streamed
+ * Production: S3-compatible object storage (Cloudflare R2), also streamed
  * through /api/files/[key] so buckets can stay fully private.
  *
  * STORAGE_PROVIDER=local (default) — private ./uploads/ dir + authed route
- * STORAGE_PROVIDER=s3 — S3-compatible storage (R2, MinIO, etc.)
+ * STORAGE_PROVIDER=s3 — S3-compatible storage (Cloudflare R2 in production)
  *   STORAGE_ENDPOINT, STORAGE_REGION, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY, STORAGE_BUCKET
- * STORAGE_PROVIDER=vercel-blob — Vercel Blob (Vercel deploy only)
- *   BLOB_READ_WRITE_TOKEN
+ *
+ * Vercel Blob support was removed (consolidation decision 2026-09): production
+ * files live on Cloudflare R2 — zero egress fees, strictly private buckets.
+ * The StoredFile.externalUrl column is legacy (only the removed blob provider
+ * ever set it); it is always null for new uploads and is kept only to avoid
+ * schema churn.
  *
  * SECURITY (audit C-4): previously local files lived in public/uploads/ and
  * were served as unauthenticated static assets; S3/Blob objects were public.
@@ -42,14 +46,6 @@ async function importS3() {
     return await import("@aws-sdk/client-s3");
   } catch {
     throw new Error("@aws-sdk/client-s3 is not installed.");
-  }
-}
-
-async function importVercelBlob() {
-  try {
-    return await import("@vercel/blob");
-  } catch {
-    throw new Error("@vercel/blob is not installed.");
   }
 }
 
@@ -91,7 +87,6 @@ export async function uploadFile(
   const ext = path.extname(fileName).replace(/[^A-Za-z0-9.]/g, "").slice(0, 11) || ".bin";
   const key = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`;
   const buffer = typeof data === "string" ? Buffer.from(data, "base64") : data;
-  let externalUrl: string | null = null;
 
   if (PROVIDER === "local" || PROVIDER === "dev") {
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -106,19 +101,12 @@ export async function uploadFile(
         ContentType: mimeType,
       }),
     );
-  } else if (PROVIDER === "vercel-blob") {
-    const { put } = await importVercelBlob();
-    // SDK limitation: @vercel/blob only supports public-access blobs on
-    // hobby/simple plans. The blob URL is recorded in the registry and ALL
-    // access is routed through /api/files/[key]; for strict privacy use the
-    // local or s3 providers (bucket kept private).
-    const blob = await put(key, buffer, { contentType: mimeType, access: "public" });
-    externalUrl = blob.url;
   } else {
     throw new Error(`Unsupported STORAGE_PROVIDER: ${PROVIDER}`);
   }
 
   // Register ownership so the download route can enforce tenant isolation.
+  // externalUrl is omitted — legacy column (former blob provider), always null.
   await db.storedFile.create({
     data: {
       key,
@@ -127,7 +115,6 @@ export async function uploadFile(
       fileName: fileName.slice(0, 255),
       mimeType,
       size: buffer.byteLength,
-      externalUrl,
     },
   });
 
@@ -169,17 +156,6 @@ export async function readStoredFile(
     };
   }
 
-  if (PROVIDER === "vercel-blob") {
-    if (!meta.externalUrl) return null;
-    const res = await fetch(meta.externalUrl);
-    if (!res.ok) return null;
-    return {
-      body: Buffer.from(await res.arrayBuffer()),
-      mimeType: res.headers.get("content-type") || meta.mimeType,
-      fileName: meta.fileName,
-    };
-  }
-
   return null;
 }
 
@@ -216,7 +192,8 @@ export async function deleteFile(keyOrUrl: string): Promise<void> {
     key = key.slice(key.indexOf(bucketMarker) + bucketMarker.length);
   }
 
-  // Vercel Blob URLs — recover the key from the registry's externalUrl.
+  // Legacy absolute URLs — recover the key from the registry's externalUrl
+  // column (former blob provider). Falls through harmlessly when unset.
   if (key.startsWith("http")) {
     const meta = await db.storedFile.findFirst({
       where: { externalUrl: keyOrUrl },
@@ -245,11 +222,6 @@ export async function deleteFile(keyOrUrl: string): Promise<void> {
         Key: key,
       }),
     );
-  } else if (PROVIDER === "vercel-blob") {
-    const { del } = await importVercelBlob();
-    // Vercel Blob's del() accepts the full URL, not the key — look it up.
-    const meta = await db.storedFile.findUnique({ where: { key } });
-    await del(meta?.externalUrl || keyOrUrl);
   }
 
   // Drop the registry row (best-effort — file is already gone).
