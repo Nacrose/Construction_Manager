@@ -4,6 +4,7 @@ import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
 /**
@@ -34,10 +35,12 @@ async function setEquipmentStatus(
 }
 
 export const equipmentRentalProcedures = {
+  /** Bounded, cursor-paged register (cost calc rides the fetched page only). */
   listRentals: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       status: z.string().optional(),
+      ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
@@ -45,17 +48,21 @@ export const equipmentRentalProcedures = {
       const where: any = { projectId: input.projectId };
       if (input.status) where.status = input.status;
 
-      const rentals = await db.equipmentRental.findMany({
+      const page = pageArgs(input, "startDate");
+      const rows = await db.equipmentRental.findMany({
         where,
         include: {
           equipment: { select: { id: true, name: true, code: true, type: true, model: true } },
           crew: { where: { endDate: null }, orderBy: { role: "asc" } },
         },
-        orderBy: { startDate: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
 
       const now = new Date();
-      const rentalsWithCalc = rentals.map(r => {
+      const rentalsWithCalc = items.map(r => {
         const start = new Date(r.startDate);
         let end: Date;
 
@@ -124,7 +131,7 @@ export const equipmentRentalProcedures = {
         };
       });
 
-      return { rentals: rentalsWithCalc };
+      return { rentals: rentalsWithCalc, hasMore, nextCursor };
     }),
 
   createRental: protectedProcedure
@@ -456,8 +463,10 @@ export const equipmentRentalProcedures = {
       return { crew };
     }),
 
+  /** Bounded list (crew of a single rental is naturally small; cap is a
+   *  safety net, cursor omitted). */
   listCrew: protectedProcedure
-    .input(z.object({ rentalId: z.string() }))
+    .input(z.object({ rentalId: z.string(), limit: z.number().int().min(1).max(200).default(200) }))
     .query(async ({ ctx, input }) => {
       const rental = await db.equipmentRental.findUnique({
         where: { id: input.rentalId },
@@ -469,6 +478,7 @@ export const equipmentRentalProcedures = {
       const crew = await db.equipmentCrew.findMany({
         where: { rentalId: input.rentalId },
         orderBy: { role: "asc" },
+        take: input.limit,
       });
 
       return { crew };

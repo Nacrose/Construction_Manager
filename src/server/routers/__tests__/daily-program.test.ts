@@ -828,7 +828,9 @@ describe("dailyProgram list queries", () => {
     await caller.listPrograms({ projectId: "p-1" });
     const arg = anyDb.dailyProgram.findMany.mock.calls[0][0];
     expect(arg.where).toEqual({ projectId: "p-1" });
-    expect(arg.orderBy).toEqual({ programDate: "desc" });
+    // pageArgs contract: sort field + id tiebreaker for exact cursor skips
+    expect(arg.orderBy).toEqual([{ programDate: "desc" }, { id: "desc" }]);
+    expect(arg.take).toBe(201); // default limit 200 + hasMore probe
   });
 
   it("listBacklog returns past-program, unfinished, not-yet-carried tasks", async () => {

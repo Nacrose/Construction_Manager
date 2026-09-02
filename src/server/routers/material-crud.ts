@@ -4,6 +4,7 @@ import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 
 export const CreateMaterialSchema = z.object({
   projectId: z.string(),
@@ -84,12 +85,14 @@ export const materialCrudProcedures = {
       return { materials, suppliers, purchaseOrders };
     }),
 
+  /** Bounded, cursor-paged resource list. */
   listByType: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         resourceType: z.enum(["material", "labor", "equipment"]).optional(),
         search: z.string().optional(),
+        ...paginationInput,
       })
     )
     .query(async ({ ctx, input }) => {
@@ -107,9 +110,12 @@ export const materialCrudProcedures = {
         ];
       }
 
-      const items = await db.material.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rows = await db.material.findMany({
         where,
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         select: {
           id: true,
           name: true,
@@ -122,7 +128,8 @@ export const materialCrudProcedures = {
         },
       });
 
-      return { items };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { items, hasMore, nextCursor };
     }),
 
   create: protectedProcedure
@@ -271,11 +278,14 @@ export const materialCrudProcedures = {
   /**
    * List Multi-Project Stock Inventory across all organization projects
    */
+  /** Org-wide inventory — bounded (hard ceiling; relation sort makes cursor
+   *  paging impractical, cap keeps the RLS subquery drag finite). */
   listOrgInventory: protectedProcedure
     .input(
       z.object({
         projectId: z.string().optional(),
         search: z.string().optional(),
+        limit: z.number().int().min(1).max(1000).default(1000),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -313,15 +323,19 @@ export const materialCrudProcedures = {
             },
           },
           orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
+          take: input.limit + 1, // probe row; trim below
         }),
         db.project.findMany({
           where: { organizationId: user.organizationId, status: "active" },
           select: { id: true, name: true, code: true },
           orderBy: { name: "asc" },
+          take: 500, // reference list; business-bounded
         }),
       ]);
 
-      const inventory = materials.map((m) => ({
+      const hasMore = materials.length > input.limit;
+      const page = hasMore ? materials.slice(0, input.limit) : materials;
+      const inventory = page.map((m) => ({
         id: m.id,
         name: m.name,
         code: m.code,
@@ -338,6 +352,6 @@ export const materialCrudProcedures = {
         lastDeliveredDate: m.transactions[0]?.date ?? null,
       }));
 
-      return { inventory, projects };
+      return { inventory, projects, hasMore };
     }),
 };

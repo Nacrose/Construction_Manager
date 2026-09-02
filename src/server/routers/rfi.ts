@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { createNotification, notifyProject } from "@/server/utils/notify";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import {
   canTransition,
   transitionEntityState,
@@ -133,17 +134,20 @@ async function replaceRfiItems(rfiId: string, items: Array<any>) {
 
 export const rfiRouter = router({
   /** List RFIs in a project. */
+  /** Bounded, cursor-paged register. */
   list: protectedProcedure
     .input(z.object({
       projectId: z.string(),
       status: z.string().optional().nullable(),
       q: z.string().optional().nullable(),
+      ...paginationInput,
     }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const queryStr = input.q?.toLowerCase();
 
-      const rfis = await db.rfi.findMany({
+      const page = pageArgs(input);
+      const rows = await db.rfi.findMany({
         where: {
           projectId: input.projectId,
           ...(input.status && { status: input.status }),
@@ -155,7 +159,9 @@ export const rfiRouter = router({
             ],
           }),
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         select: {
           id: true,
           number: true,
@@ -185,7 +191,8 @@ export const rfiRouter = router({
         },
       });
 
-      return { rfis };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { rfis: items, hasMore, nextCursor };
     }),
 
   /** Get RFI details. */

@@ -7,6 +7,7 @@ import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation } from "@/lib/delegation";
 import { withOrgContext } from "@/lib/rls";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
 export const TxnSchema = z.object({
@@ -53,11 +54,14 @@ export const GateEntrySchema = z.object({
 });
 
 export const materialTransactionProcedures = {
+  /** Bounded, cursor-paged register (latest `limit` rows; load older via
+   *  nextCursor). See src/lib/pagination.ts. */
   listTransactions: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const transactions = await db.materialTransaction.findMany({
+      const page = pageArgs(input, "date");
+      const rows = await db.materialTransaction.findMany({
         where: { projectId: input.projectId },
         include: {
           material: { select: { name: true, code: true, unit: true } },
@@ -74,9 +78,12 @@ export const materialTransactionProcedures = {
           },
           catalogMaterial: { select: { id: true, name: true, category: true } },
         },
-        orderBy: { date: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { transactions };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { transactions: items, hasMore, nextCursor };
     }),
 
   createTransaction: protectedProcedure
@@ -359,15 +366,20 @@ export const materialTransactionProcedures = {
       return { transaction: result, warning: warningMessage };
     }),
 
+  /** Bounded, cursor-paged register. */
   listGateEntries: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const gateEntries = await db.gateEntry.findMany({
+      const page = pageArgs(input);
+      const rows = await db.gateEntry.findMany({
         where: { projectId: input.projectId },
-        orderBy: { createdAt: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { gateEntries };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { gateEntries: items, hasMore, nextCursor };
     }),
 
   createGateEntry: protectedProcedure

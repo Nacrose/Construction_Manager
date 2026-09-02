@@ -17,6 +17,7 @@ import {
 } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { emitDomainEvent } from "./domain-events";
 import {
   transitionEntityState,
@@ -93,7 +94,9 @@ export function createDomainRouter<
   };
 
   return router({
-    /** List entities with project scoping and optional filters */
+    /** List entities with project scoping, optional filters, and cursor
+     *  pagination (bounded — the factory must never issue an unbounded
+     *  findMany, see src/lib/pagination.ts). */
     list: protectedProcedure
       .input(
         (schemas.listFilter || z.object({ projectId: z.string() })).and(
@@ -101,6 +104,7 @@ export function createDomainRouter<
             projectId: z.string(),
             status: z.string().optional(),
             q: z.string().optional(),
+            ...paginationInput,
           })
         )
       )
@@ -117,13 +121,23 @@ export function createDomainRouter<
           where = { ...where, ...hooks.buildListWhere(input, ctx) };
         }
 
-        const items = await delegate.findMany({
+        const page = pageArgs(input);
+        const hookOrder = hooks.buildOrderBy ? hooks.buildOrderBy(input) : undefined;
+        const orderBy = [
+          ...(Array.isArray(hookOrder) ? hookOrder : hookOrder ? [hookOrder] : []),
+          { id: "desc" as const }, // total-order tiebreaker so cursor skips are exact
+        ];
+
+        const rows = await delegate.findMany({
           where,
-          orderBy: hooks.buildOrderBy ? hooks.buildOrderBy(input) : { createdAt: "desc" },
+          orderBy,
+          take: page.take,
+          ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
           include: hooks.getIncludes ? hooks.getIncludes() : undefined,
         });
 
-        return { items };
+        const { items, hasMore, nextCursor } = pageResult(rows, input);
+        return { items, hasMore, nextCursor };
       }),
 
     /** Get single record with project IDOR guard */

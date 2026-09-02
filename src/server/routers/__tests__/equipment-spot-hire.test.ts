@@ -431,6 +431,14 @@ describe("equipmentSpotHire.listSpotHires", () => {
       ticket({ id: "tk-2", totalGross: 9000, fuelDeduction: 1000, netPayable: 8000, isBilled: false, hoursWorked: 4, tripCount: 0 }),
       ticket({ id: "tk-3", vendorName: "Kanchha Tractor", totalGross: 19500, fuelDeduction: 0, netPayable: 19500, isBilled: false, hoursWorked: 0, tripCount: 6 }),
     ]);
+    // Summary rides DB aggregates over the filtered set (not the page rows):
+    // call 1 = totals, call 2 = unbilled-only sum.
+    anyDb.equipmentSpotHire.aggregate
+      .mockResolvedValueOnce({
+        _count: { _all: 2 },
+        _sum: { hoursWorked: 4, tripCount: 6, totalGross: 28500, fuelDeduction: 1000, netPayable: 27500 },
+      })
+      .mockResolvedValueOnce({ _sum: { netPayable: 27500 } });
 
     const caller = createCaller(spotHireRouter, ENGINEER);
     const res = await caller.listSpotHires({ projectId: "p-1", isBilled: false });
@@ -439,14 +447,18 @@ describe("equipmentSpotHire.listSpotHires", () => {
       projectId: "p-1",
       isBilled: false,
     });
+    expect(anyDb.equipmentSpotHire.aggregate.mock.calls[0][0].where).toEqual({
+      projectId: "p-1",
+      isBilled: false,
+    });
     expect(res.summary).toEqual({
-      totalTickets: 3,
-      totalHours: 9,
+      totalTickets: 2,
+      totalHours: 4,
       totalTrips: 6,
-      totalGross: 39500,
-      totalFuelDeductions: 4200,
-      totalNetPayable: 35300,
-      unbilledAmount: 8000 + 19500, // billed ticket excluded
+      totalGross: 28500,
+      totalFuelDeductions: 1000,
+      totalNetPayable: 27500,
+      unbilledAmount: 27500, // every listed ticket is unbilled
     });
   });
 

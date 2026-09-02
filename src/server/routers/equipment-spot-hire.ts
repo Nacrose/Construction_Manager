@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 
 const SpotHireTicketSchema = z.object({
@@ -174,12 +175,15 @@ export const equipmentSpotHireProcedures = {
     }),
 
   /** List Spot Hire Tickets with Filters */
+  /** Bounded, cursor-paged register. Summary totals ride a DB aggregate so
+   *  they stay whole-register numbers instead of page-local sums. */
   listSpotHires: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         vendorName: z.string().optional(),
         isBilled: z.boolean().optional(),
+        ...paginationInput,
       })
     )
     .query(async ({ ctx, input }) => {
@@ -191,31 +195,44 @@ export const equipmentSpotHireProcedures = {
         ...(input.isBilled !== undefined ? { isBilled: input.isBilled } : {}),
       };
 
-      const tickets = await db.equipmentSpotHire.findMany({
-        where,
-        include: {
-          vendor: { select: { id: true, name: true, phone: true } },
-          boqItem: { select: { id: true, code: true, description: true, unit: true } },
-          ganttTask: { select: { id: true, name: true, code: true } },
-        },
-        orderBy: { date: "desc" },
-      });
+      const page = pageArgs(input, "date");
+      const [rows, totals, unbilled] = await Promise.all([
+        db.equipmentSpotHire.findMany({
+          where,
+          include: {
+            vendor: { select: { id: true, name: true, phone: true } },
+            boqItem: { select: { id: true, code: true, description: true, unit: true } },
+            ganttTask: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: page.orderBy,
+          take: page.take,
+          ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
+        }),
+        db.equipmentSpotHire.aggregate({
+          where,
+          _count: { _all: true },
+          _sum: { hoursWorked: true, tripCount: true, totalGross: true, fuelDeduction: true, netPayable: true },
+        }),
+        db.equipmentSpotHire.aggregate({
+          where: { ...where, isBilled: false },
+          _sum: { netPayable: true },
+        }),
+      ]);
 
-      const totalGross = tickets.reduce((s, t) => s + t.totalGross, 0);
-      const totalFuelDeductions = tickets.reduce((s, t) => s + t.fuelDeduction, 0);
-      const totalNetPayable = tickets.reduce((s, t) => s + t.netPayable, 0);
-      const unbilledAmount = tickets.filter((t) => !t.isBilled).reduce((s, t) => s + t.netPayable, 0);
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
 
       return {
-        tickets,
+        tickets: items,
+        hasMore,
+        nextCursor,
         summary: {
-          totalTickets: tickets.length,
-          totalHours: tickets.reduce((s, t) => s + t.hoursWorked, 0),
-          totalTrips: tickets.reduce((s, t) => s + t.tripCount, 0),
-          totalGross,
-          totalFuelDeductions,
-          totalNetPayable,
-          unbilledAmount,
+          totalTickets: totals._count._all,
+          totalHours: totals._sum.hoursWorked ?? 0,
+          totalTrips: totals._sum.tripCount ?? 0,
+          totalGross: totals._sum.totalGross ?? 0,
+          totalFuelDeductions: totals._sum.fuelDeduction ?? 0,
+          totalNetPayable: totals._sum.netPayable ?? 0,
+          unbilledAmount: unbilled._sum.netPayable ?? 0,
         },
       };
     }),

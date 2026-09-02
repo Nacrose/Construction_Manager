@@ -3,14 +3,17 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 
 export const equipmentVendorProcedures = {
+  /** Bounded, cursor-paged directory (stats ride the fetched page only). */
   listVendors: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      const vendors = await db.equipmentVendor.findMany({
+      const page = pageArgs(input, "name", "asc");
+      const rows = await db.equipmentVendor.findMany({
         where: { projectId: input.projectId },
         include: {
           _count: { select: { rentals: true } },
@@ -19,10 +22,13 @@ export const equipmentVendorProcedures = {
             select: { id: true, status: true, rentalRate: true, equipment: { select: { name: true, code: true } } },
           },
         },
-        orderBy: { name: "asc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
 
-      const vendorsWithStats = vendors.map(v => ({
+      const vendorsWithStats = items.map(v => ({
         ...v,
         stats: {
           totalRentals: v._count.rentals,
@@ -31,7 +37,7 @@ export const equipmentVendorProcedures = {
         },
       }));
 
-      return { vendors: vendorsWithStats };
+      return { vendors: vendorsWithStats, hasMore, nextCursor };
     }),
 
   getVendor: protectedProcedure
@@ -197,8 +203,10 @@ export const equipmentVendorProcedures = {
       return { rental: updated };
     }),
 
+  /** Bounded list (damages of a single rental are naturally small; cap is a
+   *  safety net, cursor omitted). */
   listDamages: protectedProcedure
-    .input(z.object({ rentalId: z.string() }))
+    .input(z.object({ rentalId: z.string(), limit: z.number().int().min(1).max(200).default(200) }))
     .query(async ({ ctx, input }) => {
       const rental = await db.equipmentRental.findUnique({
         where: { id: input.rentalId },
@@ -210,6 +218,7 @@ export const equipmentVendorProcedures = {
       const damages = await db.equipmentDamage.findMany({
         where: { rentalId: input.rentalId },
         orderBy: { date: "desc" },
+        take: input.limit,
       });
 
       return { damages };

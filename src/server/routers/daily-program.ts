@@ -10,6 +10,7 @@ import { getDefaultLibraryId } from "@/lib/default-library";
 import { assertProjectMember, assertCanWrite, assertProjectManager } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { withOrgContext } from "@/lib/rls";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { createNotification, notifyProjectMembers, notifyProject } from "@/server/utils/notify";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
@@ -581,13 +582,18 @@ export const dailyProgramRouter = router({
       return { program: updated };
     }),
 
+  /** Bounded, cursor-paged register (task/ingredient payload rides the
+   *  fetched page only). */
   listPrograms: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const programs = await db.dailyProgram.findMany({
+      const page = pageArgs(input, "programDate");
+      const rows = await db.dailyProgram.findMany({
         where: { projectId: input.projectId },
-        orderBy: { programDate: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         include: {
           tasks: {
             include: {
@@ -605,7 +611,8 @@ export const dailyProgramRouter = router({
           _count: { select: { tasks: true } },
         },
       });
-      return { programs };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { programs: items, hasMore, nextCursor };
     }),
 
   createProgram: protectedProcedure
@@ -644,8 +651,10 @@ export const dailyProgramRouter = router({
       return { program };
     }),
 
+  /** Bounded RFI picker feed (cap only — a picker loads everything it
+   *  shows; cursor omitted). */
   listAvailableRfis: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), limit: z.number().int().min(1).max(500).default(500) }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const database = db;
@@ -663,6 +672,7 @@ export const dailyProgramRouter = router({
           items: { some: {} },
         },
         orderBy: { number: "asc" },
+        take: input.limit,
         select: {
           id: true,
           number: true,
@@ -702,14 +712,16 @@ export const dailyProgramRouter = router({
       return { rfis };
     }),
 
+  /** Bounded, cursor-paged backlog (relation sort + id tiebreaker keeps
+   *  cursor skips exact). */
   listBacklog: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
       const now = new Date();
       now.setHours(0, 0, 0, 0);
 
-      const backlogTasks = await db.dailyProgramTask.findMany({
+      const rows = await db.dailyProgramTask.findMany({
         where: {
           program: {
             projectId: input.projectId,
@@ -718,14 +730,17 @@ export const dailyProgramRouter = router({
           executionStatus: { in: ["partially_completed", "uncompleted", "postponed"] },
           carriedOverTo: { none: {} }, // Not yet carried over
         },
-        orderBy: [{ program: { programDate: "desc" } }, { taskName: "asc" }],
+        orderBy: [{ program: { programDate: "desc" } }, { taskName: "asc" }, { id: "asc" }],
+        take: (input.limit ?? 200) + 1,
+        ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
         include: {
           program: { select: { id: true, programDate: true } },
           rfi: { select: { id: true, number: true, subject: true } },
         },
       });
 
-      return { backlogTasks };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { backlogTasks: items, hasMore, nextCursor };
     }),
 
   addBacklogToProgram: protectedProcedure
@@ -809,24 +824,28 @@ export const dailyProgramRouter = router({
   // Keep both. The previous comment saying `listBacklogTasks` was dead
   // code was incorrect — `add-program-dialog.tsx` uses it.
 
+  /** Bounded, cursor-paged backlog subset. */
   listBacklogTasks: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
 
-      const backlogTasks = await db.dailyProgramTask.findMany({
+      const rows = await db.dailyProgramTask.findMany({
         where: {
           program: { projectId: input.projectId },
           executionStatus: "postponed",
           carriedOverTo: { none: {} }, // Has not been carried over yet
         },
-        orderBy: { program: { programDate: "asc" } },
+        orderBy: [{ program: { programDate: "asc" } }, { id: "asc" }],
+        take: (input.limit ?? 200) + 1,
+        ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
         include: {
           program: { select: { programDate: true } }
         }
       });
 
-      return { backlogTasks };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { backlogTasks: items, hasMore, nextCursor };
     }),
 
   updateTaskExecution: protectedProcedure

@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { transitionEntityState } from "@/server/utils/state-machine";
 
 /**
@@ -227,20 +228,25 @@ export const equipmentCoreProcedures = {
       return { ok: true };
     }),
 
+  /** Bounded, cursor-paged register. */
   listLogs: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const logs = await db.equipmentLog.findMany({
+      const page = pageArgs(input, "date");
+      const rows = await db.equipmentLog.findMany({
         where: { projectId: input.projectId },
         include: {
           equipment: { select: { name: true, code: true, type: true, unit: true } },
           ganttTask: { select: { id: true, name: true, code: true } },
           boqItem: { select: { id: true, code: true, description: true, unit: true } },
         },
-        orderBy: { date: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { logs };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { logs: items, hasMore, nextCursor };
     }),
 
   createLog: protectedProcedure
@@ -553,18 +559,23 @@ export const equipmentCoreProcedures = {
       };
     }),
 
+  /** Bounded, cursor-paged register. */
   listMaintenance: protectedProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), ...paginationInput }))
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
-      const maintenance = await db.equipmentMaintenance.findMany({
+      const page = pageArgs(input, "date");
+      const rows = await db.equipmentMaintenance.findMany({
         where: { projectId: input.projectId },
         include: {
           equipment: { select: { name: true, code: true, type: true } },
         },
-        orderBy: { date: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
       });
-      return { maintenance };
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      return { maintenance: items, hasMore, nextCursor };
     }),
 
   createMaintenance: protectedProcedure

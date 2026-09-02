@@ -3,6 +3,7 @@
  * Provides Day Book, Ledger Statements, Trial Balance, and Cash/Bank accounts.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
@@ -484,30 +485,38 @@ export const accountingRouter = router({
         select: { organizationId: true },
       });
 
+      // Reference tables feeding the synthetic chart of accounts — each is
+      // business-bounded; caps are runaway safety nets, not UX pagination.
+      const REF_CAP = 1000;
       const [partners, subcontractors, members, equipmentVendors, orgBanks] = await Promise.all([
         db.partner.findMany({
           where: { projectId: input.projectId },
           select: { id: true, name: true, pan: true, phone: true },
           orderBy: { name: "asc" },
+          take: REF_CAP,
         }),
         db.subcontractor.findMany({
           where: { projectId: input.projectId },
           select: { id: true, name: true, pan: true, phone: true },
           orderBy: { name: "asc" },
+          take: REF_CAP,
         }),
         db.projectMember.findMany({
           where: { projectId: input.projectId },
           include: { user: { select: { id: true, name: true, email: true, role: true } } },
+          take: REF_CAP,
         }),
         db.equipmentVendor.findMany({
           where: { projectId: input.projectId },
           select: { id: true, name: true, pan: true, phone: true },
           orderBy: { name: "asc" },
+          take: REF_CAP,
         }),
         user.organizationId
           ? db.companyBankAccount.findMany({
               where: { organizationId: user.organizationId, status: "active" },
               orderBy: { isDefault: "desc" },
+              take: 500,
             })
           : Promise.resolve([]),
       ]);
@@ -575,6 +584,12 @@ export const accountingRouter = router({
     }),
 
   /** Get Full Account Ledger Statement with Running Balance (खता पाना) */
+  /** Account statement ledger. Bounded two ways:
+   *  - fromDate/toDate filter every underlying query (accounting periods);
+   *  - a hard per-query row cap guarantees finite work even without a
+   *    period, surfacing `truncated` so the UI can ask for a range.
+   *  Running balances need every row in period order, so cursor paging is
+   *  intentionally not used here. */
   ledgerStatement: protectedProcedure
     .input(
       z.object({
@@ -588,6 +603,23 @@ export const accountingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
+
+      const LEDGER_CAP = 2000;
+      const fromDate = input.fromDate ? new Date(input.fromDate) : undefined;
+      const toDate = input.toDate ? new Date(input.toDate) : undefined;
+      if (fromDate && Number.isNaN(fromDate.getTime())) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid fromDate" });
+      if (toDate && Number.isNaN(toDate.getTime())) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid toDate" });
+      /** Date-range fragment for a given date field. */
+      const range = (field: "billDate" | "paymentDate") =>
+        fromDate || toDate ? { [field]: { ...(fromDate && { gte: fromDate }), ...(toDate && { lte: toDate }) } } : {};
+
+      let truncated = false;
+      /** Await a capped query and remember when the cap bit. */
+      const capped = async <T>(p: Promise<T[]>): Promise<T[]> => {
+        const rows = await p;
+        if (rows.length >= LEDGER_CAP) truncated = true;
+        return rows;
+      };
 
       const txns: Array<{
         id: string;
@@ -605,19 +637,21 @@ export const accountingRouter = router({
 
       if (input.accountType === "vendor") {
         // Vendor: Bills are Credits, Payments are Debits
-        const bills = await db.vendorBill.findMany({
-          where: { projectId: input.projectId, partnerId: input.accountId },
+        const bills = await capped(db.vendorBill.findMany({
+          where: { projectId: input.projectId, partnerId: input.accountId, ...range("billDate") },
           orderBy: { billDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
         const matchedVendor = await db.partner.findFirst({
           where: { id: input.accountId, projectId: input.projectId },
         });
 
         // Match payments by direct foreign key (payeeId), exact PAN, or exact name
-        const vPayments = await db.payment.findMany({
+        const vPayments = await capped(db.payment.findMany({
           where: {
             projectId: input.projectId,
+            ...range("paymentDate"),
             OR: [
               { payeeId: input.accountId },
               ...(matchedVendor?.pan ? [{ partyPan: matchedVendor.pan }] : []),
@@ -625,7 +659,8 @@ export const accountingRouter = router({
             ],
           },
           orderBy: { paymentDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
         bills.forEach((b) => {
           let miti = "";
@@ -664,19 +699,21 @@ export const accountingRouter = router({
         });
       } else if (input.accountType === "subcontractor") {
         // Subcontractor: Bills are Credits, Payments are Debits
-        const bills = await db.subcontractorBill.findMany({
-          where: { projectId: input.projectId, subcontractorId: input.accountId },
+        const bills = await capped(db.subcontractorBill.findMany({
+          where: { projectId: input.projectId, subcontractorId: input.accountId, ...range("billDate") },
           orderBy: { billDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
         const matchedSub = await db.subcontractor.findFirst({
           where: { id: input.accountId, projectId: input.projectId },
         });
 
         // Match payments by direct foreign key (payeeId), exact PAN, or exact name
-        const sPayments = await db.payment.findMany({
+        const sPayments = await capped(db.payment.findMany({
           where: {
             projectId: input.projectId,
             payeeType: "subcontractor",
+            ...range("paymentDate"),
             OR: [
               { payeeId: input.accountId },
               ...(matchedSub?.pan ? [{ partyPan: matchedSub.pan }] : []),
@@ -684,7 +721,8 @@ export const accountingRouter = router({
             ],
           },
           orderBy: { paymentDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
         bills.forEach((b) => {
           let miti = "";
@@ -723,21 +761,25 @@ export const accountingRouter = router({
         });
       } else if (input.accountType === "staff") {
         // Staff Member: Expense Claims/Bills are Credits, Reimbursements are Debits
-        const staffBills = await db.vatBill.findMany({
+        const staffBills = await capped(db.vatBill.findMany({
           where: {
             projectId: input.projectId,
             partyName: { contains: input.accountName || "", mode: "insensitive" },
+            ...range("billDate"),
           },
           orderBy: { billDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
-        const payments = await db.payment.findMany({
+        const payments = await capped(db.payment.findMany({
           where: {
             projectId: input.projectId,
             payeeName: { contains: input.accountName || "", mode: "insensitive" },
+            ...range("paymentDate"),
           },
           orderBy: { paymentDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
         staffBills.forEach((b) => {
           let miti = "";
@@ -776,10 +818,11 @@ export const accountingRouter = router({
         });
       } else {
         // Bank / Expense Head / Cash
-        const payments = await db.payment.findMany({
-          where: { projectId: input.projectId },
+        const payments = await capped(db.payment.findMany({
+          where: { projectId: input.projectId, ...range("paymentDate") },
           orderBy: { paymentDate: "asc" },
-        });
+          take: LEDGER_CAP,
+        }));
 
         payments.forEach((p) => {
           let miti = "";
@@ -893,6 +936,7 @@ export const accountingRouter = router({
         closingBalance: currentBal,
         totalDebit,
         totalCredit,
+        truncated,
       };
     }),
 

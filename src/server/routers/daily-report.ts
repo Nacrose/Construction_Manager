@@ -16,6 +16,7 @@ import {
 import { escapeHtml } from "@/server/utils/email";
 import { deleteFile } from "@/lib/storage";
 import { withOrgContext } from "@/lib/rls";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { dailyReportAttachmentsRouter } from "./daily-report-attachments";
 import {
   syncNormalizedTables,
@@ -72,12 +73,14 @@ const UpdateReportSchema = z.object({
 
 const dailyReportCoreRouter = router({
   /** List daily reports for a project. */
+  /** Bounded, cursor-paged register. */
   listReports: protectedProcedure
     .input(
       z.object({
         projectId: z.string(),
         status: z.string().optional().nullable(),
         q: z.string().optional().nullable(),
+        ...paginationInput,
       })
     )
     .query(async ({ ctx, input }) => {
@@ -96,7 +99,8 @@ const dailyReportCoreRouter = router({
             }
           : undefined;
 
-      const reports = await db.dailyReport.findMany({
+      const page = pageArgs(input, "reportDate");
+      const rows = await db.dailyReport.findMany({
         where: {
           projectId: input.projectId,
           ...(statusFilter && { status: statusFilter }),
@@ -107,13 +111,16 @@ const dailyReportCoreRouter = router({
             ],
           }),
         },
-        orderBy: { reportDate: "desc" },
+        orderBy: page.orderBy,
+        take: page.take,
+        ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
         include: {
           createdBy: { select: { id: true, name: true } },
         },
       });
 
-      const normalized = reports.map((r) => ({
+      const { items, hasMore, nextCursor } = pageResult(rows, input);
+      const normalized = items.map((r) => ({
         ...r,
         status:
           r.status === "checked"
@@ -123,7 +130,7 @@ const dailyReportCoreRouter = router({
               : r.status,
       }));
 
-      return { reports: normalized };
+      return { reports: normalized, hasMore, nextCursor };
     }),
 
   /** Get daily report details. */

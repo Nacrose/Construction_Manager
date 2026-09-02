@@ -55,8 +55,19 @@ export const vatRegisterRouter = router({
       const hasDateFilter = input.fromDate || input.toDate;
       const entityFilter = input.entityFilter && input.entityFilter !== "all" ? input.entityFilter : undefined;
 
+      // Statutory register: period filters bound the real-world query; caps
+      // + `truncated` guard the no-filter case. Merged-source rows can't
+      // cursor-page coherently, so period + cap is the contract here.
+      const REGISTER_CAP = 5000;
+      let truncated = false;
+      const capped = async <T>(p: Promise<T[]>): Promise<T[]> => {
+        const r = await p;
+        if (r.length >= REGISTER_CAP) truncated = true;
+        return r;
+      };
+
       // 1. Material Inwards (GRNs)
-      const materialTxns = await db.materialTransaction.findMany({
+      const materialTxns = await capped(db.materialTransaction.findMany({
         where: {
           projectId: input.projectId,
           type: "receive",
@@ -67,10 +78,11 @@ export const vatRegisterRouter = router({
           material: { select: { name: true, code: true, unit: true } },
         },
         orderBy: { date: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       // 2. Subcontractor Bills
-      const subBills = await db.subcontractorBill.findMany({
+      const subBills = await capped(db.subcontractorBill.findMany({
         where: {
           projectId: input.projectId,
           status: { in: ["approved", "paid", "submitted"] },
@@ -80,10 +92,11 @@ export const vatRegisterRouter = router({
           subcontractor: { select: { name: true, pan: true } },
         },
         orderBy: { billDate: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       // 3. Equipment Spot Hires
-      const spotHires = await db.equipmentSpotHire.findMany({
+      const spotHires = await capped(db.equipmentSpotHire.findMany({
         where: {
           projectId: input.projectId,
           ...(hasDateFilter ? { date: dateFilter } : {}),
@@ -93,10 +106,11 @@ export const vatRegisterRouter = router({
           vendor: { select: { name: true, pan: true } },
         },
         orderBy: { date: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       // 4. Standalone Direct VAT Bills
-      const directBills = await db.vatBill.findMany({
+      const directBills = await capped(db.vatBill.findMany({
         where: {
           projectId: input.projectId,
           billType: { in: ["purchase", "expense", "capital_goods", "import"] },
@@ -104,7 +118,8 @@ export const vatRegisterRouter = router({
           ...(entityFilter ? { billedToEntity: entityFilter } : {}),
         },
         orderBy: { billDate: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       // Unified Purchase Rows
       const rows: Array<{
@@ -248,7 +263,7 @@ export const vatRegisterRouter = router({
         missingScansCount: rows.filter((r) => !r.isBillAttached).length,
       };
 
-      return { rows, totals };
+      return { rows, totals, truncated };
     }),
 
   /** Schedule 9: Sales Register (बिक्री खाता) */
@@ -274,8 +289,16 @@ export const vatRegisterRouter = router({
 
       const hasDateFilter = input.fromDate || input.toDate;
 
+      const REGISTER_CAP = 5000;
+      let truncated = false;
+      const capped = async <T>(p: Promise<T[]>): Promise<T[]> => {
+        const r = await p;
+        if (r.length >= REGISTER_CAP) truncated = true;
+        return r;
+      };
+
       // 1. Client IPCs (Statutory certified/approved/paid only)
-      const ipcs = await db.ipc.findMany({
+      const ipcs = await capped(db.ipc.findMany({
         where: {
           projectId: input.projectId,
           status: { in: ["certified", "approved", "paid"] },
@@ -283,17 +306,19 @@ export const vatRegisterRouter = router({
           ...(hasDateFilter ? { issueDate: dateFilter } : {}),
         },
         orderBy: { issueDate: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       // 2. Direct Sales Invoices
-      const directSales = await db.vatBill.findMany({
+      const directSales = await capped(db.vatBill.findMany({
         where: {
           projectId: input.projectId,
           billType: "sales",
           ...(hasDateFilter ? { billDate: dateFilter } : {}),
         },
         orderBy: { billDate: "desc" },
-      });
+        take: REGISTER_CAP,
+      }));
 
       const rows: Array<{
         id: string;
@@ -377,7 +402,7 @@ export const vatRegisterRouter = router({
         missingScansCount: rows.filter((r) => !r.isBillAttached).length,
       };
 
-      return { rows, totals };
+      return { rows, totals, truncated };
     }),
 
   /** Schedule 10: VAT Return & Reconciliation (मूल्य अभिवृद्धि कर विवरण) */
@@ -397,6 +422,11 @@ export const vatRegisterRouter = router({
       if (input.toDate) dateFilter.lte = new Date(input.toDate);
       const hasDateFilter = input.fromDate || input.toDate;
 
+      // Summary register — heavy loops over fetched rows; cap the two
+      // row-scanning sources (the rest already aggregate in the DB).
+      const S10_CAP = 5000;
+      let truncated = false;
+
       // 1. Fetch Material Purchases (GRNs)
       const materialTxns = await db.materialTransaction.findMany({
         where: {
@@ -410,7 +440,9 @@ export const vatRegisterRouter = router({
           vatAmount: true,
           vatPercent: true,
         },
+        take: S10_CAP,
       });
+      if (materialTxns.length >= S10_CAP) truncated = true;
 
       let matTaxable = 0;
       let matExempt = 0;
@@ -447,7 +479,9 @@ export const vatRegisterRouter = router({
           partner: { select: { pan: true } },
           vendor: { select: { pan: true } },
         },
+        take: S10_CAP,
       });
+      if (spotHires.length >= S10_CAP) truncated = true;
 
       let spotTaxable = 0;
       let spotExempt = 0;
@@ -522,6 +556,7 @@ export const vatRegisterRouter = router({
           netVatPayable: netVatPayable > 0 ? netVatPayable : 0,
           netVatCredit: netVatPayable < 0 ? Math.abs(netVatPayable) : 0,
         },
+        truncated,
       };
     }),
 

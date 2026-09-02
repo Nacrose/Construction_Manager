@@ -18,6 +18,7 @@ import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { withOrgContext } from "@/lib/rls";
 import { assertProjectMember, assertOrgAdmin, assertOrgBankAccount } from "@/lib/authz";
+import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
 import { createJournalEntry } from "@/lib/journal-entry";
@@ -416,18 +417,22 @@ export const financeRouter = router({
       bankAccounts,
       vendorBills,
       subBills,
-      ipcs,
-      payments,
-      hoExpenses,
+      ipcGroups,
+      paymentAgg,
+      hoAgg,
     ] = await Promise.all([
       user.organizationId
         ? db.companyBankAccount.findMany({
             where: { organizationId: user.organizationId, status: "active" },
+            take: 500, // reference list; business-bounded
           })
         : [],
+      // Payables are row-wise max(0, net - paid) — not expressible as a
+      // plain _sum, so rows are fetched but hard-capped.
       db.vendorBill.findMany({
         where: { projectId: { in: projectIds }, status: { in: ["unpaid", "partially_paid"] } },
         select: { netPayable: true, paidAmount: true },
+        take: 20000,
       }),
       db.subcontractorBill.findMany({
         where: {
@@ -435,21 +440,24 @@ export const financeRouter = router({
           status: { in: ["submitted", "verified", "certified", "approved"] },
         },
         select: { netPayable: true, paidAmount: true },
+        take: 20000,
       }),
-      db.ipc.findMany({
+      // Revenue certified/collected — groupBy keeps the DB doing the sums.
+      db.ipc.groupBy({
+        by: ["status"],
         where: { projectId: { in: projectIds }, status: { in: ["certified", "approved", "paid"] } },
-        select: { grossAmount: true, netPayable: true, status: true },
+        _sum: { grossAmount: true, netPayable: true },
       }),
-      db.payment.findMany({
+      db.payment.aggregate({
         where: { projectId: { in: projectIds }, status: "paid" },
-        select: { amount: true, tdsDeducted: true },
+        _sum: { tdsDeducted: true },
       }),
       user.organizationId
-        ? db.headOfficeExpense.findMany({
+        ? db.headOfficeExpense.aggregate({
             where: { organizationId: user.organizationId },
-            select: { amount: true },
+            _sum: { amount: true },
           })
-        : [],
+        : Promise.resolve({ _sum: { amount: null as number | null } }),
     ]);
 
     const totalCashBankBalance = bankAccounts.reduce((s, b) => s + b.currentBalance, 0);
@@ -464,14 +472,14 @@ export const financeRouter = router({
     );
     const totalPayables = totalVendorPayables + totalSubPayables;
 
-    const totalRevenueCertified = ipcs.reduce((s, i) => s + i.grossAmount, 0);
-    const totalRevenueCollected = ipcs
-      .filter((i) => i.status === "paid")
-      .reduce((s, i) => s + i.netPayable, 0);
+    const totalRevenueCertified = ipcGroups.reduce((s, g) => s + (g._sum.grossAmount ?? 0), 0);
+    const totalRevenueCollected = ipcGroups
+      .filter((g) => g.status === "paid")
+      .reduce((s, g) => s + (g._sum.netPayable ?? 0), 0);
     const totalClientReceivables = Math.max(0, totalRevenueCertified - totalRevenueCollected);
 
-    const totalTdsWithheld = payments.reduce((s, p) => s + p.tdsDeducted, 0);
-    const totalHeadOfficeExpenses = hoExpenses.reduce((s, e) => s + e.amount, 0);
+    const totalTdsWithheld = paymentAgg._sum.tdsDeducted ?? 0;
+    const totalHeadOfficeExpenses = hoAgg._sum.amount ?? 0;
 
     return {
       totalCashBankBalance,
@@ -538,6 +546,7 @@ export const financeRouter = router({
             project: { select: { id: true, name: true, code: true } },
           },
           orderBy: { billDate: "asc" },
+          take: 20000, // grouping needs all open bills; cap is a runaway net
         }),
         db.subcontractorBill.findMany({
           where: {
@@ -549,6 +558,7 @@ export const financeRouter = router({
             project: { select: { id: true, name: true, code: true } },
           },
           orderBy: { billDate: "asc" },
+          take: 20000,
         }),
       ]);
 
@@ -806,6 +816,7 @@ export const financeRouter = router({
           },
           include: { project: { select: { id: true, name: true, code: true } } },
           orderBy: { createdAt: "desc" },
+          take: 5000,
         }),
         user.organizationId && !input?.projectId
           ? db.headOfficeExpense.findMany({
@@ -821,6 +832,7 @@ export const financeRouter = router({
                   : {}),
               },
               orderBy: { date: "desc" },
+              take: 5000,
             })
           : [],
       ]);
@@ -1025,6 +1037,7 @@ export const financeRouter = router({
           },
           include: { project: { select: { id: true, name: true, code: true } } },
           orderBy: { billDate: "asc" },
+          take: 5000,
         }),
         db.subcontractorBill.findMany({
           where: {
@@ -1036,6 +1049,7 @@ export const financeRouter = router({
           },
           include: { project: { select: { id: true, name: true, code: true } } },
           orderBy: { billDate: "asc" },
+          take: 5000,
         }),
         db.payment.findMany({
           where: {
@@ -1047,6 +1061,7 @@ export const financeRouter = router({
           },
           include: { project: { select: { id: true, name: true, code: true } } },
           orderBy: { paymentDate: "asc" },
+          take: 5000,
         }),
       ]);
 
@@ -1140,6 +1155,7 @@ export const financeRouter = router({
     const accounts = await db.companyBankAccount.findMany({
       where: { organizationId: user.organizationId },
       orderBy: { isDefault: "desc" },
+      take: 500, // reference list; business-bounded
     });
 
     return { accounts };
@@ -1496,25 +1512,36 @@ export const financeRouter = router({
       };
     }),
 
-  /** Head Office Expenses */
-  listHeadOfficeExpenses: protectedProcedure.query(async ({ ctx }) => {
-    const user = await db.user.findUniqueOrThrow({
-      where: { id: ctx.user.id },
-      select: { organizationId: true },
-    });
+  /** Head Office Expenses — bounded, cursor-paged register; the org-wide
+   *  total rides a DB aggregate so it stays correct beyond the page. */
+  listHeadOfficeExpenses: protectedProcedure
+    .input(z.object({ ...paginationInput }).optional())
+    .query(async ({ ctx, input }) => {
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
 
-    if (!user.organizationId) return { expenses: [], total: 0 };
+      if (!user.organizationId) return { expenses: [], total: 0, hasMore: false, nextCursor: null };
 
-    const expenses = await db.headOfficeExpense.findMany({
-      where: { organizationId: user.organizationId },
-      include: { bankAccount: true },
-      orderBy: { date: "desc" },
-    });
+      const page = pageArgs(input ?? {});
+      const [rows, totalAgg] = await Promise.all([
+        db.headOfficeExpense.findMany({
+          where: { organizationId: user.organizationId },
+          include: { bankAccount: true },
+          orderBy: page.orderBy,
+          take: page.take,
+          ...(page.cursor ? { cursor: page.cursor, skip: page.skip } : {}),
+        }),
+        db.headOfficeExpense.aggregate({
+          where: { organizationId: user.organizationId },
+          _sum: { amount: true },
+        }),
+      ]);
 
-    const total = expenses.reduce((s, e) => s + e.amount, 0);
-
-    return { expenses, total };
-  }),
+      const { items, hasMore, nextCursor } = pageResult(rows, input ?? {});
+      return { expenses: items, total: totalAgg._sum.amount ?? 0, hasMore, nextCursor };
+    }),
 
   createHeadOfficeExpense: protectedProcedure
     .input(
