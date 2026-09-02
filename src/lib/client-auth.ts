@@ -58,11 +58,13 @@ export function clearAuth(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
-  // Clear service worker caches. The SW caches tRPC GET responses
-  // (including project data, financial data, and PII) for offline use.
-  // Without this, a subsequent user on the same shared browser could
-  // read the previous user's cached data via the SW even after logout.
-  // Best-effort — failures are silently ignored.
+  // Clear service worker caches. NOTE: the SW no longer caches tRPC GET
+  // responses or /api/* bytes (both are network pass-through in sw.js), so
+  // there should be no authenticated data in SW storage — this is now a
+  // belt-and-braces wipe for the app-shell/image caches and for any stale
+  // caches left by OLDER versions of the service worker. Without it, a
+  // subsequent user on the same shared browser could still read data
+  // cached by an old SW version. Best-effort — failures are silently ignored.
   if (typeof caches !== "undefined") {
     try {
       caches.keys().then((keys) => {

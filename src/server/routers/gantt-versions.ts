@@ -46,38 +46,43 @@ export async function cloneDependencies(
     where: { OR: [{ predecessorId: { in: oldIds } }, { successorId: { in: oldIds } }] },
      take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
    });
-  for (const dep of deps) {
-    const newPred = idMap.get(dep.predecessorId);
-    const newSucc = idMap.get(dep.successorId);
-    if (!newPred || !newSucc) continue;
 
-    // ERROR LOGGING FIX: previously this used `.catch(() => {})` which
-    // silently swallowed ALL errors. If a dependency failed to clone
-    // (DB constraint, validation error), the new Gantt version was
-    // created with MISSING dependencies and the user had no idea —
-    // tasks that should cascade didn't. Now we log the error and track
-    // the count so the caller can surface it.
-    try {
-      await tx.taskDependency.create({
-        data: {
-          predecessorId: newPred,
-          successorId: newSucc,
-          type: dep.type,
-          offset: dep.offset,
-        },
-      });
-      result.cloned++;
-    } catch (err: any) {
-      result.failed++;
-      // P2002 = unique constraint violation (dependency already exists).
-      // This is expected if the same dependency is cloned twice (e.g.
-      // during a re-clone) — skip silently but count it.
-      if (err?.code !== "P2002") {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Failed to clone dependency ${dep.predecessorId}→${dep.successorId}: ${msg}`);
-        console.error("[cloneDependencies] Failed to clone dependency:", msg);
-      }
-    }
+  // BATCHED (was one INSERT per dependency inside a try/catch loop): a
+  // 500-task version with ~1000 dependency edges paid 1000 round-trips
+  // per clone. One createMany with skipDuplicates preserves the P2002
+  // tolerance the loop had (re-clone collisions), and in-batch collapses
+  // (two old edges mapping to the same new pair) are skipped by the same
+  // ON CONFLICT DO NOTHING. A batch-level failure is loud, not swallowed.
+  const rows = deps
+    .map((dep: { predecessorId: string; successorId: string; type: string; offset: any }) => {
+      const newPred = idMap.get(dep.predecessorId);
+      const newSucc = idMap.get(dep.successorId);
+      if (!newPred || !newSucc) return null;
+      return {
+        predecessorId: newPred,
+        successorId: newSucc,
+        type: dep.type,
+        offset: dep.offset,
+      };
+    })
+    .filter(Boolean);
+
+  if (rows.length === 0) return result;
+  try {
+    const inserted = await tx.taskDependency.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+    result.cloned = inserted.count;
+  } catch (err: any) {
+    // The whole batch failed — the clone is unusable for dependency
+    // purposes; report loudly (the old loop logged per-row and let the
+    // version commit with silently missing edges, which is exactly the
+    // failure mode the previous ERROR LOGGING FIX was chasing).
+    result.failed = rows.length;
+    const msg = err instanceof Error ? err.message : String(err);
+    result.errors.push(`Failed to batch-clone ${rows.length} dependencies: ${msg}`);
+    console.error("[cloneDependencies] Batch insert failed:", msg);
   }
   return result;
 }
@@ -92,22 +97,34 @@ export async function cloneResourceAssignments(
     where: { taskId: { in: oldIds } },
      take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
    });
-  for (const a of assignments) {
-    const newTaskId = idMap.get(a.taskId);
-    if (!newTaskId) continue;
-    await tx.resourceAssignment
-      .create({
-        data: {
-          taskId: newTaskId,
-          staffRoleId: a.staffRoleId,
-          staffId: null,
-          equipmentId: null,
-          quantity: a.quantity,
-          unit: a.unit,
-          notes: a.notes,
-        },
-      })
-      .catch(() => {});
+
+  // BATCHED (was one INSERT per assignment with `.catch(() => {})` that
+  // silently swallowed ALL failures — a clone could lose every resource
+  // assignment with zero signal). skipDuplicates keeps the old tolerance
+  // for re-clone collisions; batch failures now log loudly.
+  const rows = assignments
+    .map((a: { taskId: string; staffRoleId: string | null; quantity: any; unit: string | null; notes: string | null }) => {
+      const newTaskId = idMap.get(a.taskId);
+      if (!newTaskId) return null;
+      return {
+        taskId: newTaskId,
+        staffRoleId: a.staffRoleId,
+        staffId: null,
+        equipmentId: null,
+        quantity: a.quantity,
+        unit: a.unit,
+        notes: a.notes,
+      };
+    })
+    .filter(Boolean);
+
+  if (rows.length === 0) return;
+  try {
+    await tx.resourceAssignment.createMany({ data: rows, skipDuplicates: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[cloneResourceAssignments] Batch insert failed:", msg);
+    throw err;
   }
 }
 

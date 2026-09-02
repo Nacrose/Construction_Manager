@@ -752,7 +752,7 @@ export const dailyProgramRouter = router({
     .input(z.object({
       projectId: z.string(),
       programId: z.string(),
-      taskIds: z.array(z.string()),
+      taskIds: z.array(z.string()).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

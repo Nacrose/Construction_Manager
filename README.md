@@ -7,7 +7,7 @@
 > **⚠️ Core System Scope & Positioning**:
 > **This platform is built EXCLUSIVELY for Construction Contractors, Joint Ventures (JVs), and Builders.**
 > **This is NOT a Client / Consultant / Owner portal.**
-> **This is an OFFICE-USE web application** — built for desktop browsers in a head-office / site-office setting, used by staff on a stable internet connection. It is **online-only by design**: NOT an offline-capable app, NOT a PWA, and NOT a mobile app (responsive enough for a laptop, but no mobile-specific workflows and no app-store build).
+> **This is an OFFICE-USE web application** — built for desktop browsers in a head-office / site-office setting, used by staff on a stable internet connection. It is **online-first by design**: the browser app targets online use and is NOT a mobile app and has no app-store build. A service worker ships for push notifications and app-shell caching, and an IndexedDB offline mutation queue exists as groundwork for future field workflows — authenticated data (tRPC responses, `/api/*` bytes) is never persisted to disk by the service worker. Offline field workflows are a roadmap item, not a committed feature.
 > Every workflow is engineered around contractor reality: site material deliveries, subcontractor labor bills, Bahi Khata Day Books, VAT & TDS compliance, BOQ rate analysis, plant & equipment fleet logs, and Joint Venture royalty/equity sharing.
 
 A comprehensive construction enterprise management platform tailored for contractor and JV operations in Nepal (DoR / DUDBC / NEA standards) — encompassing BOQ & rate analysis, Day Book & cash-basis accounting, centralized finance & payables, Gantt scheduling, RFI workflows, site daily reports, IPC progress claims, variations, equipment fleet, staff HR, and multi-site inventory.
@@ -58,9 +58,10 @@ cp .env.example .env
 # 4. Generate Prisma client (runs automatically on postinstall)
 npx prisma generate
 
-# 5. Run database schema + seed demo data
-#    On first launch, the app will call /api/setup automatically to
-#    create tables, then /api/seed to insert demo data.
+# 5. Apply the schema, then run the dev server
+#    (migrations are the single source of truth — the app never
+#    patches the schema at runtime)
+npx prisma migrate deploy
 npm run dev
 
 # 6. Open http://localhost:3000
@@ -145,13 +146,13 @@ construction-manager/
 │   │   └── utils.ts              # cn() and other utilities
 │   ├── server/
 │   │   ├── trpc/                 # tRPC setup (context, procedures)
-│   │   └── routers/              # 17 domain routers (see below)
+│   │   └── routers/              # 53 domain routers (see below)
 │   ├── hooks/                    # use-mobile, use-toast
-│   └── proxy.ts                  # Next.js 16 middleware (currently passthrough)
+│   └── proxy.ts                  # Next.js 16 edge middleware (JWT auth gate)
 ├── prisma/
-│   ├── schema.prisma             # 50 models, 3 enums, 1186 lines
+│   ├── schema.prisma             # 137 models, 4 enums, 4,121 lines
 │   ├── seed.ts                   # Demo data + DoR/DUDBC rate presets
-│   └── migrations/               # (legacy — /api/setup is used instead)
+│   └── migrations/               # Prisma migration chain (CI-verified on scratch DBs)
 ├── scripts/                      # Ad-hoc dev scripts + legacy code-mods
 │   └── legacy-codemods/          # One-off migration scripts (do not run)
 ├── public/                       # logo.svg, robots.txt
@@ -218,7 +219,7 @@ construction-manager/
 
 ## Data Model
 
-The Prisma schema (`prisma/schema.prisma`, 1186 lines) defines 50 models
+The Prisma schema (`prisma/schema.prisma`, 4,121 lines) defines 137 models
 organized by domain:
 
 - **Identity & Access**: `User`, `Session`, `Project`, `ProjectMember`
@@ -279,10 +280,10 @@ All mutations through tRPC routers write to the `AuditLog` table via
 ### tRPC (primary API surface)
 
 - Endpoint: `POST /api/trpc/[trpc]`
-- 17 routers merged in `src/server/routers/_app.ts`:
-  `app`, `project`, `boq`, `gantt`, `rfi`, `dailyReport`, `dailyProgram`,
-  `ipc`, `variation`, `material`, `equipment`, `hr`, `document`,
-  `drawing`, `partner`, `analysisLibrary`, `globalPreset`
+- 53 routers merged in `src/server/routers/_app.ts` (accounting, finance,
+  payroll, vat-register, ipc, boq, gantt-*, rfi, submittal, material-*,
+  equipment-*, hr, jv-partner, admin, chat, workflow, and more — see
+  `src/server/routers/`)
 - Superjson transformer enables Date, Map, Set, BigInt, undefined
   serialization end-to-end
 - Type-safe end-to-end: client types are inferred from the server router
@@ -292,7 +293,7 @@ All mutations through tRPC routers write to the `AuditLog` table via
 Used for non-tRPC concerns:
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `GET /api/dashboard` (cross-project dashboard aggregates)
-- `POST /api/setup` (first-run schema bootstrap)
+- `POST /api/setup` (first-superadmin bootstrap; schema comes from migrations)
 - `POST /api/seed` (demo data seeding)
 
 ---
@@ -307,7 +308,8 @@ Used for non-tRPC concerns:
    - `DATABASE_URL` → Neon connection string
    - `AUTH_SECRET` → random 32+ char string
 4. Deploy — Vercel detects Next.js automatically
-5. On first visit, the app runs `/api/setup` to create tables
+5. Apply the schema once: `npx prisma migrate deploy` against the
+   production `DATABASE_URL` (see DEPLOY.md for the full first-run flow)
 
 ### Option B: Self-hosted (Docker + Caddy)
 
@@ -323,11 +325,15 @@ Nepal-based VPS deployments where data sovereignty matters.
 
 ### Database Migrations
 
-**Note:** the project currently uses `/api/setup` (raw SQL DDL) to
-bootstrap the schema on first run, bypassing Prisma migrations. This is
-a known tech-debt item — a future commit will replace it with
-`prisma migrate deploy`. For now, do NOT run `prisma migrate dev`
-against a production database without backing it up first.
+Prisma migrations are the **single source of truth** for the schema
+(`prisma/migrations/` — 15 migrations incl. the RLS phases and the
+2026-08-30 drift repair). Apply them with `npx prisma migrate deploy`.
+The runtime DDL system (`ensure-schema.ts`) was retired in v1.2: it
+raced the migration chain, silently swallowed its own failures,
+corrupted the `0_init` checksum, and still left fresh databases broken
+for payroll/VAT/catalog/outbox modules. If a legacy database reports a
+`0_init` checksum mismatch, resolve it with
+`npx prisma migrate resolve --applied 0_init`.
 
 ---
 
@@ -359,23 +365,25 @@ npx tsc --noEmit
 - [x] Re-enable TypeScript + ESLint build checks
 - [x] Clean repo of binary/internal files
 - [x] Add this README
-- [ ] Replace `/api/setup` raw SQL with `prisma migrate deploy`
-- [ ] Drop `z-ai-web-dev-sdk` from runtime deps
-- [ ] Pick one package manager (npm) and delete `bun.lock`
-- [ ] Add Vitest + first unit tests for `gantt`, `daily-report`, `boq-calc`
-- [ ] Split the 2,751-line `boq/page.tsx` into components
+- [x] Retire `/api/setup` raw SQL (`ensure-schema.ts`) — `prisma migrate deploy` is the only schema path (v1.2)
+- [x] Drop `z-ai-web-dev-sdk` from runtime deps
+- [x] Pick one package manager (npm) and delete `bun.lock`
+- [x] Add Vitest — 107 test files / ~1,348 cases incl. live-Postgres RLS integration + Playwright E2E
+- [x] Split the 2,751-line `boq/page.tsx` into components (now ~450 lines)
 
 ### Feature Candidates (post-stabilization)
 
-- Multi-tenancy / organization support
-- Role-based dashboard variants
-- Real-time RFI collaboration (WebSocket)
-- Excel import for BOQ
-- Email/notification system
-- Audit log UI
-- Variation Order approval workflow
-- IPC auto-calculation from BOQ progress
+- [x] Multi-tenancy / organization support (orgs, RLS, platform admin + impersonation)
+- [x] Role-based dashboard variants
+- [x] Real-time RFI collaboration (WebSocket)
+- [x] Excel import for BOQ
+- [x] Email/notification system
+- [ ] Audit log UI
+- [x] Variation Order approval workflow
+- [x] IPC auto-calculation from BOQ progress
 
-> **Out of scope (product decision):** offline mode / offline-first sync, PWA, and
-> mobile-app builds. This is an office-use, online-only web application for desktop
-> browsers — field data still flows through office staff, not a field mobile client.
+> **Out of scope (product decision):** mobile-app builds. This is an office-use,
+> online-first web application for desktop browsers — field data still flows
+> through office staff today. The shipped service worker (push + app shell) and
+> IndexedDB offline mutation queue are groundwork for potential offline field
+> workflows, not a committed offline mode.

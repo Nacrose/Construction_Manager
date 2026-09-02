@@ -3,9 +3,12 @@
  *
  * Strategy:
  *  - App shell (HTML/JS/CSS/static assets): stale-while-revalidate
- *  - tRPC GET queries (read endpoints): cache-first with timeout fallback to cache
+ *  - tRPC GET queries: NETWORK PASS-THROUGH — never persisted (React Query
+ *    handles in-memory caching; authenticated JSON must not hit disk)
  *  - tRPC POST mutations: NEVER cached — must hit the server
- *  - Uploaded photos / images: cache-first with limited TTL
+ *  - All /api/* responses: network pass-through (files, drawings, documents
+ *    are authenticated; their bytes must not land in SW cache storage)
+ *  - Static same-origin images (branding/icons): cache-first, capped
  *  - Offline form queue: handled at app level (IndexedDB), not by SW
  *
  * When the user is offline and tries to navigate to a page they haven't
@@ -155,15 +158,33 @@ async function handleMutation(request) {
   }
 }
 
-// Image cache: cache-first, unlimited (large photos)
+// Static-image cache: cache-first with a bounded entry count. This handler
+// only ever sees same-origin, non-/api/ image URLs (branding assets) —
+// authenticated bytes from /api/files, /api/drawings, /api/documents are
+// intercepted earlier and passed straight to the network, never cached.
+// The /api/ guard below is defense-in-depth: even if the fetch-handler
+// routing order changes, authenticated responses must never be persisted.
+const IMG_CACHE_MAX_ENTRIES = 100;
+
 async function handleImage(request) {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/")) {
+    return fetch(request).catch(() => new Response("", { status: 503 }));
+  }
   const cache = await caches.open(IMG_CACHE);
   const cached = await cache.match(request);
   if (cached) return cached;
   try {
     const response = await fetch(request);
     if (response && response.ok) {
-      cache.put(request, response.clone());
+      await cache.put(request, response.clone());
+      // Cap the cache: evict oldest entries beyond the limit.
+      const keys = await cache.keys();
+      if (keys.length > IMG_CACHE_MAX_ENTRIES) {
+        for (const old of keys.slice(0, keys.length - IMG_CACHE_MAX_ENTRIES)) {
+          await cache.delete(old);
+        }
+      }
     }
     return response;
   } catch (_) {

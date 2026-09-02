@@ -1,14 +1,4 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# Construction Manager is an authenticated, office-use internal application.
+# There is no public content to index — keep all crawlers out.
 User-agent: *
-Allow: /
+Disallow: /

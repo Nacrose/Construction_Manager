@@ -124,5 +124,13 @@ export const config = {
     "/activity",
     "/rate-catalogs/:path*",
     "/rate-catalogs",
+    "/correspondence/:path*",
+    "/correspondence",
+    "/drawings/:path*",
+    "/drawings",
+    "/inventory/:path*",
+    "/inventory",
+    "/settings/:path*",
+    "/settings",
   ],
 };

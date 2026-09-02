@@ -14,6 +14,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { Prisma } from "@prisma/client";
 import { router, protectedProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { cached, invalidateProjectCache } from "@/lib/cache";
@@ -23,6 +24,7 @@ import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { audit } from "@/lib/audit";
 import { createJournalEntry } from "@/lib/journal-entry";
+import { subMoney } from "@/lib/money";
 import { hoOverheadCodeForCategory, accountNameForCode } from "@/server/utils/overhead-account-mapping";
 import { assertDelegation } from "@/lib/delegation";
 
@@ -1525,48 +1527,58 @@ export const financeRouter = router({
             ],
           });
 
-          // 2. Auto-settle VendorBill or SubcontractorBill
-          //    Includes OVERPAYMENT CHECK: reject if amountToPay would
-          //    cause paidAmount to exceed netPayable. Previously there
-          //    was no check — overpaying would mark the bill "paid" but
-          //    leave paidAmount > netPayable, corrupting the bill's
-          //    financial state.
+          // 2. Auto-settle VendorBill or SubcontractorBill.
+          //    ATOMIC conditional update (matches vendor-bill.ts /
+          //    subcontractor-bill.ts): the overpayment guard lives in the
+          //    UPDATE's WHERE clause, so two concurrent settlements on the
+          //    same bill can no longer both pass a read-then-write check
+          //    and jointly overpay the bill (lost-update race). Rowcount 0
+          //    = the guard rejected the payment → overpayment error.
+          //    NOTE: table names cannot be bound parameters in raw SQL —
+          //    each table gets its own literal statement.
+          const settlementGuard = Prisma.sql`
+                AND "paidAmount" + ${b.amountToPay} <= "netPayable" + 0.01`;
+
           if (b.billType === "vendor") {
-            const vb = await tx.vendorBill.findUnique({ where: { id: b.billId } });
-            if (vb) {
-              const newPaid = vb.paidAmount + b.amountToPay;
-              if (newPaid > vb.netPayable + 0.01) {
-                throw new TRPCError({
-                  code: "BAD_REQUEST",
-                  message: `Overpayment: bill ${b.billNumber} has remaining balance ${vb.netPayable - vb.paidAmount} but payment amount is ${b.amountToPay}.`,
-                });
-              }
-              const isPaid = newPaid >= vb.netPayable - 0.01;
-              await tx.vendorBill.update({
+            const updated = await tx.$executeRaw`
+              UPDATE "VendorBill"
+              SET "paidAmount" = "paidAmount" + ${b.amountToPay},
+                  "status" = CASE
+                    WHEN "paidAmount" + ${b.amountToPay} >= "netPayable" - 0.01 THEN 'paid'
+                    ELSE 'partially_paid'
+                  END
+              WHERE "id" = ${b.billId} ${settlementGuard}
+            `;
+            if (updated === 0) {
+              const vb = await tx.vendorBill.findUnique({
                 where: { id: b.billId },
-                data: {
-                  paidAmount: newPaid,
-                  status: isPaid ? "paid" : "partially_paid",
-                },
+                select: { paidAmount: true, netPayable: true },
+              });
+              const remaining = subMoney(vb?.netPayable ?? 0, vb?.paidAmount ?? 0).toString();
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Overpayment: bill ${b.billNumber} has remaining balance ${remaining} but payment amount is ${b.amountToPay}.`,
               });
             }
           } else {
-            const sb = await tx.subcontractorBill.findUnique({ where: { id: b.billId } });
-            if (sb) {
-              const newPaid = (sb.paidAmount || 0) + b.amountToPay;
-              if (newPaid > sb.netPayable + 0.01) {
-                throw new TRPCError({
-                  code: "BAD_REQUEST",
-                  message: `Overpayment: bill ${b.billNumber} has remaining balance ${sb.netPayable - (sb.paidAmount || 0)} but payment amount is ${b.amountToPay}.`,
-                });
-              }
-              const isPaid = newPaid >= sb.netPayable - 0.01;
-              await tx.subcontractorBill.update({
+            const updated = await tx.$executeRaw`
+              UPDATE "SubcontractorBill"
+              SET "paidAmount" = "paidAmount" + ${b.amountToPay},
+                  "status" = CASE
+                    WHEN "paidAmount" + ${b.amountToPay} >= "netPayable" - 0.01 THEN 'paid'
+                    ELSE 'partially_paid'
+                  END
+              WHERE "id" = ${b.billId} ${settlementGuard}
+            `;
+            if (updated === 0) {
+              const sb = await tx.subcontractorBill.findUnique({
                 where: { id: b.billId },
-                data: {
-                  paidAmount: newPaid,
-                  status: isPaid ? "paid" : "partially_paid",
-                },
+                select: { paidAmount: true, netPayable: true },
+              });
+              const remaining = subMoney(sb?.netPayable ?? 0, sb?.paidAmount ?? 0).toString();
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Overpayment: bill ${b.billNumber} has remaining balance ${remaining} but payment amount is ${b.amountToPay}.`,
               });
             }
           }

@@ -313,6 +313,86 @@ export function vendorPaymentEntry(params: {
 }
 
 /**
+ * Helper: generate the journal entry for a JV partner commission payout.
+ *
+ * In a managed JV the non-operating partner's commission is a direct
+ * project cost (a percentage of certified client IPC turnover), so the
+ * payout posts:
+ *
+ *   Dr JV Partner Commission (project cost)   NPR G  (5060)
+ *      Cr TDS Payable (to IRD)                NPR T  (2020)
+ *      Cr Bank / Cash (net disbursed)         NPR N  (1010/1001)
+ *
+ * Where G = T + N (balanced). Before this entry existed, JV payouts
+ * moved money without ever reaching the general ledger.
+ */
+export function jvPayoutEntry(params: {
+  payoutId: string;
+  voucherNo: string;
+  partnerName: string;
+  grossAmount: number;
+  tdsAmount: number;
+  netAmount: number;
+  paymentMode: string;
+  projectId?: string;
+  date: Date;
+  miti?: string;
+}): JournalEntryInput {
+  // Validate balance up-front: gross must equal TDS + net, otherwise
+  // createJournalEntry would throw a confusing "unbalanced" error.
+  if (Math.abs(params.grossAmount - (params.tdsAmount + params.netAmount)) > 0.01) {
+    throw new Error(
+      `jvPayoutEntry: grossAmount (${params.grossAmount}) must equal tdsAmount (${params.tdsAmount}) + netAmount (${params.netAmount}).`,
+    );
+  }
+
+  const lines: JournalLineInput[] = [];
+
+  // Debit: JV partner commission as a direct project cost (gross).
+  lines.push({
+    accountCode: "5060",
+    accountName: "JV Partner Commission",
+    debit: params.grossAmount,
+    credit: 0,
+    description: `JV commission payout ${params.voucherNo} to ${params.partnerName}`,
+    projectId: params.projectId,
+  });
+
+  // Credit: TDS withheld on the payout, payable to IRD.
+  if (params.tdsAmount > 0) {
+    lines.push({
+      accountCode: "2020",
+      accountName: "TDS Payable",
+      debit: 0,
+      credit: params.tdsAmount,
+      description: `TDS deducted on JV commission ${params.voucherNo}`,
+      projectId: params.projectId,
+    });
+  }
+
+  // Credit: Bank / Cash for the net amount actually disbursed.
+  const bankCode = params.paymentMode === "cash" ? "1001" : "1010";
+  lines.push({
+    accountCode: bankCode,
+    accountName: params.paymentMode === "cash" ? "Cash" : "Bank",
+    debit: 0,
+    credit: params.netAmount,
+    description: `Net JV commission via ${params.paymentMode}`,
+    projectId: params.projectId,
+  });
+
+  return {
+    source: "jv_payout",
+    sourceRefId: params.payoutId,
+    sourceRefType: "JvCommissionPayout",
+    description: `JV partner commission payout ${params.voucherNo}`,
+    entryDate: params.date,
+    miti: params.miti,
+    lines,
+  };
+}
+
+/**
  * Helper: generate the journal entry for an IPC (client billing).
  *
  * Dr Client Receivable    NPR X  (1100)

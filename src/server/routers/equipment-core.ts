@@ -192,10 +192,15 @@ export const equipmentCoreProcedures = {
       });
       if (!equip) throw new TRPCError({ code: "NOT_FOUND", message: "Equipment not found." });
 
-      const updated = await db.equipment.update({
-        where: { id: input.equipId },
-        data: { status: input.status },
-      });
+      // Engine transition via the shared cascade helper (was a raw status
+      // update with NO graph validation — any status string the zod enum
+      // allowed was written blindly, and concurrent flips last-write-won).
+      // setEquipmentStatus validates the equipment graph, CAS-claims the
+      // row, stamps attribution, and no-ops when already in the target
+      // state (the graph has no self-loops).
+      await setEquipmentStatus(db, input.equipId, input.status, ctx.user.id, ctx.user.name);
+
+      const updated = await db.equipment.findUnique({ where: { id: input.equipId } });
       return { equipment: updated };
     }),
 

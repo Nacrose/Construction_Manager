@@ -77,6 +77,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true,
+  // Office-use internal tool — don't advertise the framework version.
+  poweredByHeader: false,
   async headers() {
     return [
       {

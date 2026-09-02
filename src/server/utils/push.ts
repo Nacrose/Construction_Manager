@@ -12,7 +12,8 @@
  *    VAPID_PRIVATE_KEY=abc...your-private-key
  *    VAPID_SUBJECT=mailto:admin@yourcompany.com
  *
- * 3. Run /api/setup to create the PushSubscription table
+ * 3. Apply migrations (PushSubscription table):
+ *    npx prisma migrate deploy
  *
  * 4. The client subscribes via the "Enable notifications" button
  *    (see NotificationPermission component)

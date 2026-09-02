@@ -15,8 +15,13 @@ export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<"loading" | "authed" | "unauthed">(() => {
     if (typeof window === "undefined") return "loading";
-    const token = getToken();
-    return token ? "authed" : "unauthed";
+    // SECURITY: a token *string* in localStorage is NOT proof of a valid
+    // session — stay "loading" (children unmounted) until /api/auth/me
+    // validates it. Previously a stale/garbage token flipped straight to
+    // "authed", mounting children and firing tRPC queries against an
+    // unvalidated token, so stale-session users saw every module flash
+    // errors before being bounced to /login.
+    return getToken() ? "loading" : "unauthed";
   });
 
   useEffect(() => {
