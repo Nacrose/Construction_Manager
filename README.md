@@ -58,9 +58,10 @@ cp .env.example .env
 # 4. Generate Prisma client (runs automatically on postinstall)
 npx prisma generate
 
-# 5. Run database schema + seed demo data
-#    On first launch, the app will call /api/setup automatically to
-#    create tables, then /api/seed to insert demo data.
+# 5. Apply the schema, then run the dev server
+#    (migrations are the single source of truth — the app never
+#    patches the schema at runtime)
+npx prisma migrate deploy
 npm run dev
 
 # 6. Open http://localhost:3000
@@ -292,7 +293,7 @@ All mutations through tRPC routers write to the `AuditLog` table via
 Used for non-tRPC concerns:
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `GET /api/dashboard` (cross-project dashboard aggregates)
-- `POST /api/setup` (first-run schema bootstrap)
+- `POST /api/setup` (first-superadmin bootstrap; schema comes from migrations)
 - `POST /api/seed` (demo data seeding)
 
 ---
@@ -307,7 +308,8 @@ Used for non-tRPC concerns:
    - `DATABASE_URL` → Neon connection string
    - `AUTH_SECRET` → random 32+ char string
 4. Deploy — Vercel detects Next.js automatically
-5. On first visit, the app runs `/api/setup` to create tables
+5. Apply the schema once: `npx prisma migrate deploy` against the
+   production `DATABASE_URL` (see DEPLOY.md for the full first-run flow)
 
 ### Option B: Self-hosted (Docker + Caddy)
 
@@ -323,11 +325,15 @@ Nepal-based VPS deployments where data sovereignty matters.
 
 ### Database Migrations
 
-**Note:** the project currently uses `/api/setup` (raw SQL DDL) to
-bootstrap the schema on first run, bypassing Prisma migrations. This is
-a known tech-debt item — a future commit will replace it with
-`prisma migrate deploy`. For now, do NOT run `prisma migrate dev`
-against a production database without backing it up first.
+Prisma migrations are the **single source of truth** for the schema
+(`prisma/migrations/` — 15 migrations incl. the RLS phases and the
+2026-08-30 drift repair). Apply them with `npx prisma migrate deploy`.
+The runtime DDL system (`ensure-schema.ts`) was retired in v1.2: it
+raced the migration chain, silently swallowed its own failures,
+corrupted the `0_init` checksum, and still left fresh databases broken
+for payroll/VAT/catalog/outbox modules. If a legacy database reports a
+`0_init` checksum mismatch, resolve it with
+`npx prisma migrate resolve --applied 0_init`.
 
 ---
 
@@ -359,7 +365,7 @@ npx tsc --noEmit
 - [x] Re-enable TypeScript + ESLint build checks
 - [x] Clean repo of binary/internal files
 - [x] Add this README
-- [ ] Replace `/api/setup` raw SQL (`ensure-schema.ts`) with `prisma migrate deploy` only
+- [x] Retire `/api/setup` raw SQL (`ensure-schema.ts`) — `prisma migrate deploy` is the only schema path (v1.2)
 - [x] Drop `z-ai-web-dev-sdk` from runtime deps
 - [x] Pick one package manager (npm) and delete `bun.lock`
 - [x] Add Vitest — 107 test files / ~1,348 cases incl. live-Postgres RLS integration + Playwright E2E

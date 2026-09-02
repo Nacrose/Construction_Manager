@@ -14,7 +14,6 @@ import { router, superAdminProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from "@/lib/auth";
-import { ensureSchema } from "@/lib/ensure-schema";
 import { Prisma } from "@prisma/client";
 import { passwordSchema } from "@/lib/password-policy";
 
@@ -257,9 +256,79 @@ export const adminRouter = router({
       return { user: { id: user.id, email: user.email } };
     }),
 
-  // Run the baseline schema migration (server-side; no SETUP_SECRET needed).
-  runDbSetup: superAdminProcedure.mutation(async () => {
-    return ensureSchema();
+  // ── Schema verifier (read-only) ────────────────────────────────
+  // The old runDbSetup executed ensureSchema() — 1,800 lines of runtime
+  // DDL that raced the Prisma migration chain, silently swallowed its own
+  // failures, corrupted the 0_init checksum, and still left fresh DBs
+  // broken (18 migration-chain tables were never in its set). Prisma
+  // migrations are the single source of truth now; this endpoint only
+  // VERIFIES and tells you the command to run if something is missing.
+  verifyDbSchema: superAdminProcedure.query(async () => {
+    // Curated critical-table set: core auth/finance/ops tables plus every
+    // table the old ensure-schema never created but the migration chain
+    // does (payroll, VAT, catalog v2, outbox, transfers) — a DB that was
+    // ever bootstrapped by runtime DDL fails this check, which is the
+    // point.
+    const EXPECTED_TABLES = [
+      "User", "Session", "Organization", "Project", "ProjectMember",
+      "JournalEntry", "JournalEntryLine", "FiscalYearLock", "CostCode",
+      "BankReconciliation", "OutboxEvent", "LoginAttempt", "PushSubscription",
+      "Equipment", "EquipmentRental", "EquipmentTransfer", "InterSiteTransfer",
+      "PunchItem", "Submittal", "Correspondence", "ChatChannel", "ChatMessage",
+      "LeaveRequest", "PayrollRun", "PayrollStaffRecord", "StaffAdvance",
+      "VatBill", "HeadOfficeExpense", "CompanyBankAccount", "PaymentCategory",
+      "CatalogMaterial", "MaterialSubstitute", "JvPartnerAgreement",
+      "JvCommissionPayout", "EquipmentSpotHire", "SubcontractorBill",
+    ] as const;
+
+    const presentRows = await db.$queryRaw<{ table_name: string }[]>(
+      Prisma.sql`
+        SELECT c.relname AS table_name
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind = 'r'
+          AND c.relname IN (${Prisma.join(EXPECTED_TABLES)})
+      `,
+    );
+    const present = new Set(presentRows.map((r) => r.table_name));
+    const missing = EXPECTED_TABLES.filter((t) => !present.has(t));
+
+    // RLS state for the FORCE-scoped anchor table (Project): the old
+    // button claimed to "re-enable RLS policies" — verification only now.
+    const [rlsState] = await db.$queryRaw<{
+      enabled: boolean;
+      forced: boolean;
+      policy_count: number;
+    }[]>(
+      Prisma.sql`
+        SELECT
+          c.relrowsecurity AS enabled,
+          c.relisforced AS forced,
+          (SELECT count(*)::int FROM pg_policies p
+           WHERE p.schemaname = 'public' AND p.tablename = 'Project') AS policy_count
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relname = 'Project'
+      `,
+    );
+
+    const rlsOk =
+      !!rlsState && rlsState.enabled && rlsState.forced && rlsState.policy_count >= 4;
+
+    return {
+      ok: missing.length === 0 && rlsOk,
+      missingTables: missing,
+      checkedTables: EXPECTED_TABLES.length,
+      rls: {
+        project: rlsState ?? { enabled: false, forced: false, policy_count: 0 },
+        ok: rlsOk,
+      },
+      instruction:
+        missing.length === 0
+          ? null
+          : "Run `npx prisma migrate deploy` (see DEPLOY.md) to apply the pending migrations.",
+    };
   }),
 
   // ── Impersonation (audited support mode) ──────────────────────
