@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Download, Wifi, RefreshCw, Smartphone, CheckCircle2, ArrowRight, ArrowLeft,
-  Chrome, Apple, AlertTriangle,
+  Globe, Apple, AlertTriangle,
 } from "lucide-react";
 import { useBrowserInfo } from "@/lib/browser-detect";
 import { toast } from "sonner";
@@ -116,9 +116,9 @@ export function OnboardingModal() {
                 </p>
                 <div className="flex items-center gap-2">
                   {browser?.isSafari && <Apple className="h-4 w-4" />}
-                  {browser?.isChrome && <Chrome className="h-4 w-4" />}
-                  {browser?.isEdge && <Chrome className="h-4 w-4" />}
-                  {browser?.isFirefox && <Chrome className="h-4 w-4" />}
+                  {browser?.isChrome && <Globe className="h-4 w-4" />}
+                  {browser?.isEdge && <Globe className="h-4 w-4" />}
+                  {browser?.isFirefox && <Globe className="h-4 w-4" />}
                   <span className="text-sm font-medium">
                     {browser?.browserName ?? "Unknown"} on {browser?.osName ?? "Unknown"}
                   </span>

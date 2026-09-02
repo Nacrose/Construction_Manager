@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, X, Chrome, Apple, Clock } from "lucide-react";
+import { AlertTriangle, X, Globe, Apple, Clock } from "lucide-react";
 import { useBrowserInfo } from "@/lib/browser-detect";
 
 const DISMISS_KEY = "cm-browser-warning-dismissed";
@@ -75,7 +75,7 @@ export function BrowserWarningBanner() {
       "Firefox doesn't support Background Sync — you'll need to reopen the app to sync queued changes after reconnecting.";
     action = "For auto-sync, use Chrome or Edge.";
   } else if (!browser.isStandalone && browser.supportsInstallPrompt) {
-    icon = <Chrome className="h-4 w-4" />;
+    icon = <Globe className="h-4 w-4" />;
     message = "Install this app to your home screen for full-screen, offline access.";
     action = "Tap the install prompt or use your browser menu.";
   }
