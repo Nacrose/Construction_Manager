@@ -1,22 +1,19 @@
 "use client";
 
-import { use, useState, useRef, useMemo, useEffect, Suspense } from "react";
+import { useState, useRef, useMemo, useEffect, Suspense } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Plus, Loader2, Download, Upload, Printer, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { DocumentTrail } from "@/components/documents/document-trail";
 import type { BoqItem } from "./types";
-import { AnalysisLibraryTab } from "./components/analysis-library-tab";
 import { AddBoqItemDialog } from "./components/add-boq-item-dialog";
 import { exportBoq, importBoq } from "./utils";
-import { GanttChart } from "../gantt/GanttChart";
 import { RowActionBar } from "./components/row-action-bar";
 import { FloatingActionBar } from "@/components/floating-action-bar";
 import { ExcelPasteDialog } from "@/components/boq/excel-paste-dialog";
-import { useParams, useSearchParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 import { BoqTabHeader } from "./components/boq-tab-header";
 import { BoqFilterChips } from "./components/boq-filter-chips";
 import { BoqTable } from "./components/boq-table";
@@ -24,29 +21,17 @@ import { RateAnalysisInspector } from "./components/rate-analysis-inspector";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 
-export default function BoqPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function BoqPage() {
   return (
     <Suspense fallback={<AppLoadingScreen />}>
-      <BoqPageContent params={params} />
+      <BoqPageContent />
     </Suspense>
   );
 }
 
-function BoqPageContent({
-  params,
-}: {
-  params?: Promise<{ id: string }>;
-}) {
+function BoqPageContent() {
   const routeParams = useParams();
   const id = (routeParams?.id as string) || "";
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const defaultTab = searchParams.get("tab") || "boq";
-  const [activeTab, setActiveTab] = useState(defaultTab);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showBaseline, setShowBaseline] = useState(false);
@@ -62,7 +47,7 @@ function BoqPageContent({
   const [confirmLockOpen, setConfirmLockOpen] = useState(false);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
-  const { data, isLoading } = trpc.boq.list.useQuery({ projectId: id });
+  const { data } = trpc.boq.list.useQuery({ projectId: id });
 
   const inspectedItem = useMemo(() => {
     if (!inspectedItemId || !data?.items) return null;
@@ -246,7 +231,7 @@ function BoqPageContent({
         const currentIdx = items.findIndex((i) => i.id === inspectedItemId);
         const prevIdx = currentIdx > 0 ? currentIdx - 1 : items.length - 1;
         setInspectedItemId(items[prevIdx].id);
-      } else if (e.key === " " && activeTab === "boq") {
+      } else if (e.key === " ") {
         e.preventDefault();
         if (!inspectedItemId && filtered.length > 0) {
           setInspectedItemId(filtered[0].id);
@@ -261,15 +246,12 @@ function BoqPageContent({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [filtered, inspectedItemId, activeTab]);
+  }, [filtered, inspectedItemId]);
 
   return (
-    <AnimatedPage className="space-y-4 pb-8">
-      <Tabs defaultValue={defaultTab} onValueChange={(v) => setActiveTab(v)}>
+    <AnimatedPage className="space-y-3 pb-8">
         <BoqTabHeader
           id={id}
-          pathname={pathname}
-          activeTab={activeTab}
           search={search}
           setSearch={setSearch}
           tableDensity={tableDensity}
@@ -288,7 +270,7 @@ function BoqPageContent({
           }}
         />
 
-        <TabsContent value="boq" className="space-y-0 relative">
+        <section className="space-y-0 relative">
           <BoqFilterChips
             items={data?.items ?? []}
             availableSections={availableSections}
@@ -302,7 +284,7 @@ function BoqPageContent({
             bulkMoveSectionMutation={bulkMoveSectionMutation}
           />
 
-          <div className="flex gap-0 items-stretch relative rounded-lg border border-border/60 bg-muted/60 dark:bg-[var(--navy-deep)]/30 h-[calc(100vh-140px)] overflow-hidden">
+          <div className="flex gap-0 items-stretch relative rounded-[5px] border border-border bg-card/65 h-[calc(100vh-164px)] overflow-hidden shadow-[0_1px_3px_rgba(79,62,45,0.08)]">
             <div className="flex-1 min-w-0 overflow-auto">
               <BoqTable
                 projectId={id}
@@ -353,23 +335,9 @@ function BoqPageContent({
               onToggleLock={() => lockItemMutation.mutate({ itemId: actionBarItem.item.id, locked: !actionBarItem.item.locked })}
             />
           )}
-        </TabsContent>
+        </section>
 
-        <TabsContent value="schedule">
-          <GanttChart projectId={id} view="schedule" />
-        </TabsContent>
-
-        <TabsContent value="resources">
-          <GanttChart projectId={id} view="resources" />
-        </TabsContent>
-
-        <TabsContent value="scurve">
-          <GanttChart projectId={id} view="scurve" />
-        </TabsContent>
-      </Tabs>
-
-      {activeTab === "boq" && (
-        <FloatingActionBar
+      <FloatingActionBar
           actions={[
             { icon: <Plus className="h-4 w-4" />, label: "Add item", onClick: () => setShowAddRow(true), disabled: !canWrite || isLocked },
             { icon: <Printer className="h-4 w-4" />, label: "Print", onClick: () => window.print(), disabled: !data?.items.length },
@@ -383,8 +351,7 @@ function BoqPageContent({
               destructive: !isLocked,
             },
           ]}
-        />
-      )}
+      />
 
       <AddBoqItemDialog
         projectId={id}
