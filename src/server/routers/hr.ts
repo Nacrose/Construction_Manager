@@ -6,14 +6,27 @@
  * ProjectStaffAssignment list joined with the org-wide Person. Row ids are
  * ASSIGNMENT ids (attendance is logged per assignment per day); advances
  * and identity fields key on the PERSON.
+ *
+ * Phase D: the workforce domain service
+ * (src/server/services/workforce.ts) owns the invariants the schema
+ * deliberately does not enforce — overlap (warning → audited override),
+ * cross-project daily capacity, transfer/rehire chaining, person merge
+ * and history. This router never hand-rolls them.
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, projectProcedure } from "@/server/trpc";
 import { db } from "@/lib/db";
-import { assertProjectMember, assertCanWrite } from "@/lib/authz";
+import { assertProjectMember, assertCanWrite, isOrgAdmin } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { withOrgContext } from "@/lib/rls";
+import {
+  assertAssignmentOverlapAcked,
+  assertBulkDailyCapacity,
+  getPersonHistory,
+  mergePersons,
+  transferAssignment,
+} from "@/server/services/workforce";
 
 const ASSIGNMENT_LIST_SELECT = {
   id: true,
@@ -181,6 +194,28 @@ export const hrRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
       }
 
+      // Duplicate detection (ADR-0005 §1: none of these facts create
+      // another — a shared worker must be ONE person). When the identity
+      // fields match an existing org person, still create what was asked
+      // but return the candidates so the UI can offer "attach existing
+      // person" / "merge" instead of accumulating duplicates.
+      const identityOr = [
+        ...(data.phone ? [{ phone: data.phone }] : []),
+        ...(data.pan ? [{ pan: data.pan }] : []),
+        ...(data.idNumber ? [{ idNumber: data.idNumber }] : []),
+      ];
+      const duplicateSuggestions = identityOr.length
+        ? await db.person.findMany({
+            where: {
+              organizationId: ctx.user.organizationId,
+              OR: identityOr,
+              mergedIntoId: null,
+            },
+            select: { id: true, displayName: true, phone: true, pan: true, idNumber: true, status: true },
+            take: 10,
+          })
+        : [];
+
       const person = await db.person.create({
         data: {
           organizationId: ctx.user.organizationId,
@@ -209,7 +244,181 @@ export const hrRouter = router({
         },
       });
 
-      return { staff: { id: assignment.id, personId: person.id, name: person.displayName } };
+      return {
+        staff: { id: assignment.id, personId: person.id, name: person.displayName },
+        duplicateSuggestions,
+      };
+    }),
+
+  /**
+   * Attach an EXISTING org person to this project (shared worker /
+   * returning worker) — the ADR-0005 answer to "one human, many
+   * projects": a new assignment row, never a second person.
+   * Overlapping active assignments elsewhere are acknowledged via
+   * overrideReason (audited by the workforce service).
+   */
+  attach: projectProcedure("write")
+    .input(
+      z.object({
+        personId: z.string(),
+        fromDate: z.string().optional().nullable(),
+        designation: z.string().optional().nullable(),
+        category: z.enum(["skilled", "unskilled", "supervisor", "staff", "operator"]).default("skilled"),
+        employmentType: z.enum(["daily", "monthly", "piece_rate"]).default("daily"),
+        dailyWage: z.number().nonnegative().default(0),
+        monthlySalary: z.number().nonnegative().default(0),
+        gangName: z.string().optional().nullable(),
+        overrideReason: z.string().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const projectId = ctx.projectId;
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+
+      const person = await db.person.findFirst({
+        where: { id: input.personId, organizationId: ctx.user.organizationId, mergedIntoId: null },
+        select: { id: true, displayName: true, status: true },
+      });
+      if (!person) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Person not found in this organization." });
+      }
+
+      const fromDate = input.fromDate ? new Date(input.fromDate) : new Date();
+
+      const assignment = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+        await assertAssignmentOverlapAcked(tx, {
+          personId: person.id,
+          projectId,
+          window: { fromDate, toDate: null },
+          overrideReason: input.overrideReason,
+        });
+        return tx.projectStaffAssignment.create({
+          data: {
+            projectId,
+            personId: person.id,
+            fromDate,
+            designation: input.designation || null,
+            category: input.category,
+            employmentType: input.employmentType,
+            dailyWage: input.dailyWage,
+            monthlySalary: input.monthlySalary,
+            gangName: input.gangName || null,
+          },
+        });
+      });
+
+      return { assignment: { id: assignment.id, personId: person.id, name: person.displayName } };
+    }),
+
+  /**
+   * Transfer / re-hire: end the engagement and open a new chained one
+   * (sourceAssignmentId). History is preserved; nothing is destroyed.
+   */
+  transfer: projectProcedure("write")
+    .input(
+      z.object({
+        itemId: z.string(), // assignment id
+        newProjectId: z.string().optional().nullable(), // omitted → re-hire on same project
+        fromDate: z.string(),
+        designation: z.string().optional().nullable(),
+        category: z.enum(["skilled", "unskilled", "supervisor", "staff", "operator"]).optional(),
+        employmentType: z.enum(["daily", "monthly", "piece_rate"]).optional(),
+        dailyWage: z.number().nonnegative().optional(),
+        monthlySalary: z.number().nonnegative().optional(),
+        gangName: z.string().optional().nullable(),
+        overrideReason: z.string().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+      const current = await db.projectStaffAssignment.findUnique({
+        where: { id: input.itemId },
+        select: { id: true, projectId: true, status: true },
+      });
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Staff assignment not found." });
+
+      // Record-level authorization: the ASSIGNMENT's project governs (may
+      // differ from the caller's operating context), and a cross-project
+      // transfer needs write on the target too — both stay inline.
+      await assertCanWrite(ctx.user, current.projectId);
+      if (input.newProjectId && input.newProjectId !== current.projectId) {
+        await assertCanWrite(ctx.user, input.newProjectId);
+        // Same-org guard: assignments are workforce facts of ONE org.
+        const target = await db.project.findUnique({
+          where: { id: input.newProjectId },
+          select: { organizationId: true },
+        });
+        if (!target || target.organizationId !== ctx.user.organizationId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Target project is outside your organization." });
+        }
+      }
+
+      return db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+        return transferAssignment(tx, {
+          assignmentId: current.id,
+          newProjectId: input.newProjectId || null,
+          terms: {
+            fromDate: new Date(input.fromDate),
+            designation: input.designation,
+            category: input.category,
+            employmentType: input.employmentType,
+            dailyWage: input.dailyWage,
+            monthlySalary: input.monthlySalary,
+            gangName: input.gangName,
+          },
+          overrideReason: input.overrideReason,
+          actorId: ctx.user.id,
+        });
+      });
+    }),
+
+  /** Org-wide person directory search (for the attach / merge flows). */
+  findPersons: projectProcedure("member")
+    .input(z.object({ q: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+
+      const persons = await db.person.findMany({
+        where: {
+          organizationId: ctx.user.organizationId,
+          mergedIntoId: null,
+          OR: [
+            { displayName: { contains: input.q, mode: "insensitive" } },
+            { phone: { contains: input.q } },
+            { pan: { contains: input.q, mode: "insensitive" } },
+            { idNumber: { contains: input.q } },
+          ],
+        },
+        select: {
+          id: true, displayName: true, phone: true, pan: true, idNumber: true,
+          status: true, category: true, employmentType: true,
+          assignments: {
+            where: { status: "active" },
+            select: {
+              id: true, fromDate: true, gangName: true, projectId: true,
+              project: { select: { id: true, name: true, code: true } },
+            },
+          },
+        },
+        orderBy: { displayName: "asc" },
+        take: 25,
+      });
+      return { persons };
+    }),
+
+  /** Cross-project person history (assignments, advances, payroll, leave). */
+  getPersonHistory: projectProcedure("member")
+    .input(z.object({ personId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return getPersonHistory(db, input.personId);
     }),
 
   /** Update assignment terms and/or the person's identity fields. */
@@ -280,6 +489,41 @@ export const hrRouter = router({
         data: { status: "ended", toDate: new Date(), endReason: "other" },
       });
       return { ok: true };
+    }),
+
+  /**
+   * Merge a duplicate person into a primary one (org-admin action).
+   * Dedupe is surfaced, never auto-applied: every referencing row is
+   * re-pointed, the duplicate is marked mergedIntoId, nothing is
+   * destroyed. Same-payroll-run collisions fail loud (service).
+   */
+  mergePersons: projectProcedure("member")
+    .input(
+      z.object({
+        primaryId: z.string(),
+        duplicateId: z.string(),
+        reason: z.string().optional().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
+      // Merging rewrites org-wide workforce history — an org-admin action.
+      if (!isOrgAdmin(ctx.user)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization admin access required to merge person records." });
+      }
+
+      return db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+        return mergePersons(tx, {
+          organizationId: ctx.user.organizationId!,
+          primaryId: input.primaryId,
+          duplicateId: input.duplicateId,
+          reason: input.reason,
+          actorId: ctx.user.id,
+        });
+      });
     }),
 
   /** Get attendance for all active workers on a specific date (YYYY-MM-DD). */
@@ -355,10 +599,16 @@ export const hrRouter = router({
             remarks: z.string().optional().nullable(),
           })
         ),
+        // Audited escape hatch for the cross-project daily-capacity check
+        // (a person genuinely split across two sites on one day).
+        overrideReason: z.string().optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Organization context required." });
+      }
 
       // Verify all assignment ids belong to input.projectId to prevent
       // cross-project attendance overwrites
@@ -366,15 +616,31 @@ export const hrRouter = router({
       const validAssignments = await db.projectStaffAssignment.findMany({
        take: 1000, // bounded (pagination sweep) — see src/lib/pagination.ts
         where: { projectId: input.projectId, id: { in: assignmentIds }, status: "active" },
-        select: { id: true },
+        select: { id: true, personId: true },
       });
       const validIdSet = new Set(validAssignments.map((a) => a.id));
-      const validRecords = input.records.filter((r) => validIdSet.has(r.assignmentId));
+      const personByAssignment = new Map(validAssignments.map((a) => [a.id, a.personId]));
+      const validRecords = input.records
+        .filter((r) => validIdSet.has(r.assignmentId))
+        .map((r) => ({ ...r, personId: personByAssignment.get(r.assignmentId)! }));
 
       const targetDate = new Date(`${input.date}T00:00:00.000Z`);
 
       await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3a/b/c tables are FORCE-scoped
+
+        // Cross-project daily capacity (ADR-0005) — owned by the
+        // workforce service, exact against the post-write state.
+        await assertBulkDailyCapacity(tx, {
+          date: targetDate,
+          records: validRecords.map((r) => ({
+            personId: r.personId,
+            assignmentId: r.assignmentId,
+            status: r.status,
+          })),
+          overrideReason: input.overrideReason,
+        });
+
         for (const record of validRecords) {
           await tx.staffAttendance.upsert({
             where: {

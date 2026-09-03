@@ -16,6 +16,8 @@ import {
   Edit2,
   Trash2,
   RefreshCw,
+  ArrowLeftRight,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,6 +25,8 @@ import { formatNpr } from "@/lib/currency";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 import { AddWorkerDialog } from "../dialogs/add-worker-dialog";
+import { TransferWorkerDialog } from "../dialogs/transfer-worker-dialog";
+import { PersonHistoryDialog } from "../dialogs/person-history-dialog";
 
 export function StaffDirectoryTab({
   projectId,
@@ -38,6 +42,9 @@ export function StaffDirectoryTab({
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<any | null>(null);
+  // Transfer / re-hire and read-only history are mounted per worker.
+  const [transferWorker, setTransferWorker] = useState<any | null>(null);
+  const [historyWorker, setHistoryWorker] = useState<any | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -167,29 +174,53 @@ export function StaffDirectoryTab({
       header: "Actions",
       align: "right",
       render: (_, worker) => {
-        if (!canWrite) return null;
         return (
           <div className="flex items-center justify-end gap-1">
+            {/* Org-wide person history — a member-level read (Phase D). */}
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => {
-                setEditingWorker(worker);
-                setAddOpen(true);
-              }}
+              onClick={() => setHistoryWorker(worker)}
               className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+              title="History"
             >
-              <Edit2 className="h-3 w-3" />
+              <History className="h-3 w-3" />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => deleteMut.mutate({ itemId: worker.id })}
-              disabled={deleteMut.isPending}
-              className="h-6 w-6 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {canWrite && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setTransferWorker(worker)}
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  title="Transfer / Re-hire"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingWorker(worker);
+                    setAddOpen(true);
+                  }}
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                  title="Edit"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => deleteMut.mutate({ itemId: worker.id })}
+                  disabled={deleteMut.isPending}
+                  className="h-6 w-6 p-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                  title="Remove"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         );
       },
@@ -318,6 +349,24 @@ export function StaffDirectoryTab({
           setEditingWorker(null);
         }}
       />
+
+      {transferWorker && (
+        <TransferWorkerDialog
+          projectId={projectId}
+          worker={transferWorker}
+          onClose={() => setTransferWorker(null)}
+          onSuccess={() => utils.hr.list.invalidate({ projectId })}
+        />
+      )}
+
+      {historyWorker && (
+        <PersonHistoryDialog
+          projectId={projectId}
+          personId={historyWorker.personId}
+          personName={historyWorker.name}
+          onClose={() => setHistoryWorker(null)}
+        />
+      )}
     </div>
   );
 }

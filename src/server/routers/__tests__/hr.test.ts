@@ -345,7 +345,13 @@ describe("hr.bulkLogAttendance", () => {
 
   it("upserts each record against the assignmentId_date unique key at UTC midnight", async () => {
     member("engineer");
-    anyDb.projectStaffAssignment.findMany.mockResolvedValue([{ id: "a-1" }, { id: "a-2" }]);
+    // Two DIFFERENT persons: the cross-project daily-capacity gate sums
+    // effective days per person, so one full day + one half-day for the
+    // same person would now (correctly) be rejected.
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-1", personId: "per-1" },
+      { id: "a-2", personId: "per-2" },
+    ]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     const res = await caller.bulkLogAttendance(input);
@@ -373,7 +379,7 @@ describe("hr.bulkLogAttendance", () => {
   it("drops assignment IDs that do not belong to the project (cross-project overwrite guard)", async () => {
     member("engineer");
     // only a-1 belongs to p-1; "foreign" belongs to another project/org
-    anyDb.projectStaffAssignment.findMany.mockResolvedValue([{ id: "a-1" }]);
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([{ id: "a-1", personId: "per-1" }]);
 
     const caller = createCaller(hrRouter, ENGINEER);
     await caller.bulkLogAttendance({
@@ -595,5 +601,287 @@ describe("hr staff advances", () => {
     const res = await caller.deleteStaffAdvance({ projectId: "p-1", advanceId: "adv-1" });
     expect(res.success).toBe(true);
     expect(anyDb.staffAdvance.delete).toHaveBeenCalledWith({ where: { id: "adv-1" } });
+  });
+});
+
+// ─── Phase D: workforce service endpoints ───────────────────────────────────
+
+describe("hr.attach (existing person → new assignment)", () => {
+  it("FORBIDDENs callers without write access", async () => {
+    member(null);
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.attach({ projectId: "p-1", personId: "per-1" }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.projectStaffAssignment.create).not.toHaveBeenCalled();
+  });
+
+  it("NOT_FOUNDs persons from another organization (org-scoped lookup)", async () => {
+    member("engineer");
+    anyDb.person.findFirst.mockResolvedValue(null);
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.attach({ projectId: "p-1", personId: "per-foreign" }),
+      "NOT_FOUND",
+    );
+    expect(anyDb.projectStaffAssignment.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unacknowledged overlap with the person's other active assignment", async () => {
+    member("engineer");
+    anyDb.person.findFirst.mockResolvedValue({ id: "per-1", displayName: "Ram", status: "active" });
+    // workforce service finds the person's concurrent engagement elsewhere
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-9", projectId: "p-2", status: "active", fromDate: new Date("2026-01-01"), toDate: null },
+    ]);
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.attach({ projectId: "p-1", personId: "per-1" }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.projectStaffAssignment.create).not.toHaveBeenCalled();
+  });
+
+  it("creates the assignment when the overlap is acknowledged with an override reason", async () => {
+    member("engineer");
+    anyDb.person.findFirst.mockResolvedValue({ id: "per-1", displayName: "Ram", status: "active" });
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-9", projectId: "p-2", status: "active", fromDate: new Date("2026-01-01"), toDate: null },
+    ]);
+    anyDb.projectStaffAssignment.create.mockResolvedValue({ id: "a-new" });
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.attach({
+      projectId: "p-1",
+      personId: "per-1",
+      overrideReason: "shared worker, alternating weeks",
+    });
+
+    expect(res.assignment).toMatchObject({ id: "a-new", personId: "per-1", name: "Ram" });
+    const data = anyDb.projectStaffAssignment.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ projectId: "p-1", personId: "per-1" });
+  });
+});
+
+describe("hr.transfer (end + chain a new engagement)", () => {
+  it("requires write access on the CURRENT project and validates the target org", async () => {
+    member(null);
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1", projectId: "p-1", status: "active",
+    });
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.transfer({ itemId: "a-1", projectId: "p-1", fromDate: "2026-05-01" }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.projectStaffAssignment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("FORBIDDENs transfers to a project outside the organization", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1", projectId: "p-1", status: "active",
+    });
+    anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-OTHER" });
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.transfer({
+        itemId: "a-1", projectId: "p-1", newProjectId: "p-2", fromDate: "2026-05-01",
+      }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.projectStaffAssignment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("ends the old engagement and creates the chained successor in one transaction", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findUnique.mockResolvedValue({
+      id: "a-1", projectId: "p-1", status: "active",
+    });
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([]); // no overlap on target
+    anyDb.projectStaffAssignment.updateMany.mockResolvedValue({ count: 1 });
+    anyDb.projectStaffAssignment.create.mockResolvedValue({ id: "a-2" });
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.transfer({
+      itemId: "a-1",
+      projectId: "p-1",
+      fromDate: "2026-05-01",
+      dailyWage: 1500,
+    });
+
+    expect(res).toEqual({ endedAssignmentId: "a-1", createdAssignmentId: "a-2" });
+    const data = anyDb.projectStaffAssignment.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ sourceAssignmentId: "a-1", projectId: "p-1", dailyWage: 1500 });
+  });
+});
+
+describe("hr.mergePersons (org-admin dedupe)", () => {
+  it("FORBIDDENs non-org-admin callers", async () => {
+    member("engineer"); // project role fine, org role is "member"
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.mergePersons({ projectId: "p-1", primaryId: "per-1", duplicateId: "per-2" }),
+      "FORBIDDEN",
+    );
+    expect(anyDb.person.update).not.toHaveBeenCalled();
+  });
+
+  it("re-points rows and marks the duplicate merged for an org admin", async () => {
+    const ADMIN = buildUser({ orgRole: "owner" });
+    member("engineer");
+    anyDb.person.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(
+        args.where.id === "per-1"
+          ? { id: "per-1", organizationId: "org-1", linkedUserId: null, mergedIntoId: null }
+          : { id: "per-2", organizationId: "org-1", linkedUserId: null, mergedIntoId: null },
+      ),
+    );
+    anyDb.payrollPersonRecord.findMany.mockResolvedValue([]);
+    anyDb.leaveBalance.findMany.mockResolvedValue([]);
+
+    const caller = createCaller(hrRouter, ADMIN);
+    const res = await caller.mergePersons({
+      projectId: "p-1",
+      primaryId: "per-1",
+      duplicateId: "per-2",
+      reason: "duplicate entry",
+    });
+
+    expect(res.merged).toBe(true);
+    const mark = anyDb.person.update.mock.calls.find(
+      (c: any) => c[0].where.id === "per-2" && c[0].data.mergedIntoId === "per-1",
+    );
+    expect(mark).toBeTruthy();
+  });
+});
+
+describe("hr.findPersons + getPersonHistory (org directory)", () => {
+  it("findPersons scopes the search to the caller's organization", async () => {
+    member("engineer");
+    anyDb.person.findMany.mockResolvedValue([]);
+    const caller = createCaller(hrRouter, ENGINEER);
+    await caller.findPersons({ projectId: "p-1", q: "Ram" });
+
+    const where = anyDb.person.findMany.mock.calls[0][0].where;
+    expect(where.organizationId).toBe("org-1");
+    expect(where.mergedIntoId).toBeNull();
+    expect(where.OR[0].displayName).toMatchObject({ contains: "Ram", mode: "insensitive" });
+  });
+
+  it("getPersonHistory requires project membership and returns the aggregate", async () => {
+    member("engineer");
+    anyDb.person.findUnique.mockResolvedValue({ id: "per-1", displayName: "Ram", mergedInto: null });
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([]);
+    anyDb.staffAdvance.findMany.mockResolvedValue([
+      { amount: 4000, recoveredAmount: 1000 },
+    ]);
+    anyDb.payrollPersonRecord.findMany.mockResolvedValue([]);
+    anyDb.leaveRequest.findMany.mockResolvedValue([]);
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.getPersonHistory({ projectId: "p-1", personId: "per-1" });
+    expect(res.person.id).toBe("per-1");
+    expect(res.advances.outstandingTotal).toBe(3000);
+  });
+});
+
+describe("hr.bulkLogAttendance daily-capacity gate (Phase D)", () => {
+  const bulkInput = {
+    projectId: "p-1",
+    date: "2026-05-01",
+    records: [
+      { assignmentId: "a-1", status: "present" as const, hours: 8, overtime: 0 },
+      { assignmentId: "a-2", status: "present" as const, hours: 8, overtime: 0 },
+    ],
+  };
+
+  it("rejects a batch that puts one person on two full days (no override)", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-1", personId: "per-1" },
+      { id: "a-2", personId: "per-1" }, // same person, two concurrent assignments
+    ]);
+    anyDb.staffAttendance.findMany.mockResolvedValue([]); // no outside rows
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(caller.bulkLogAttendance(bulkInput), "BAD_REQUEST");
+    expect(anyDb.staffAttendance.upsert).not.toHaveBeenCalled();
+  });
+
+  it("accepts the batch with an override reason and still upserts every row", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-1", personId: "per-1" },
+      { id: "a-2", personId: "per-1" },
+    ]);
+    anyDb.staffAttendance.findMany.mockResolvedValue([]);
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.bulkLogAttendance({ ...bulkInput, overrideReason: "flood response" });
+    expect(res.success).toBe(true);
+    expect(anyDb.staffAttendance.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts OTHER-project attendance rows for the same person on the date", async () => {
+    member("engineer");
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-1", personId: "per-1" },
+    ]);
+    // The person is already marked present on another project's assignment.
+    anyDb.staffAttendance.findMany.mockResolvedValue([
+      { status: "present", assignment: { personId: "per-1" } },
+    ]);
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    await expectTRPCError(
+      caller.bulkLogAttendance({
+        projectId: "p-1",
+        date: "2026-05-01",
+        records: [{ assignmentId: "a-1", status: "present", hours: 8, overtime: 0 }],
+      }),
+      "BAD_REQUEST",
+    );
+    expect(anyDb.staffAttendance.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("hr.create duplicate detection (Phase D)", () => {
+  it("returns duplicateSuggestions when the phone matches an existing org person", async () => {
+    member("engineer");
+    anyDb.person.findMany.mockResolvedValue([
+      { id: "per-1", displayName: "Ram", phone: "9800000000", pan: null, idNumber: null, status: "active" },
+    ]);
+    anyDb.person.create.mockResolvedValue({ id: "per-new", displayName: "Ram" });
+    anyDb.projectStaffAssignment.create.mockResolvedValue({ id: "a-new" });
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.create({
+      projectId: "p-1",
+      name: "Ram",
+      phone: "9800000000",
+    });
+
+    expect(res.duplicateSuggestions).toHaveLength(1);
+    expect(res.duplicateSuggestions[0].id).toBe("per-1");
+    // The where clause is org-scoped and never matches merged-away persons.
+    const where = anyDb.person.findMany.mock.calls[0][0].where;
+    expect(where.organizationId).toBe("org-1");
+    expect(where.mergedIntoId).toBeNull();
+  });
+
+  it("skips the duplicate lookup when no identity fields are provided", async () => {
+    member("engineer");
+    anyDb.person.create.mockResolvedValue({ id: "per-new", displayName: "New Guy" });
+    anyDb.projectStaffAssignment.create.mockResolvedValue({ id: "a-new" });
+
+    const caller = createCaller(hrRouter, ENGINEER);
+    const res = await caller.create({ projectId: "p-1", name: "New Guy" });
+
+    expect(res.duplicateSuggestions).toEqual([]);
+    expect(anyDb.person.findMany).not.toHaveBeenCalled();
   });
 });

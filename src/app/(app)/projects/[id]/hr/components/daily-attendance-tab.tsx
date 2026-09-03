@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { format, addDays, subDays } from "date-fns";
 import { formatNpr } from "@/lib/currency";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type AttendanceItem = {
   assignmentId: string;
@@ -44,6 +45,21 @@ type AttendanceItem = {
   isLogged: boolean;
 };
 
+// Matches the bulkLogAttendance wire input (z.input) — kept local so the
+// capacity-override retry can re-submit the exact payload that was rejected.
+type BulkLogInput = {
+  projectId: string;
+  date: string;
+  records: Array<{
+    assignmentId: string;
+    status: "present" | "absent" | "half_day" | "leave" | "overtime";
+    hours?: number;
+    overtime?: number;
+    remarks?: string | null;
+  }>;
+  overrideReason?: string | null;
+};
+
 export function DailyAttendanceTab({ projectId }: { projectId: string }) {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return format(new Date(), "yyyy-MM-dd");
@@ -51,6 +67,11 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
   const [gangFilter, setGangFilter] = useState<string>("all");
   const [items, setItems] = useState<AttendanceItem[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  // A rejected batch waiting for the user to confirm an audited override.
+  const [pendingOverride, setPendingOverride] = useState<{
+    message: string;
+    input: BulkLogInput;
+  } | null>(null);
 
   const { data, isLoading, refetch, isFetching } =
     trpc.hr.getAttendanceByDate.useQuery({
@@ -71,8 +92,30 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
       setIsDirty(false);
       refetch();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e, vars) => {
+      // Cross-project daily-capacity guard (ADR-0005): offer a ONE-shot
+      // audited override instead of a dead end. A retry that still carries
+      // an overrideReason (or fails for any other reason) falls through to
+      // the plain toast — never loops.
+      if (e.message.includes("Daily capacity exceeded") && !vars.overrideReason) {
+        setPendingOverride({ message: e.message, input: vars });
+        return;
+      }
+      toast.error(e.message);
+    },
   });
+
+  const handleOverrideConfirm = () => {
+    if (!pendingOverride) return;
+    const reasonExcerpt = pendingOverride.message
+      .replace(/^Daily capacity exceeded:\s*/, "")
+      .slice(0, 180);
+    bulkLogMut.mutate({
+      ...pendingOverride.input,
+      overrideReason: `Manual override: ${reasonExcerpt}`,
+    });
+    setPendingOverride(null);
+  };
 
   const handleDateShift = (days: number) => {
     const current = new Date(`${selectedDate}T00:00:00.000Z`);
@@ -474,6 +517,22 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
         searchPlaceholder="Search daily attendance by worker name, trade, gang..."
         searchFilterKeys={["name", "designation", "gangName", "category", "remarks"]}
       />
+
+      {/* Cross-project daily-capacity override (audited, one-shot retry) */}
+      {pendingOverride && (
+        <ConfirmDialog
+          open={Boolean(pendingOverride)}
+          onOpenChange={(open) => {
+            if (!open) setPendingOverride(null);
+          }}
+          title="Daily capacity exceeded"
+          description={`${pendingOverride.message} Log anyway with an audited override?`}
+          variant="warning"
+          confirmLabel="Log Anyway (Audited)"
+          isLoading={bulkLogMut.isPending}
+          onConfirm={handleOverrideConfirm}
+        />
+      )}
     </div>
   );
 }

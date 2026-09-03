@@ -67,7 +67,14 @@ const BASELINES = {
   // guarded bank decrements, payroll settlement JE, atomic stock writes,
   // sequence counter RETURNING). All additions are deliberate, reviewed
   // remediation — not regression. Baselines re-pinned.
-  HAND_ROLLED_AUTHZ: 458,
+  HAND_ROLLED_AUTHZ: 460,
+  // (Phase D note: +2 — hr.transfer keeps two record-level assertCanWrite
+  // calls inline: the assignment's OWN project governs (may differ from
+  // the caller's operating context) and a cross-project transfer needs a
+  // target-project write check. Neither is input-level projectId, so both
+  // legitimately stay inline per the rule above. The other new Phase D
+  // endpoints (attach/findPersons/getPersonHistory/mergePersons) ride
+  // projectProcedure — zero counted calls.)
   HAND_ROLLED_FISCAL: 44,
   // +3 (2026-09-03, Phase C): delegation.ts compares DB Decimal limits
   // against request amounts (Number() at the DB boundary — petty-cash cap
