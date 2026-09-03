@@ -1,8 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +10,7 @@ import { Plus, Inbox, ReceiptText, Users } from "lucide-react";
 import { trpc } from "@/lib/trpc-client";
 import { AddIpcDialog } from "./dialogs/add-ipc-dialog";
 import { formatNpr } from "@/lib/currency";
+import { useRouter } from "next/navigation";
 
 type Ipc = {
   id: string; number: string; period: string | null; status: string;
@@ -35,19 +35,11 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 import { AnimatedPage } from "@/components/ui/animated-page";
-import { ModuleTabs } from "@/components/module-tabs";
-
-const FIN_TABS = [
-  { label: "Payments", href: "/payments" },
-  { label: "Accounting & Day Book", href: "/accounting" },
-  { label: "IPC Certificates", href: "/ipc" },
-  { label: "Tax Summary", href: "/tax-summary" },
-  { label: "Cash Flow", href: "/cash-flow" },
-  { label: "Budget vs Actual", href: "/budget-variance" },
-];
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function IpcPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
@@ -59,35 +51,24 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
 
   return (
     <>
-      <ModuleTabs projectId={id} tabs={FIN_TABS} />
-      <AnimatedPage className="space-y-4 pb-8">
-        {/* Single-Row Action & Summary Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--background)]">
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <span className="text-muted-foreground">
-              Total Certificates: <span className="font-bold text-foreground font-matrix">{allIpcs.length}</span>
-            </span>
-            {allIpcs.length > 0 && (
-              <>
-                <div className="h-3 w-[1px] bg-[var(--border)]" />
-                <span className="text-muted-foreground">
-                  Certified: <span className="font-bold text-emerald-700 font-matrix">{allIpcs.filter(i => i.status === "certified" || i.status === "paid").length}</span>
-                </span>
-              </>
-            )}
+      <AnimatedPage className="space-y-3 pb-8">
+        <header className="flex min-h-10 items-center justify-between gap-3 border-b border-border/75 pb-2">
+          <div>
+            <h1 className="text-sm font-semibold text-foreground">IPC certificates</h1>
+            <p className="text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">Approved bill register · {allIpcs.length} recorded</p>
           </div>
 
           {canWrite && (
             <Dialog open={addOpen} onOpenChange={setAddOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="amber-cta-btn h-8 px-3.5 text-xs font-bold text-white rounded-lg shadow-sm gap-1.5 font-sans">
-                  <Plus className="h-3.5 w-3.5" /> + New IPC (नयाँ बिल)
+                <Button size="sm" className="h-7 gap-1.5 text-[10px]">
+                  <Plus className="h-3.5 w-3.5" /> Record IPC
                 </Button>
               </DialogTrigger>
               <AddIpcDialog projectId={id} onDone={() => setAddOpen(false)} />
             </Dialog>
           )}
-        </div>
+        </header>
 
         {isLoading ? <Skeleton className="h-64 rounded-xl bg-muted" /> : !allIpcs.length ? (
           <Card className="flex flex-col items-center gap-3 p-12 text-center bg-card border-[var(--border)] shadow-xs rounded-xl">
@@ -95,53 +76,7 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
             <p className="text-xs text-muted-foreground">No Interim Payment Certificates recorded yet.</p>
           </Card>
         ) : (
-        <div className="space-y-3">
-          {allIpcs.map((ipc) => (
-            <Link key={ipc.id} href={`/projects/${id}/ipc/${ipc.id}`}>
-              <Card className="bg-card border-[var(--border)] shadow-xs hover:border-[var(--primary)] transition-all rounded-xl">
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info/10 text-[var(--primary)] border border-[#bae6fd]">
-                    <ReceiptText className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-muted-foreground">{ipc.number}</span>
-                      <Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge>
-                      {ipc.period && <span className="text-xs text-muted-foreground font-mono">{ipc.period}</span>}
-                      {ipc.subcontractor && (
-                        <Badge variant="outline" className="bg-info/10 text-[var(--primary)] border-[#bae6fd] gap-1 text-[11px] font-normal py-0.5">
-                          <Users className="h-3 w-3" /> Subcontractor: {ipc.subcontractor.name}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
-                      <span className="text-muted-foreground">Gross: <span className="font-bold text-foreground font-mono">{formatNpr(ipc.grossAmount)}</span></span>
-                      {(ipc.vatAmount ?? 0) > 0 && (
-                        <span className="text-amber-600 dark:text-amber-400 font-mono">
-                          +VAT ({ipc.vatPercent ?? 0}%): {formatNpr(ipc.vatAmount ?? 0)}
-                        </span>
-                      )}
-                      <span className="text-muted-foreground font-mono">Retention: {formatNpr(ipc.retentionAmount)}</span>
-                      <span className="text-muted-foreground font-mono">Advance: {formatNpr(ipc.advanceRecovery)}</span>
-                      {(ipc.tdsAmount ?? 0) > 0 && (
-                        <span className="text-red-600 dark:text-red-400 font-mono">
-                          −TDS ({ipc.tdsPercent ?? 0}%): {formatNpr(ipc.tdsAmount ?? 0)}
-                        </span>
-                      )}
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
-                        Final: {formatNpr(ipc.finalPayable ?? ipc.netPayable)}
-                      </span>
-                    </div>
-
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge variant="outline" className="border-[var(--border)] text-muted-foreground font-mono">{ipc._count.items} items</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <Table><TableHeader><TableRow><TableHead>Certificate</TableHead><TableHead>Period / party</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Gross</TableHead><TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Payable</TableHead><TableHead className="text-right">Items</TableHead></TableRow></TableHeader><TableBody>{allIpcs.map((ipc) => <TableRow key={ipc.id} className="cursor-pointer" onClick={() => router.push(`/projects/${id}/ipc/${ipc.id}`)}><TableCell><span className="flex items-center gap-2 font-semibold"><ReceiptText className="h-3.5 w-3.5 text-primary" />{ipc.number}</span></TableCell><TableCell><span className="block text-muted-foreground">{ipc.period || "—"}</span>{ipc.subcontractor && <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"><Users className="h-3 w-3" />{ipc.subcontractor.name}</span>}</TableCell><TableCell><Badge variant="secondary" className={`capitalize ${STATUS_STYLES[ipc.status] ?? STATUS_STYLES.draft}`}>{ipc.status}</Badge></TableCell><TableCell className="text-right">{formatNpr(ipc.grossAmount)}</TableCell><TableCell className="text-right text-muted-foreground">{formatNpr(ipc.retentionAmount + ipc.advanceRecovery + (ipc.tdsAmount ?? 0))}</TableCell><TableCell className="text-right font-semibold text-primary">{formatNpr(ipc.finalPayable ?? ipc.netPayable)}</TableCell><TableCell className="text-right text-muted-foreground">{ipc._count.items}</TableCell></TableRow>)}</TableBody></Table>
         )}
       </AnimatedPage>
     </>
