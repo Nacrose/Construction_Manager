@@ -39,10 +39,18 @@ jobs:
         run: npx eslint . --max-warnings 1200
 
 
-      - name: Typecheck
+      - name: Typecheck (fresh Prisma client + route types)
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
-        run: npx tsc --noEmit
+        # Regenerate the client + Decimal patch + route types BEFORE tsc so the
+        # check is never fooled by a stale client or a stale/missing .next —
+        # tsc is authoritative over page/route contract errors here (they would
+        # otherwise only surface at the slow `next build` below).
+        run: |
+          npx prisma generate
+          node scripts/patch-prisma-decimal-types.mjs
+          npx next typegen
+          npx tsc --noEmit
 
       - name: Unit tests
         run: npm test

@@ -506,6 +506,27 @@ describe("mergePersons", () => {
     );
     expect(unlink).toBeTruthy();
   });
+
+  it("REJECTS a merge that leaves the survivor with two concurrent active assignments on one project", async () => {
+    anyDb.person.findUnique.mockImplementation((args: any) =>
+      Promise.resolve(args.where.id === "per-1" ? primary : duplicate));
+    happyDb();
+    // After both people's assignments are re-pointed onto the survivor, the
+    // person holds two ACTIVE, overlapping stints on the SAME project — the
+    // schema has no [projectId, personId] unique by design, so this must be
+    // caught by the merge's own post-re-point check (ADR-0005 §2).
+    anyDb.projectStaffAssignment.findMany.mockResolvedValue([
+      { id: "a-1", projectId: "p-1", status: "active", fromDate: new Date("2026-01-01T00:00:00.000Z"), toDate: null },
+      { id: "a-2", projectId: "p-1", status: "active", fromDate: new Date("2026-02-01T00:00:00.000Z"), toDate: null },
+    ]);
+
+    await expect(
+      mergePersons(tx, { organizationId: "org-1", primaryId: "per-1", duplicateId: "per-2", actorId: "u" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining("concurrent active assignments"),
+    });
+  });
 });
 
 // ─── history ────────────────────────────────────────────────────────────────

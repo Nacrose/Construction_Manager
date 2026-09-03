@@ -3993,6 +3993,12 @@ model HeadOfficeExpense {
   voucherNo      String?
   scannedBillUrl String?
   notes          String?
+  // Auto-posted cross-entity link (e.g. bank-guarantee commission). Follows the
+  // codebase's source/sourceRefId/sourceRefType convention so a linked Day Book
+  // row is found by FK, not by fragile text matching on `notes`/`voucherNo`.
+  source         String?
+  sourceRefId    String?
+  sourceRefType  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -4000,6 +4006,7 @@ model HeadOfficeExpense {
   bankAccount  CompanyBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, date])
+  @@index([source, sourceRefId])
 }
 
 // ═══════════════════════════════════════════════════════════════

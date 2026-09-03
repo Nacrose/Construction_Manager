@@ -4,9 +4,34 @@
  * When a fiscal year is locked, all financial records in that period
  * become read-only. Call `assertNotLocked` at the top of every
  * financial mutation to enforce this.
+ *
+ * RLS note: FiscalYearLock is FORCE'd by Row-Level Security, and the
+ * enforcement path must see the org's lock rows. The checks below run
+ * inside a short transaction pinned with `withOrgContext` (transaction-
+ * scoped GUC) rather than the pooled `db` client's session context —
+ * `setOrgContext` is best-effort and pool rotation drops it, which would
+ * make the RLS filter evaluate `organizationId = NULL` and return zero
+ * rows, letting a mutation into a locked period through silently.
  */
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
+import { withOrgContext } from "./rls";
+import type { DbTxClient } from "@/lib/db";
+
+/**
+ * Run a read against an RLS-FORCE'd table under a transaction-scoped org
+ * context, so the pool's session-level GUC being unset/stale cannot hide
+ * the org's rows from the check.
+ */
+async function readInOrgScope<T>(
+  organizationId: string,
+  fn: (tx: DbTxClient) => Promise<T>,
+): Promise<T> {
+  return db.$transaction(async (tx) => {
+    await withOrgContext(tx, organizationId, false);
+    return fn(tx);
+  });
+}
 
 /**
  * Check if a given date falls within a locked fiscal year for the
@@ -22,15 +47,17 @@ export async function assertNotLocked(
 ): Promise<void> {
   if (!organizationId) return; // no org = no lock to check
 
-  const lockedFiscalYear = await db.fiscalYearLock.findFirst({
-    where: {
-      organizationId,
-      isLocked: true,
-      startDate: { lte: date },
-      endDate: { gte: date },
-    },
-    select: { fiscalYear: true },
-  });
+  const lockedFiscalYear = await readInOrgScope(organizationId, (tx) =>
+    tx.fiscalYearLock.findFirst({
+      where: {
+        organizationId,
+        isLocked: true,
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+      select: { fiscalYear: true },
+    }),
+  );
 
   if (lockedFiscalYear) {
     throw new TRPCError({
@@ -48,22 +75,26 @@ export async function getActiveLock(
   organizationId: string,
   date: Date = new Date(),
 ) {
-  return db.fiscalYearLock.findFirst({
-    where: {
-      organizationId,
-      isLocked: true,
-      startDate: { lte: date },
-      endDate: { gte: date },
-    },
-  });
+  return readInOrgScope(organizationId, (tx) =>
+    tx.fiscalYearLock.findFirst({
+      where: {
+        organizationId,
+        isLocked: true,
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+    }),
+  );
 }
 
 /**
  * List all fiscal year locks for an organization.
  */
 export async function listLocks(organizationId: string) {
-  return db.fiscalYearLock.findMany({
-    where: { organizationId },
-    orderBy: { startDate: "desc" },
-  });
+  return readInOrgScope(organizationId, (tx) =>
+    tx.fiscalYearLock.findMany({
+      where: { organizationId },
+      orderBy: { startDate: "desc" },
+    }),
+  );
 }

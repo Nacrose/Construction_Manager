@@ -163,8 +163,11 @@ describe("punchList.updateStatus", () => {
 
     const data = anyDb.punchItem.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe("in_progress");
-    expect(data.resolvedDate).toBeNull();
-    expect(data.verifiedDate).toBeNull();
+    // updateMany is PARTIAL — resolution fields are untouched (absent from the
+    // payload), not re-stamped as null. A fresh item's resolved*/verified*
+    // stay at their persisted (null) values automatically.
+    expect(data).not.toHaveProperty("resolvedDate");
+    expect(data).not.toHaveProperty("verifiedDate");
   });
 
   it("stamps resolvedBy (defaulting to the caller's name) and resolvedDate on entry to resolved", async () => {
@@ -193,8 +196,11 @@ describe("punchList.updateStatus", () => {
     expect(data.status).toBe("verified");
     expect(data.verifiedBy).toBe("QA Lead");
     expect(data.verifiedDate).toBeInstanceOf(Date);
-    expect(data.resolvedBy).toBe("Site Eng"); // not overwritten
-    expect(data.resolvedDate).toBe(resolvedAt);
+    // updateMany is PARTIAL: the resolution record is preserved because it is
+    // NOT in the update payload — it is never re-stamped or overwritten.
+    expect(data).not.toHaveProperty("resolvedBy");
+    expect(data).not.toHaveProperty("resolvedDate");
+    expect(data).not.toHaveProperty("resolvedNotes");
   });
 
   /**

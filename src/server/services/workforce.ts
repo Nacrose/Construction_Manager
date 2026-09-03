@@ -407,6 +407,60 @@ export async function transferAssignment(
  *    the caller must unlink one first (the duplicate's link is dropped
  *    only when the primary has none).
  */
+/**
+ * Reject a same-project concurrent-assignment overlap for a person.
+ *
+ * ADR-0005 §2: a person may hold assignments on DIFFERENT projects
+ * concurrently (legitimate shared-worker arrangement), but a SAME-project
+ * overlap is always a data error and is rejected outright (never merely
+ * warned). `assertAssignmentOverlapAcked` enforces this at assignment
+ * creation/edit time; a merge needs its own post-re-point pass because the
+ * duplicate's assignments were folded onto the survivor in this call, and
+ * the schema (deliberately) has no [projectId, personId] unique to catch
+ * it.
+ */
+async function assertNoSameProjectAssignmentOverlap(
+  tx: Executor,
+  personId: string,
+): Promise<void> {
+  const active = await tx.projectStaffAssignment.findMany({
+    where: { personId, status: "active" },
+    select: { id: true, projectId: true, fromDate: true, toDate: true },
+    take: 1000,
+  });
+
+  const byProject = new Map<string, typeof active>();
+  for (const a of active) {
+    const arr = byProject.get(a.projectId) ?? [];
+    arr.push(a);
+    byProject.set(a.projectId, arr);
+  }
+
+  for (const [projectId, rows] of byProject) {
+    if (rows.length < 2) continue;
+    for (let i = 0; i < rows.length; i++) {
+      for (let j = i + 1; j < rows.length; j++) {
+        const a = rows[i];
+        const b = rows[j];
+        // Intervals overlap when each starts before/at the other ends; a null
+        // toDate means "currently engaged" (open-ended).
+        const overlaps =
+          (a.toDate === null || b.fromDate <= a.toDate) &&
+          (b.toDate === null || a.fromDate <= b.toDate);
+        if (overlaps) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              `Cannot merge: the surviving person now holds two concurrent active assignments on project ${projectId} ` +
+              `(${a.fromDate.toISOString()} — ${a.toDate?.toISOString() ?? "open"} and ` +
+              `${b.fromDate.toISOString()} — ${b.toDate?.toISOString() ?? "open"}). Reconcile before merging.`,
+          });
+        }
+      }
+    }
+  }
+}
+
 export async function mergePersons(
   tx: Executor,
   args: { organizationId: string; primaryId: string; duplicateId: string; reason?: string | null; actorId: string },
@@ -450,6 +504,15 @@ export async function mergePersons(
   rePointed.assignments = (await tx.projectStaffAssignment.updateMany({
     where: { personId: duplicateId }, data: { personId: primaryId },
   })).count;
+
+  // ADR-0005 §2: the schema intentionally has no [projectId, personId]
+  // unique (a person may hold sequential stints on one project), so merging
+  // two people who each independently held an active, overlapping assignment
+  // to the SAME project would silently leave the survivor with duplicate
+  // concurrent engagements — a same-project overlap is always a data error
+  // and must be rejected (not just warned). The payroll-collision check above
+  // guards one unique; this guards the overlap rule for assignments.
+  await assertNoSameProjectAssignmentOverlap(tx, primaryId);
   rePointed.advances = (await tx.staffAdvance.updateMany({
     where: { personId: duplicateId }, data: { personId: primaryId },
   })).count;

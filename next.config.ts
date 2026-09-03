@@ -77,6 +77,13 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true,
+  // Instant and snappy tab navigation: retain visited dynamic routes in client cache
+  experimental: {
+    staleTimes: {
+      dynamic: 60,
+      static: 300,
+    },
+  },
   // Office-use internal tool — don't advertise the framework version.
   poweredByHeader: false,
   async headers() {

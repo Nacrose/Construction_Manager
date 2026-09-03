@@ -774,7 +774,6 @@ export const requisitionRouter = router({
         userName: ctx.user.name,
         projectId: input.projectId,
         allowedCurrentStates: ["pending_approval", "submitted"],
-        additionalData: { rejectionReason: null },
         skipEventEmit: true, // requisition has no event consumers on this path
       });
 

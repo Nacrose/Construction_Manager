@@ -5,11 +5,11 @@ import { trpc } from "@/lib/trpc-client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Tag, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import AdminMaterialCatalogPage from "../material-catalog/page";
+import { AdminMaterialCatalogPage } from "../material-catalog/admin-material-catalog";
 import { CatalogRatesLibrary } from "@/app/(app)/projects/[id]/boq/components/catalog-rates-library";
 import { UncatalogedReviewTab } from "../material-catalog/components/uncataloged-review-tab";
 
-export function AdminUncatalogedBadge() {
+function AdminUncatalogedBadge() {
   const { data } = trpc.uncatalogedMaterial.stats.useQuery({ level: "global" });
   if (!data?.pending) return null;
   return (

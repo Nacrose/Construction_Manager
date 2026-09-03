@@ -6,7 +6,7 @@ import { ModuleTabs } from "@/components/module-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Tag } from "lucide-react";
 import { trpc } from "@/lib/trpc-client";
-import AdminMaterialCatalogPage from "@/app/(app)/admin/material-catalog/page";
+import { AdminMaterialCatalogPage } from "@/app/(app)/admin/material-catalog/admin-material-catalog";
 import { CatalogRatesLibrary } from "../boq/components/catalog-rates-library";
 
 const RES_TABS = [

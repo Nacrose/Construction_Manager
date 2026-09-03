@@ -397,6 +397,9 @@ export const bankGuaranteeRouter = router({
                 bankAccountId: input.bankAccountId,
                 voucherNo: `BG-COMM-${input.guaranteeNumber.trim()}`,
                 notes: `Auto-posted from Bank Guarantee register (BG_ID: ${bg.id})`,
+                source: "bank_guarantee_commission",
+                sourceRefId: bg.id,
+                sourceRefType: "BankGuarantee",
               },
             });
 
@@ -670,14 +673,13 @@ export const bankGuaranteeRouter = router({
           },
         });
 
-        // Find any existing linked Day Book expense
+        // Find any existing linked Day Book expense (by FK link, not the
+        // fragile old text match on notes/voucherNo).
         const linkedExpense = await tx.headOfficeExpense.findFirst({
           where: {
             organizationId: targetOrg,
-            OR: [
-              { notes: { contains: `BG_ID: ${id}` } },
-              { voucherNo: `BG-COMM-${existing.guaranteeNumber}` },
-            ],
+            source: "bank_guarantee_commission",
+            sourceRefId: id,
           },
         });
 
@@ -745,6 +747,9 @@ export const bankGuaranteeRouter = router({
               bankAccountId,
               voucherNo: `BG-COMM-${newGuarNumber}`,
               notes: `Auto-posted from Bank Guarantee register (BG_ID: ${id})`,
+              source: "bank_guarantee_commission",
+              sourceRefId: id,
+              sourceRefType: "BankGuarantee",
             },
           });
 
@@ -790,10 +795,8 @@ export const bankGuaranteeRouter = router({
           const linkedExpense = await tx.headOfficeExpense.findFirst({
             where: {
               organizationId: targetOrg,
-              OR: [
-                { notes: { contains: `BG_ID: ${input.id}` } },
-                { voucherNo: `BG-COMM-${existing.guaranteeNumber}` },
-              ],
+              source: "bank_guarantee_commission",
+              sourceRefId: input.id,
             },
           });
 

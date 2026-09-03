@@ -73,7 +73,12 @@ export async function executeAction(
       projectId: ctx.projectId ?? undefined,
       notes: input.notes ?? null,
       additionalData: input.additionalData,
-      skipEventEmit: input.skipEventEmit ?? true,
+      // Keep the primitive's default (emit) — the engine's typed entry
+      // point must NOT silently invert it. transitionEntityState emits the
+      // lifecycle event unless a caller explicitly opts out; `?? false`
+      // preserves that contract so a new action follows the codebase-wide
+      // "emit by default, like every other transition" rule.
+      skipEventEmit: input.skipEventEmit ?? false,
     });
   } catch (err) {
     // Enrich lifecycle failures with the ACTION vocabulary — the caller

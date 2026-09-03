@@ -1,6 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { ENGINE_ACTIONS } from "@/server/engine/actions";
+import { RESERVED_KEYS } from "./state-machine";
+
+// Importing the engine registry transitively loads outbox.ts, which imports
+// the real @/lib/db (a live Prisma client). The ratchet only needs the
+// static ENGINE_ACTIONS table, so stub the db module — same pattern as
+// src/server/engine/__tests__/engine.test.ts.
+vi.mock("@/lib/db", () => ({ db: {}, getFreshDb: () => ({}) }));
 
 /**
  * ENGINE RATCHET — server-side security pipeline counts (Phase E).
@@ -199,5 +207,116 @@ describe("Engine ratchet — declarative adoption floors (grow-only)", () => {
       `executeAction adoption dropped (${count} < ${BASELINES.DECLARATIVE_FLOORS.EXECUTE_ACTIONS}). ` +
         "Controlled transitions must speak ACTIONS (ADR-0006 §3), not raw target states."
     ).toBeGreaterThanOrEqual(BASELINES.DECLARATIVE_FLOORS.EXECUTE_ACTIONS);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// SIDE-EFFECT RATCHET (ADR-0006 §3) — declared effects must be real.
+//
+// The registry's `sideEffects` array is "documentation + test hooks"
+// (actions.ts). This block IS those hooks: every token an action declares
+// must have a genuine call site at the router that runs the action. A
+// declared token with no implementation is a silent lie — e.g. removing
+// the createJournalEntry call from site-expense.approve while keeping
+// `sideEffects: ["expense_je"]`.
+//
+// Rules:
+//  - Adding a side-effect token to actions.ts REQUIRES adding its entry
+//    here (token → { file, pattern }). The map may only grow alongside the
+//    registry; a declared token with no check fails loudly.
+//  - Every map key must be a declared token (orphan/typo'd keys fail too).
+//  - `file` is the router basename that runs the action; `pattern` is the
+//    mechanism that performs the effect. The action-to-file tether is the
+//    `executeAction(engineCtx, <actionId>, ...)` call site — if a router
+//    moves an effect into a shared service, update the pattern/file here.
+//  - Implementation granularity is per-router, not inside shared services
+//    (e.g. bank_decrement and payslip_amounts both ride settlePayrollRun).
+const SIDE_EFFECT_IMPL: Record<string, { file: string; pattern: RegExp }> = {
+  advance_recovery_cas: { file: "payroll.ts", pattern: /\brecoverRecordAdvances\(/ },
+  payroll_liability_je: { file: "payroll.ts", pattern: /\bpostPayrollLiabilityJe\(/ },
+  settlement_je: { file: "payroll.ts", pattern: /\bsettlePayrollRun\(/ },
+  bank_decrement: { file: "payroll.ts", pattern: /\bsettlePayrollRun\(/ }, // rides settlePayrollRun
+  payslip_amounts: { file: "payroll.ts", pattern: /\bsettlePayrollRun\(/ }, // rides settlePayrollRun
+  je_reversal: { file: "payroll.ts", pattern: /\breverseJournalEntry\(/ },
+  advance_unrecovery: { file: "payroll.ts", pattern: /\breverseAdvanceRecoveries\(/ },
+  expense_je: { file: "site-expense.ts", pattern: /\bcreateJournalEntry\(/ },
+  leave_balance_decrement: { file: "leave.ts", pattern: /\bleaveBalance\.upsert\(/ },
+};
+
+const DECLARED_SIDE_EFFECTS = new Set<string>();
+for (const action of Object.values(ENGINE_ACTIONS)) {
+  if ("sideEffects" in action) {
+    for (const se of action.sideEffects ?? []) DECLARED_SIDE_EFFECTS.add(se);
+  }
+}
+
+function routerFileFor(basename: string): string {
+  const match = ROUTER_FILES.find((f) => f.endsWith(`/${basename}`) || f.endsWith(`\\${basename}`));
+  if (!match) {
+    throw new Error(
+      `SIDE_EFFECT_IMPL references unknown router file '${basename}' — pick one of: ${ROUTER_FILES.map((f) => f.split("/").pop()).join(", ")}`,
+    );
+  }
+  return match;
+}
+
+describe("Engine ratchet — declared side-effects must be performed (ADR-0006 §3)", () => {
+  it("every declared side-effect token is mapped to an implementation check", () => {
+    for (const token of DECLARED_SIDE_EFFECTS) {
+      expect(
+        SIDE_EFFECT_IMPL[token],
+        `sideEffect '${token}' is declared in src/server/engine/actions.ts but has no SIDE_EFFECT_IMPL entry. ` +
+          "Either add the implementation check here, or stop claiming the effect in the registry.",
+      ).toBeDefined();
+    }
+  });
+
+  it("every mapped implementation is a declared side-effect (no orphan map keys)", () => {
+    for (const token of Object.keys(SIDE_EFFECT_IMPL)) {
+      expect(
+        DECLARED_SIDE_EFFECTS.has(token),
+        `SIDE_EFFECT_IMPL key '${token}' is not declared by any engine action — remove the stale key or declare the effect.`,
+      ).toBe(true);
+    }
+  });
+
+  it("each declared side-effect is genuinely performed at the action's router", () => {
+    for (const [token, impl] of Object.entries(SIDE_EFFECT_IMPL)) {
+      const text = readFileSync(routerFileFor(impl.file), "utf8");
+      expect(
+        impl.pattern.test(text),
+        `sideEffect '${token}' is declared but not performed — expected ${impl.pattern} in ${impl.file}.`,
+      ).toBe(true);
+    }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ENGINE-OWNED ATTRIBUTION RATCHET — the mass-assignment guard cannot drift.
+//
+// `transitionEntityState` strips RESERVED_KEYS from additionalData, then
+// writes the engine's OWN attribution fields LAST (from userId/userName/notes).
+// If someone adds a new `updateData.<field> =` assignment to an attribution
+// branch without also adding that field to RESERVED_KEYS, a caller could smuggle
+// the field through additionalData on a NON-matching status and fabricate a
+// second actor. This test is the invariant: every field the engine actually
+// writes via `updateData.<field> =` MUST be reserved. It reads the source, so
+// the two can never silently diverge.
+describe("Engine ratchet — engine-owned attribution is always reserved", () => {
+  it("every field the engine writes via updateData.<field> is in RESERVED_KEYS", () => {
+    const src = readFileSync(join(SERVER_UTILS_DIR, "state-machine.ts"), "utf8");
+    const written = new Set<string>();
+    for (const m of src.matchAll(/\bupdateData\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g)) {
+      written.add(m[1]);
+    }
+    expect(written.size).toBeGreaterThan(0);
+    for (const field of written) {
+      expect(
+        RESERVED_KEYS.has(field),
+        `engine writes updateData.${field} but it is NOT in RESERVED_KEYS — ` +
+          "a caller could smuggle it via additionalData and fabricate an actor. " +
+          "Add it to RESERVED_KEYS in state-machine.ts.",
+      ).toBe(true);
+    }
   });
 });

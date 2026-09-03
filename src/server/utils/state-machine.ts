@@ -37,6 +37,42 @@ export type SupportedLifecycleModel =
   | "vendorBill";
 
 /**
+ * Fields a caller may NEVER carry through `additionalData` — the engine owns
+ * them and sets them from `userId`/`userName`/`notes` on the matching status.
+ * A caller smuggling one through on a NON-matching status fabricates a second
+ * actor (ADR-0002/0001: "a self-action is honestly recorded"). The engine sets
+ * them LAST, after the spread, so even on the matching status a caller value
+ * is overwritten — the remaining hole is the non-matching case.
+ *
+ * Ratchet: engine-ratchet.test.ts asserts EVERY field the engine writes via
+ * `updateData.<field> =` in the attribution block is in this set. Adding a new
+ * attribution field without reserving it fails that test — the guard can never
+ * silently drift from the code again.
+ */
+export const RESERVED_KEYS = new Set<string>([
+  "id",
+  "status",
+  "projectId",
+  "organizationId",
+  "approvedById",
+  "approvedAt",
+  "rejectedAt",
+  "submittedById",
+  "submittedAt",
+  "submittedDate",
+  "createdById",
+  "createdAt",
+  "resolvedBy",
+  "resolvedDate",
+  "resolvedNotes",
+  "verifiedBy",
+  "verifiedDate",
+  "reviewedBy",
+  "reviewedDate",
+  "rejectionReason",
+]);
+
+/**
  * Declarative state transition graphs for all lifecycle models in Construction Manager.
  * Maps: Model -> Current Status -> Allowed Next Statuses
  */
@@ -449,20 +485,7 @@ export async function transitionEntityState(
   const now = new Date();
 
   // Strip reserved / protected fields from additionalData to prevent mass-assignment
-  const RESERVED_KEYS = new Set([
-    "id",
-    "status",
-    "projectId",
-    "organizationId",
-    "approvedById",
-    "approvedAt",
-    "rejectedAt",
-    "submittedById",
-    "submittedAt",
-    "createdById",
-    "createdAt",
-  ]);
-
+  // (RESERVED_KEYS is module-level and ratcheted — see its declaration).
   const sanitizedAdditionalData: Record<string, any> = {};
   if (input.additionalData && typeof input.additionalData === "object") {
     for (const [k, v] of Object.entries(input.additionalData)) {
@@ -488,6 +511,10 @@ export async function transitionEntityState(
     if ("approvedAt" in entity) updateData.approvedAt = now;
     if ("reviewedDate" in entity) updateData.reviewedDate = now;
     if ("reviewedBy" in entity) updateData.reviewedBy = input.userName || input.userId;
+    // A re-approval after a prior rejection/revision clears the stale reason
+    // (requisition.approve previously smuggled `rejectionReason: null` through
+    // additionalData — that attribution field is now engine-owned).
+    if ("rejectionReason" in entity) updateData.rejectionReason = null;
   } else if (targetStatus === "rejected") {
     if ("rejectionReason" in entity) updateData.rejectionReason = input.notes || null;
     if ("rejectedAt" in entity) updateData.rejectedAt = now;
@@ -502,14 +529,14 @@ export async function transitionEntityState(
     if ("resolvedDate" in entity) updateData.resolvedDate = now;
     if ("resolvedBy" in entity) updateData.resolvedBy = input.userName || input.userId;
   } else if (targetStatus === "verified") {
-    if ("resolvedNotes" in entity) updateData.resolvedNotes = entity.resolvedNotes;
-    if ("resolvedDate" in entity) updateData.resolvedDate = entity.resolvedDate;
-    if ("resolvedBy" in entity) updateData.resolvedBy = entity.resolvedBy;
+    // updateMany is a PARTIAL update — fields absent from `data` are left
+    // unchanged at their persisted values. So resolved* fields (set during
+    // the prior `resolved` transition) persist automatically and must NOT be
+    // re-written here: copying the pre-transition entity back is a no-op that
+    // misleads readers and silently overrides any caller-supplied value in
+    // additionalData. Only attribute the verification itself.
     if ("verifiedDate" in entity) updateData.verifiedDate = now;
     if ("verifiedBy" in entity) updateData.verifiedBy = input.userName || input.userId;
-  } else if (input.model === "punchItem") {
-    if ("resolvedDate" in entity) updateData.resolvedDate = entity.resolvedDate ?? null;
-    if ("verifiedDate" in entity) updateData.verifiedDate = entity.verifiedDate ?? null;
   }
 
 

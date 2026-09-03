@@ -364,7 +364,10 @@ describe("payment.bulkCreate", () => {
         { payeeName: "B", amount: 200, tdsDeducted: 0 },
       ],
     });
-    expect(anyDb.$transaction).toHaveBeenCalledTimes(1);
+    // 2 transactional calls: assertNotLocked reads the fiscal-year lock under
+    // a transaction-scoped org GUC (fix for the pooled-session RLS gap), then
+    // the bulk creates run in their own single write transaction below.
+    expect(anyDb.$transaction).toHaveBeenCalledTimes(2);
     expect(anyDb.payment.create).toHaveBeenCalledTimes(2);
     expect(anyDb.payment.create.mock.calls[0][0].data.netPaid).toBe(90);
     expect(anyDb.payment.create.mock.calls[1][0].data.netPaid).toBe(200);

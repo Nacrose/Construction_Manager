@@ -25,15 +25,13 @@ import {
 import { Loader2, BookTemplate, BookOpen, Tag, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { CatalogRatesLibrary } from "@/app/(app)/projects/[id]/boq/components/catalog-rates-library";
-import AdminMaterialCatalogPage from "../admin/material-catalog/page";
+import { AdminMaterialCatalogPage } from "../admin/material-catalog/admin-material-catalog";
 import { CatalogDetail, type Catalog } from "./components/catalog-detail";
 import {
   UnrecognizedMaterialsTab,
   UnrecognizedBadge,
 } from "./components/unrecognized-materials-tab";
 import { OrgPresetsPanel } from "./components/org-presets-panel";
-
-export { UnrecognizedBadge };
 
 export default function RateCatalogsPage() {
   const utils = trpc.useUtils();

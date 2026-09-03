@@ -262,26 +262,47 @@ export const materialTransactionProcedures = {
           },
         });
 
-        // If a source store is specified, update stock at that location
+        // If a source store is specified, update stock at that location.
+        // Receipts/adjustments increment; issues/transfer-outs decrement.
+        // The store-level decrement is GUARDED like the master total (H-12):
+        // a plain `currentStock: { increment: -n }` would let ONE store go
+        // negative while the aggregate across all stores still looks fine —
+        // the master-stock guard (below) does not protect per-location stock.
         if (input.storeLocationId) {
           const storeDelta =
             input.type === "receive" || input.type === "adjustment" ? input.quantity : -input.quantity;
-          await tx.materialStoreStock.upsert({
-            where: {
-              materialId_storeLocationId: {
+          if (storeDelta < 0) {
+            const needed = -storeDelta;
+            const decremented = await tx.$executeRaw`
+              UPDATE "MaterialStoreStock"
+                 SET "currentStock" = "currentStock" - ${needed}
+               WHERE "materialId" = ${input.materialId}
+                 AND "storeLocationId" = ${input.storeLocationId}
+                 AND "currentStock" >= ${needed}`;
+            if (decremented === 0) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Insufficient stock at the selected store for ${input.quantity} unit(s).`,
+              });
+            }
+          } else {
+            await tx.materialStoreStock.upsert({
+              where: {
+                materialId_storeLocationId: {
+                  materialId: input.materialId,
+                  storeLocationId: input.storeLocationId,
+                },
+              },
+              update: {
+                currentStock: { increment: storeDelta },
+              },
+              create: {
                 materialId: input.materialId,
                 storeLocationId: input.storeLocationId,
+                currentStock: storeDelta,
               },
-            },
-            update: {
-              currentStock: { increment: storeDelta },
-            },
-            create: {
-              materialId: input.materialId,
-              storeLocationId: input.storeLocationId,
-              currentStock: storeDelta,
-            },
-          });
+            });
+          }
         }
 
         // If inter-store transfer, increment destination store stock

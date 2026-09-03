@@ -282,6 +282,87 @@ describe("Central Multi-Entity State Machine Engine", () => {
         })
       );
     });
+
+    it("verified transition attributes verification without re-writing resolved fields", async () => {
+      const mockDb: any = {
+        punchItem: {
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({
+              id: "punch-1",
+              status: "resolved",
+              resolvedDate: new Date("2026-01-02"),
+              resolvedBy: "resolver-1",
+              resolvedNotes: "Defect fixed",
+              verifiedDate: null,
+              verifiedBy: null,
+            })
+            .mockResolvedValue({ id: "punch-1", status: "verified" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      const res = await transitionEntityState(mockDb, {
+        model: "punchItem",
+        id: "punch-1",
+        targetState: "verified",
+        userId: "verifier-1",
+        userName: "Verifier",
+        skipEventEmit: true,
+      });
+
+      expect(res.currentState).toBe("verified");
+      const claim = mockDb.punchItem.updateMany.mock.calls[0][0];
+      // Attributes the verification itself…
+      expect(claim.data).toMatchObject({ status: "verified", verifiedBy: "Verifier" });
+      expect(claim.data.verifiedDate).toBeInstanceOf(Date);
+      // …but does NOT re-write resolved*: updateMany is a partial update, so
+      // they persist automatically. A copy-back of the pre-transition entity
+      // (the old behavior) is a misleading no-op that would ignore caller
+      // additionalData — pin that it is gone.
+      expect(claim.data).not.toHaveProperty("resolvedDate");
+      expect(claim.data).not.toHaveProperty("resolvedBy");
+      expect(claim.data).not.toHaveProperty("resolvedNotes");
+    });
+
+    it("clears a stale rejectionReason on approve and strips engine-owned attribution from additionalData", async () => {
+      const mockDb: any = {
+        purchaseRequisition: {
+          findUnique: vi.fn()
+            .mockResolvedValueOnce({
+              id: "pr-1",
+              status: "submitted",
+              rejectionReason: "Wrong quantity",
+              approvedById: null,
+              approvedAt: null,
+            })
+            .mockResolvedValue({ id: "pr-1", status: "approved" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      const res = await transitionEntityState(mockDb, {
+        model: "purchaseRequisition",
+        id: "pr-1",
+        targetState: "approved",
+        userId: "pm-1",
+        // A caller trying to fabricate a verifier / a rejection reason via
+        // additionalData must be stripped — these fields are engine-owned and
+        // are set from userId/userName/notes, never from caller input.
+        additionalData: { rejectionReason: "spoofed", verifiedBy: "attacker", grossAmount: 999 },
+        skipEventEmit: true,
+      });
+
+      expect(res.currentState).toBe("approved");
+      const claim = mockDb.purchaseRequisition.updateMany.mock.calls[0][0];
+      expect(claim.data).toMatchObject({ status: "approved", approvedById: "pm-1" });
+      // Approve clears the stale rejected reason (was previously smuggled via
+      // additionalData) — not the caller's "spoofed" value.
+      expect(claim.data.rejectionReason).toBeNull();
+      // Engine-owned attribution is stripped from caller input.
+      expect(claim.data).not.toHaveProperty("verifiedBy");
+      // Non-reserved fields still flow through.
+      expect(claim.data.grossAmount).toBe(999);
+    });
   });
 });
 

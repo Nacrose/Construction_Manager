@@ -31,7 +31,7 @@ import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/cons
 import * as XLSX from "@e965/xlsx";
 import { toast } from "sonner";
 
-export const FIN_TABS = [
+const FIN_TABS = [
   { label: "Day Book & Cashbook", href: "/accounting" },
   { label: "Parties & Payables", href: "/payments" },
   { label: "Reports & Compliance", href: "/tax-summary" },

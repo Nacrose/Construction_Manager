@@ -204,46 +204,8 @@ export const jvPartnerRouter = router({
         });
       }
 
-      // ── Commission integrity guards ─────────────────────────────────────
-      // Accrue commission exactly like getAgreement does: fixed rate on
-      // certified client IPC gross. Without these two checks a payout could
-      // (a) exceed the commission actually earned, or (b) pay the same IPC's
-      // commission twice — both drain the org's bank account for money that
-      // was never owed to the JV partner.
-      const certifiedIpcs = await db.ipc.findMany({
-        where: {
-          projectId: input.projectId,
-          subcontractorId: null, // client IPC turnover only
-          status: { in: ["certified", "approved", "paid"] },
-        },
-        select: { grossAmount: true },
-      });
-      const totalCertifiedTurnover = certifiedIpcs.reduce((s, i) => s + i.grossAmount, 0);
-      const totalCommissionAccrued =
-        (totalCertifiedTurnover * agreement.commissionRate) / 100;
-
-      const priorPayouts = await db.jvCommissionPayout.findMany({
-        where: { agreementId: agreement.id },
-        select: { grossAmount: true, ipcId: true },
-      });
-      const totalCommissionPaid = priorPayouts.reduce((s, p) => s + p.grossAmount, 0);
-      const balanceDue = totalCommissionAccrued - totalCommissionPaid;
-
-      if (input.grossAmount > balanceDue) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Payout of NPR ${input.grossAmount.toLocaleString()} exceeds the outstanding JV commission balance of NPR ${balanceDue.toLocaleString()}.`,
-        });
-      }
-
-      // One payout per certified IPC — the same commission source must not
-      // be disbursed twice.
-      if (input.ipcId && priorPayouts.some((p) => p.ipcId === input.ipcId)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "A commission payout has already been recorded for this IPC.",
-        });
-      }
+      // Commission integrity guards run INSIDE the transaction below, behind
+      // a row lock — see the `$transaction` block.
 
       const dateInfo = normalizeDateMiti({ adDate: ctx.fiscalDate, bsMiti: input.payoutMiti });
       const tdsAmount = (input.grossAmount * input.tdsPercent) / 100;
@@ -255,10 +217,53 @@ export const jvPartnerRouter = router({
       // pinned. Previously these were separate writes: a crash between
       // them left a payout with no bank decrement, and the GL never saw
       // JV payouts at all.
-      const partnerName = agreement.partnerName;
       const payout = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
+        // P1 audit (check-then-act): two concurrent recordPayout calls both
+        // read the same balanceDue / priorPayouts before either commits, then
+        // both insert — over-paying commission or double-paying the same IPC.
+        // Lock the agreement row so the second call waits for the first to
+        // commit, then re-runs the guards against the latest row set. The
+        // pre-read `agreement` (already existence-checked) supplies the
+        // rate/name; the lock serializes the payout writes, which is what the
+        // guards depend on.
+        await tx.$queryRaw`SELECT "id" FROM "JvPartnerAgreement" WHERE "id" = ${agreement.id} FOR UPDATE`;
+
+        // Commission integrity guards — recomputed under the lock.
+        const certifiedIpcs = await tx.ipc.findMany({
+          where: {
+            projectId: input.projectId,
+            subcontractorId: null, // client IPC turnover only
+            status: { in: ["certified", "approved", "paid"] },
+          },
+          select: { grossAmount: true },
+        });
+        const totalCommissionAccrued =
+          (certifiedIpcs.reduce((s, i) => s + i.grossAmount, 0) * agreement.commissionRate) / 100;
+        const priorPayouts = await tx.jvCommissionPayout.findMany({
+          where: { agreementId: agreement.id },
+          select: { grossAmount: true, ipcId: true },
+        });
+        const totalCommissionPaid = priorPayouts.reduce((s, p) => s + p.grossAmount, 0);
+        const balanceDue = totalCommissionAccrued - totalCommissionPaid;
+
+        if (input.grossAmount > balanceDue) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Payout of NPR ${input.grossAmount.toLocaleString()} exceeds the outstanding JV commission balance of NPR ${balanceDue.toLocaleString()}.`,
+          });
+        }
+        // One payout per certified IPC — the same commission source must not
+        // be disbursed twice.
+        if (input.ipcId && priorPayouts.some((p) => p.ipcId === input.ipcId)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "A commission payout has already been recorded for this IPC.",
+          });
+        }
+
+        const partnerName = agreement.partnerName;
         const voucherNo = await getNextSequenceNumber(
           "jv_payout",
           { agreementId: agreement.id },

@@ -4,7 +4,7 @@ import { use } from "react";
 import { ModuleTabs } from "@/components/module-tabs";
 import { DayBookTab } from "./components/day-book-tab";
 
-export const FIN_TABS = [
+const FIN_TABS = [
   { label: "Day Book & Cashbook", href: "/accounting" },
   { label: "Parties & Payables", href: "/payments" },
   { label: "Reports & Compliance", href: "/tax-summary" },
