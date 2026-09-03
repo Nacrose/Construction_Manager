@@ -346,7 +346,7 @@ export function Timeline(props: TimelineProps) {
               y={0}
               width={dayWidth}
               height={totalHeight}
-              fill="rgba(255, 255, 255, 0.02)"
+              fill="rgba(159, 91, 53, 0.045)"
               className="pointer-events-none"
             />
           );
@@ -456,7 +456,7 @@ export function Timeline(props: TimelineProps) {
               <line
                 key={`vcol-${i}`}
                 x1={xPos} y1={0} x2={xPos} y2={totalHeight}
-                stroke="rgba(255, 255, 255, 0.06)"
+                stroke="rgba(116, 105, 94, 0.12)"
                 strokeWidth={0.5}
               />
             );
@@ -472,7 +472,7 @@ export function Timeline(props: TimelineProps) {
                 {gIdx > 0 && (
                   <line
                     x1={groupStartX} y1={0} x2={groupStartX} y2={totalHeight}
-                    stroke="rgba(255, 255, 255, 0.15)"
+                    stroke="rgba(116, 105, 94, 0.2)"
                     strokeWidth={1}
                   />
                 )}
@@ -483,7 +483,7 @@ export function Timeline(props: TimelineProps) {
                     <line
                       key={`vcol-w-${gIdx}-${wIdx}`}
                       x1={weekX} y1={0} x2={weekX} y2={totalHeight}
-                      stroke="rgba(255, 255, 255, 0.05)"
+                      stroke="rgba(116, 105, 94, 0.1)"
                       strokeWidth={0.5}
                     />
                   );
@@ -507,7 +507,7 @@ export function Timeline(props: TimelineProps) {
             y={yPos}
             width={svgWidth - 10}
             height={rowH}
-            fill="rgba(255, 255, 255, 0.025)"
+            fill="rgba(159, 91, 53, 0.03)"
           />
         );
       })}
@@ -520,7 +520,7 @@ export function Timeline(props: TimelineProps) {
           y={rowOffsets.offsets[i]}
           width={svgWidth - 10}
           height={rowHeights[i]}
-          fill={hoveredTaskId === task.id ? "rgba(255, 255, 255, 0.08)" : "transparent"}
+          fill={hoveredTaskId === task.id ? "rgba(159, 91, 53, 0.08)" : "transparent"}
           className="transition-colors duration-150 pointer-events-none"
         />
       ))}
@@ -538,7 +538,7 @@ export function Timeline(props: TimelineProps) {
             y1={yPos}
             x2={svgWidth}
             y2={yPos}
-            stroke="rgba(255, 255, 255, 0.06)"
+            stroke="rgba(116, 105, 94, 0.12)"
             strokeWidth={0.5}
           />
         );

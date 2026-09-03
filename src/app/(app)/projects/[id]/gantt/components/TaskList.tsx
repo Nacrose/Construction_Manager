@@ -173,16 +173,16 @@ export function TaskList({
             }}
             className={cn(
               "flex items-center border-b border-border/70 text-xs transition-all cursor-pointer group relative overflow-hidden",
-              isDragging && "opacity-40 bg-[var(--navy-mid)]",
+              isDragging && "opacity-40 bg-secondary",
               isDropBefore && "border-t-2 border-t-emerald-400 shadow-[0_-2px_8px_rgba(52,211,153,0.5)]",
               isDropAfter && "border-b-2 border-b-emerald-400 shadow-[0_2px_8px_rgba(52,211,153,0.5)]",
               isSelected
                 ? "bg-primary/20 border-l-2 border-l-primary text-foreground"
                 : isHovered
-                  ? "bg-[var(--navy-mid)]/60 text-foreground"
+                  ? "bg-accent text-foreground"
                   : idx % 2 === 0
-                    ? "bg-[var(--navy-deep)]/80 hover:bg-[var(--navy-mid)]/50 text-muted-foreground"
-                    : "bg-[var(--navy-mid)]/40 hover:bg-[var(--navy-mid)]/50 text-muted-foreground",
+                    ? "bg-card hover:bg-accent/60 text-muted-foreground"
+                    : "bg-[#f7f1e8]/65 hover:bg-accent/60 text-muted-foreground",
             )}
             style={{ height: rowHeights[idx] }}
             onClick={() => onSelectTask(task.id)}
@@ -195,7 +195,7 @@ export function TaskList({
           >
             {/* WBS code column with vertical divider and drag grip */}
             <div className="w-8 shrink-0 flex items-center justify-center border-r border-border/70 h-full px-0.5" title={`WBS: ${task.code || idx + 1}`}>
-              <span className="text-[10px] font-mono text-emerald-400 font-bold truncate">
+              <span className="text-[10px] font-mono text-primary font-bold truncate">
                 {task.code || idx + 1}
               </span>
             </div>
@@ -276,7 +276,7 @@ export function TaskList({
             key={`ghost-row-${k}`}
             className={cn(
               "flex items-center h-[38px] border-b border-border/60 pointer-events-none select-none",
-              rowIdx % 2 === 0 ? "bg-[var(--navy-deep)]/80" : "bg-[var(--navy-mid)]/40"
+              rowIdx % 2 === 0 ? "bg-card" : "bg-[#f7f1e8]/65"
             )}
           >
             <div className="w-12 shrink-0 border-r border-border/60 h-full" />

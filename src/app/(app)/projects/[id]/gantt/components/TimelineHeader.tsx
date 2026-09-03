@@ -124,7 +124,7 @@ export function TimelineHeader({
               y={0}
               width={colWidth}
               height={22}
-              fill="rgba(15, 23, 42, 0.6)"
+              fill="#e8dfd2"
             />
             {/* Month + Year text */}
             <text
@@ -133,7 +133,7 @@ export function TimelineHeader({
               textAnchor="middle"
               fontSize={10}
               fontWeight={700}
-              className="fill-slate-200 tracking-wider uppercase font-mono"
+              className="fill-stone-700 tracking-wider uppercase font-mono"
             >
               {colWidth > 45 ? group.label : group.label.slice(0, 3)}
             </text>
@@ -144,7 +144,7 @@ export function TimelineHeader({
                 y1={0}
                 x2={xPos}
                 y2={68}
-                stroke="rgba(255, 255, 255, 0.2)"
+                stroke="rgba(116, 105, 94, 0.24)"
                 strokeWidth={1}
               />
             )}
@@ -158,7 +158,7 @@ export function TimelineHeader({
         y1={22}
         x2={svgWidth}
         y2={22}
-        stroke="rgba(255, 255, 255, 0.12)"
+        stroke="rgba(116, 105, 94, 0.2)"
         strokeWidth={1}
       />
 
