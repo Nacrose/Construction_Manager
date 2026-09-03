@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, type CSSProperties } from "react";
 import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc-client";
@@ -380,6 +380,7 @@ function GanttChartContent({
 
   return (
     <div
+      style={{ "--navy-deep": "#fbf8f2", "--navy-mid": "#e8dfd2" } as CSSProperties}
       className={cn(
         "h-full flex flex-col font-mono bg-background",
         fullScreen && "fixed inset-0 z-50 bg-background p-3"
