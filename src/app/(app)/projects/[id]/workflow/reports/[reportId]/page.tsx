@@ -241,7 +241,7 @@ export default function UnifiedDailyReportPage({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-emerald-600" /> Site Progress Photos &
+                    <Camera className="h-4 w-4 text-success" /> Site Progress Photos &
                     Attachments
                   </h3>
                   <span className="text-xs text-muted-foreground">

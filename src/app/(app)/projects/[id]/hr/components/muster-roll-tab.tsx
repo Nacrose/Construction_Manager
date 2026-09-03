@@ -146,7 +146,7 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
       render: (_: any, r: any) => {
         const day = r.days[d];
         const st = day?.status;
-        if (st === "present") return <span className="font-bold text-emerald-600 dark:text-emerald-400">P</span>;
+        if (st === "present") return <span className="font-bold text-success dark:text-success/80">P</span>;
         if (st === "half_day") return <span className="font-bold text-amber-600 dark:text-amber-400">HD</span>;
         if (st === "absent") return <span className="font-bold text-red-600 dark:text-red-400">A</span>;
         if (st === "leave") return <span className="font-bold text-info dark:text-info/80">L</span>;
@@ -158,7 +158,7 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
       key: "presentDays",
       header: "P",
       align: "right",
-      render: (_, r) => <span className="font-bold text-emerald-700 dark:text-emerald-400">{r.presentDays}</span>,
+      render: (_, r) => <span className="font-bold text-success dark:text-success/80">{r.presentDays}</span>,
     },
     {
       key: "halfDays",
@@ -250,7 +250,7 @@ export function MusterRollTab({ projectId }: { projectId: string }) {
               👷 Headcount: {summary.totalStaff}
             </span>
             <span className="text-muted-foreground/40">│</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+            <span className="text-success dark:text-success/80 font-semibold">
               Present Man-Days: {summary.totalPresentManDays}
             </span>
             <span className="text-muted-foreground/40">│</span>

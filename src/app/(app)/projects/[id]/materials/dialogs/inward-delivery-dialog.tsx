@@ -95,7 +95,7 @@ function SearchableMaterialSelect({
                     className="text-xs py-1.5 cursor-pointer flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <Check className={cn("h-3.5 w-3.5 text-emerald-600 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                      <Check className={cn("h-3.5 w-3.5 text-success shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
                       <div className="truncate">
                         <div className="font-semibold text-foreground truncate">{mat.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">
@@ -481,7 +481,7 @@ export function InwardDeliveryDialog({
 
         {/* SECTION 2: Goods Receipt Note (GRN) */}
         <div className="space-y-3 border rounded-xl p-3.5 bg-muted/5 relative">
-          <div className="absolute top-3 right-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-500/20">
+          <div className="absolute top-3 right-4 bg-success/10 text-success dark:text-success/80 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-success/20">
             Section 2: Goods Receipt Note (GRN)
           </div>
 
@@ -526,10 +526,10 @@ export function InwardDeliveryDialog({
               onClick={() => setDeliveryMode("direct")}
               className={cn(
                 "px-3 py-1 rounded-md text-[11px] font-medium transition-colors flex items-center gap-1.5",
-                deliveryMode === "direct" ? "bg-card text-emerald-700 dark:text-emerald-400 shadow-2xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                deliveryMode === "direct" ? "bg-card text-success dark:text-success/80 shadow-2xs font-semibold" : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Package className="h-3 w-3 text-emerald-600" />
+              <Package className="h-3 w-3 text-success" />
               <span>Direct / Spot Receipt (No PO)</span>
             </button>
           </div>
@@ -557,11 +557,11 @@ export function InwardDeliveryDialog({
                           className={cn(
                             "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
                             isChecked 
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
+                              ? "bg-success/10 border-success/40 text-success dark:bg-success/20 dark:text-success/80"
                               : "bg-background border-border hover:bg-muted text-muted-foreground"
                           )}
                         >
-                          {isChecked && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                          {isChecked && <span className="h-1.5 w-1.5 rounded-full bg-success" />}
                           {po.number} ({po.partner?.name || po.supplier?.name || "Supplier"})
                         </button>
                       );
@@ -587,7 +587,7 @@ export function InwardDeliveryDialog({
                     </thead>
                     <tbody className="divide-y">
                       {poGrnItems.map((item, idx) => (
-                        <tr key={idx} className={item.checked ? "bg-emerald-50/5" : "opacity-60 bg-muted/5"}>
+                        <tr key={idx} className={item.checked ? "bg-success/5" : "opacity-60 bg-muted/5"}>
                           <td className="p-1.5 text-center">
                             <Checkbox
                               checked={item.checked}
@@ -628,7 +628,7 @@ export function InwardDeliveryDialog({
                               value={item.acceptedQty}
                               onChange={(e) => updatePOItemQty(idx, "acceptedQty", parseFloat(e.target.value) || 0)}
                               disabled={!item.checked}
-                              className="h-7 text-xs text-right font-mono px-1 text-emerald-600 font-semibold"
+                              className="h-7 text-xs text-right font-mono px-1 text-success font-semibold"
                             />
                           </td>
                           <td className="p-1.5">
@@ -701,7 +701,7 @@ export function InwardDeliveryDialog({
                             value={item.acceptedQty || ""}
                             onChange={(e) => updateDirectQty(idx, "acceptedQty", parseFloat(e.target.value) || 0)}
                             placeholder="0"
-                            className="h-7 text-xs text-right font-mono px-1 text-emerald-600 font-semibold"
+                            className="h-7 text-xs text-right font-mono px-1 text-success font-semibold"
                           />
                         </td>
                         <td className="p-1.5">
@@ -780,7 +780,7 @@ export function InwardDeliveryDialog({
             size="sm"
             disabled={savingGate || savingBoth}
             onClick={handleSaveBoth}
-            className="h-8.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+            className="h-8.5 text-xs bg-success hover:bg-success text-white gap-1"
           >
             {savingBoth && <Loader2 className="h-3 w-3 animate-spin" />}
             Save Gate Pass & Generate GRN

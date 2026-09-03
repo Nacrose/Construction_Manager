@@ -47,7 +47,7 @@ export function DailyReportSidebar({
               <span
                 className={cn(
                   "h-1.5 w-1.5 rounded-full shrink-0",
-                  filled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                  filled ? "bg-success" : "bg-muted-foreground/30"
                 )}
               />
             </button>

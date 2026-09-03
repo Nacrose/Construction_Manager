@@ -32,7 +32,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner: "bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/20",
+  owner: "bg-success/10 text-[var(--primary)] border border-success/20",
   org_admin: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
   member: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
 };
@@ -234,7 +234,7 @@ export default function TeamPage() {
                         </TableCell>
                         <TableCell>
                           {u.orgRole === "org_admin" && (
-                            <Badge className="text-[9px] gap-1 bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/20">
+                            <Badge className="text-[9px] gap-1 bg-success/10 text-[var(--primary)] border border-success/20">
                               <ShieldCheck className="h-3 w-3" /> Admin
                             </Badge>
                           )}
@@ -318,7 +318,7 @@ export default function TeamPage() {
                   })
                 }
                 disabled={updateOrgMut.isPending}
-                className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs gap-1.5"
+                className="bg-success hover:bg-success/60 text-black font-bold text-xs gap-1.5"
               >
                 {updateOrgMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Save Workspace Configuration
@@ -336,7 +336,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       orgScale === "multi_project"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -349,7 +349,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       orgScale === "single_project_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -368,7 +368,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "sole"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -381,7 +381,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "lead_partner_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -394,7 +394,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       partnershipType === "joint_jv"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -413,7 +413,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingMethod === "owner_led"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -426,7 +426,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingMethod === "crew_led"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
@@ -439,7 +439,7 @@ export default function TeamPage() {
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
                       operatingMethod === "delegated"
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground"
+                        ? "border-success bg-success/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >

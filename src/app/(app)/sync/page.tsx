@@ -187,7 +187,7 @@ export default function SyncPage() {
             <div className="flex items-center gap-2">
               {isOnline ? (
                 <>
-                  <Wifi className="h-5 w-5 text-emerald-500" />
+                  <Wifi className="h-5 w-5 text-success/90" />
                   <span className="text-lg font-semibold">Online</span>
                 </>
               ) : (
@@ -243,7 +243,7 @@ export default function SyncPage() {
             <div className="flex items-center gap-2">
               {swState === "registered" ? (
                 <>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  <CheckCircle2 className="h-5 w-5 text-success/90" />
                   <span className="text-lg font-semibold">Active</span>
                 </>
               ) : swState === "unsupported" ? (
@@ -381,7 +381,7 @@ export default function SyncPage() {
         <CardContent>
           {pendingItems.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500 mb-2" />
+              <CheckCircle2 className="mx-auto h-8 w-8 text-success/90 mb-2" />
               No pending changes — you&rsquo;re all synced up.
             </div>
           ) : (

@@ -133,7 +133,7 @@ export function ConstructionForm<T extends Record<string, any>>({
             type="submit"
             size="sm"
             disabled={isPending || disabled}
-            className="h-9 px-5 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-500 text-foreground shadow-sm"
+            className="h-9 px-5 text-xs font-semibold gap-2 bg-success hover:bg-success text-foreground shadow-sm"
           >
             {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitLabel}
@@ -308,7 +308,7 @@ export function FormCurrencyField({
           {required && <span className="text-red-400">*</span>}
         </span>
         {numValue > 0 && (
-          <span className="font-mono text-[10px] text-emerald-400 font-bold">
+          <span className="font-mono text-[10px] text-success/80 font-bold">
             {formatNpr(numValue, { prefix: "NPR" })}
           </span>
         )}
@@ -334,7 +334,7 @@ export function FormCurrencyField({
       </div>
 
       {words && (
-        <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-sans italic leading-tight">
+        <div className="px-2.5 py-1 rounded-lg bg-success/10 border border-success/20 text-[10px] text-success/80 font-sans italic leading-tight">
           📝 {words}
         </div>
       )}

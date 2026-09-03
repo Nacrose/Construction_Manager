@@ -276,7 +276,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
             className="w-14 rounded border bg-background px-1 py-0.5 text-right text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0"
           />
           <span className="text-muted-foreground">{itemUnit}</span>
-          <span className="font-bold text-emerald-700 dark:text-emerald-400">
+          <span className="font-bold text-success dark:text-success/80">
             NPR {fmt(ratePerUnit)} / {itemUnit}
           </span>
         </div>
@@ -298,7 +298,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
             ))}
           </select>
           <Button
-            size="sm" variant="ghost" className="h-6 px-1 text-xs bg-emerald-600 text-white hover:bg-emerald-700"
+            size="sm" variant="ghost" className="h-6 px-1 text-xs bg-success text-white hover:bg-success"
             disabled={!profileIdForNew}
             onClick={async () => {
               await utils.rateProfile.addItem.mutateAsync({
@@ -384,7 +384,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
                               utils.rateProfile.searchItems.invalidate({ projectId });
                               toast.success(`Added "${ing.name}" to library`);
                             }}
-                            className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded border border-emerald-600 text-xs font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-700"
+                            className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded border border-success text-xs font-bold text-success hover:bg-success/10 hover:border-success"
                             title="Add to selected rate library"
                           >+</button>
                         )}
@@ -435,7 +435,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
                             utils.rateProfile.searchItems.invalidate({ projectId });
                             toast.success(`Added "${ing.name}" to library`);
                           }}
-                          className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded border border-emerald-600 text-xs font-bold text-emerald-600 hover:bg-emerald-50 hover:border-emerald-700"
+                          className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded border border-success text-xs font-bold text-success hover:bg-success/10 hover:border-success"
                           title="Add to selected rate library"
                         >+</button>
                       )}
@@ -451,7 +451,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
               </tr>
             ))}
             {adding && canWrite && (
-              <tr className="border-t-2 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <tr className="border-t-2 bg-success dark:bg-success/20">
                 {addMode === "fixed" ? (
                   <>
                     <td className="py-1 pr-2">
@@ -490,7 +490,7 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
                 )}
                 <td className="py-1">
                   <div className="flex gap-1">
-                    <button className="flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white disabled:opacity-40" disabled={!newName || addMutation.isPending} onClick={() => addMutation.mutate()}><Check className="h-3 w-3"/></button>
+                    <button className="flex h-6 w-6 items-center justify-center rounded bg-success text-white disabled:opacity-40" disabled={!newName || addMutation.isPending} onClick={() => addMutation.mutate()}><Check className="h-3 w-3"/></button>
                     <button className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted" onClick={() => { setAdding(false); setNewName(""); setNewQty(""); setNewPct(""); setNewRate(""); setSelectedCatalogItemId(""); }}><X className="h-3 w-3"/></button>
                   </div>
                 </td>
@@ -501,12 +501,12 @@ export function InlineAnalysisEditor({ itemId, analysisId, projectId, itemUnit, 
             <tfoot>
               <tr className="border-t font-bold">
                 <td colSpan={canWrite ? 6 : 5} className="py-1 pr-2 text-right">Total for {batch} {itemUnit}:</td>
-                <td className="py-1 pr-2 text-right text-emerald-700 dark:text-emerald-400">NPR {fmt(total)}</td>
+                <td className="py-1 pr-2 text-right text-success dark:text-success/80">NPR {fmt(total)}</td>
                 {canWrite && <td></td>}
               </tr>
               <tr className="font-bold">
                 <td colSpan={canWrite ? 6 : 5} className="py-1 pr-2 text-right">Rate per {itemUnit}:</td>
-                <td className="py-1 pr-2 text-right text-emerald-700 dark:text-emerald-400">NPR {fmt(ratePerUnit)}</td>
+                <td className="py-1 pr-2 text-right text-success dark:text-success/80">NPR {fmt(ratePerUnit)}</td>
                 {canWrite && <td></td>}
               </tr>
             </tfoot>

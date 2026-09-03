@@ -137,7 +137,7 @@ export default function SubmittalsPage({ params }: { params: Promise<{ id: strin
               { label: "Total", value: stats.total, color: "text-foreground/80" },
               { label: "Draft", value: stats.draft, color: "text-muted-foreground" },
               { label: "Submitted", value: stats.submitted, color: "text-amber-700" },
-              { label: "Approved", value: stats.approved, color: "text-emerald-700" },
+              { label: "Approved", value: stats.approved, color: "text-success" },
               { label: "Rejected", value: stats.rejected, color: "text-rose-700" },
               { label: "Revise", value: stats.revise, color: "text-orange-700" },
             ].map((s) => (

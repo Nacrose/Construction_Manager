@@ -19,7 +19,7 @@ type Props = {
 
 const ACTION_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
   "rfi.": { icon: FileText, color: "text-info", label: "RFI" },
-  "daily_report.": { icon: ClipboardCheck, color: "text-emerald-600", label: "Daily Report" },
+  "daily_report.": { icon: ClipboardCheck, color: "text-success", label: "Daily Report" },
   "daily_program.": { icon: CloudSun, color: "text-purple-600", label: "Daily Program" },
   "project.": { icon: Activity, color: "text-muted-foreground", label: "Project" },
   "boq.": { icon: Package, color: "text-amber-600", label: "BOQ" },
@@ -27,8 +27,8 @@ const ACTION_CONFIG: Record<string, { icon: React.ComponentType<{ className?: st
   "material.": { icon: Package, color: "text-orange-600", label: "Material" },
   "equipment.": { icon: Wrench, color: "text-info", label: "Equipment" },
   "hr.": { icon: Users, color: "text-pink-600", label: "HR" },
-  "approved_doc.": { icon: Shield, color: "text-teal-600", label: "Document" },
-  "project_cost.": { icon: DollarSign, color: "text-green-600", label: "Cost" },
+  "approved_doc.": { icon: Shield, color: "text-success", label: "Document" },
+  "project_cost.": { icon: DollarSign, color: "text-success", label: "Cost" },
   "report_template.": { icon: FileText, color: "text-violet-600", label: "Template" },
 };
 

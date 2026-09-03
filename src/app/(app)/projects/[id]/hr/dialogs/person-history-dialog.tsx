@@ -38,7 +38,7 @@ export function PersonHistoryDialog({
 
   const statusTone = (status: string) =>
     cn("text-[9px] px-1.5 py-0 capitalize", {
-      "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":
+      "bg-success/15 text-success dark:bg-success dark:text-success/80":
         status === "active" || status === "approved" || status === "disbursed" || status === "paid",
       "bg-amber-100 text-amber-800 dark:bg-amber-950":
         status === "pending" || status === "draft" || status === "partial",

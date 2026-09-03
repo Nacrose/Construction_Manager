@@ -24,7 +24,7 @@ const REASON_COLORS: Record<string, string> = {
   weather: "#3b82f6",
   material: "#f59e0b",
   equipment: "#8b5cf6",
-  labor: "#10b981",
+  labor: "#4a8b57",
   client: "#ef4444",
   other: "#6b7280",
   unspecified: "#94a3b8",

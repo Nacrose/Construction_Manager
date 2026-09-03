@@ -870,7 +870,7 @@ export function starterLayoutDailyReport(): ReportLayout {
     type: "text",
     x: 15, y: 15, w: 180, h: 12,
     content: { type: "text", text: "Daily Site Report — {{report.number}}" } as TextContent,
-    style: { fontSize: 16, bold: true, color: "#059669", align: "left", valign: "middle" },
+    style: { fontSize: 16, bold: true, color: "#4a8b57", align: "left", valign: "middle" },
   });
 
   // Meta line
@@ -888,7 +888,7 @@ export function starterLayoutDailyReport(): ReportLayout {
     type: "divider",
     x: 15, y: 36, w: 180, h: 1,
     content: { type: "divider", orientation: "horizontal", thickness: 2 } as DividerContent,
-    style: { color: "#059669" },
+    style: { color: "#4a8b57" },
   });
 
   // KPI row — 4 cards
@@ -919,7 +919,7 @@ export function starterLayoutDailyReport(): ReportLayout {
     type: "text",
     x: 15, y: 70, w: 180, h: 8,
     content: { type: "text", text: "Weather" } as TextContent,
-    style: { fontSize: 11, bold: true, color: "#059669", align: "left", valign: "middle", border: "bottom", borderColor: "#d1d5db", borderWidth: 1 },
+    style: { fontSize: 11, bold: true, color: "#4a8b57", align: "left", valign: "middle", border: "bottom", borderColor: "#d1d5db", borderWidth: 1 },
   });
 
   // Weather text
@@ -937,7 +937,7 @@ export function starterLayoutDailyReport(): ReportLayout {
     type: "text",
     x: 15, y: 92, w: 180, h: 8,
     content: { type: "text", text: "Workforce" } as TextContent,
-    style: { fontSize: 11, bold: true, color: "#059669", align: "left", valign: "middle", border: "bottom", borderColor: "#d1d5db", borderWidth: 1 },
+    style: { fontSize: 11, bold: true, color: "#4a8b57", align: "left", valign: "middle", border: "bottom", borderColor: "#d1d5db", borderWidth: 1 },
   });
   layout.cells.push({
     id: genCellId(),

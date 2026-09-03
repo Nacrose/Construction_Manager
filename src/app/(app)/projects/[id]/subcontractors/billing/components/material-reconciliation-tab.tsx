@@ -123,7 +123,7 @@ export function MaterialReconciliationTab({
       header: "Issued",
       align: "right",
       render: (_, item) => (
-        <span className="text-emerald-600 font-mono text-xs font-semibold">
+        <span className="text-success font-mono text-xs font-semibold">
           {item.issuedQty.toLocaleString()}
         </span>
       ),
@@ -219,7 +219,7 @@ export function MaterialReconciliationTab({
             <ShieldAlert className="h-2.5 w-2.5" /> Debit Due
           </Badge>
         ) : (
-          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 uppercase font-mono">
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-success/15 text-success dark:bg-success dark:text-success/80 gap-1 uppercase font-mono">
             <CheckCircle2 className="h-2.5 w-2.5" /> Balanced
           </Badge>
         );
@@ -294,7 +294,7 @@ export function MaterialReconciliationTab({
                   <div key={i} className="p-2 rounded bg-muted/30 border text-[11px] space-y-0.5">
                     <div className="flex justify-between font-bold">
                       <span>{tx.slipNo || `Slip #${i + 1}`}</span>
-                      <span className={tx.type === "issue" ? "text-emerald-600" : "text-info"}>
+                      <span className={tx.type === "issue" ? "text-success" : "text-info"}>
                         {tx.type === "issue" ? "+" : "-"}{tx.quantity} {item.unit}
                       </span>
                     </div>

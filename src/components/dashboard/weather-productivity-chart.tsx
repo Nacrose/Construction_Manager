@@ -20,7 +20,7 @@ import {
 type Props = { projectId: string };
 
 const CONDITION_COLORS: Record<string, string> = {
-  clear: "#22c55e",
+  clear: "#4a8b57",
   cloudy: "#eab308",
   rain: "#3b82f6",
   heavy_rain: "#ef4444",

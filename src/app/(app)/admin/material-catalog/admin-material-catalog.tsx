@@ -297,7 +297,7 @@ export function AdminMaterialCatalogPage({
               size="sm"
               variant="outline"
               onClick={() => setImportDialogOpen(true)}
-              className="h-8 text-xs gap-1.5 border-emerald-500/40 hover:border-emerald-500 text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/20 font-medium"
+              className="h-8 text-xs gap-1.5 border-success/40 hover:border-success text-success dark:text-success/80 bg-success dark:bg-success/20 font-medium"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> Import & Deduplicate
             </Button>

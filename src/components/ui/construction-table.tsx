@@ -46,6 +46,19 @@ export type ColumnFormat =
   | "number"
   | "wbs";
 
+/**
+ * Color hierarchy + WBS depth: the WBS level badge carries a STRONGER brand
+ * color at the top of the tree and washes toward neutral as depth increases.
+ * Color encodes RANK/structure here (never status), so hierarchy reads at a
+ * glance — the deepest nodes fade to neutral, the top level stays prominent.
+ */
+const WBS_LEVEL_STYLES = [
+  "text-primary bg-primary/10 border-primary/30", // depth 0 — brand clay (top level)
+  "text-info bg-info/10 border-info/30", // depth 1 — info blue
+  "text-muted-foreground bg-muted/40 border-border/40", // depth 2 — neutral wash
+  "text-muted-foreground/70 bg-muted/30 border-border/30", // depth 3+ — faded
+];
+
 export type ConstructionTableColumn<T> = {
   key: string;
   header: string;
@@ -372,11 +385,11 @@ export function ConstructionTable<T extends Record<string, any>>({
             <Button
               size="sm"
               onClick={handleExportExcel}
-              className="h-7 px-2.5 text-xs gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md shadow-xs snappy-btn border border-emerald-700"
+              className="h-7 px-2.5 text-xs gap-1.5 font-bold bg-success hover:bg-success text-white rounded-md shadow-xs snappy-btn border border-success"
               title="Export to Excel"
             >
               <svg className="aero-icon-sm h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="3" width="18" height="18" rx="2" fill="#15803d" stroke="#14532d" strokeWidth="1"/>
+                <rect x="3" y="3" width="18" height="18" rx="2" className="fill-success" stroke="var(--border)" strokeWidth="1"/>
                 <path d="M7 8l4 8M11 8l-4 8" stroke="#ffffff" strokeWidth="2" strokeLinecap="round"/>
                 <path d="M15 8h4v8h-4" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
@@ -511,7 +524,7 @@ export function ConstructionTable<T extends Record<string, any>>({
                               )}
 
                               {row[wbsKey] && (
-                                <span className="font-bold text-[10px] text-[var(--primary)] bg-info/15 px-1 py-0.2 rounded border border-info/30">
+                                <span className={cn("font-bold text-[10px] px-1 py-0.2 rounded border", WBS_LEVEL_STYLES[Math.min(node.depth, WBS_LEVEL_STYLES.length - 1)])}>
                                   {row[wbsKey]}
                                 </span>
                               )}

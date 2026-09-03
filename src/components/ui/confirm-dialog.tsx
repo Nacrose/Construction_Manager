@@ -45,7 +45,7 @@ export function ConfirmDialog({
       case "warning":
         return <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />;
       case "success":
-        return <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />;
+        return <CheckCircle className="h-5 w-5 text-success/80 shrink-0 mt-0.5" />;
       default:
         return <Info className="h-5 w-5 text-info/80 shrink-0 mt-0.5" />;
     }
@@ -58,7 +58,7 @@ export function ConfirmDialog({
       case "warning":
         return "bg-amber-600 hover:bg-amber-700 text-foreground font-bold";
       case "success":
-        return "bg-emerald-600 hover:bg-emerald-700 text-foreground font-bold";
+        return "bg-success hover:bg-success text-foreground font-bold";
       default:
         return "bg-primary hover:bg-primary/90 text-primary-foreground font-bold";
     }

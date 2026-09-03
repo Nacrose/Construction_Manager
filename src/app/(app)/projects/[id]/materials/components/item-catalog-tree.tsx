@@ -204,7 +204,7 @@ export function ItemCatalogTree({
                                   key={item.id}
                                   className={cn(
                                     "flex items-center justify-between py-2 px-3 hover:bg-muted/30 transition-colors text-xs",
-                                    isImported && "bg-emerald-500/5 dark:bg-emerald-950/10"
+                                    isImported && "bg-success/5 dark:bg-success/10"
                                   )}
                                 >
                                   <div className="flex items-center gap-2 min-w-0 flex-1 pr-3">
@@ -236,7 +236,7 @@ export function ItemCatalogTree({
                                       {item.defaultRate > 0 && (
                                         <Badge
                                           variant="outline"
-                                          className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 font-semibold gap-0.5"
+                                          className="text-[10px] font-mono text-success dark:text-success/80 bg-success/10 dark:bg-success/30 border-success/40 font-semibold gap-0.5"
                                         >
                                           <DollarSign className="h-2.5 w-2.5" />
                                           NPR {item.defaultRate.toLocaleString()}/
@@ -279,7 +279,7 @@ export function ItemCatalogTree({
                                     {isImported ? (
                                       <Badge
                                         variant="secondary"
-                                        className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] gap-1 font-medium"
+                                        className="bg-success/15 text-success dark:bg-success dark:text-success/80 text-[10px] gap-1 font-medium"
                                       >
                                         <CheckCircle2 className="h-3 w-3" />
                                         In Project

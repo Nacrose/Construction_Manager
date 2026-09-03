@@ -96,13 +96,13 @@ export function TrialBalanceTab({ projectId }: { projectId: string }) {
         className={cn(
           "p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3",
           isBalanced
-            ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-200"
+            ? "bg-success/60 dark:bg-success/20 border-success/30 dark:border-success/40 text-success dark:text-success/80"
             : "bg-red-50/60 dark:bg-red-950/20 border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-200"
         )}
       >
         <div className="flex items-center gap-3">
           {isBalanced ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2 className="h-5 w-5 text-success dark:text-success/80" />
           ) : (
             <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
           )}

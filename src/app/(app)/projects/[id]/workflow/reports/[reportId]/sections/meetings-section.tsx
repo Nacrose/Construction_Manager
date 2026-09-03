@@ -27,7 +27,7 @@ export function MeetingsSection({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Site Meetings & Toolbox
+          <FileSpreadsheet className="h-4 w-4 text-success" /> Site Meetings & Toolbox
           Talks
         </h3>
         {canEdit && (

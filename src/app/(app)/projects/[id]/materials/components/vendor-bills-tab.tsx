@@ -217,7 +217,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
         align: "right",
         render: (_val, row) => (
           <div className="text-[11px] font-mono">
-            <p className="text-emerald-600 dark:text-[var(--primary)]">+13% VAT: {formatNpr(row.vatAmount)}</p>
+            <p className="text-success dark:text-[var(--primary)]">+13% VAT: {formatNpr(row.vatAmount)}</p>
             <p className="text-amber-600 dark:text-amber-400">-1.5% TDS: {formatNpr(row.tdsAmount)}</p>
           </div>
         ),
@@ -235,7 +235,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
         header: "Paid Amount",
         align: "right",
         summary: "sum",
-        className: "font-mono font-semibold text-emerald-600 dark:text-[var(--primary)]",
+        className: "font-mono font-semibold text-success dark:text-[var(--primary)]",
         render: (val) => formatNpr(val),
       },
       {
@@ -289,12 +289,12 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
           </CardContent>
         </Card>
 
-        <Card className="border border-border/80 shadow-sm bg-gradient-to-br from-emerald-50/50 to-background dark:from-emerald-950/20 dark:to-card">
+        <Card className="border border-border/80 shadow-sm bg-gradient-to-br from-success/10 to-background dark:from-success/20 dark:to-card">
           <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-xs font-semibold text-emerald-600 dark:text-[var(--primary)] uppercase tracking-wider">
+            <CardDescription className="text-xs font-semibold text-success dark:text-[var(--primary)] uppercase tracking-wider">
               Total Settled / Paid
             </CardDescription>
-            <CardTitle className="text-xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
+            <CardTitle className="text-xl font-bold font-mono text-success dark:text-success/80">
               NPR {formatNpr(summary.totalPaid)}
             </CardTitle>
           </CardHeader>
@@ -340,7 +340,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
                 <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-emerald-500/30 text-xs">
+                <SelectContent className="bg-card border-success/30 text-xs">
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
                   <SelectItem value="partially_paid">Partially Paid</SelectItem>
@@ -417,7 +417,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
                     <Scale className="h-4 w-4" />
                     <span>3-Way PO &amp; GRN Verification</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] text-[var(--primary)] border-emerald-500/30">
+                  <Badge variant="outline" className="text-[10px] text-[var(--primary)] border-success/30">
                     Linked PO #{matchData.po.number}
                   </Badge>
                 </div>
@@ -512,7 +512,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
                   <span>Taxable Base:</span>
                   <span>{formatNpr(grossAmount)}</span>
                 </div>
-                <div className="flex justify-between text-emerald-600 dark:text-[var(--primary)]">
+                <div className="flex justify-between text-success dark:text-[var(--primary)]">
                   <span>+ {vatPercent}% VAT:</span>
                   <span>+{formatNpr((grossAmount * vatPercent) / 100)}</span>
                 </div>
@@ -559,7 +559,7 @@ export function VendorBillsTab({ projectId }: VendorBillsTabProps) {
         <DialogContent className="max-w-md bg-card border-border font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <CreditCard className="h-5 w-5 text-emerald-600" />
+              <CreditCard className="h-5 w-5 text-success" />
               <span>Record Vendor Bill Payment</span>
             </DialogTitle>
             <DialogDescription className="text-xs">

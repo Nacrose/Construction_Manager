@@ -109,7 +109,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
               size="sm"
               onClick={handleSave}
               disabled={updateModules.isPending}
-              className="h-8 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold shadow-md"
+              className="h-8 gap-1.5 text-xs bg-success hover:bg-success text-foreground font-bold shadow-md"
             >
               <Save className="h-3.5 w-3.5" />
               Save Configuration
@@ -129,7 +129,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                 className={cn(
                   "p-3.5 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between",
                   isCurrent
-                    ? "border-emerald-500/60 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/40"
+                    ? "border-success/60 bg-success/20 shadow-[0_0_15px_rgba(16,185,129,0.15)] ring-1 ring-success/40"
                     : "border-[var(--border)] bg-card hover:border-[var(--primary)] hover:bg-card/[0.02]"
                 )}
               >
@@ -140,7 +140,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                       <span className="text-xs font-bold text-foreground">{meta.title}</span>
                     </div>
                     {isCurrent && (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4 text-success/80" />
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -150,7 +150,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
 
                 <div className="mt-3 pt-2 border-t border-[var(--input)] flex items-center justify-between text-[10px] text-muted-foreground">
                   <span>{presetKey === "record_keeper" ? "11 Core + Equipment" : presetKey === "lean" ? "11 Core + Lookahead" : "All 24 Enterprise Tools"}</span>
-                  <span className={cn("font-medium", isCurrent ? "text-emerald-400 font-bold" : "text-muted-foreground")}>
+                  <span className={cn("font-medium", isCurrent ? "text-success/80 font-bold" : "text-muted-foreground")}>
                     {isCurrent ? "Active Preset" : "Click to Apply"}
                   </span>
                 </div>
@@ -164,7 +164,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
       <div className="space-y-4 pt-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Layers className="h-4 w-4 text-emerald-400" />
+            <Layers className="h-4 w-4 text-success/80" />
             <span className="font-semibold text-foreground">Granular Feature Switchboard</span>
             <span>— Fine-tune any individual module on or off</span>
           </div>
@@ -214,7 +214,7 @@ export function ProjectModulesTab({ projectId, canManage }: ProjectModulesTabPro
                             {mod.label}
                           </span>
                           {mod.core ? (
-                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-1 text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                            <Badge variant="outline" className="h-4 px-1.5 text-[9px] gap-1 text-success/80 border-success/30 bg-success/10">
                               <Lock className="h-2.5 w-2.5" />
                               Core Pillar (Locked ON)
                             </Badge>

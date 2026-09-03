@@ -7,7 +7,7 @@ const STATUS_STYLES: Record<string, string> = {
   submitted:
     "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   approved:
-    "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    "bg-success/15 text-success dark:bg-success dark:text-success/80",
   rejected:
     "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   closed:

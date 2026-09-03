@@ -42,7 +42,7 @@ export function SafetySection({
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-semibold flex items-center gap-2">
-        <Shield className="h-4 w-4 text-emerald-600" /> Health, Safety & Environment (HSE) Notes
+        <Shield className="h-4 w-4 text-success" /> Health, Safety & Environment (HSE) Notes
       </h3>
       <Textarea
         rows={6}

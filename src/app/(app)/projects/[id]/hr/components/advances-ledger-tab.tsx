@@ -172,7 +172,7 @@ export function AdvancesLedgerTab({
       align: "center",
       render: (_, item) =>
         item.recoveredAmount >= item.amount ? (
-          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold gap-1 font-mono">
+          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-success/15 text-success dark:bg-success dark:text-success/80 font-bold gap-1 font-mono">
             <CheckCircle2 className="h-2.5 w-2.5" /> Recovered
           </Badge>
         ) : (
@@ -264,7 +264,7 @@ export function AdvancesLedgerTab({
             Pending Auto-Recovery: {formatNpr(totalPending)}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-[var(--primary)] font-medium">
+          <span className="text-success dark:text-[var(--primary)] font-medium">
             Settled in Payroll: {formatNpr(totalRecovered)}
           </span>
         </div>

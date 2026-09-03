@@ -50,7 +50,7 @@ export function RfiCard({
 
   const slaBadge = rfi.status === "submitted" && rfi.submittedAt ? (() => {
     const hrs = differenceInHours(new Date(), new Date(rfi.submittedAt));
-    if (hrs < 48) return <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950 dark:text-emerald-400 leading-none">{hrs < 24 ? `${hrs}h` : `${Math.floor(hrs / 24)}d ${hrs % 24}h`}</span>;
+    if (hrs < 48) return <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/15 dark:bg-success dark:text-success/80 leading-none">{hrs < 24 ? `${hrs}h` : `${Math.floor(hrs / 24)}d ${hrs % 24}h`}</span>;
     if (hrs < 120) return <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-950 dark:text-amber-400 leading-none">{Math.floor(hrs / 24)}d {hrs % 24}h</span>;
     return <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100 dark:bg-red-950 dark:text-red-400 leading-none">{Math.floor(hrs / 24)}d</span>;
   })() : null;
@@ -65,7 +65,7 @@ export function RfiCard({
   const statusBorderColor = cn(
     rfi.status === "draft" && "border-l-slate-400 dark:border-l-slate-700",
     rfi.status === "submitted" && "border-l-info dark:border-l-info",
-    rfi.status === "approved" && "border-l-emerald-500 dark:border-l-emerald-600",
+    rfi.status === "approved" && "border-l-success dark:border-l-success",
     rfi.status === "rejected" && "border-l-red-500 dark:border-l-red-600",
     rfi.status === "closed" && "border-l-zinc-400 dark:border-l-zinc-700"
   );
@@ -169,7 +169,7 @@ export function RfiCard({
               </div>
               <div className="relative w-full h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 transition-all duration-300"
+                  className="h-full rounded-full bg-gradient-to-r from-success to-success transition-all duration-300"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -183,7 +183,7 @@ export function RfiCard({
             <Button variant="ghost" size="icon" className="h-6.5 w-6.5 rounded-md hover:bg-muted" onClick={() => onView(rfi.id)} title="View"><Eye className="h-3.5 w-3.5 text-muted-foreground" /></Button>
             {canSubmit && <ConfirmActionButton icon={<Send className="h-3 w-3" />} title="Submit RFI" description={`Submit ${rfi.number} for review?`} onConfirm={() => onAction(rfi.id, "submit")} className="text-info border-info/30 hover:bg-info/10 dark:hover:bg-[var(--navy-deep)]/30 dark:border-info/30" />}
             {canResubmit && <ConfirmActionButton icon={<RotateCcw className="h-3 w-3" />} title="Resubmit RFI" description={`Resubmit ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "resubmit")} className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-950/30 dark:border-purple-900" />}
-            {canApprove && <ConfirmActionButton icon={<Check className="h-3 w-3" />} title="Approve RFI" description={`Approve ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "approve")} className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 dark:border-emerald-900" />}
+            {canApprove && <ConfirmActionButton icon={<Check className="h-3 w-3" />} title="Approve RFI" description={`Approve ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "approve")} className="text-success border-success/30 hover:bg-success/10 dark:hover:bg-success/30 dark:border-success" />}
             {canReject && <ConfirmActionButton icon={<XIcon className="h-3 w-3" />} title="Reject RFI" description={`Reject ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "reject")} className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 dark:border-red-900" />}
             {canClose && <ConfirmActionButton icon={<XCircle className="h-3 w-3" />} title="Close RFI" description={`Close ${rfi.number}?`} onConfirm={() => onAction(rfi.id, "close")} className="text-orange-600 border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-950/30 dark:border-orange-900" />}
             {canDelete && <ConfirmActionButton icon={<Trash2 className="h-3 w-3" />} title="Delete RFI" description={`Delete ${rfi.number}? This cannot be undone.`} onConfirm={() => onAction(rfi.id, "delete")} className="text-destructive border-destructive/20 hover:bg-destructive/10 dark:hover:bg-destructive/20" />}

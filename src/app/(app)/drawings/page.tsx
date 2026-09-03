@@ -70,9 +70,9 @@ export default function OrgDrawingsPage() {
         searchable: true,
         render: (val, r) => (
           <div className="flex items-center gap-2">
-            <Compass className="h-4 w-4 text-emerald-400 shrink-0" />
+            <Compass className="h-4 w-4 text-success/80 shrink-0" />
             <div>
-              <span className="font-mono font-bold text-emerald-400 text-xs">{val}</span>
+              <span className="font-mono font-bold text-success/80 text-xs">{val}</span>
               <span className="ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-mono bg-white/10 text-muted-foreground/80">
                 Rev {r.revision || "A"}
               </span>
@@ -167,7 +167,7 @@ export default function OrgDrawingsPage() {
               e.stopPropagation();
               setViewerDrawingId(r.id);
             }}
-            className="h-6 px-2 text-[11px] font-mono text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1"
+            className="h-6 px-2 text-[11px] font-mono text-success/80 hover:text-success/80 hover:bg-success/10 gap-1"
           >
             <Eye className="h-3 w-3" />
             View
@@ -216,7 +216,7 @@ export default function OrgDrawingsPage() {
             </div>
           )}
           {civilCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-success/10 border border-success/30 text-xs text-success">
               <span>Civil:</span>
               <span className="font-bold font-mono">{civilCount}</span>
             </div>

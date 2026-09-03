@@ -136,7 +136,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
       render: (val, t) => {
         if (t.status === "received") {
           return (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-[var(--primary)] border border-emerald-500/30">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-success/10 text-[var(--primary)] border border-success/30">
               <CheckCircle2 className="h-3 w-3" /> Received
             </span>
           );
@@ -164,7 +164,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
               size="sm"
               onClick={() => handleReceive(t)}
               disabled={receivingId === t.id}
-              className="h-7 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold rounded-lg shadow-sm"
+              className="h-7 px-3 text-[10px] bg-success hover:bg-success text-foreground font-bold rounded-lg shadow-sm"
             >
               {receivingId === t.id ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -194,7 +194,7 @@ export function InterSiteTransfersTab({ projectId, canWrite }: InterSiteTransfer
           <Button
             size="sm"
             onClick={() => setTransferDialogOpen(true)}
-            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold gap-1.5 shadow-md rounded-xl"
+            className="h-8 px-3 text-xs bg-success hover:bg-success text-foreground font-bold gap-1.5 shadow-md rounded-xl"
           >
             <Plus className="h-3.5 w-3.5" />
             + New Transfer

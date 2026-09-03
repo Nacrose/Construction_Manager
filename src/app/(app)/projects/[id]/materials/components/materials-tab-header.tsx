@@ -165,9 +165,9 @@ export function MaterialsTabHeader({
               {onOpenQuickBuy && (
                 <DropdownMenuItem
                   onClick={onOpenQuickBuy}
-                  className="cursor-pointer gap-2 text-xs py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold rounded-lg"
+                  className="cursor-pointer gap-2 text-xs py-2 bg-success/10 hover:bg-success/20 text-success/80 font-bold rounded-lg"
                 >
-                  <Plus className="h-4 w-4 text-emerald-400" />
+                  <Plus className="h-4 w-4 text-success/80" />
                   <div>
                     <div className="font-bold text-white">⚡ Quick Buy Material (खरिद)</div>
                     <div className="text-[10px] text-muted-foreground/80">
@@ -193,9 +193,9 @@ export function MaterialsTabHeader({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={onOpenReceiveTxn}
-                className="cursor-pointer gap-2 text-xs py-2 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium rounded-lg"
+                className="cursor-pointer gap-2 text-xs py-2 bg-success/5 hover:bg-success/10 text-success dark:text-success/80 font-medium rounded-lg"
               >
-                <Truck className="h-4 w-4 text-emerald-500" />
+                <Truck className="h-4 w-4 text-success/90" />
                 <div>
                   <div className="font-semibold text-foreground">Log Material Delivery (दाखिला)</div>
                   <div className="text-[10px] text-muted-foreground">
@@ -254,7 +254,7 @@ export function MaterialsTabHeader({
                 onClick={() => setActiveTab("stores")}
                 className="cursor-pointer gap-2 text-xs py-2"
               >
-                <Building2 className="h-4 w-4 text-emerald-500" />
+                <Building2 className="h-4 w-4 text-success/90" />
                 <div>
                   <div className="font-semibold">Inter-Store Transfer</div>
                   <div className="text-[10px] text-muted-foreground">Transfer between site stores</div>

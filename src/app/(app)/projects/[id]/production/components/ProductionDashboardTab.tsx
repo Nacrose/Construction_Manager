@@ -63,7 +63,7 @@ export function ProductionDashboardTab({
                 <span className="text-xs font-normal text-muted-foreground">m³</span>
               </p>
               <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3 text-emerald-500" /> Cumulative:{" "}
+                <TrendingUp className="h-3 w-3 text-success/90" /> Cumulative:{" "}
                 {summaryData?.cumulativeConcrete ?? 0} m³
               </p>
             </CardContent>
@@ -82,24 +82,24 @@ export function ProductionDashboardTab({
                 <span className="text-xs font-normal text-muted-foreground">MT</span>
               </p>
               <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3 text-emerald-500" /> Cumulative:{" "}
+                <TrendingUp className="h-3 w-3 text-success/90" /> Cumulative:{" "}
                 {summaryData?.cumulativeAsphalt ?? 0} MT
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-card shadow-sm border-emerald-500/20">
+          <Card className="bg-card shadow-sm border-success/20">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground">
                   Active Plants Operating
                 </p>
-                <Zap className="h-4 w-4 text-emerald-600" />
+                <Zap className="h-4 w-4 text-success" />
               </div>
               <p className="text-2xl font-bold font-mono text-foreground mt-1">
                 {summaryData?.activePlantsCount ?? 0} / {summaryData?.totalPlantsCount ?? 0}
               </p>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1">
+              <p className="text-[11px] text-success dark:text-success/80 mt-1">
                 {summaryData?.inTransitCount ?? 0} transit mixers / tippers in transit
               </p>
             </CardContent>
@@ -161,7 +161,7 @@ export function ProductionDashboardTab({
                         {p.code || p.type.replace("_", " ")}
                       </Badge>
                     </div>
-                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="text-[11px] font-medium text-success dark:text-success/80">
                       Today: {p.todayOutput} {p.capacityUnit?.split("/")[0] || "m³"} (
                       {p.todayTickets} loads)
                     </span>
@@ -207,7 +207,7 @@ export function ProductionDashboardTab({
                             <div
                               className={cn(
                                 "h-full transition-all duration-300",
-                                isLow ? "bg-red-500" : pct < 30 ? "bg-amber-500" : "bg-emerald-500"
+                                isLow ? "bg-red-500" : pct < 30 ? "bg-amber-500" : "bg-success"
                               )}
                               style={{ width: `${pct}%` }}
                             />
@@ -226,7 +226,7 @@ export function ProductionDashboardTab({
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Sliders className="h-4 w-4 text-emerald-600" /> Batch Recipe Calculator
+              <Sliders className="h-4 w-4 text-success" /> Batch Recipe Calculator
             </CardTitle>
             <CardDescription className="text-xs">
               Calculate exact ingredient weight for a batch transit mixer or tipper load.

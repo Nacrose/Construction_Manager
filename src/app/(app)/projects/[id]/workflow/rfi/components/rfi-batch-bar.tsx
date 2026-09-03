@@ -30,7 +30,7 @@ export function RfiBatchBar({
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-xs font-mono text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10"
+          className="h-7 text-xs font-mono text-success/80 border-success/40 hover:bg-success/10"
           onClick={() => onBatchStatus("approved")}
         >
           Approve

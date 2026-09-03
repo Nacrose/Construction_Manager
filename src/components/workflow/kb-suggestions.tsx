@@ -49,7 +49,7 @@ export function KbSuggestions({
                   className={cn(
                     "text-[10px] font-bold px-1.5 py-0.5 rounded uppercase border",
                     rfi.status === "approved"
-                      ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+                      ? "border-success/40 text-success/80 bg-success/10"
                       : rfi.status === "rejected"
                         ? "border-destructive/40 text-destructive bg-destructive/10"
                         : "border-amber-500/40 text-amber-400 bg-amber-500/10"

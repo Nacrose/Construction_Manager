@@ -103,7 +103,7 @@ export default function ProjectDetailPage({
         </p>
         <Link
           href="/projects"
-          className="mt-4 inline-block text-sm text-emerald-600 hover:underline"
+          className="mt-4 inline-block text-sm text-success hover:underline"
         >
           Back to projects
         </Link>
@@ -117,7 +117,7 @@ export default function ProjectDetailPage({
     <AnimatedPage className="space-y-8 pb-8">
       {/* Premium Gradient Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--navy-mid)] via-slate-800 to-[var(--navy-mid)] p-8 text-white shadow-xl dark:from-[var(--navy-deep)] dark:via-slate-900 dark:to-[var(--navy-deep)]">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="relative z-10">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-4">
@@ -125,7 +125,7 @@ export default function ProjectDetailPage({
               Projects
             </Link>
             <span className="opacity-50">/</span>
-            <span className="font-mono bg-white/10 px-2 py-0.5 rounded-md text-emerald-300">{project.code}</span>
+            <span className="font-mono bg-white/10 px-2 py-0.5 rounded-md text-success/80">{project.code}</span>
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

@@ -148,7 +148,7 @@ export function FiscalYearSwitchDialog({
                       </div>
                       <div className={cn(
                         "font-mono font-bold",
-                        log.totalCostImpact > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                        log.totalCostImpact > 0 ? "text-red-600 dark:text-red-400" : "text-success dark:text-success/80"
                       )}>
                         {log.totalCostImpact > 0 ? `+ NPR ${log.totalCostImpact.toLocaleString("en-IN")}` : `NPR ${log.totalCostImpact.toLocaleString("en-IN")}`}
                       </div>
@@ -214,7 +214,7 @@ export function FiscalYearSwitchDialog({
                 <Card className="p-3 bg-muted/30 border-border text-center">
                   <div className={cn(
                     "text-base font-bold font-mono",
-                    preview.totalCostImpact > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+                    preview.totalCostImpact > 0 ? "text-red-600 dark:text-red-400" : "text-success dark:text-success/80"
                   )}>
                     {preview.totalCostImpact > 0 ? `+ NPR ${Math.round(preview.totalCostImpact).toLocaleString("en-IN")}` : `NPR ${Math.round(preview.totalCostImpact).toLocaleString("en-IN")}`}
                   </div>
@@ -230,8 +230,8 @@ export function FiscalYearSwitchDialog({
                   <div className="text-[10px] text-muted-foreground mt-0.5">Rate Increased (Cost up)</div>
                 </Card>
 
-                <Card className="p-3 bg-emerald-500/10 border-emerald-500/30 text-center">
-                  <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono flex items-center justify-center gap-1">
+                <Card className="p-3 bg-success/10 border-success/30 text-center">
+                  <div className="text-base font-bold text-success dark:text-success/80 font-mono flex items-center justify-center gap-1">
                     <TrendingDown className="h-4 w-4" /> {preview.itemsDecreased} Items
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">Rate Decreased (Savings)</div>
@@ -271,7 +271,7 @@ export function FiscalYearSwitchDialog({
                         </td>
                         <td className={cn(
                           "p-2 text-right font-semibold",
-                          row.rateDelta > 0 ? "text-red-600 dark:text-red-400" : row.rateDelta < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                          row.rateDelta > 0 ? "text-red-600 dark:text-red-400" : row.rateDelta < 0 ? "text-success dark:text-success/80" : "text-muted-foreground"
                         )}>
                           {row.rateDelta > 0 ? `+${row.rateDelta}` : row.rateDelta}
                         </td>
@@ -280,7 +280,7 @@ export function FiscalYearSwitchDialog({
                         </td>
                         <td className={cn(
                           "p-2 text-right font-bold",
-                          row.costImpact > 0 ? "text-red-600 dark:text-red-400" : row.costImpact < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                          row.costImpact > 0 ? "text-red-600 dark:text-red-400" : row.costImpact < 0 ? "text-success dark:text-success/80" : "text-muted-foreground"
                         )}>
                           {row.costImpact > 0 ? `+${Math.round(row.costImpact).toLocaleString("en-IN")}` : Math.round(row.costImpact).toLocaleString("en-IN")}
                         </td>

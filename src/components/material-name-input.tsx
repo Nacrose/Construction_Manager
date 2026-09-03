@@ -140,8 +140,8 @@ export function MaterialNameInput({
       );
     } else {
       statusIndicator = (
-        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 text-[10px] gap-1 px-1.5 py-0">
-          <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" /> Unique
+        <Badge variant="outline" className="bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/30 text-[10px] gap-1 px-1.5 py-0">
+          <CheckCircle2 className="h-2.5 w-2.5 text-success/90" /> Unique
         </Badge>
       );
     }
@@ -176,7 +176,7 @@ export function MaterialNameInput({
         <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover/95 p-2 shadow-xl backdrop-blur-md animate-in fade-in-50 zoom-in-95">
           {filteredSubCategories.length > 0 && matches.length === 0 && (
             <div className="pb-1 mb-1 px-1 border-b border-border/60 text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-              <Sparkles className="h-3 w-3 text-emerald-400" />
+              <Sparkles className="h-3 w-3 text-success/80" />
               Existing Sub-Categories in Catalog ({filteredSubCategories.length})
             </div>
           )}
@@ -195,7 +195,7 @@ export function MaterialNameInput({
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="font-semibold text-foreground">{subCat}</span>
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 bg-success/10 text-success/80 border-success/20">
                       Sub-Category
                     </Badge>
                   </div>
@@ -259,7 +259,7 @@ export function MaterialNameInput({
                               <Building2 className="h-2 w-2" /> Org
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-0.5">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/30 gap-0.5">
                               <Shield className="h-2 w-2" /> Project
                             </Badge>
                           )}

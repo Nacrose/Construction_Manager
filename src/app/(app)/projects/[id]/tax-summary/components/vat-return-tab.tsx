@@ -250,7 +250,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
               ? "text-primary text-sm font-black"
               : r.type.startsWith("sales")
               ? "text-amber-600 dark:text-amber-400"
-              : "text-emerald-600 dark:text-emerald-400"
+              : "text-success dark:text-success/80"
           )}
         >
           {r.vat > 0 ? formatNpr(r.vat) : "—"}
@@ -276,7 +276,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
         <Button
           size="sm"
           onClick={handleExportFullIrdWorkbook}
-          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-mono"
+          className="h-8 text-xs bg-success hover:bg-success text-white gap-1.5 font-mono"
         >
           <Download className="h-3.5 w-3.5" />
           Export Statutory IRD Tax Pack (Excel)
@@ -303,9 +303,9 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
         <div className="p-3.5 rounded-xl border bg-card space-y-1">
           <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-mono">
             <span>B. Input VAT (खरिद कर कट्टी)</span>
-            <TrendingDown className="h-3.5 w-3.5 text-emerald-500" />
+            <TrendingDown className="h-3.5 w-3.5 text-success/90" />
           </div>
-          <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+          <p className="text-xl font-bold font-mono text-success dark:text-success/80">
             {formatNpr(purchases.inputVat)}
           </p>
           <p className="text-[11px] text-muted-foreground font-mono">
@@ -318,7 +318,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
           className={`p-3.5 rounded-xl border space-y-1 ${
             reconciliation.netVatPayable > 0
               ? "bg-red-500/10 border-red-500/30"
-              : "bg-emerald-500/10 border-emerald-500/30"
+              : "bg-success/10 border-success/30"
           }`}
         >
           <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-mono">
@@ -327,7 +327,7 @@ export function VatReturnTab({ projectId }: { projectId: string }) {
           </div>
           <p
             className={`text-xl font-bold font-mono ${
-              reconciliation.netVatPayable > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+              reconciliation.netVatPayable > 0 ? "text-red-600 dark:text-red-400" : "text-success dark:text-success/80"
             }`}
           >
             {formatNpr(reconciliation.netVatPayable > 0 ? reconciliation.netVatPayable : reconciliation.netVatCredit)}

@@ -31,7 +31,7 @@ export function WorkforceSection({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Users className="h-4 w-4 text-emerald-600" /> Workforce & Manpower Log
+          <Users className="h-4 w-4 text-success" /> Workforce & Manpower Log
         </h3>
         <div className="flex items-center gap-2">
           {canEdit && (

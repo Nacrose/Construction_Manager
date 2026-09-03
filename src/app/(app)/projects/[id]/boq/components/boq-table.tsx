@@ -20,14 +20,14 @@ function MatrixPanel({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded border border-border bg-card shadow-[0_0_16px_rgba(52,211,153,0.10)] transition-all duration-200",
+        "relative overflow-hidden rounded border border-border bg-card transition-all duration-200",
         className
       )}
     >
-      {/* Title bar (Matrix HUD titlebar) */}
+      {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60 bg-muted/60 select-none shrink-0 relative z-10">
-        <span className="font-mono text-xs font-bold text-primary tracking-wide uppercase flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_6px_#34d399] animate-pulse" />
+        <span className="font-mono text-xs font-bold text-foreground tracking-wide uppercase flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-primary" />
           {title}
         </span>
       </div>
@@ -52,11 +52,17 @@ export function BoqTable({
   toggleExpand,
   collapsedSections,
   toggleSection,
-  actionBarItem,
-  setActionBarItem,
   totalAmount,
   inspectedItemId,
   onOpenAnalysis,
+  onAddItem,
+  sections = [],
+  onMoveSection,
+  onCopyToSection,
+  onCopyRateAnalysis,
+  onDeleteItem,
+  onChangeKeyword,
+  onRemoveKeyword,
 }: {
   projectId: string;
   filtered: BoqItem[];
@@ -71,11 +77,17 @@ export function BoqTable({
   toggleExpand: (itemId: string) => void;
   collapsedSections: Set<string>;
   toggleSection: (section: string) => void;
-  actionBarItem: { item: BoqItem; el: HTMLElement } | null;
-  setActionBarItem: (val: { item: BoqItem; el: HTMLElement } | null) => void;
   totalAmount: number;
   inspectedItemId?: string | null;
   onOpenAnalysis?: (item: BoqItem) => void;
+  onAddItem?: (section: string | undefined) => void;
+  sections?: string[];
+  onMoveSection?: (item: BoqItem, section: string) => void;
+  onCopyToSection?: (item: BoqItem, section: string) => void;
+  onCopyRateAnalysis?: (item: BoqItem) => void;
+  onDeleteItem?: (item: BoqItem) => void;
+  onChangeKeyword?: (item: BoqItem) => void;
+  onRemoveKeyword?: (item: BoqItem) => void;
 }) {
   if (!filtered.length) {
     return (
@@ -120,29 +132,34 @@ export function BoqTable({
   });
   map.forEach((items, section) => groups.push({ section, items }));
 
+  // Selection is opt-in: the checkbox column only appears once something is
+  // selected (via the row/section right-click menu) — never by default.
+  const showCheckbox = canWrite && selectedItems.size > 0;
+  const preAmountCols = (showBaseline ? 2 : 0) + 5 + (showCheckbox ? 1 : 0);
+
   return (
     <MatrixPanel title="Bill of Quantities (BOQ)" className="print-area">
       <div className="overflow-x-auto no-scrollbar">
-        <table
-          className={cn(
-            "w-full table-auto tabular-nums font-mono",
-            tableDensity === "compact" ? "text-xs" : "text-sm"
-          )}
-        >
+          <table
+            className={cn(
+              "boq-grid w-full table-auto tabular-nums font-mono",
+              tableDensity === "compact" ? "text-xs" : "text-sm"
+            )}
+          >
           <thead className="sticky top-0 z-20 bg-muted/90 backdrop-blur-md border-b border-border/80">
             <tr
               className={cn(
                 "text-left uppercase font-mono font-bold tracking-wide border-b border-border/40 text-primary",
-                tableDensity === "compact" ? "text-[10px]" : "text-[11px]"
+                tableDensity === "compact" ? "text-xs" : "text-sm"
               )}
             >
-              <th
-                className={cn(
-                  "w-9 px-1 text-center",
-                  tableDensity === "compact" ? "py-1.5" : "py-2"
-                )}
-              >
-                {canWrite && (
+              {showCheckbox && (
+                <th
+                  className={cn(
+                    "w-9 px-1 text-center",
+                    tableDensity === "compact" ? "py-1.5" : "py-2"
+                  )}
+                >
                   <input
                     type="checkbox"
                     checked={
@@ -152,15 +169,15 @@ export function BoqTable({
                     className="h-3.5 w-3.5 rounded border-border"
                     title="Select all"
                   />
-                )}
-              </th>
+                </th>
+              )}
               <th
                 className={cn(
-                  "w-20 px-2 font-semibold text-primary sticky left-0 bg-muted/95 backdrop-blur-md z-20",
+                  "w-14 px-2 font-semibold text-primary sticky left-0 bg-muted/95 backdrop-blur-md z-20",
                   tableDensity === "compact" ? "py-1.5" : "py-2"
                 )}
               >
-                Code
+                S.N.
               </th>
               <th
                 className={cn(
@@ -241,10 +258,11 @@ export function BoqTable({
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => (
+            {groups.map((g, gi) => (
               <BoqSectionGroup
                 key={g.section}
                 section={g.section}
+                sectionNumber={gi + 1}
                 items={g.items}
                 expanded={expanded}
                 onToggle={toggleExpand}
@@ -258,20 +276,24 @@ export function BoqTable({
                 onToggleCollapse={() => toggleSection(g.section)}
                 selectedItems={selectedItems}
                 onToggleSelect={toggleSelect}
-                actionBarItem={actionBarItem}
-                onRowClick={(item, el) => {
-                  if (onOpenAnalysis) onOpenAnalysis(item);
-                  else setActionBarItem({ item, el });
-                }}
+                selectable={showCheckbox}
                 inspectedItemId={inspectedItemId}
                 onOpenAnalysis={onOpenAnalysis}
+                onAddItem={onAddItem}
+                sections={sections}
+                onMoveSection={onMoveSection}
+                onCopyToSection={onCopyToSection}
+                onCopyRateAnalysis={onCopyRateAnalysis}
+                onDeleteItem={onDeleteItem}
+                onChangeKeyword={onChangeKeyword}
+                onRemoveKeyword={onRemoveKeyword}
               />
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border/60 bg-muted/60 font-mono font-bold text-xs">
               <td
-                colSpan={showBaseline ? 9 : 7}
+                colSpan={preAmountCols}
                 className="px-3 py-2.5 text-right text-muted-foreground uppercase tracking-wider text-[11px]"
               >
                 Grand Total

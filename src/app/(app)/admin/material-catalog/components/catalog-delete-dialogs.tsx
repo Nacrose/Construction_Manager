@@ -92,7 +92,7 @@ export function ConfirmCatalogDeleteDialog({
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/20 p-3 text-xs text-emerald-800 dark:text-emerald-300">
+              <div className="rounded-md border border-success/30 bg-success/10 dark:border-success dark:bg-success/20 p-3 text-xs text-success dark:text-success/80">
                 <p className="font-medium">
                   ✓ Safe to hard-delete. No active references found in rates, BOQs, or
                   projects.
@@ -232,7 +232,7 @@ export function CategoryDeleteDialog({
                 className={cn(
                   "rounded-md border p-2",
                   (impact?.safeCount ?? 0) > 0
-                    ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20"
+                    ? "border-success/40 bg-success/10 dark:bg-success/20"
                     : "border-border"
                 )}
               >
@@ -240,7 +240,7 @@ export function CategoryDeleteDialog({
                   className={cn(
                     "font-bold text-lg",
                     (impact?.safeCount ?? 0) > 0
-                      ? "text-emerald-700"
+                      ? "text-success"
                       : "text-foreground"
                   )}
                 >

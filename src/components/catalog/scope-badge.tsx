@@ -38,7 +38,7 @@ export function ScopeBadge({
       <Badge
         variant="outline"
         className={cn(
-          "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 text-[9px] gap-0.5 shrink-0 whitespace-nowrap font-medium",
+          "bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/30 text-[9px] gap-0.5 shrink-0 whitespace-nowrap font-medium",
           className
         )}
         title="In Project Material Inventory"

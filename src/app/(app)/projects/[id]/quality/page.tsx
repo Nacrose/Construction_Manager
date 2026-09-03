@@ -199,7 +199,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
         header: "Result",
         width: "100px",
         render: (val) => {
-          if (val === "pass") return <span className="text-emerald-500 flex items-center gap-1 font-mono text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Pass</span>;
+          if (val === "pass") return <span className="text-success/90 flex items-center gap-1 font-mono text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Pass</span>;
           if (val === "fail") return <span className="text-red-500 flex items-center gap-1 font-mono text-xs"><XCircle className="h-3.5 w-3.5" /> Fail</span>;
           if (val === "conditional_pass") return <span className="text-amber-500 flex items-center gap-1 font-mono text-xs"><AlertCircle className="h-3.5 w-3.5" /> Cond.</span>;
           return <span className="text-muted-foreground">—</span>;
@@ -244,7 +244,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
               size="sm"
               variant="outline"
               onClick={() => openCompleteDialog(r)}
-              className="h-6 text-[10px] font-mono border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              className="h-6 text-[10px] font-mono border-success/30 text-success/80 hover:bg-success/10"
             >
               Complete
             </Button>
@@ -263,7 +263,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 font-mono">
             <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-foreground/80">{stats.total}</div><div className="text-[10px] text-muted-foreground uppercase">Total</div></Card>
             <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-amber-700">{stats.pending}</div><div className="text-[10px] text-muted-foreground uppercase">Pending</div></Card>
-            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-emerald-700">{stats.passed}</div><div className="text-[10px] text-muted-foreground uppercase">Passed</div></Card>
+            <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-success">{stats.passed}</div><div className="text-[10px] text-muted-foreground uppercase">Passed</div></Card>
             <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-rose-700">{stats.failed}</div><div className="text-[10px] text-muted-foreground uppercase">Failed</div></Card>
             <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-orange-700">{stats.ncr}</div><div className="text-[10px] text-muted-foreground uppercase">NCR</div></Card>
             <Card className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl"><div className="text-lg font-bold text-[var(--primary)]">{stats.completed}</div><div className="text-[10px] text-muted-foreground uppercase">Completed</div></Card>
@@ -360,7 +360,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                             <button
                               type="button"
                               onClick={() => updateChecklistItem(i, "passed", true)}
-                              className={cn("rounded p-1 transition", c.passed === true ? "bg-emerald-600 text-white" : "bg-muted hover:bg-emerald-500/20 text-muted-foreground")}
+                              className={cn("rounded p-1 transition", c.passed === true ? "bg-success text-white" : "bg-muted hover:bg-success/20 text-muted-foreground")}
                               title="Pass"
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -471,7 +471,7 @@ export default function QualityPage({ params }: { params: Promise<{ id: string }
                 <div className="p-6 space-y-2 text-xs font-mono bg-card">
                   {items.map((c, i) => (
                     <div key={i} className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-muted/60 p-2.5 text-xs font-mono">
-                      {c.passed === true ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> :
+                      {c.passed === true ? <CheckCircle2 className="h-4 w-4 text-success shrink-0" /> :
                        c.passed === false ? <XCircle className="h-4 w-4 text-rose-600 shrink-0" /> :
                        <AlertCircle className="h-4 w-4 text-muted-foreground/80 shrink-0" />}
                       <div className="flex-1">

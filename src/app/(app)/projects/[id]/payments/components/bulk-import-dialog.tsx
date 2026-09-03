@@ -407,7 +407,7 @@ export function BulkImportDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => downloadSampleTemplate("tally")}
-                className="h-6 text-[11px] gap-1 px-2 font-mono text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                className="h-6 text-[11px] gap-1 px-2 font-mono text-success dark:text-success/80 border-success/30"
               >
                 <Download className="h-3 w-3" /> TallyPrime
               </Button>
@@ -433,7 +433,7 @@ export function BulkImportDialog({
                 onClick={() => setFormatType("tally")}
                 className={`px-2.5 py-1 rounded text-xs font-semibold transition ${
                   formatType === "tally"
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-success text-white shadow-sm"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -506,7 +506,7 @@ export function BulkImportDialog({
                   TDS: <strong className="text-red-600 font-bold">NPR {fmt(totalImportTds)}</strong>
                 </span>
                 <span>
-                  Net: <strong className="text-emerald-600 font-bold">NPR {fmt(totalImportAmount - totalImportTds)}</strong>
+                  Net: <strong className="text-success font-bold">NPR {fmt(totalImportAmount - totalImportTds)}</strong>
                 </span>
               </div>
             </div>
@@ -571,12 +571,12 @@ export function BulkImportDialog({
                         <td className="p-2 text-right text-red-600">
                           {r.tdsDeducted > 0 ? fmt(r.tdsDeducted) : "—"}
                         </td>
-                        <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">
+                        <td className="p-2 text-right font-bold text-success dark:text-success/80">
                           {fmt(r.amount - r.tdsDeducted)}
                         </td>
                         <td className="p-2 text-center">
                           {r.isValid ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 inline" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-success inline" />
                           ) : (
                             <span title={r.error}>
                               <AlertTriangle className="h-3.5 w-3.5 text-red-500 inline" />

@@ -32,7 +32,7 @@ interface PhotoAnnotatorProps {
 const COLORS = [
   "#ef4444", // red
   "#f59e0b", // amber
-  "#10b981", // emerald
+  "#4a8b57", // emerald
   "#3b82f6", // blue
   "#8b5cf6", // purple
   "#ffffff", // white

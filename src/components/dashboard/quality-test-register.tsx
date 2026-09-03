@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type Props = { projectId: string };
 
 const STATUS_CONFIG = {
-  passed: { label: "Passed", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-950" },
+  passed: { label: "Passed", icon: CheckCircle2, color: "text-success", bg: "bg-success/15 dark:bg-success" },
   failed: { label: "Failed", icon: XCircle, color: "text-red-600", bg: "bg-red-100 dark:bg-red-950" },
   pending: { label: "Pending", icon: Clock, color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-950" },
 };

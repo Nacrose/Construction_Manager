@@ -27,7 +27,7 @@ export function MaterialsSection({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Package className="h-4 w-4 text-emerald-600" /> Materials Received On Site
+          <Package className="h-4 w-4 text-success" /> Materials Received On Site
         </h3>
         {canEdit && (
           <Button

@@ -163,7 +163,7 @@ function IpcPaymentSummaryContent({
             IPC #{ipc.number} Payment Summary
           </Badge>
           {ipc.isBillAttached ? (
-            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 text-[10px]">
+            <Badge className="bg-success/15 text-success dark:bg-success dark:text-success/80 gap-1 text-[10px]">
               <Paperclip className="h-3 w-3" /> Scanned Bill Attached
             </Badge>
           ) : (
@@ -198,7 +198,7 @@ function IpcPaymentSummaryContent({
             size="sm"
             variant="outline"
             onClick={handleExportExcel}
-            className="h-7 text-xs text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 gap-1"
+            className="h-7 text-xs text-success dark:text-success/80 border-success/40 dark:border-success gap-1"
           >
             <Download className="h-3 w-3" /> Export Excel
           </Button>
@@ -337,7 +337,7 @@ function IpcPaymentSummaryContent({
                     {fmt(summary.thisPeriod.gross)}
                   </td>
                   <td className="border-r border-foreground p-2 text-right font-extrabold">{fmt(summary.cumulative.gross)}</td>
-                  <td className="p-2 text-center font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20">
+                  <td className="p-2 text-center font-bold text-success dark:text-success/80 bg-success/40 dark:bg-success/20">
                     {summary.progressPct.toFixed(2)}%
                   </td>
                 </tr>
@@ -443,7 +443,7 @@ function IpcPaymentSummaryContent({
             </div>
             <div className="flex items-start gap-2">
               <span className="font-bold text-muted-foreground whitespace-nowrap">भुक्तानी योग्य रकम (अक्षरूपी):</span>
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300 font-sans">{amountInWords(summary.thisPeriod.netPayable, "np")}</span>
+              <span className="font-semibold text-success dark:text-success/80 font-sans">{amountInWords(summary.thisPeriod.netPayable, "np")}</span>
             </div>
           </div>
 

@@ -30,11 +30,11 @@ type Log = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  create: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  create: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   update: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   delete: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   submit: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  approve: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  approve: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   archive: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
 
@@ -92,7 +92,7 @@ export default async function ActivityPage() {
                 const meta = log.metadata ? (() => { try { return JSON.parse(log.metadata); } catch { return null; } })() : null;
                 return (
                   <li key={log.id} className="flex items-start gap-3 p-3 hover:bg-muted/20">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-medium text-white mt-0.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success text-xs font-medium text-white mt-0.5">
                       {log.user?.name?.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase() ?? "?"}
                     </div>
                     <div className="min-w-0 flex-1">

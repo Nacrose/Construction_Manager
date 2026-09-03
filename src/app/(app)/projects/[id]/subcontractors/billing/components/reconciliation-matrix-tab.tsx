@@ -227,7 +227,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
         <span
           className={cn(
             "font-mono text-xs",
-            r.marginGain > 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"
+            r.marginGain > 0 ? "text-success dark:text-success/80 font-semibold" : "text-muted-foreground"
           )}
         >
           {r.marginGain !== 0 ? formatNpr(r.marginGain) : "—"}
@@ -270,7 +270,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
         }
         if (r.status === "ok") {
           return (
-            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 gap-0.5">
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold bg-success/15 dark:bg-success text-success dark:text-success/80 gap-0.5">
               <CheckCircle2 className="h-2.5 w-2.5" /> OK
             </Badge>
           );
@@ -315,9 +315,9 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
             </div>
           </Card>
 
-          <Card className="p-3 border-l-4 border-l-emerald-500 shadow-xs">
+          <Card className="p-3 border-l-4 border-l-success shadow-xs">
             <div className="text-[10px] uppercase font-mono text-muted-foreground">Retained Margin Gain</div>
-            <div className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+            <div className="text-base font-bold font-mono text-success dark:text-success/80 mt-0.5">
               {formatNpr(summary.totalMarginGain, { compact: true })}
             </div>
             <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
@@ -359,7 +359,7 @@ export function ReconciliationMatrixTab({ projectId }: { projectId: string }) {
           <Button
             size="sm"
             onClick={handleExportExcel}
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-mono"
+            className="h-8 text-xs bg-success hover:bg-success text-white gap-1.5 font-mono"
           >
             <Download className="h-3.5 w-3.5" />
             Export Matrix (Excel)

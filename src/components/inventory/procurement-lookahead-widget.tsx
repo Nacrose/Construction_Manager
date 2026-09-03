@@ -90,7 +90,7 @@ export function ProcurementLookaheadWidget({ projectId, onCreateRequisition }: P
       ) : alerts.length === 0 ? (
         <Card className="p-6 text-center border-dashed">
           <CardContent className="space-y-2 pt-2">
-            <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
+            <CheckCircle2 className="h-8 w-8 text-success/90 mx-auto" />
             <p className="text-sm font-semibold text-foreground">No Procurement Bottlenecks</p>
             <p className="text-xs text-muted-foreground">
               Current inventory levels sufficiently cover scheduled tasks for the next {lookaheadDays} days.
@@ -151,7 +151,7 @@ export function ProcurementLookaheadWidget({ projectId, onCreateRequisition }: P
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground block font-sans">Shortfall:</span>
-                    <span className={`font-bold ${alert.shortfall > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600"}`}>
+                    <span className={`font-bold ${alert.shortfall > 0 ? "text-rose-600 dark:text-rose-400" : "text-success"}`}>
                       {alert.shortfall} {alert.unit}
                     </span>
                   </div>

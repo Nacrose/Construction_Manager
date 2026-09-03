@@ -193,7 +193,7 @@ export function CatalogDetail({
             <Badge variant="outline" className="text-xs font-mono">
               {catalog.fiscalYear}
             </Badge>
-            {catalog.isActive && <Badge className="bg-emerald-600 text-[9px]">Active</Badge>}
+            {catalog.isActive && <Badge className="bg-success text-[9px]">Active</Badge>}
             {catalog.sourceCatalogId && (
               <Badge variant="outline" className="text-[9px] text-muted-foreground">
                 Imported

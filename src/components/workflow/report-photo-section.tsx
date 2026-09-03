@@ -172,7 +172,7 @@ export function PhotoSection({
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Camera className="h-4 w-4 text-emerald-600" /> Site Photos
+          <Camera className="h-4 w-4 text-success" /> Site Photos
         </CardTitle>
       </CardHeader>
       <CardContent>

@@ -40,7 +40,7 @@ export function ProgressSection({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <ListChecks className="h-4 w-4 text-emerald-600" /> Plan vs. Actual Work Progress
+            <ListChecks className="h-4 w-4 text-success" /> Plan vs. Actual Work Progress
           </h3>
           <p className="text-[11px] text-muted-foreground">
             Track Batched / Dispatched volume vs. Payable IPC measured volume with live yield
@@ -100,7 +100,7 @@ export function ProgressSection({
               <TableHead className="h-7 text-[10px] w-16">Location</TableHead>
               <TableHead className="h-7 text-[10px] w-14 text-right">Plan</TableHead>
               <TableHead className="h-7 text-[10px] w-16 text-right">Batched / Placed</TableHead>
-              <TableHead className="h-7 text-[10px] w-16 text-right text-emerald-700 dark:text-emerald-400">
+              <TableHead className="h-7 text-[10px] w-16 text-right text-success dark:text-success/80">
                 Payable (IPC)
               </TableHead>
               <TableHead className="h-7 text-[10px] w-24 text-center">
@@ -220,7 +220,7 @@ export function ProgressSection({
                         disabled={!canEdit}
                         type="number"
                         step="any"
-                        className="w-full rounded border px-1 py-0.5 text-xs text-right font-medium text-emerald-700 dark:text-emerald-400"
+                        className="w-full rounded border px-1 py-0.5 text-xs text-right font-medium text-success dark:text-success/80"
                         placeholder="0"
                         value={r.payableQty !== undefined ? r.payableQty : r.actualQty || 0}
                         onChange={(e) => {
@@ -240,7 +240,7 @@ export function ProgressSection({
                               ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                               : diff < 0
                                 ? "bg-info/15 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80"
-                                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                : "bg-success/10 text-success dark:bg-success/40 dark:text-success/80"
                           )}
                         >
                           {diff > 0

@@ -265,7 +265,7 @@ export function QuickBuyDialog({
                   type="button"
                   onClick={() => setPaymentStatus("paid_now")}
                   className={`px-3 py-1 text-xs rounded-md font-semibold transition ${
-                    paymentStatus === "paid_now" ? "bg-emerald-500 text-black font-bold" : "text-muted-foreground hover:text-foreground"
+                    paymentStatus === "paid_now" ? "bg-success text-black font-bold" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Paid Now (नगद/बैंक)
@@ -333,7 +333,7 @@ export function QuickBuyDialog({
           </div>
 
           {/* Amount Summary */}
-          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+          <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-success/10 border border-success/20 text-xs">
             <span className="text-foreground/80">Total Purchase Value:</span>
             <span className="font-mono text-sm font-bold text-[var(--primary)]">
               {formatNpr(totalAmount)} {isVatBill && "(incl. 13% VAT)"}
@@ -353,7 +353,7 @@ export function QuickBuyDialog({
             <Button
               type="submit"
               disabled={buyMutation.isPending}
-              className="h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold text-xs shadow-md"
+              className="h-9 px-5 bg-success hover:bg-success text-foreground font-bold text-xs shadow-md"
             >
               {buyMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               Save Material Purchase

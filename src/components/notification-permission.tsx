@@ -212,7 +212,7 @@ VAPID_SUBJECT=mailto:admin@yourcompany.com`}
           <div className="flex items-center gap-2">
             {subscribed ? (
               <>
-                <Check className="h-4 w-4 text-emerald-500" />
+                <Check className="h-4 w-4 text-success/90" />
                 <span className="text-sm font-medium">Enabled</span>
               </>
             ) : permission === "denied" ? (

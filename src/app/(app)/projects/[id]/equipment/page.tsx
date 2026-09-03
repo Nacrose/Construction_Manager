@@ -282,7 +282,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
                       onClick={() => setAddOpen(true)}
                       className="cursor-pointer gap-2 text-xs py-2"
                     >
-                      <Truck className="h-4 w-4 text-emerald-500" />
+                      <Truck className="h-4 w-4 text-success/90" />
                       <div>
                         <div className="font-semibold">Register Fleet Asset</div>
                         <div className="text-[10px] text-muted-foreground">

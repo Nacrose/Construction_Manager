@@ -181,7 +181,7 @@ export function ExcelMaterialImporter({
         return (
           <div>
             {isExact && topMatch && (
-              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-1 text-[10px] font-mono">
+              <Badge variant="outline" className="bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/30 gap-1 text-[10px] font-mono">
                 <CheckCircle2 className="h-2.5 w-2.5" /> Exact: {topMatch.name}
               </Badge>
             )}
@@ -215,7 +215,7 @@ export function ExcelMaterialImporter({
                 className={cn(
                   "px-2 py-0.5 text-[10px] rounded border transition-all font-mono",
                   t.recommendedAction === "link_existing"
-                    ? "bg-emerald-600 text-white font-bold border-emerald-600 shadow-xs"
+                    ? "bg-success text-white font-bold border-success shadow-xs"
                     : "bg-background text-muted-foreground hover:text-foreground border-border"
                 )}
               >
@@ -289,8 +289,8 @@ export function ExcelMaterialImporter({
           <div className="space-y-4 py-2">
             {/* Tally Metrics Summary */}
             <div className="grid grid-cols-3 gap-2">
-              <Card className="p-2.5 bg-emerald-500/10 border-emerald-500/30 text-center">
-                <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300 font-mono">
+              <Card className="p-2.5 bg-success/10 border-success/30 text-center">
+                <div className="text-sm font-bold text-success dark:text-success/80 font-mono">
                   {exactCount} Exact Matches
                 </div>
                 <div className="text-[10px] text-muted-foreground font-mono">Will link directly to existing</div>
@@ -356,7 +356,7 @@ export function ExcelMaterialImporter({
                 size="sm"
                 onClick={handleCommit}
                 disabled={commitMutation.isPending || talliedRows.length === 0}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs shadow-sm"
+                className="gap-1.5 bg-success hover:bg-success text-white font-mono text-xs shadow-sm"
               >
                 {commitMutation.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

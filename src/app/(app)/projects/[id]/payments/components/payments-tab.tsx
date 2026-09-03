@@ -231,7 +231,7 @@ export function PaymentsTab({
               variant="ghost"
               size="icon"
               onClick={() => setViewScanUrl(val)}
-              className="h-6 w-6 text-[var(--primary)] hover:bg-emerald-500/20"
+              className="h-6 w-6 text-[var(--primary)] hover:bg-success/20"
               title="View Voucher Scan"
             >
               <Eye className="h-3.5 w-3.5" />
@@ -321,7 +321,7 @@ export function PaymentsTab({
                 <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-emerald-500/30 text-xs">
+                <SelectContent className="bg-card border-success/30 text-xs">
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.name}>
@@ -338,7 +338,7 @@ export function PaymentsTab({
                 <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Payees" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-emerald-500/30 text-xs">
+                <SelectContent className="bg-card border-success/30 text-xs">
                   <SelectItem value="all">All Payees</SelectItem>
                   <SelectItem value="vendor">Vendor</SelectItem>
                   <SelectItem value="subcontractor">Subcontractor</SelectItem>

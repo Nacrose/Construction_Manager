@@ -115,14 +115,14 @@ export function MergeMaterialsDialog({
           <div className="space-y-4 py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Primary / Winner */}
-              <div className="space-y-1.5 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
-                <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+              <div className="space-y-1.5 p-3 rounded-lg border border-success/30 bg-success/5">
+                <Label className="text-xs font-semibold text-success dark:text-success/80 flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Keeper (Primary Material)
                 </Label>
                 <select
                   value={winnerId}
                   onChange={(e) => setWinnerId(e.target.value)}
-                  className="w-full h-8 text-xs rounded-md border border-input bg-background px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-8 text-xs rounded-md border border-input bg-background px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-success"
                 >
                   <option value="" disabled>Select keeper...</option>
                   {materials.map((m) => (

@@ -37,15 +37,15 @@ export function CashFlowForecast({ projectId }: Props) {
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Billed</div>
-            <div className="text-sm font-bold text-emerald-600">{formatNpr(s.totalBilled)}</div>
+            <div className="text-sm font-bold text-success">{formatNpr(s.totalBilled)}</div>
           </div>
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Spent</div>
             <div className="text-sm font-bold text-red-600">{formatNpr(s.totalSpent)}</div>
           </div>
-          <div className={cn("rounded border p-2 text-center", netPositive ? "border-emerald-200 bg-emerald-50/30" : "border-red-200 bg-red-50/30")}>
+          <div className={cn("rounded border p-2 text-center", netPositive ? "border-success/30 bg-success/30" : "border-red-200 bg-red-50/30")}>
             <div className="text-[9px] text-muted-foreground uppercase">Net</div>
-            <div className={cn("text-sm font-bold flex items-center justify-center gap-1", netPositive ? "text-emerald-600" : "text-red-600")}>
+            <div className={cn("text-sm font-bold flex items-center justify-center gap-1", netPositive ? "text-success" : "text-red-600")}>
               {netPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
               {formatNpr(Math.abs(s.netCashFlow))}
             </div>
@@ -66,9 +66,9 @@ export function CashFlowForecast({ projectId }: Props) {
             return (
               <div key={t.month} className="grid grid-cols-4 gap-1 text-[10px] px-1 py-0.5 rounded hover:bg-muted/30">
                 <span className="font-medium font-sans">{monthLabel}</span>
-                <span className="text-right text-emerald-600 tabular-nums">{t.billed > 0 ? formatNpr(t.billed) : "—"}</span>
+                <span className="text-right text-success tabular-nums">{t.billed > 0 ? formatNpr(t.billed) : "—"}</span>
                 <span className="text-right text-red-600 tabular-nums">{t.spent > 0 ? formatNpr(t.spent) : "—"}</span>
-                <span className={cn("text-right tabular-nums font-medium", t.cumulative >= 0 ? "text-emerald-600" : "text-red-600")}>
+                <span className={cn("text-right tabular-nums font-medium", t.cumulative >= 0 ? "text-success" : "text-red-600")}>
                   {t.cumulative >= 0 ? "+" : ""}{formatNpr(t.cumulative)}
                 </span>
               </div>

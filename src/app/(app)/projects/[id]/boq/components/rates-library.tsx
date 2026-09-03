@@ -278,7 +278,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
                     />
                     <Button
                       size="sm"
-                      className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="h-8 px-3 bg-success hover:bg-success text-white"
                       disabled={!newItemName || addItem.isPending}
                       onClick={() => addItem.mutate({
                         projectId,
@@ -353,7 +353,7 @@ export function RatesLibrary({ projectId, canWrite }: { projectId: string; canWr
                                   )}
                                 </td>
                                 <td className="p-2.5 font-mono text-muted-foreground">{item.unit}</td>
-                                <td className="p-2.5 text-right font-mono font-bold text-emerald-600">
+                                <td className="p-2.5 text-right font-mono font-bold text-success">
                                   {canWrite ? (
                                     <InlineEdit value={item.rate.toString()} onSave={(v) => updateItem.mutate({ projectId, profileId: selectedProfile, itemId: item.id, rate: parseFloat(v) || 0 })} className="w-24 text-right" />
                                   ) : formatNpr(item.rate)}

@@ -200,7 +200,7 @@ export function DrawingViewer({
           <div className="w-72 shrink-0 border-r border-[var(--border)] overflow-y-auto p-3.5 space-y-4 bg-white/95 flex flex-col">
             <div className="space-y-1 pb-3 border-b border-[var(--border)]">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                <span className="text-xs font-mono font-bold text-success/80 bg-success/10 px-2 py-0.5 rounded border border-success/20">
                   {drawing?.number ?? "Loading..."}
                 </span>
                 <span className="text-[10px] uppercase font-mono text-muted-foreground">
@@ -238,7 +238,7 @@ export function DrawingViewer({
                       className={cn(
                         "rounded-xl border p-2.5 text-xs transition-all space-y-1.5",
                         isSelected
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-foreground shadow-sm"
+                          ? "border-success/40 bg-success/10 text-foreground shadow-sm"
                           : "border-[var(--border)] bg-[#f8fbfe]/70 text-foreground/80 hover:bg-white/5 hover:border-[var(--primary)]"
                       )}
                     >
@@ -251,11 +251,11 @@ export function DrawingViewer({
                           }}
                           className="flex items-center gap-2 font-mono font-bold text-left flex-1"
                         >
-                          <span className={cn("text-xs", rev.isCurrent ? "text-emerald-400" : "text-foreground/80")}>
+                          <span className={cn("text-xs", rev.isCurrent ? "text-success/80" : "text-foreground/80")}>
                             Rev {rev.revision}
                           </span>
                           {rev.isCurrent ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-success/20 text-success/80 font-bold border border-success/30">
                               CURRENT · IFC
                             </span>
                           ) : (
@@ -311,7 +311,7 @@ export function DrawingViewer({
                   {pins.map((pin, i) => (
                     <div key={pin.id} className="flex items-center justify-between p-1.5 rounded-lg border border-[var(--border)] bg-[#f8fbfe] text-[10px] font-mono text-foreground/80">
                       <div className="truncate flex-1 mr-1">
-                        <span className="font-bold text-emerald-400 mr-1.5">#{i + 1}</span>
+                        <span className="font-bold text-success/80 mr-1.5">#{i + 1}</span>
                         <span>{pin.note}</span>
                       </div>
                       <button
@@ -333,7 +333,7 @@ export function DrawingViewer({
                 <GitBranch className="h-3.5 w-3.5 text-[var(--primary)]" /> Stack New Revision
               </Button>
               <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowApproveDialog(true)}>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Approve / Reject Sheet
+                <CheckCircle2 className="h-3.5 w-3.5 text-success/80" /> Approve / Reject Sheet
               </Button>
               <Button size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5 border-[var(--border)] bg-[#f8fbfe] text-foreground hover:bg-white/10" onClick={() => setShowRfiDialog(true)}>
                 <FileQuestion className="h-3.5 w-3.5 text-amber-400" /> Raise Linked RFI
@@ -355,7 +355,7 @@ export function DrawingViewer({
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground" onClick={() => setZoom(z => Math.max(0.25, z - 0.25))} title="Zoom out">
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <span className="text-xs font-mono w-12 text-center text-emerald-400 font-bold">{Math.round(zoom * 100)}%</span>
+                <span className="text-xs font-mono w-12 text-center text-success/80 font-bold">{Math.round(zoom * 100)}%</span>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-foreground/80 hover:text-foreground" onClick={() => setZoom(z => Math.min(4, z + 0.25))} title="Zoom in">
                   <ZoomIn className="h-4 w-4" />
                 </Button>
@@ -389,7 +389,7 @@ export function DrawingViewer({
                     variant={pinningMode ? "default" : "outline"}
                     className={cn(
                       "h-7 text-xs gap-1 ml-1.5 font-mono",
-                      pinningMode ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80 hover:text-foreground"
+                      pinningMode ? "bg-success/20 text-success/80 border border-success/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80 hover:text-foreground"
                     )}
                     onClick={() => setPinningMode(!pinningMode)}
                     title="Drop a coordinate observation pin onto the sheet"
@@ -466,7 +466,7 @@ export function DrawingViewer({
                     variant={showMarkupList ? "default" : "outline"}
                     className={cn(
                       "h-7 text-xs gap-1 font-mono",
-                      showMarkupList ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80"
+                      showMarkupList ? "bg-success/20 text-success/80 border-success/40" : "border-[var(--border)] bg-[#f8fbfe] text-foreground/80"
                     )}
                     onClick={() => setShowMarkupList(!showMarkupList)}
                     title="Toggle markup list panel"
@@ -535,12 +535,12 @@ export function DrawingViewer({
                             title={pin.note}
                           >
                             <div className="relative flex items-center justify-center">
-                              <span className="h-4 w-4 rounded-full bg-emerald-400/40 animate-ping absolute" />
-                              <span className="h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-black shadow-[0_0_8px_#00ff66] flex items-center justify-center text-[8px] font-bold text-black">
+                              <span className="h-4 w-4 rounded-full bg-success/40 animate-ping absolute" />
+                              <span className="h-3.5 w-3.5 rounded-full bg-success/60 border-2 border-black shadow-[0_0_8px_#00ff66] flex items-center justify-center text-[8px] font-bold text-black">
                                 {i + 1}
                               </span>
                             </div>
-                            <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1 bg-black/95 border border-emerald-500/50 text-[10px] font-mono text-emerald-300 whitespace-nowrap rounded-lg shadow-xl z-40">
+                            <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1 bg-black/95 border border-success text-[10px] font-mono text-success/80 whitespace-nowrap rounded-lg shadow-xl z-40">
                               {pin.note}
                             </div>
                           </div>

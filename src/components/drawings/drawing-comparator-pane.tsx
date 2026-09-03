@@ -43,10 +43,10 @@ export function DrawingComparatorPane({ projectId }: { projectId: string }) {
         <button
           onClick={() => setTab("boq")}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-colors ${
-            tab === "boq" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold" : "text-muted-foreground hover:text-foreground"
+            tab === "boq" ? "bg-success/20 text-success/80 border border-success/40 font-bold" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <ReceiptText className="h-3.5 w-3.5 text-emerald-400" /> BOQ Takeoff Items ({boqData?.items.length ?? 0})
+          <ReceiptText className="h-3.5 w-3.5 text-success/80" /> BOQ Takeoff Items ({boqData?.items.length ?? 0})
         </button>
         <button
           onClick={() => setTab("rfis")}
@@ -81,9 +81,9 @@ export function DrawingComparatorPane({ projectId }: { projectId: string }) {
           ) : (
             <div className="space-y-1.5">
               {filteredBoq.map((item) => (
-                <div key={item.id} className="p-2.5 rounded-xl border border-[var(--border)] bg-[#f8fbfe]/80 hover:border-emerald-500/40 transition-all group">
+                <div key={item.id} className="p-2.5 rounded-xl border border-[var(--border)] bg-[#f8fbfe]/80 hover:border-success/40 transition-all group">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-emerald-400">{item.code}</span>
+                    <span className="font-bold text-success/80">{item.code}</span>
                     <span className="text-foreground/80 font-mono">{item.quantity} {item.unit}</span>
                   </div>
                   <p className="text-[11px] text-foreground/80 line-clamp-2 mt-1 leading-snug">{item.description}</p>
@@ -95,10 +95,10 @@ export function DrawingComparatorPane({ projectId }: { projectId: string }) {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleApplyTakeoff(item)}
-                      className="h-6 text-[10px] gap-1 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 px-2 rounded-lg"
+                      className="h-6 text-[10px] gap-1 text-success/80 hover:text-success/80 hover:bg-success/10 px-2 rounded-lg"
                       title="Link and apply this BOQ item to drawing takeoff"
                     >
-                      {copiedId === item.id ? <Check className="h-3 w-3 text-emerald-400" /> : <Zap className="h-3 w-3" />}
+                      {copiedId === item.id ? <Check className="h-3 w-3 text-success/80" /> : <Zap className="h-3 w-3" />}
                       Takeoff Link
                     </Button>
                   </div>

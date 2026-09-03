@@ -19,7 +19,7 @@ const bucketLabels: Record<string, string> = {
 };
 
 const bucketColors: Record<string, string> = {
-  current: "text-emerald-600 dark:text-emerald-400",
+  current: "text-success dark:text-success/80",
   d30: "text-info dark:text-info/80",
   d60: "text-amber-600 dark:text-amber-400",
   d90: "text-orange-600 dark:text-orange-400",
@@ -71,7 +71,7 @@ export function AgingTab({ projectId }: { projectId: string }) {
       header: "Paid",
       align: "right",
       render: (_, r) => (
-        <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+        <span className="font-mono text-xs text-success dark:text-success/80 font-medium">
           {formatNpr(r.paidAmount)}
         </span>
       ),

@@ -27,7 +27,7 @@ export function VisitorsSection({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Users2 className="h-4 w-4 text-emerald-600" /> Site Visitors & Inspections
+          <Users2 className="h-4 w-4 text-success" /> Site Visitors & Inspections
         </h3>
         {canEdit && (
           <Button

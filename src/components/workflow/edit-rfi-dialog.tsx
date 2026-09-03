@@ -326,7 +326,7 @@ export function EditRfiDialog({
                     <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} placeholder="Qty" className="h-8 text-xs text-right" disabled={!it.boqItemId} />
                     <span className="text-xs text-muted-foreground text-center">{boq?.unit ?? ""}</span>
                     <Select value={it.paymentType} onValueChange={(v) => updateItem(idx, "paymentType", v as "payable" | "unpayable" | "temporary")}>
-                      <SelectTrigger className={cn("h-8 text-[10px] font-medium", it.paymentType === "payable" && "text-emerald-700 dark:text-emerald-400", it.paymentType === "unpayable" && "text-red-700 dark:text-red-400", it.paymentType === "temporary" && "text-amber-700 dark:text-amber-400")}>
+                      <SelectTrigger className={cn("h-8 text-[10px] font-medium", it.paymentType === "payable" && "text-success dark:text-success/80", it.paymentType === "unpayable" && "text-red-700 dark:text-red-400", it.paymentType === "temporary" && "text-amber-700 dark:text-amber-400")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -335,7 +335,7 @@ export function EditRfiDialog({
                         <SelectItem value="temporary" className="text-xs">Temporary</SelectItem>
                       </SelectContent>
                     </Select>
-                    <span className="text-xs text-emerald-700 dark:text-emerald-400 text-right">{boq && it.quantity ? `NPR ${((parseFloat(it.quantity) || 0) * boq.rate).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : ""}</span>
+                    <span className="text-xs text-success dark:text-success/80 text-right">{boq && it.quantity ? `NPR ${((parseFloat(it.quantity) || 0) * boq.rate).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : ""}</span>
                     <button type="button" onClick={() => removeItem(idx)} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 );

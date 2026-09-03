@@ -125,7 +125,7 @@ export function AddMaintDialog({
                           className="text-xs py-1.5 cursor-pointer flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2 truncate">
-                            <Check className={cn("h-3.5 w-3.5 text-emerald-600 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                            <Check className={cn("h-3.5 w-3.5 text-success shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
                             <div className="truncate">
                               <div className="font-semibold text-foreground truncate">{e.name}</div>
                               <div className="text-[10px] text-muted-foreground">

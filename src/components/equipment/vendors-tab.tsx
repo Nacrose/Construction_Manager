@@ -57,11 +57,11 @@ export function VendorsTab({ projectId }: { projectId: string }) {
                     <p className="text-sm font-semibold truncate">{v.name}</p>
                     {v.contact && <p className="text-xs text-muted-foreground truncate">{v.contact}</p>}
                   </div>
-                  <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", v.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" : "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)]")}>{v.status}</span>
+                  <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-medium", v.status === "active" ? "bg-success/15 text-success dark:bg-success dark:text-success/80" : "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)]")}>{v.status}</span>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                   <span>📦 {v.stats.totalRentals} rentals</span>
-                  <span className="text-emerald-600">● {v.stats.activeRentals} active</span>
+                  <span className="text-success">● {v.stats.activeRentals} active</span>
                 </div>
                 {v.phone && <div className="flex items-center gap-1 text-[10px] text-muted-foreground"><Phone className="h-2.5 w-2.5" /> {v.phone}</div>}
                 {v.stats.activeEquipment.length > 0 && (
@@ -142,7 +142,7 @@ function VendorDetailDialog({ vendorId, projectId, onClose }: { vendorId: string
               <div className="grid grid-cols-3 gap-2">
                 <Card className="p-3 text-center"><div className="text-sm font-bold text-info">{npr(stats.totalBilled)}</div><div className="text-[9px] text-muted-foreground uppercase">Total Billed</div></Card>
                 <Card className="p-3 text-center"><div className="text-sm font-bold text-red-600">{npr(stats.totalDeductions)}</div><div className="text-[9px] text-muted-foreground uppercase">Deductions</div></Card>
-                <Card className="p-3 text-center"><div className="text-sm font-bold text-emerald-600">{npr(stats.netPayable)}</div><div className="text-[9px] text-muted-foreground uppercase">Net Payable</div></Card>
+                <Card className="p-3 text-center"><div className="text-sm font-bold text-success">{npr(stats.netPayable)}</div><div className="text-[9px] text-muted-foreground uppercase">Net Payable</div></Card>
               </div>
             )}
 
@@ -158,7 +158,7 @@ function VendorDetailDialog({ vendorId, projectId, onClose }: { vendorId: string
                       <div className="text-[10px] text-muted-foreground">{format(new Date(r.startDate), "dd MMM yy")} · {r.billableDays} days · {npr(r.rentalCost)}</div>
                     </div>
                     <span className={cn("rounded px-1 text-[9px] uppercase shrink-0",
-                      r.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                      r.status === "active" ? "bg-success/15 text-success" :
                       r.status === "stored_on_site" ? "bg-amber-100 text-amber-700" :
                       "bg-muted text-muted-foreground"
                     )}>{r.status.replace(/_/g, " ")}</span>

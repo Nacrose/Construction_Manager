@@ -315,7 +315,7 @@ export function InterSiteTransferDialog({
               <Button
                 type="submit"
                 disabled={transferMutation.isPending || loadingProjects}
-                className="h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-foreground font-bold text-xs shadow-md"
+                className="h-9 px-5 bg-success hover:bg-success text-foreground font-bold text-xs shadow-md"
               >
                 {transferMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 {isInstantTransfer ? "Transfer & Settle Instantly" : "Issue Dispatch Chalan"}

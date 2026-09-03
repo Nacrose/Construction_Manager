@@ -215,7 +215,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
         <Badge
           variant="secondary"
           className={cn("text-[9px] px-1.5 py-0 capitalize", {
-            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":
+            "bg-success/15 text-success dark:bg-success dark:text-success/80":
               item.category === "skilled",
             "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)]": item.category === "unskilled",
             "bg-amber-100 text-amber-800 dark:bg-amber-950": item.category === "supervisor",
@@ -239,7 +239,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
             className={cn(
               "px-2 py-0.5 rounded text-[10px] font-bold border transition-colors",
               item.status === "present"
-                ? "bg-emerald-600 text-white border-emerald-600"
+                ? "bg-success text-white border-success"
                 : "bg-card text-muted-foreground border-border hover:bg-muted"
             )}
           >
@@ -443,7 +443,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
               size="sm"
               variant="outline"
               onClick={() => handleMarkAll("present")}
-              className="h-7 text-xs font-mono text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              className="h-7 text-xs font-mono text-success hover:text-success hover:bg-success/10"
             >
               Mark All Present
             </Button>
@@ -481,7 +481,7 @@ export function DailyAttendanceTab({ projectId }: { projectId: string }) {
             👷 On-Roster: {filteredItems.length}
           </span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+          <span className="text-success dark:text-success/80 font-semibold">
             Present: {presentCount}
           </span>
           <span className="text-muted-foreground/40">│</span>

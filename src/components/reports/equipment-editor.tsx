@@ -58,7 +58,7 @@ export function EquipmentEditor({ value, onChange, tasks }: { value: string; onC
             <button type="button" onClick={() => remove(i)} className="text-red-500 text-xs shrink-0">✕</button>
           </div>
           {/* Task allocations sub-editor */}
-          <div className="ml-4 pl-3 border-l-2 border-emerald-200 space-y-1">
+          <div className="ml-4 pl-3 border-l-2 border-success/30 space-y-1">
             <p className="text-[10px] text-muted-foreground uppercase font-semibold">Task Hour Allocations</p>
             {(item.taskAllocations || []).map((a: any, ai: number) => (
               <div key={ai} className="flex gap-2 items-center">
@@ -87,13 +87,13 @@ export function EquipmentEditor({ value, onChange, tasks }: { value: string; onC
                   {tasks.map((t: any) => <option key={t.id} value={t.taskName}>{t.taskName}</option>)}
                 </select>
               ) : (
-                <button type="button" onClick={() => addAlloc(i, "")} className="text-xs text-emerald-600 hover:underline">+ Add task allocation</button>
+                <button type="button" onClick={() => addAlloc(i, "")} className="text-xs text-success hover:underline">+ Add task allocation</button>
               )}
             </div>
           </div>
         </div>
       ))}
-      <button type="button" onClick={add} className="text-xs text-emerald-600 hover:underline">+ Add equipment</button>
+      <button type="button" onClick={add} className="text-xs text-success hover:underline">+ Add equipment</button>
     </div>
   );
 }

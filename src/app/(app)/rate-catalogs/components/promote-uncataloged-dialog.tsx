@@ -245,7 +245,7 @@ export function PromoteUncatalogedDialog({
                         variant="outline"
                         disabled={isPending}
                         onClick={() => handleMap(sugg.id)}
-                        className="h-6 text-[11px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                        className="h-6 text-[11px] px-2 text-success hover:text-success hover:bg-success/10 dark:hover:bg-success/20"
                       >
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Map to this

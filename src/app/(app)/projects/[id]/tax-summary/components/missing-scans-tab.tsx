@@ -138,7 +138,7 @@ export function MissingScansTab({
       header: "VAT (13%)",
       align: "right",
       render: (_, r) => (
-        <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+        <span className="font-mono text-xs font-bold text-success dark:text-success/80">
           {formatNpr(r.vatAmount)}
         </span>
       ),
@@ -253,14 +253,14 @@ export function MissingScansTab({
         className={`p-3 rounded-lg border flex items-center justify-between gap-3 ${
           totalMissing > 0
             ? "bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
-            : "bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200"
+            : "bg-success/10 border-success/30 text-success dark:text-success/80"
         }`}
       >
         <div className="flex items-center gap-2">
           {totalMissing > 0 ? (
             <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
           ) : (
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+            <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
           )}
           <div>
             <h3 className="text-xs font-bold font-sans">
@@ -277,7 +277,7 @@ export function MissingScansTab({
 
       {totalMissing === 0 ? (
         <div className="p-12 text-center rounded-xl border bg-card">
-          <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
+          <CheckCircle2 className="h-8 w-8 mx-auto text-success/90 mb-2" />
           <h4 className="text-sm font-semibold text-foreground">Zero Scan Deficits</h4>
           <p className="text-xs text-muted-foreground mt-1">
             Both your Purchase Register (Schedule 8) and Sales Register (Schedule 9) have complete digital paper trails.
@@ -353,7 +353,7 @@ export function MissingScansTab({
                   className="text-xs bg-white/5 border-white/20 text-white"
                   required
                 />
-                {fileName && <p className="text-[10px] text-emerald-400 font-mono">Selected: {fileName}</p>}
+                {fileName && <p className="text-[10px] text-success/80 font-mono">Selected: {fileName}</p>}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-white/10">

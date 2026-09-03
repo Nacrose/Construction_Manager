@@ -30,7 +30,7 @@ const CreateProjectSchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   description: z.string().max(2000).optional(),
-  operationalPreset: z.enum(["record_keeper", "lean", "enterprise"]).default("record_keeper").optional(),
+  operationalPreset: z.enum(["record_keeper", "lean", "enterprise"]).default("enterprise").optional(),
   enabledModules: z.record(z.string(), z.boolean()).optional(),
 });
 
@@ -339,8 +339,8 @@ export const projectRouter = router({
             description: input.description,
             createdById: ctx.user.id,
             organizationId: ctx.user.organizationId, // Auto-assign to user's org
-            operationalPreset: input.operationalPreset || "record_keeper",
-            enabledModules: input.enabledModules ?? buildPresetModules((input.operationalPreset as ModulePreset) || "record_keeper"),
+            operationalPreset: input.operationalPreset || "enterprise",
+            enabledModules: input.enabledModules ?? buildPresetModules((input.operationalPreset as ModulePreset) || "enterprise"),
             members: {
               create: { userId: ctx.user.id, role: "project_manager" },
             },
@@ -539,13 +539,13 @@ export const projectRouter = router({
             subject: `You've been added to ${projName}`,
             html: `
               <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                <div style="background: #4a8b57; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
                   <h1 style="margin: 0; font-size: 20px;">Welcome to Construction Manager</h1>
                 </div>
                 <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
                   <p style="font-size: 14px; color: #374151;">You've been added to <strong>${projName.replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c] ?? c))}</strong> as <strong>${input.role}</strong>.</p>
                   <p style="font-size: 14px; color: #374151;">A temporary password has been created for you:</p>
-                  <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #059669; margin: 15px 0; font-family: monospace; font-size: 16px;">${tempPassword}</div>
+                  <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #4a8b57; margin: 15px 0; font-family: monospace; font-size: 16px;">${tempPassword}</div>
                   <p style="font-size: 13px; color: #6b7280;">Please log in and change your password immediately.</p>
                 </div>
               </div>

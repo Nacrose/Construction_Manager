@@ -6,20 +6,21 @@ import { Plus, Loader2, Download, Upload, Printer, Lock, Unlock } from "lucide-r
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
 import { AnimatedPage } from "@/components/ui/animated-page";
-import { DocumentTrail } from "@/components/documents/document-trail";
 import type { BoqItem } from "./types";
 import { AddBoqItemDialog } from "./components/add-boq-item-dialog";
 import { exportBoq, importBoq } from "./utils";
-import { RowActionBar } from "./components/row-action-bar";
 import { FloatingActionBar } from "@/components/floating-action-bar";
 import { ExcelPasteDialog } from "@/components/boq/excel-paste-dialog";
 import { useParams } from "next/navigation";
 import { BoqTabHeader } from "./components/boq-tab-header";
-import { BoqFilterChips } from "./components/boq-filter-chips";
 import { BoqTable } from "./components/boq-table";
 import { RateAnalysisInspector } from "./components/rate-analysis-inspector";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { parseKeyTerms } from "@/lib/boq-keyline";
 
 export default function BoqPage() {
   return (
@@ -36,10 +37,10 @@ function BoqPageContent() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showBaseline, setShowBaseline] = useState(false);
   const [showAddRow, setShowAddRow] = useState(false);
+  const [addItemSection, setAddItemSection] = useState<string>("");
   const [excelPasteOpen, setExcelPasteOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [actionBarItem, setActionBarItem] = useState<{ item: BoqItem; el: HTMLElement } | null>(null);
 
   // Rate Analysis Inspector state
   const [inspectedItemId, setInspectedItemId] = useState<string | null>(null);
@@ -138,38 +139,69 @@ function BoqPageContent() {
     onError: () => toast.error("Failed to move items"),
   });
 
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
-  const [tableDensity, setTableDensity] = useState<"comfortable" | "compact">("comfortable");
+  const deleteItemMutation = trpc.boq.delete.useMutation({
+    onSuccess: () => {
+      utils.boq.list.invalidate({ projectId: id });
+      setConfirmDeleteItemId(null);
+      toast.success("Item deleted");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const duplicateItemMutation = trpc.boq.duplicate.useMutation({
+    onSuccess: () => {
+      utils.boq.list.invalidate({ projectId: id });
+      toast.success("Item copied");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const newKeywordMutation = trpc.boq.update.useMutation({
+    onSuccess: () => {
+      utils.boq.list.invalidate({ projectId: id });
+      setKeywordItem(null);
+      toast.success("Key words updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const [confirmDeleteItemId, setConfirmDeleteItemId] = useState<string | null>(null);
+  const [keywordItem, setKeywordItem] = useState<BoqItem | null>(null);
+  const [keywordDraft, setKeywordDraft] = useState("");
 
-  const availableSections = useMemo(() => {
-    if (!data?.items) return [];
-    const secSet = new Set<string>();
-    data.items.forEach((item) => {
-      secSet.add(item.section || item.category || "Uncategorized");
-    });
-    return Array.from(secSet).sort();
-  }, [data?.items]);
+  const handleMoveSection = (item: BoqItem, section: string) => {
+    bulkMoveSectionMutation.mutate({ itemIds: [item.id], section });
+  };
+  const handleCopyToSection = (item: BoqItem, section: string) => {
+    duplicateItemMutation.mutate({ itemId: item.id, targetSection: section });
+  };
+  const handleCopyRateAnalysis = (item: BoqItem) => {
+    duplicateItemMutation.mutate({ itemId: item.id, targetSection: item.section });
+  };
+  const handleDeleteItem = (item: BoqItem) => setConfirmDeleteItemId(item.id);
+  const handleRemoveKeyword = (item: BoqItem) => {
+    newKeywordMutation.mutate({ itemId: item.id, keyTerms: [] });
+  };
+  const handleChangeKeyword = (item: BoqItem) => {
+    setKeywordItem(item);
+    setKeywordDraft(parseKeyTerms(item.keyTerms).join(", "));
+  };
+  const saveKeyword = () => {
+    if (keywordItem) newKeywordMutation.mutate({ itemId: keywordItem.id, keyTerms: parseKeyTerms(keywordDraft) });
+  };
+
+  const [tableDensity, setTableDensity] = useState<"comfortable" | "compact">("compact");
 
   const filtered = useMemo(() => {
     if (!data?.items) return [];
     return data.items.filter((item) => {
-      const matchesSearch =
+      return (
         !search ||
         item.code.toLowerCase().includes(search.toLowerCase()) ||
         item.description.toLowerCase().includes(search.toLowerCase()) ||
         (item.section ?? "").toLowerCase().includes(search.toLowerCase()) ||
         (item.category ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (item.tags ?? "").toLowerCase().includes(search.toLowerCase());
-
-      if (!matchesSearch) return false;
-      if (!activeCategoryFilter) return true;
-      if (activeCategoryFilter === "__in_progress__") {
-        return ((item as any).executedQty ?? 0) > 0;
-      }
-      const itemSec = item.section || item.category || "Uncategorized";
-      return itemSec === activeCategoryFilter;
+        (item.tags ?? "").toLowerCase().includes(search.toLowerCase())
+      );
     });
-  }, [data?.items, search, activeCategoryFilter]);
+  }, [data?.items, search]);
 
   const totalAmount = filtered?.reduce((s, i) => s + i.amount, 0) ?? 0;
 
@@ -249,7 +281,7 @@ function BoqPageContent() {
   }, [filtered, inspectedItemId]);
 
   return (
-    <AnimatedPage className="space-y-3 pb-8">
+    <AnimatedPage className="space-y-2 pb-8">
         <BoqTabHeader
           id={id}
           search={search}
@@ -271,21 +303,8 @@ function BoqPageContent() {
         />
 
         <section className="space-y-0 relative">
-          <BoqFilterChips
-            items={data?.items ?? []}
-            availableSections={availableSections}
-            activeCategoryFilter={activeCategoryFilter}
-            setActiveCategoryFilter={setActiveCategoryFilter}
-            selectedItems={selectedItems}
-            clearSelection={() => setSelectedItems(new Set())}
-            canWrite={canWrite}
-            isLocked={isLocked}
-            selSections={selSections}
-            bulkMoveSectionMutation={bulkMoveSectionMutation}
-          />
-
-          <div className="flex gap-0 items-stretch relative rounded-[5px] border border-border bg-card/65 h-[calc(100vh-164px)] overflow-hidden shadow-[0_1px_3px_rgba(79,62,45,0.08)]">
-            <div className="flex-1 min-w-0 overflow-auto">
+          <div className="flex gap-0 items-stretch relative rounded-[5px] border border-border bg-card/65 h-[calc(100vh-146px)] overflow-hidden shadow-[0_1px_3px_rgba(79,62,45,0.08)]">
+            <div className="flex-1 min-w-0 min-h-0 overflow-auto">
               <BoqTable
                 projectId={id}
                 filtered={filtered}
@@ -300,11 +319,17 @@ function BoqPageContent() {
                 toggleExpand={toggleExpand}
                 collapsedSections={collapsedSections}
                 toggleSection={toggleSection}
-                actionBarItem={actionBarItem}
-                setActionBarItem={setActionBarItem}
                 totalAmount={totalAmount}
                 inspectedItemId={inspectorOpen ? inspectedItemId : null}
                 onOpenAnalysis={handleOpenAnalysis}
+                onAddItem={(section) => { setAddItemSection(section ?? ""); setShowAddRow(true); }}
+                sections={selSections}
+                onMoveSection={handleMoveSection}
+                onCopyToSection={handleCopyToSection}
+                onCopyRateAnalysis={handleCopyRateAnalysis}
+                onDeleteItem={handleDeleteItem}
+                onChangeKeyword={handleChangeKeyword}
+                onRemoveKeyword={handleRemoveKeyword}
               />
             </div>
 
@@ -319,22 +344,6 @@ function BoqPageContent() {
             )}
           </div>
 
-          {actionBarItem && (
-            <RowActionBar
-              item={actionBarItem.item}
-              anchorEl={actionBarItem.el}
-              onClose={() => setActionBarItem(null)}
-              canWrite={canWrite}
-              isLocked={isLocked}
-              sections={selSections}
-              onMoveSection={(section) => {
-                bulkMoveSectionMutation.mutate({ itemIds: [actionBarItem.item.id], section });
-                setActionBarItem(null);
-              }}
-              onToggleAnalysis={() => handleOpenAnalysis(actionBarItem.item)}
-              onToggleLock={() => lockItemMutation.mutate({ itemId: actionBarItem.item.id, locked: !actionBarItem.item.locked })}
-            />
-          )}
         </section>
 
       <FloatingActionBar
@@ -358,6 +367,7 @@ function BoqPageContent() {
         existingCount={data?.items.length ?? 0}
         existingSections={selSections}
         isLocked={isLocked}
+        defaultSection={addItemSection}
         open={showAddRow}
         onOpenChange={setShowAddRow}
       />
@@ -382,13 +392,6 @@ function BoqPageContent() {
         }}
       />
 
-      <DocumentTrail
-        projectId={id}
-        entityType="boq"
-        entityId={id}
-        defaultSignedBy={projectInfo?.project?.client ?? undefined}
-      />
-
       {/* Confirmation Modal for Lock/Unlock BOQ */}
       <ConfirmDialog
         open={confirmLockOpen}
@@ -406,6 +409,43 @@ function BoqPageContent() {
           await lockBoqMutation.mutateAsync({ projectId: id, locked: !isLocked });
         }}
       />
+
+      {/* Delete item confirmation */}
+      <ConfirmDialog
+        open={confirmDeleteItemId !== null}
+        onOpenChange={(o) => !o && setConfirmDeleteItemId(null)}
+        title="Delete BOQ item?"
+        description="This will permanently delete the item and its rate analysis. This action cannot be undone."
+        variant="destructive"
+        confirmLabel="Delete item"
+        isLoading={deleteItemMutation.isPending}
+        onConfirm={async () => {
+          if (confirmDeleteItemId) await deleteItemMutation.mutateAsync({ itemId: confirmDeleteItemId });
+        }}
+      />
+
+      {/* Keyword editor dialog */}
+      <Dialog open={keywordItem !== null} onOpenChange={(o) => !o && setKeywordItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Key words</DialogTitle>
+            <DialogDescription className="text-xs">
+              Shown on the collapsed line &amp; highlighted when the description expands.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={keywordDraft}
+            onChange={(e) => setKeywordDraft(e.target.value)}
+            placeholder="e.g. clearance, grubbing"
+            className="h-9 text-xs font-mono"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveKeyword(); } }}
+          />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setKeywordItem(null)}>Cancel</Button>
+            <Button size="sm" onClick={saveKeyword} disabled={newKeywordMutation.isPending}>Save key words</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AnimatedPage>
   );
 }

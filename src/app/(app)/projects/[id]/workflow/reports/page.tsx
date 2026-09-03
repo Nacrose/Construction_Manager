@@ -91,7 +91,7 @@ type _Report = {
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  approved: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   archived: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
 

@@ -97,7 +97,7 @@ export function QuotationComparisonMatrix({ requisitionNumber, items }: Quotatio
                     <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="font-semibold text-foreground text-xs">{q.partnerName}</span>
                     {q.isSelected && (
-                      <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] py-0 px-1.5 h-4 font-mono">
+                      <Badge variant="secondary" className="bg-success/15 text-success dark:bg-success/60 dark:text-success/80 text-[10px] py-0 px-1.5 h-4 font-mono">
                         Selected
                       </Badge>
                     )}
@@ -136,7 +136,7 @@ export function QuotationComparisonMatrix({ requisitionNumber, items }: Quotatio
               align: "center",
               render: (_, q) =>
                 q.isLowest ? (
-                  <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white font-mono text-[10px] gap-1 py-0 px-2 font-bold">
+                  <Badge className="bg-success hover:bg-success text-white font-mono text-[10px] gap-1 py-0 px-2 font-bold">
                     <TrendingDown className="h-3 w-3" /> L1 (Lowest)
                   </Badge>
                 ) : (

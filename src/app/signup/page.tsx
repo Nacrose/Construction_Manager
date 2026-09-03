@@ -163,7 +163,7 @@ export default function SignupPage() {
               <HardHat className="h-7 w-7" style={{ color: "oklch(0.22 0.07 258)" }} />
             </motion.div>
             <h1 className="text-3xl font-bold tracking-tight text-white font-sans">
-              Contractor <span className="text-emerald-400 font-mono text-sm tracking-widest font-normal">OS</span>
+              Contractor <span className="text-success/80 font-mono text-sm tracking-widest font-normal">OS</span>
             </h1>
             <p className="mt-2 text-sm text-white/60">
               {isFirstUser === true

@@ -24,8 +24,8 @@ interface Markup {
 }
 
 export const STAMPS: Record<string, { text: string; bg: string; fg: string; subtitle: string }> = {
-  ifc: { text: "ISSUED FOR CONSTRUCTION", bg: "#10b981", fg: "#ffffff", subtitle: "APPROVED FOR SITE WORK" },
-  approved: { text: "APPROVED AS NOTED", bg: "#22c55e", fg: "#ffffff", subtitle: "CONSULTANT / CLIENT" },
+  ifc: { text: "ISSUED FOR CONSTRUCTION", bg: "#4a8b57", fg: "#ffffff", subtitle: "APPROVED FOR SITE WORK" },
+  approved: { text: "APPROVED AS NOTED", bg: "#4a8b57", fg: "#ffffff", subtitle: "CONSULTANT / CLIENT" },
   superseded: { text: "SUPERSEDED / VOID", bg: "#ef4444", fg: "#ffffff", subtitle: "DO NOT USE ON SITE" },
   as_built: { text: "AS-BUILT RECORD", bg: "#3b82f6", fg: "#ffffff", subtitle: "FINAL SITE EXECUTION" },
   review: { text: "FOR REVIEW ONLY", bg: "#f59e0b", fg: "#000000", subtitle: "NOT FOR CONSTRUCTION" },
@@ -169,7 +169,7 @@ export function MarkupOverlay({
     if (w < 0.005 && h < 0.005) { setDragStart(null); setDragCurrent(null); return; }
 
     if (activeTool === "cloud" || activeTool === "highlight" || activeTool === "area" || activeTool === "staged") {
-      addMarkup.mutate({ drawingId, revisionId, type: activeTool, x, y, w, h, color: activeTool === "staged" ? "#22c55e" : activeColor });
+      addMarkup.mutate({ drawingId, revisionId, type: activeTool, x, y, w, h, color: activeTool === "staged" ? "#4a8b57" : activeColor });
     } else if (activeTool === "arrow" || activeTool === "measurement") {
       addMarkup.mutate({ drawingId, revisionId, type: activeTool, x: dragStart.x, y: dragStart.y, w: dragCurrent.x - dragStart.x, h: dragCurrent.y - dragStart.y, color: activeColor });
     } else if (activeTool === "callout") {
@@ -282,8 +282,8 @@ export function MarkupOverlay({
     }
     if (m.type === "staged") {
       return <g key={m.id} onClick={(e) => handleMarkupClick(e, m.id)} className="cursor-pointer">
-        <rect x={x1} y={y1} width={w} height={h} fill="#22c55e20" stroke="#22c55e" strokeWidth={isSel ? 3 : 2} strokeDasharray="8 4" rx={4} opacity={op(m)} />
-        <text x={x1 + w / 2} y={y1 + h / 2 + 3} textAnchor="middle" fill="#22c55e" fontSize={12} fontWeight="bold">
+        <rect x={x1} y={y1} width={w} height={h} fill="#4a8b5720" stroke="#4a8b57" strokeWidth={isSel ? 3 : 2} strokeDasharray="8 4" rx={4} opacity={op(m)} />
+        <text x={x1 + w / 2} y={y1 + h / 2 + 3} textAnchor="middle" fill="#4a8b57" fontSize={12} fontWeight="bold">
           ✓ STAGED
         </text>
       </g>;

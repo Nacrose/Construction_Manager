@@ -69,7 +69,7 @@ export function MaterialsTransactionsTab({
         const t = row.original.type;
         let color = "bg-muted text-muted-foreground";
         if (t === "receive")
-          color = "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+          color = "bg-success/15 text-success dark:bg-success dark:text-success/80";
         else if (t === "issue")
           color = "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
         else if (t === "transfer")

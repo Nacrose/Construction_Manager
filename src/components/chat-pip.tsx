@@ -358,7 +358,7 @@ export function ChatPiP() {
                           className={cn(
                             "h-2 w-2 fill-current",
                             new Date().getTime() - new Date(messageStatus.otherUser.lastActiveAt).getTime() < 2 * 60 * 1000
-                              ? "text-emerald-500"
+                              ? "text-success/90"
                               : "text-muted-foreground/40"
                           )}
                         />
@@ -499,7 +499,7 @@ export function ChatPiP() {
                         {u.name.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase()}
                       </div>
                       {isOnline && (
-                        <Circle className="absolute -bottom-0.5 -right-0.5 h-3 w-3 fill-emerald-500 text-white" />
+                        <Circle className="absolute -bottom-0.5 -right-0.5 h-3 w-3 fill-success text-white" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

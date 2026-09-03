@@ -51,7 +51,7 @@ export function PlanVsActualRow({ task, projectId, isEditable }: { task: any; pr
           </select>
         ) : (
           <Badge variant="secondary" className={cn("font-normal capitalize text-xs", {
-            "bg-emerald-100 text-emerald-700": task.executionStatus === "done",
+            "bg-success/15 text-success": task.executionStatus === "done",
             "bg-amber-100 text-amber-700": task.executionStatus === "partially_completed",
             "bg-red-100 text-red-700": task.executionStatus === "uncompleted",
             "bg-muted text-foreground/80": ["planned", "postponed"].includes(task.executionStatus),

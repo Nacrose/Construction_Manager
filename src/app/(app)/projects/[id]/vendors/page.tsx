@@ -181,7 +181,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
               </span>
               <Link
                 href={`/projects/${id}/payments`}
-                className="inline-flex items-center gap-0.5 text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-sans font-bold px-1.5 py-0.5 rounded hover:bg-emerald-200 transition"
+                className="inline-flex items-center gap-0.5 text-[10px] bg-success/15 dark:bg-success/60 text-success dark:text-success/80 font-sans font-bold px-1.5 py-0.5 rounded hover:bg-success/20 transition"
               >
                 <CreditCard className="h-2.5 w-2.5" />
                 Pay
@@ -201,7 +201,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
           className={cn(
             "capitalize text-[10px] font-mono",
             row.original.status === "active"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+              ? "bg-success/15 text-success dark:bg-success dark:text-success/80"
               : "bg-muted text-muted-foreground"
           )}
         >

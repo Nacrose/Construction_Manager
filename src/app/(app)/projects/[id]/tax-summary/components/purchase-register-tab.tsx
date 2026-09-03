@@ -51,7 +51,7 @@ export function PurchaseRegisterTab({
       case "equipment":
         return <Truck className="h-3 w-3 text-amber-500" />;
       default:
-        return <Receipt className="h-3 w-3 text-emerald-500" />;
+        return <Receipt className="h-3 w-3 text-success/90" />;
     }
   };
 
@@ -145,7 +145,7 @@ export function PurchaseRegisterTab({
         header: "VAT (13%)",
         align: "right",
         summary: "sum",
-        className: "font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/20 dark:bg-emerald-950/10",
+        className: "font-mono font-bold text-success dark:text-success/80 bg-success/20 dark:bg-success/10",
         render: (val) => formatNpr(val),
       },
       {
@@ -173,7 +173,7 @@ export function PurchaseRegisterTab({
             <button
               type="button"
               onClick={() => setSelectedScan({ url: r.scannedBillUrl!, name: r.invoiceNo })}
-              className="inline-flex items-center gap-0.5 text-[10px] text-emerald-700 dark:text-emerald-400 hover:underline font-sans"
+              className="inline-flex items-center gap-0.5 text-[10px] text-success dark:text-success/80 hover:underline font-sans"
             >
               <Eye className="h-3 w-3" /> View
             </button>
@@ -242,7 +242,7 @@ export function PurchaseRegisterTab({
           <div className="h-3 w-px bg-border" />
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground">Input VAT Credit (13%):</span>
-            <span className="font-bold text-emerald-700 dark:text-emerald-300">
+            <span className="font-bold text-success dark:text-success/80">
               NPR {formatNpr(totals.totalVatAmount)}
             </span>
           </div>
@@ -259,7 +259,7 @@ export function PurchaseRegisterTab({
                 ⚠️ {totals.missingScansCount} Missing
               </Badge>
             ) : (
-              <Badge className="h-4.5 px-1.5 text-[10px] bg-emerald-100 text-emerald-800">
+              <Badge className="h-4.5 px-1.5 text-[10px] bg-success/15 text-success">
                 100% Verified
               </Badge>
             )}

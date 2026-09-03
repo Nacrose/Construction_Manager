@@ -32,6 +32,7 @@ export function AddBoqItemDialog({
   existingCount,
   existingSections,
   isLocked,
+  defaultSection = "",
   open,
   onOpenChange,
 }: {
@@ -39,6 +40,7 @@ export function AddBoqItemDialog({
   existingCount: number;
   existingSections: string[];
   isLocked: boolean;
+  defaultSection?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -51,7 +53,8 @@ export function AddBoqItemDialog({
   const [section, setSection] = useState("");
   const [newSectionName, setNewSectionName] = useState("");
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens (pre-filling the section passed from the
+  // right-click "Add item" menu).
   useEffect(() => {
     if (open) {
       setCode(String(existingCount + 1));
@@ -59,10 +62,10 @@ export function AddBoqItemDialog({
       setUnit("cum");
       setQuantity("");
       setRate("");
-      setSection("");
+      setSection(defaultSection);
       setNewSectionName("");
     }
-  }, [open]); // Only reset when dialog opens, not when existingCount changes
+  }, [open, defaultSection]); // Only reset when dialog opens, not when existingCount changes
 
   const mutation = trpc.boq.create.useMutation({
     onSuccess: () => {

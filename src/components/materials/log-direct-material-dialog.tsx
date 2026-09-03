@@ -506,7 +506,7 @@ export function LogDirectMaterialDialog({
                             key={v.id}
                             type="button"
                             onClick={() => handleSelectVendor(v)}
-                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-500/10 rounded-lg flex items-center justify-between text-foreground/90 hover:text-foreground"
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-success/10 rounded-lg flex items-center justify-between text-foreground/90 hover:text-foreground"
                           >
                             <span className="font-semibold">{v.name}</span>
                             <span className="text-[10px] text-[var(--primary)] font-mono">
@@ -634,7 +634,7 @@ export function LogDirectMaterialDialog({
             {/* Direct Bill Upload Card */}
             <div className="p-3.5 rounded-2xl bg-[#f8fbfe] border border-[var(--border)] flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-[var(--primary)] border border-[var(--border)]">
+                <div className="p-2 rounded-xl bg-success/10 text-[var(--primary)] border border-[var(--border)]">
                   <Upload className="h-4 w-4" />
                 </div>
                 <div>
@@ -643,7 +643,7 @@ export function LogDirectMaterialDialog({
                 </div>
               </div>
 
-              <label className="h-8.5 px-3 flex items-center gap-1.5 bg-card border border-[var(--border)] hover:border-emerald-400 text-[var(--primary)] rounded-xl cursor-pointer text-xs font-semibold shrink-0 transition shadow-sm">
+              <label className="h-8.5 px-3 flex items-center gap-1.5 bg-card border border-[var(--border)] hover:border-success text-[var(--primary)] rounded-xl cursor-pointer text-xs font-semibold shrink-0 transition shadow-sm">
                 <FileText className="h-3.5 w-3.5" />
                 <span>{fileName ? fileName.slice(0, 15) + "..." : "Browse Bill"}</span>
                 <input
@@ -845,7 +845,7 @@ export function LogDirectMaterialDialog({
                     onClick={() => setMaterialPaidStatus("paid_now")}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${
                       materialPaidStatus === "paid_now"
-                        ? "bg-emerald-500/20 text-[var(--primary)] border border-[var(--border)]"
+                        ? "bg-success/20 text-[var(--primary)] border border-[var(--border)]"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -922,7 +922,7 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setTransportPaidStatus("paid_now")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        transportPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
+                        transportPaidStatus === "paid_now" ? "bg-success/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Paid
@@ -1004,7 +1004,7 @@ export function LogDirectMaterialDialog({
                       type="button"
                       onClick={() => setIncidentalPaidStatus("paid_now")}
                       className={`px-2 py-0.5 rounded text-[10px] ${
-                        incidentalPaidStatus === "paid_now" ? "bg-emerald-500/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
+                        incidentalPaidStatus === "paid_now" ? "bg-success/20 text-[var(--primary)] font-bold" : "text-muted-foreground"
                       }`}
                     >
                       Paid

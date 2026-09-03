@@ -33,7 +33,7 @@ export function WeatherSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold flex items-center gap-2">
-          <CloudSun className="h-4 w-4 text-emerald-600" /> Weather & Site Conditions
+          <CloudSun className="h-4 w-4 text-success" /> Weather & Site Conditions
         </h3>
         {canEdit && (
           <Button

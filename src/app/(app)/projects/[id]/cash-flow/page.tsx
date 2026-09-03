@@ -94,13 +94,13 @@ export default function CashFlowPage({ params }: { params: Promise<{ id: string 
                 {formatNpr(data.totals.totalIpcPaid)}
               </p>
             </Card>
-            <Card className="p-4 border-emerald-300 dark:border-emerald-800 bg-emerald-50/20">
+            <Card className="p-4 border-success/40 dark:border-success bg-success/20">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <TrendingUp className="h-3 w-3" /> Variance (Planned − Actual)
               </p>
               <p className={`mt-1 text-lg font-bold ${
                 data.totals.totalPlanned - data.totals.totalActual >= 0
-                  ? "text-emerald-600"
+                  ? "text-success"
                   : "text-red-600"
               }`}>
                 {formatNpr(data.totals.totalPlanned - data.totals.totalActual)}
@@ -287,7 +287,7 @@ function CumulativeChart({ months }: { months: Array<{ label: string; cumulative
           <span className="h-0.5 w-4 bg-info/70" /> Cumulative Planned
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-0.5 w-4 bg-emerald-500" /> Cumulative Actual
+          <span className="h-0.5 w-4 bg-success" /> Cumulative Actual
         </span>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-48 border-b border-l" preserveAspectRatio="none">
@@ -298,7 +298,7 @@ function CumulativeChart({ months }: { months: Array<{ label: string; cumulative
         {/* Planned line */}
         <path d={plannedPath} fill="none" stroke="#3b82f6" strokeWidth="0.8" />
         {/* Actual line */}
-        <path d={actualPath} fill="none" stroke="#10b981" strokeWidth="0.8" />
+        <path d={actualPath} fill="none" stroke="#4a8b57" strokeWidth="0.8" />
       </svg>
       <div className="flex justify-between text-[9px] text-muted-foreground">
         <span>{months[0]?.label}</span>

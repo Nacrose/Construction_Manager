@@ -125,7 +125,7 @@ export function CatalogRatesTable({
         groupItems.some((i: any) => i.materialCatalogId) ? (
           <Badge
             variant="outline"
-            className="text-[9px] font-mono bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 shadow-none font-medium gap-0.5 shrink-0"
+            className="text-[9px] font-mono bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/60 shadow-none font-medium gap-0.5 shrink-0"
           >
             {groupItems.filter((i: any) => i.materialCatalogId).length} Linked
           </Badge>
@@ -187,7 +187,7 @@ export function CatalogRatesTable({
                         placeholder="0"
                       />
                       {isLowest && (
-                        <Badge className="absolute -top-1 right-0 text-[8px] bg-emerald-600 text-white px-1 py-0 h-3 leading-none pointer-events-none">
+                        <Badge className="absolute -top-1 right-0 text-[8px] bg-success text-white px-1 py-0 h-3 leading-none pointer-events-none">
                           Lowest
                         </Badge>
                       )}

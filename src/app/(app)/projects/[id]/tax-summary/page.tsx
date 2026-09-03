@@ -53,14 +53,14 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "purchase"
-                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-success/30 font-bold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Layers className="h-3.5 w-3.5" />
             खरिद खाता (Purchase Sch-8)
             {pData?.rows.length ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[var(--primary)] font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-success/20 text-[var(--primary)] font-mono">
                 {pData.rows.length}
               </span>
             ) : null}
@@ -72,14 +72,14 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "sales"
-                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-success/30 font-bold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Receipt className="h-3.5 w-3.5" />
             बिक्री खाता (Sales Sch-9)
             {sData?.rows.length ? (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-[var(--primary)] font-mono">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-success/20 text-[var(--primary)] font-mono">
                 {sData.rows.length}
               </span>
             ) : null}
@@ -91,7 +91,7 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors",
               activeTab === "vat_return"
-                ? "bg-[#f8fbfe] text-[var(--primary)] border border-emerald-500/30 font-bold"
+                ? "bg-[#f8fbfe] text-[var(--primary)] border border-success/30 font-bold"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >

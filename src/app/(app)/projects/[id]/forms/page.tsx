@@ -62,7 +62,7 @@ export default function FormsPage() {
       header: "Net Payable",
       align: "right",
       render: (_, r) => (
-        <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+        <span className="font-mono text-xs font-bold text-success dark:text-success/80">
           {formatNpr(r.netPayable)}
         </span>
       ),
@@ -149,7 +149,7 @@ export default function FormsPage() {
                   </div>
                   <div className="rounded-xl border bg-card p-3 space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-mono">Certified to Date</p>
-                    <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                    <p className="text-xl font-bold font-mono text-success dark:text-success/80">
                       {formatNpr(certifiedTotal)}
                     </p>
                   </div>

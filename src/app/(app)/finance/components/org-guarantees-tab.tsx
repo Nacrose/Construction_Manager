@@ -39,7 +39,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   performance_bond: {
     label: "Performance Security",
     labelNp: "कार्यसम्पादन जमानत",
-    color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    color: "bg-success/20 text-success/80 border-success/30",
   },
   advance_payment: {
     label: "Mobilization APG",
@@ -54,7 +54,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   car_insurance: {
     label: "CAR Insurance Policy",
     labelNp: "निर्माण जोखिम बीमा",
-    color: "bg-teal-500/20 text-teal-400 border-teal-500/30",
+    color: "bg-success/20 text-success border-success/30",
   },
   other: {
     label: "Other Guarantee",
@@ -135,7 +135,7 @@ export function OrgGuaranteesTab() {
                     href={sanitizeUrl(g.documentUrl) ?? "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                    className="text-success/80 hover:text-success/80 inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-success/10 border border-success/20 hover:bg-success/20 transition-colors"
                     title={g.documentName || "View Attached PDF / Scanned Document"}
                   >
                     <FileText className="h-3 w-3" />
@@ -170,7 +170,7 @@ export function OrgGuaranteesTab() {
         render: (proj) =>
           proj ? (
             <div className="font-sans">
-              <span className="text-emerald-400 font-bold">{proj.code}</span>
+              <span className="text-success/80 font-bold">{proj.code}</span>
               <p className="text-[11px] text-muted-foreground line-clamp-1">{proj.name}</p>
             </div>
           ) : (
@@ -247,7 +247,7 @@ export function OrgGuaranteesTab() {
                 }
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+                className="h-7 px-2 text-[10px] font-bold text-muted-foreground hover:text-success/80 hover:bg-success/10"
               >
                 Release
               </Button>
@@ -324,7 +324,7 @@ export function OrgGuaranteesTab() {
 
         <div className="bg-card p-3 rounded-lg border border-[var(--border)] shadow-xs flex flex-col justify-between">
           <span className="text-[10px] uppercase font-mono text-muted-foreground tracking-wider">Expiring in 30 Days (जोखिम)</span>
-          <div className={cn("text-base font-bold font-matrix mt-1", kpis.expiringWithin30DaysCount > 0 ? "text-rose-600 animate-pulse" : "text-emerald-700")}>
+          <div className={cn("text-base font-bold font-matrix mt-1", kpis.expiringWithin30DaysCount > 0 ? "text-rose-600 animate-pulse" : "text-success")}>
             {kpis.expiringWithin30DaysCount} Bonds
           </div>
           <span className="text-[10px] text-muted-foreground/80 font-mono mt-0.5">Require renewal / release</span>

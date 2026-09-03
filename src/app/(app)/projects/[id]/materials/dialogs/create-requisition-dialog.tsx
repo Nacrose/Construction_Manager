@@ -170,13 +170,13 @@ export function CreateRequisitionDialog({
           <div className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-3 ${
             budgetInfo.isOverBudget
               ? "bg-amber-50/70 border-amber-300 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-200"
-              : "bg-emerald-50/50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-300"
+              : "bg-success border-success/30 text-success dark:bg-success/20 dark:border-success dark:text-success/80"
           }`}>
             <div className="flex items-center gap-2">
               {budgetInfo.isOverBudget ? (
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
               ) : (
-                <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                <Check className="h-4 w-4 text-success shrink-0" />
               )}
               <div>
                 <span className="font-bold">

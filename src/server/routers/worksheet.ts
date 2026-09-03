@@ -46,6 +46,9 @@ export const worksheetRouter = router({
     .input(documentIdentitySchema)
     .query(async ({ ctx, input }) => {
       await assertProjectMember(ctx.user, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No organization context." });
+      }
       const document = await db.worksheetDocument.findFirst({
         where: {
           organizationId: ctx.user.organizationId,
@@ -65,6 +68,9 @@ export const worksheetRouter = router({
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
       await assertScopeExists(input.scope, input.projectId);
+      if (!ctx.user.organizationId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No organization context." });
+      }
       if (!hasWorkbookShape(input.workbook)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid workbook document." });
       }

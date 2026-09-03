@@ -77,7 +77,7 @@ export function RespondForm({ rfiId, projectId }: { rfiId: string; projectId: st
         </Select>
       </div>
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="submit" disabled={mutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+        <Button type="submit" disabled={mutation.isPending} className="bg-success hover:bg-success text-white">
           {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
           Submit
         </Button>

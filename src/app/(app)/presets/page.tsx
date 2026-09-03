@@ -109,7 +109,7 @@ export default function GlobalPresetsPage() {
               <div className="space-y-2">
                 {presets.map((p) => (
                   <div key={p.id}>
-                    <Card className={selected === p.id ? "border-emerald-400" : ""}>
+                    <Card className={selected === p.id ? "border-success" : ""}>
                       <CardContent className="flex items-center gap-3 p-3">
                         <button onClick={() => setSelected(selected === p.id ? null : p.id)} className="rounded p-1 hover:bg-muted">
                           {selected === p.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -303,7 +303,7 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                   </tr>
                 ))}
                 {adding && (
-                  <tr className="border-t-2 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <tr className="border-t-2 bg-success dark:bg-success/20">
                     {addMode === "fixed" ? (
                       <>
                         <td className="p-2"><input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Cement" className="h-7 w-28 rounded border bg-background px-1 text-xs" autoFocus /></td>
@@ -326,7 +326,7 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
                     )}
                     <td className="p-2">
                       <div className="flex gap-1">
-                        <button className="flex h-7 w-7 items-center justify-center rounded bg-emerald-600 text-white disabled:opacity-40" disabled={!newName || addMutation.isPending} onClick={() => {
+                        <button className="flex h-7 w-7 items-center justify-center rounded bg-success text-white disabled:opacity-40" disabled={!newName || addMutation.isPending} onClick={() => {
                           if (addMode === "fixed") {
                             addMutation.mutate({ presetId: preset.id, name: newName, type: newType, calcMode: "fixed", quantity: parseFloat(newQty) || 0, percentage: parseFloat(newPct) || 0, unit: newUnit, rate: parseFloat(newRate) || 0 });
                           } else {
@@ -341,9 +341,9 @@ function PresetEditor({ preset }: { preset: { id: string; name: string; source: 
               </tbody>
               {ingredients.length > 0 && (
                 <tfoot>
-                  <tr className="border-t-2 bg-emerald-50 dark:bg-emerald-950/30 font-bold">
+                  <tr className="border-t-2 bg-success/10 dark:bg-success/30 font-bold">
                     <td colSpan={6} className="p-2 text-right">Total:</td>
-                    <td className="p-2 text-right text-emerald-700 dark:text-emerald-400">NPR {formatNpr(totalAll)}</td>
+                    <td className="p-2 text-right text-success dark:text-success/80">NPR {formatNpr(totalAll)}</td>
                     <td></td>
                   </tr>
                 </tfoot>

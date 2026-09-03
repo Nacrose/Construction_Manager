@@ -317,7 +317,7 @@ export function LogVatBillDialog({
               </div>
               <div className="text-right">
                 <span className="text-muted-foreground text-[10px]">Net Payable (After TDS):</span>
-                <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
+                <p className="font-extrabold text-success dark:text-success/80">
                   NPR {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>

@@ -123,18 +123,18 @@ export function MaterialMergeDialog({
               />
               {loserId && (
                 <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" /> ID: {loserId}
+                  <CheckCircle2 className="h-2.5 w-2.5 text-success/90" /> ID: {loserId}
                 </div>
               )}
             </div>
 
             {/* Winner / Canonical */}
-            <div className="space-y-1.5 p-3 rounded-lg border border-emerald-200/60 dark:border-emerald-950/60 bg-emerald-500/5">
+            <div className="space-y-1.5 p-3 rounded-lg border border-success/60 dark:border-success/60 bg-success/5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="text-xs font-bold text-success dark:text-success/80">
                   2. Canonical Item (To Keep)
                 </span>
-                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200">
+                <Badge variant="outline" className="text-[10px] text-success border-success/30">
                   Winner
                 </Badge>
               </div>
@@ -155,7 +155,7 @@ export function MaterialMergeDialog({
               />
               {winnerId && (
                 <div className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" /> ID: {winnerId}
+                  <CheckCircle2 className="h-2.5 w-2.5 text-success/90" /> ID: {winnerId}
                 </div>
               )}
             </div>

@@ -32,8 +32,8 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   certified: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  paid: "bg-emerald-600 text-white",
+  approved: "bg-success/15 text-success dark:bg-success dark:text-success/80",
+  paid: "bg-success text-white",
 };
 
 export default function IpcDetailPage({
@@ -80,7 +80,7 @@ export default function IpcDetailPage({
     return (
       <Card className="p-12 text-center">
         <p className="text-destructive">{error?.message ?? "IPC not found."}</p>
-        <Link href={`/projects/${id}/ipc`} className="mt-4 inline-block text-sm text-emerald-600 hover:underline">
+        <Link href={`/projects/${id}/ipc`} className="mt-4 inline-block text-sm text-success hover:underline">
           Back to IPCs
         </Link>
       </Card>
@@ -185,7 +185,7 @@ export default function IpcDetailPage({
               <div className="text-right text-xs">
                 <p className="font-semibold text-base">Interim Payment Certificate</p>
                 <p>{ipc.number} · {ipc.period ?? ""}</p>
-                {ipc.subcontractor && <p className="font-medium text-emerald-700">Subcontractor: {ipc.subcontractor.name}</p>}
+                {ipc.subcontractor && <p className="font-medium text-success">Subcontractor: {ipc.subcontractor.name}</p>}
               </div>
             </div>
           </div>
@@ -294,7 +294,7 @@ export default function IpcDetailPage({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 no-print">
               <Card className="p-4">
                 <p className="text-xs text-muted-foreground">Gross amount (this bill)</p>
-                <p className="mt-1 text-lg font-semibold text-emerald-700 dark:text-emerald-400">
+                <p className="mt-1 text-lg font-semibold text-success dark:text-success/80">
                   NPR {fmt(ipc.grossAmount)}
                 </p>
               </Card>
@@ -328,7 +328,7 @@ export default function IpcDetailPage({
             </div>
 
             {/* Final payable — prominent display */}
-            <Card className="p-5 border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 no-print">
+            <Card className="p-5 border-success/40 dark:border-success bg-success/20 no-print">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase">Final Payable to Contractor</p>
@@ -336,7 +336,7 @@ export default function IpcDetailPage({
                     (Gross + VAT) − Retention − Advance − TDS
                   </p>
                 </div>
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                <p className="text-2xl font-bold text-success dark:text-success/80">
                   NPR {fmt(ipc.finalPayable ?? ipc.netPayable)}
                 </p>
               </div>
@@ -379,7 +379,7 @@ export default function IpcDetailPage({
             {ipc.subcontractorId && subLedger && subLedger.debits.length > 0 && (
               <Card className="print-card">
                 <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-base flex items-center gap-1.5"><Package className="h-4 w-4 text-emerald-600" /> Issued Materials Recovery Details</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-1.5"><Package className="h-4 w-4 text-success" /> Issued Materials Recovery Details</CardTitle>
                   <CardDescription>Breakdown of debitable store issues subtracted from this subcontractor's payment.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -454,11 +454,11 @@ export default function IpcDetailPage({
               </div>
 
               {/* Stamp 3: Approved */}
-              <div className="border border-emerald-200 dark:border-emerald-900 rounded-lg p-3 bg-emerald-50/20 dark:bg-emerald-950/10 flex flex-col items-center text-center">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wider uppercase">Approved By</p>
+              <div className="border border-success/30 dark:border-success rounded-lg p-3 bg-success/20 dark:bg-success/10 flex flex-col items-center text-center">
+                <p className="text-[10px] font-bold text-success dark:text-success/80 tracking-wider uppercase">Approved By</p>
                 {ipc.status === "approved" || ipc.status === "paid" ? (
                   <>
-                    <div className="my-2 border border-dashed border-emerald-400 dark:border-emerald-700 px-3 py-1 text-xs font-serif font-bold text-emerald-800 dark:text-emerald-300 select-none bg-card dark:bg-[var(--navy-mid)]">
+                    <div className="my-2 border border-dashed border-success dark:border-success px-3 py-1 text-xs font-serif font-bold text-success dark:text-success/80 select-none bg-card dark:bg-[var(--navy-mid)]">
                       APPROVED
                       <br />
                       <span className="text-[8px] font-mono tracking-tight font-normal">SECURE STAMP</span>

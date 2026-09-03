@@ -10,7 +10,7 @@ export const CATEGORIES = [
 ];
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  qc: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+  qc: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   design: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400",
   site: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
   account: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",

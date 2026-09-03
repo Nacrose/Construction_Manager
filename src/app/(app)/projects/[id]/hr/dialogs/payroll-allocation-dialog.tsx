@@ -348,7 +348,7 @@ export function PayrollAllocationDialog({
                 Record totals
               </span>
               {COLUMNS.map((c) => (
-                <span key={c.key} className={cn(c.key === "net" && "font-bold text-emerald-700 dark:text-emerald-300")}>
+                <span key={c.key} className={cn(c.key === "net" && "font-bold text-success dark:text-success/80")}>
                   {c.label}: {formatNpr(target[c.key])}
                 </span>
               ))}
@@ -416,7 +416,7 @@ export function PayrollAllocationDialog({
                   const ok = colBalanced(c.key);
                   const diff = colDiff(c.key);
                   return (
-                    <span key={c.key} className={cn(ok ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400 font-bold")}>
+                    <span key={c.key} className={cn(ok ? "text-success dark:text-success/80" : "text-rose-600 dark:text-rose-400 font-bold")}>
                       {c.label}: {formatNpr(rowSum(c.key))}
                       {!ok && <span className="ml-1">({diff > 0 ? "+" : ""}{formatNpr(diff)})</span>}
                     </span>

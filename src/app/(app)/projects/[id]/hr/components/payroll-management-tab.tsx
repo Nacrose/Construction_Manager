@@ -163,7 +163,7 @@ export function PayrollManagementTab({
         key: "effectiveDays",
         header: "Days",
         align: "right",
-        className: "font-bold text-emerald-600",
+        className: "font-bold text-success",
       },
       {
         key: "overtimeHours",
@@ -213,7 +213,7 @@ export function PayrollManagementTab({
         header: "Net Payable",
         align: "right",
         summary: "sum",
-        className: "font-bold font-mono text-foreground bg-emerald-50/20 dark:bg-emerald-950/10",
+        className: "font-bold font-mono text-foreground bg-success/20 dark:bg-success/10",
         render: (val) => formatNpr(val),
       },
       {
@@ -332,7 +332,7 @@ export function PayrollManagementTab({
               size="sm"
               onClick={() => setConfirmAction("disburse")}
               disabled={updateStatusMut.isPending}
-              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 px-2.5"
+              className="h-7 text-xs bg-success hover:bg-success text-white font-semibold gap-1 px-2.5"
             >
               <Banknote className="h-3 w-3" /> Mark Disbursed
             </Button>
@@ -362,7 +362,7 @@ export function PayrollManagementTab({
           </div>
 
           <div>
-            <span className="text-emerald-700 dark:text-emerald-300 font-extrabold text-xs">
+            <span className="text-success dark:text-success/80 font-extrabold text-xs">
               💰 Total Net Payable: NPR {formatNpr(summary.grandTotal)}
             </span>
           </div>
@@ -438,7 +438,7 @@ export function PayrollManagementTab({
                 </div>
               </div>
 
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded flex justify-between items-center text-sm font-bold text-emerald-800 dark:text-emerald-300">
+              <div className="p-3 bg-success/10 dark:bg-success/20 border border-success/40 dark:border-success rounded flex justify-between items-center text-sm font-bold text-success dark:text-success/80">
                 <span>Net Payable:</span>
                 <span>NPR {formatNpr(selectedPayslip.netPayable)}</span>
               </div>

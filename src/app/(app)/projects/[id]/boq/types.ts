@@ -33,6 +33,7 @@ export type BoqItem = {
   category: string | null;
   section: string | null;
   tags: string | null;
+  keyTerms: string | null;
   sortOrder: number;
   locked: boolean;
   ingredients: Ingredient[];
@@ -48,7 +49,7 @@ export const UNITS = ["cum", "sqm", "no", "m", "kg", "ton", "set", "lot", "hrs"]
  * Tailwind content scanner.
  */
 export const TAG_COLORS = [
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "bg-success/15 text-success dark:bg-success dark:text-success/80",
   "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",

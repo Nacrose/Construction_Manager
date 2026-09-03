@@ -410,7 +410,7 @@ export function StoreLocationsTab({ projectId }: StoreLocationsTabProps) {
                   </SelectContent>
                 </Select>
                 {selectedMaterialStock && (
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                  <p className="text-[11px] text-success dark:text-success/80 mt-1 font-mono">
                     Available: {selectedMaterialStock.currentStock} {selectedMaterialStock.material.unit}
                   </p>
                 )}

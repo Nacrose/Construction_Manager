@@ -23,6 +23,7 @@ const CreateBoqSchema = z.object({
   category: z.string().optional(),
   section: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  keyTerms: z.array(z.string()).optional(),
   sortOrder: z.number().optional(),
 });
 
@@ -36,6 +37,7 @@ const UpdateBoqSchema = z.object({
   category: z.string().nullable().optional(),
   section: z.string().nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
+  keyTerms: z.array(z.string()).nullable().optional(),
   sortOrder: z.number().optional(),
 });
 
@@ -148,6 +150,7 @@ export const boqRouter = router({
             category: input.category,
             section: input.section,
             tags: input.tags ? JSON.stringify(input.tags) : null,
+            keyTerms: input.keyTerms ? JSON.stringify(input.keyTerms) : null,
             sortOrder,
           },
           include: { ingredients: true },
@@ -246,6 +249,7 @@ export const boqRouter = router({
             ...(data.category !== undefined && { category: data.category }),
             ...(data.section !== undefined && { section: data.section }),
             ...(data.tags !== undefined && { tags: data.tags === null ? null : JSON.stringify(data.tags) }),
+            ...(data.keyTerms !== undefined && { keyTerms: data.keyTerms === null ? null : JSON.stringify(data.keyTerms) }),
             ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
             amount: quantity * (rate ?? 0),
           },
@@ -352,6 +356,94 @@ export const boqRouter = router({
       });
 
       return { ok: true };
+    }),
+
+  /** Duplicate a BOQ item (optionally into another section), cloning its rate
+   *  analyses + ingredients. Used by "Copy to category" / "Copy rate analysis". */
+  duplicate: protectedProcedure
+    .input(z.object({ itemId: z.string(), targetSection: z.string().nullable().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await db.boqItem.findUnique({
+        where: { id: input.itemId },
+        include: {
+          rateAnalyses: { include: { ingredients: { orderBy: { sortOrder: "asc" } } } },
+        },
+      });
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
+
+      await assertProjectMember(ctx.user, source.projectId);
+      const project = await db.project.findUnique({ where: { id: source.projectId }, select: { boqLocked: true } });
+      if (project?.boqLocked) throw new TRPCError({ code: "FORBIDDEN", message: "BOQ is locked." });
+      if (source.locked) throw new TRPCError({ code: "FORBIDDEN", message: "This BOQ item is locked." });
+
+      // Find a non-colliding copy code (projectId+code is unique).
+      let code = `${source.code}-C`;
+      let n = 2;
+      while (await db.boqItem.findUnique({ where: { projectId_code: { projectId: source.projectId, code } }, select: { id: true } })) {
+        code = `${source.code}-C${n++}`;
+      }
+
+      const item = await db.$transaction(async (tx) => {
+        await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
+        const created = await tx.boqItem.create({
+          data: {
+            projectId: source.projectId,
+            code,
+            description: source.description,
+            unit: source.unit,
+            quantity: source.quantity,
+            rate: source.rate,
+            amount: source.quantity * source.rate,
+            category: source.category,
+            section: input.targetSection ?? source.section,
+            tags: source.tags,
+            keyTerms: source.keyTerms,
+            locked: false,
+          },
+        });
+        // Clone each rate analysis + its ingredients onto the copy.
+        for (const ra of source.rateAnalyses) {
+          const newRa = await tx.rateAnalysis.create({
+            data: {
+              boqItemId: created.id,
+              libraryId: ra.libraryId ?? null,
+              name: ra.name,
+              batchSize: ra.batchSize,
+              isDefault: ra.isDefault,
+            },
+          });
+          if (ra.ingredients.length > 0) {
+            await tx.boqIngredient.createMany({
+              data: ra.ingredients.map((ing) => ({
+                boqItemId: created.id,
+                rateAnalysisId: newRa.id,
+                name: ing.name,
+                type: ing.type,
+                calcMode: ing.calcMode,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                percentage: ing.percentage,
+                pctBase: ing.pctBase,
+                rate: ing.rate,
+                amount: ing.amount,
+                sortOrder: ing.sortOrder,
+              })),
+            });
+          }
+        }
+        return created;
+      });
+
+      await audit({
+        userId: ctx.user.id,
+        projectId: source.projectId,
+        action: "boq.duplicate",
+        entityType: "boq_item",
+        entityId: item.id,
+        metadata: { code, sourceCode: source.code, section: item.section },
+      });
+
+      return { item };
     }),
 
   /** Lock or unlock an individual BOQ item. */

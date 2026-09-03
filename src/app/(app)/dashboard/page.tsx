@@ -90,7 +90,7 @@ export default function DashboardPage() {
       header: "Inflow (Dr)",
       align: "right",
       render: (val) => (
-        <span className="font-matrix font-bold text-emerald-600">
+        <span className="font-matrix font-bold text-success">
           {val > 0 ? formatNpr(val, { prefix: "NPR" }) : "—"}
         </span>
       ),
@@ -125,7 +125,7 @@ export default function DashboardPage() {
               <svg className="aero-icon-sm" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="3" width="8" height="8" rx="1.5" fill="#38bdf8" stroke="#d97706" strokeWidth="1"/>
                 <rect x="13" y="3" width="8" height="8" rx="1.5" fill="#f59e0b" stroke="#b45309" strokeWidth="1"/>
-                <rect x="3" y="13" width="8" height="8" rx="1.5" fill="#10b981" stroke="#059669" strokeWidth="1"/>
+                <rect x="3" y="13" width="8" height="8" rx="1.5" fill="#4a8b57" stroke="#4a8b57" strokeWidth="1"/>
                 <rect x="13" y="13" width="8" height="8" rx="1.5" fill="#818cf8" stroke="#4f46e5" strokeWidth="1"/>
               </svg>
               <span>Executive Cockpit</span>
@@ -160,9 +160,9 @@ export default function DashboardPage() {
             <StaggerItem className="p-2.5 rounded-[5px] border border-border bg-card level-2-surface flex flex-col justify-between">
               <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                 <span>Liquid Cash & Bank</span>
-                <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+                <Wallet className="h-3.5 w-3.5 text-success" />
               </div>
-              <div className="mt-1 font-matrix text-lg font-extrabold text-emerald-700">
+              <div className="mt-1 font-matrix text-lg font-extrabold text-success">
                 <AnimatedCounter value={totalLiquidCash || 0} format={(n) => formatNpr(n)} prefix="NPR " />
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">Across {accounts.length} accounts</div>
@@ -302,7 +302,7 @@ export default function DashboardPage() {
             <h3 className="text-xs font-extrabold text-foreground/90 uppercase tracking-wide mb-2.5">Live Bank Balances & Credit Limits</h3>
             {accounts.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[var(--border)] p-8 text-center bg-[#f8fafc] space-y-2">
-                <Wallet className="mx-auto h-8 w-8 text-emerald-600/60" />
+                <Wallet className="mx-auto h-8 w-8 text-success/60" />
                 <p className="text-xs font-semibold text-foreground/90">No Bank or Cash Accounts Connected</p>
                 <p className="text-[11px] text-muted-foreground">Add company bank accounts or site petty cash funds to track real-time liquidity.</p>
                 <div className="pt-2">
@@ -324,7 +324,7 @@ export default function DashboardPage() {
                       <span className="text-[10px] font-mono text-muted-foreground uppercase">{acc.accountType}</span>
                     </div>
                     <div className="font-mono text-[10px] text-muted-foreground/80">A/C: {acc.accountNumber}</div>
-                    <div className="font-matrix text-base font-extrabold text-emerald-700 pt-1">
+                    <div className="font-matrix text-base font-extrabold text-success pt-1">
                       NPR {formatNpr(acc.currentBalance || 0)}
                     </div>
                   </div>

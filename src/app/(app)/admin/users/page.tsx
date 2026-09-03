@@ -127,7 +127,7 @@ export default function AdminUsers() {
                         {u.deactivatedAt && (
                           <button
                             onClick={() => updateMut.mutate({ id: u.id, deactivatedAt: false })}
-                            className="rounded p-1 text-muted-foreground hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-950"
+                            className="rounded p-1 text-muted-foreground hover:bg-success/15 hover:text-success dark:hover:bg-success"
                             title="Reactivate"
                           >
                             <ShieldCheck className="h-3.5 w-3.5" />

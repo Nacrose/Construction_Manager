@@ -196,7 +196,7 @@ export function VerifyBillDialog({
         <DialogHeader>
           <div className="flex items-center justify-between pr-6">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              <ShieldCheck className="h-5 w-5 text-success/90" />
               <DialogTitle className="text-base font-bold">
                 Engineer Verification &amp; Certification: {bill.billNumber}
               </DialogTitle>
@@ -235,7 +235,7 @@ export function VerifyBillDialog({
                   <th className="p-2 text-left w-16">BOQ</th>
                   <th className="p-2 text-left">Description</th>
                   <th className="p-2 text-right w-16">Claimed</th>
-                  <th className="p-2 text-right w-24 bg-emerald-500/20 text-emerald-300 font-bold">
+                  <th className="p-2 text-right w-24 bg-success/20 text-success/80 font-bold">
                     Verified Qty
                   </th>
                   <th className="p-2 text-right w-20 text-red-400">Disallowed</th>
@@ -256,13 +256,13 @@ export function VerifyBillDialog({
                       <td className="p-2 text-right text-white/60">
                         {item.thisQty} {item.unit}
                       </td>
-                      <td className="p-1.5 text-right bg-emerald-500/15">
+                      <td className="p-1.5 text-right bg-success/15">
                         <Input
                           type="number"
                           step="any"
                           value={item.verifiedQty}
                           onChange={(e) => updateItemVerifiedQty(idx, parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs text-right font-bold font-mono text-emerald-300 bg-white/5 border-emerald-500/40"
+                          className="h-7 text-xs text-right font-bold font-mono text-success/80 bg-white/5 border-success/40"
                         />
                       </td>
                       <td className={cn("p-2 text-right font-bold", isDisallowed ? "text-red-400" : "text-white/40")}>
@@ -310,7 +310,7 @@ export function VerifyBillDialog({
             </div>
             <div className="space-y-1">
               <span className="text-white/60">Verified Gross:</span>
-              <p className="font-mono font-bold text-emerald-400">
+              <p className="font-mono font-bold text-success/80">
                 {formatNpr(verifiedGross)}
               </p>
             </div>
@@ -375,7 +375,7 @@ export function VerifyBillDialog({
 
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs font-semibold"
+              className="bg-success hover:bg-success text-white font-mono text-xs font-semibold"
               onClick={() => handleAction("certify")}
               disabled={verifyMut.isPending}
             >

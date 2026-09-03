@@ -267,7 +267,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                       ) : a.type === "subcontractor" ? (
                         <Users className="h-3 w-3 text-purple-500 shrink-0" />
                       ) : a.type === "bank" || a.type === "cash" ? (
-                        <Wallet className="h-3 w-3 text-emerald-500 shrink-0" />
+                        <Wallet className="h-3 w-3 text-success/90 shrink-0" />
                       ) : (
                         <Users className="h-3 w-3 text-amber-500 shrink-0" />
                       )}
@@ -327,7 +327,7 @@ export function LedgerAccountsTab({ projectId }: { projectId: string }) {
                   onClick={handleExportStatement}
                   className="h-8 text-xs gap-1 font-mono"
                 >
-                  <Download className="h-3 w-3 text-emerald-600" />
+                  <Download className="h-3 w-3 text-success" />
                   Excel
                 </Button>
               </div>

@@ -57,12 +57,12 @@ export function IpcVersionDiff({ projectId, boqVersionId, boqVersionNumber }: { 
                     <td className="p-2">{row.description}</td>
                     <td className="p-2 text-right">{row.leftQty.toLocaleString()}</td>
                     <td className="p-2 text-right">{row.rightQty.toLocaleString()}</td>
-                    <td className={`p-2 text-right font-medium ${row.qtyDiff !== 0 ? (row.qtyDiff > 0 ? "text-emerald-600" : "text-red-600") : ""}`}>
+                    <td className={`p-2 text-right font-medium ${row.qtyDiff !== 0 ? (row.qtyDiff > 0 ? "text-success" : "text-red-600") : ""}`}>
                       {row.qtyDiff > 0 ? "+" : ""}{row.qtyDiff.toLocaleString()}
                     </td>
                     <td className="p-2 text-right">{row.leftRate.toLocaleString()}</td>
                     <td className="p-2 text-right">{row.rightRate.toLocaleString()}</td>
-                    <td className={`p-2 text-right font-medium ${row.rateDiff !== 0 ? (row.rateDiff > 0 ? "text-emerald-600" : "text-red-600") : ""}`}>
+                    <td className={`p-2 text-right font-medium ${row.rateDiff !== 0 ? (row.rateDiff > 0 ? "text-success" : "text-red-600") : ""}`}>
                       {row.rateDiff > 0 ? "+" : ""}{row.rateDiff.toLocaleString()}
                     </td>
                   </tr>

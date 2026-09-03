@@ -501,7 +501,7 @@ export function RecordPaymentDialog({
                         });
                       }}
                       disabled={createSubMut.isPending || !newSubName.trim()}
-                      className="h-9 text-xs px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-xs"
+                      className="h-9 text-xs px-3 bg-success hover:bg-success text-white font-bold rounded-lg shadow-xs"
                     >
                       {createSubMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
                     </Button>
@@ -551,7 +551,7 @@ export function RecordPaymentDialog({
                 <div className="flex items-center justify-between">
                   <Label className="text-[11px] font-semibold text-foreground/80">Amount (NPR)</Label>
                   {amount && parseFloat(tds) > 0 && (
-                    <span className="text-[10px] text-emerald-700 font-mono font-bold font-matrix">
+                    <span className="text-[10px] text-success font-mono font-bold font-matrix">
                       Net: NPR {formatNpr(computedNet)}
                     </span>
                   )}
@@ -697,7 +697,7 @@ export function RecordPaymentDialog({
                         TDS Withholding (कर कट्टी)
                       </Label>
                       {parseFloat(tds) > 0 && (
-                        <span className="text-[10px] font-mono text-emerald-700 font-bold font-matrix">
+                        <span className="text-[10px] font-mono text-success font-bold font-matrix">
                           Deduct: NPR {formatNpr(parseFloat(tds))}
                         </span>
                       )}

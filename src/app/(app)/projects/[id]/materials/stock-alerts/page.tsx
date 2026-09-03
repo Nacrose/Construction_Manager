@@ -142,7 +142,7 @@ export default function StockAlertsPage({
           <Button
             size="sm"
             onClick={() => router.push(`/projects/${id}/materials?tab=requisitions`)}
-            className="h-8 px-3 text-xs font-mono bg-emerald-500 hover:bg-emerald-600 text-black font-semibold"
+            className="h-8 px-3 text-xs font-mono bg-success hover:bg-success text-black font-semibold"
           >
             <ShoppingCart className="mr-1.5 h-3.5 w-3.5" />
             Create Purchase Requisition

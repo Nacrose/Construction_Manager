@@ -185,7 +185,7 @@ export function EquipmentFleetTab({
                       status: "active",
                     })
                   }
-                  className="text-xs cursor-pointer text-emerald-700 dark:text-emerald-400 font-medium"
+                  className="text-xs cursor-pointer text-success dark:text-success/80 font-medium"
                 >
                   Mark Active
                 </DropdownMenuItem>
@@ -333,7 +333,7 @@ export function EquipmentFleetTab({
               className={cn(
                 "relative overflow-hidden border-l-4 shadow-2xs",
                 e.status === "active"
-                  ? "border-l-emerald-500"
+                  ? "border-l-success"
                   : e.status === "maintenance"
                     ? "border-l-amber-500"
                     : e.status === "breakdown"
@@ -420,7 +420,7 @@ export function EquipmentFleetTab({
                               status: "active",
                             })
                           }
-                          className="text-xs text-emerald-600 font-medium"
+                          className="text-xs text-success font-medium"
                         >
                           Mark Active
                         </DropdownMenuItem>

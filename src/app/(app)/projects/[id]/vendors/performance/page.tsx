@@ -30,14 +30,14 @@ const RES_TABS = [
 ];
 
 function getOverallColor(overall: number) {
-  if (overall >= 80) return "text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400";
+  if (overall >= 80) return "text-success bg-success/10 dark:bg-success dark:text-success/80";
   if (overall >= 60) return "text-info bg-info/10 dark:bg-[var(--navy-deep)] dark:text-info/80";
   if (overall >= 40) return "text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400";
   return "text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400";
 }
 
 function getScoreColor(score: number) {
-  if (score >= 80) return "text-emerald-600";
+  if (score >= 80) return "text-success";
   if (score >= 60) return "text-info";
   if (score >= 40) return "text-amber-600";
   return "text-red-600";
@@ -113,7 +113,7 @@ export default function VendorPerformancePage({
             <Card>
               <CardContent className="p-3 text-center">
                 <div className="text-[10px] text-muted-foreground uppercase">Excellent</div>
-                <div className="text-2xl font-bold text-emerald-600">{data.summary.excellent}</div>
+                <div className="text-2xl font-bold text-success">{data.summary.excellent}</div>
               </CardContent>
             </Card>
             <Card>

@@ -68,7 +68,7 @@ export default function ReportPrintPage({
   const logoDataUrl = searchParams.get("logo") || "";
   const includeCover = searchParams.get("cover") === "1";
   const fontFamily = searchParams.get("font") || "system";
-  const accentColor = searchParams.get("accent") || "#059669";
+  const accentColor = searchParams.get("accent") || "#4a8b57";
 
   const { data, isLoading } = trpc.workflow.dailyReport.getReport.useQuery({ reportId });
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
@@ -308,7 +308,7 @@ export default function ReportPrintPage({
         }
         .footer-note {
           background: #f0fdf4;
-          border: 1px solid #bbf7d0;
+          border: 1px solid #d9efd9;
           padding: 6px 10px;
           font-size: 9pt;
           margin-top: 12px;

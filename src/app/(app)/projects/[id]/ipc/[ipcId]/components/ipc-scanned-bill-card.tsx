@@ -120,7 +120,7 @@ export function IpcScannedBillCard({
                   Client Tax Invoice &amp; Signed Certificate
                 </span>
                 {isBillAttached && scannedBillUrl ? (
-                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 gap-1 text-[10px]">
+                  <Badge className="bg-success/15 text-success dark:bg-success dark:text-success/80 gap-1 text-[10px]">
                     <CheckCircle2 className="h-3 w-3" /> Attached
                   </Badge>
                 ) : (

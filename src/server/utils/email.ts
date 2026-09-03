@@ -121,13 +121,13 @@ export const emailTemplates = {
     subject: `RFI ${rfiNumber} — Action Required`,
     html: `
       <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <div style="background: #4a8b57; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
           <h1 style="margin: 0; font-size: 20px;">RFI ${escapeHtml(rfiNumber)}</h1>
           <p style="margin: 5px 0 0; opacity: 0.9;">${escapeHtml(projectName)}</p>
         </div>
         <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
           <p style="font-size: 14px; color: #374151;">A new RFI has been submitted and requires your response${assignedTo ? `, ${escapeHtml(assignedTo)}` : ""}.</p>
-          <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #059669; margin: 15px 0;">
+          <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #4a8b57; margin: 15px 0;">
             <p style="margin: 0; font-weight: 600; font-size: 14px;">${escapeHtml(subject)}</p>
           </div>
           <p style="font-size: 13px; color: #6b7280;">Please log in to the Construction Manager app to review and respond.</p>
@@ -140,7 +140,7 @@ export const emailTemplates = {
     subject: `Daily Report ${reportNumber} — Submitted for Review`,
     html: `
       <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <div style="background: #4a8b57; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
           <h1 style="margin: 0; font-size: 20px;">${escapeHtml(reportNumber)}</h1>
           <p style="margin: 5px 0 0; opacity: 0.9;">${escapeHtml(projectName)} — ${escapeHtml(reportDate)}</p>
         </div>
@@ -201,14 +201,14 @@ export const emailTemplates = {
     subject: `IPC ${ipcNumber} — Certified for Payment`,
     html: `
       <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+        <div style="background: #4a8b57; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
           <h1 style="margin: 0; font-size: 20px;">IPC ${escapeHtml(ipcNumber)}</h1>
           <p style="margin: 5px 0 0; opacity: 0.9;">${escapeHtml(projectName)}</p>
         </div>
         <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
           <p style="font-size: 14px; color: #374151;">Interim Payment Certificate has been certified.</p>
           <div style="background: white; padding: 15px; border-radius: 6px; text-align: center; margin: 15px 0;">
-            <div style="font-size: 28px; font-weight: bold; color: #059669;">NPR ${netPayable.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</div>
+            <div style="font-size: 28px; font-weight: bold; color: #4a8b57;">NPR ${netPayable.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</div>
             <div style="font-size: 12px; color: #6b7280;">Net Payable</div>
           </div>
           <p style="font-size: 13px; color: #6b7280;">Please process payment as per contract terms.</p>

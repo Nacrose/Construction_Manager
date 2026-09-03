@@ -134,7 +134,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
             <div className="grid grid-cols-4 gap-2 text-xs">
               <div className="rounded border p-2 text-center">
                 <div className="text-[9px] text-muted-foreground uppercase">Received</div>
-                <div className="font-bold text-emerald-600">{data.summary.totalReceived.toFixed(1)}</div>
+                <div className="font-bold text-success">{data.summary.totalReceived.toFixed(1)}</div>
               </div>
               <div className="rounded border p-2 text-center">
                 <div className="text-[9px] text-muted-foreground uppercase">Issued</div>
@@ -142,7 +142,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
               </div>
               <div className="rounded border p-2 text-center">
                 <div className="text-[9px] text-muted-foreground uppercase">Variance</div>
-                <div className={cn("font-bold", data.summary.totalVariance < 0 ? "text-red-600" : "text-emerald-600")}>
+                <div className={cn("font-bold", data.summary.totalVariance < 0 ? "text-red-600" : "text-success")}>
                   {data.summary.totalVariance > 0 ? "+" : ""}{data.summary.totalVariance.toFixed(1)}
                 </div>
               </div>
@@ -159,7 +159,7 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
                   <tr>
                     <th className="p-1.5 text-left font-medium text-muted-foreground">Material</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Open</th>
-                    <th className="p-1.5 text-right font-medium text-muted-foreground text-emerald-600">+ Recv</th>
+                    <th className="p-1.5 text-right font-medium text-muted-foreground text-success">+ Recv</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground text-info">− Issue</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Exp.</th>
                     <th className="p-1.5 text-right font-medium text-muted-foreground">Actual</th>
@@ -177,11 +177,11 @@ export function ReconciliationReport({ projectId, canWrite = true }: Props) {
                           {m.code && <div className="text-[8px] text-muted-foreground font-mono">{m.code}</div>}
                         </td>
                         <td className="p-1.5 text-right tabular-nums">{m.opening.toFixed(1)}</td>
-                        <td className="p-1.5 text-right tabular-nums text-emerald-600">{m.received > 0 ? `+${m.received.toFixed(1)}` : "—"}</td>
+                        <td className="p-1.5 text-right tabular-nums text-success">{m.received > 0 ? `+${m.received.toFixed(1)}` : "—"}</td>
                         <td className="p-1.5 text-right tabular-nums text-info">{m.issued > 0 ? `−${m.issued.toFixed(1)}` : "—"}</td>
                         <td className="p-1.5 text-right tabular-nums font-medium">{m.expectedClosing.toFixed(1)}</td>
                         <td className="p-1.5 text-right tabular-nums">{m.actualClosing.toFixed(1)}</td>
-                        <td className={cn("p-1.5 text-right tabular-nums font-bold", !hasVariance ? "text-muted-foreground" : m.variance < 0 ? "text-red-600" : "text-emerald-600")}>
+                        <td className={cn("p-1.5 text-right tabular-nums font-bold", !hasVariance ? "text-muted-foreground" : m.variance < 0 ? "text-red-600" : "text-success")}>
                           {hasVariance ? `${m.variance > 0 ? "+" : ""}${m.variance.toFixed(1)}` : "—"}
                         </td>
                         {canWrite && (

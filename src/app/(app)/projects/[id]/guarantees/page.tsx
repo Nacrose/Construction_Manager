@@ -58,7 +58,7 @@ const TYPE_LABELS: Record<string, { label: string; labelNp: string; color: strin
   car_insurance: {
     label: "CAR Insurance",
     labelNp: "निर्माण जोखिम बीमा",
-    color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border-emerald-200",
+    color: "bg-success/10 text-success dark:bg-success dark:text-success/80 border-success/30",
   },
   retention_bond: {
     label: "Retention Guarantee",
@@ -240,7 +240,7 @@ export default function BankGuaranteesPage({
           );
         }
         return (
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 text-[10px] border-emerald-300">
+          <Badge variant="outline" className="bg-success/10 text-success dark:bg-success text-[10px] border-success/40">
             {g.daysRemaining} Days Left
           </Badge>
         );
@@ -288,7 +288,7 @@ export default function BankGuaranteesPage({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-emerald-400"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-success/80"
                   title="Mark as Released / Returned"
                   onClick={() =>
                     setConfirmModal({

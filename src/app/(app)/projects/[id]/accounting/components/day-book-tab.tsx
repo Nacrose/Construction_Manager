@@ -34,6 +34,9 @@ import { ConstructionTable, type ConstructionTableColumn } from "@/components/ui
 import { RecordPaymentDialog } from "../../payments/components/record-payment-dialog";
 import { AddClaimDialog } from "../../payments/components/add-claim-dialog";
 import { NepaliDatePicker } from "@/components/ui/nepali-date-picker";
+import { CashPositionChart } from "./cash-position-chart";
+import { DayBookInspector, type LedgerEntry } from "./day-book-inspector";
+import { EditLedgerEntryDialog } from "./edit-ledger-entry-dialog";
 
 export function DayBookTab({ projectId }: { projectId?: string }) {
   const utils = trpc.useUtils();
@@ -42,6 +45,39 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
   const [recordInflowOpen, setRecordInflowOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   const [addClaimOpen, setAddClaimOpen] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [showChart, setShowChart] = useState(true);
+  const [forecastMode, setForecastMode] = useState<"actual" | "forecast">("actual");
+  const [editEntry, setEditEntry] = useState<LedgerEntry | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  const reverseMut = trpc.accounting.reverseLedgerEntry.useMutation({
+    onSuccess: () => {
+      toast.success("Entry reversed.");
+      setInspectorOpen(false);
+      setSelectedEntry(null);
+      utils.accounting.dayBook.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const attachMut = trpc.accounting.attachLedgerFile.useMutation({
+    onSuccess: () => {
+      toast.success("Attachment uploaded.");
+      utils.accounting.dayBook.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const confirmReverse = async (entry: LedgerEntry) => {
+    if (!entry.id || !entry.source) return;
+    if (entry.source !== "payment" && entry.source !== "site_expense" && entry.source !== "head_office_expense") {
+      toast.error("Reverse this entry from its source module.");
+      return;
+    }
+    if (window.confirm(`Reverse this ${entry.voucherType || "entry"}? This voids it from the day book.`)) {
+      reverseMut.mutate({ source: entry.source, id: entry.id });
+    }
+  };
 
   // Inflow Form State
   const [inflowDate, setInflowDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -180,7 +216,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         header: "Inflow (Dr)",
         align: "right",
         summary: "sum",
-        className: "text-emerald-600 font-bold font-matrix",
+        className: "text-success font-bold font-matrix",
         render: (val) => (val > 0 ? formatNpr(val) : "—"),
       },
       {
@@ -261,7 +297,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-[11px]">Total Inflow (Dr):</span>
-            <span className="font-bold text-emerald-600 font-matrix">NPR {formatNpr(summary.totalDebit)}</span>
+            <span className="font-bold text-success font-matrix">NPR {formatNpr(summary.totalDebit)}</span>
           </div>
           <div className="h-3 w-[1px] bg-secondary" />
           <div className="flex items-center gap-2">
@@ -274,7 +310,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             <span
               className={cn(
                 "font-bold",
-                summary.totalDebit - summary.totalCredit >= 0 ? "text-emerald-400" : "text-red-400"
+                summary.totalDebit - summary.totalCredit >= 0 ? "text-success/80" : "text-red-400"
               )}
             >
               NPR {formatNpr(summary.totalDebit - summary.totalCredit)}
@@ -287,7 +323,70 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
         </div>
       </div>
 
-      {/* View Mode & Table / Timeline Rendering */}
+      {/* View Mode & 3-Pane Workspace (Ledger | Cash Position | Inspector) */}
+      <div className="flex gap-3 h-[calc(100vh-15rem)] min-h-[460px]">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Pane toolbar */}
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80">Cash Position</span>
+              <div className="flex items-center bg-[#f0f6fc] border border-[#c5d7e8] rounded-md p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setForecastMode("actual")}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-mono transition-all font-bold",
+                    forecastMode === "actual" ? "bg-card text-[var(--primary)] border border-[var(--primary)]/40 shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Actual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForecastMode("forecast")}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-mono transition-all font-bold",
+                    forecastMode === "forecast" ? "bg-card text-[var(--primary)] border border-[var(--primary)]/40 shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Forecast
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowChart(!showChart)}
+                className={cn(
+                  "px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold transition-all",
+                  showChart ? "bg-card border-[var(--border)] text-foreground" : "bg-muted border-[var(--border)] text-muted-foreground"
+                )}
+                title={showChart ? "Hide chart pane" : "Show chart pane"}
+              >
+                Chart
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (inspectorOpen) {
+                    setInspectorOpen(false);
+                  } else {
+                    setInspectorOpen(true);
+                    if (!selectedEntry && entriesWithRunning.length) setSelectedEntry(entriesWithRunning[0]);
+                  }
+                }}
+                className={cn(
+                  "px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold transition-all inline-flex items-center gap-1",
+                  inspectorOpen ? "bg-card border-[var(--primary)]/50 text-foreground" : "bg-muted border-[var(--border)] text-muted-foreground"
+                )}
+                title="Toggle inspector"
+              >
+                Inspector
+              </button>
+            </div>
+          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Table / Timeline Rendering */}
       {viewMode === "table" ? (
         <ConstructionTable
           title="Project Day Book & Cashbook (दैनिक रोजकट्टी)"
@@ -298,80 +397,10 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
             filename: `DayBook_${projectId || "Master"}_${format(new Date(), "yyyy-MM-dd")}`,
             sheetName: "DayBook",
           }}
-          rowPreviewTitle={(row) => `Voucher #${row.voucherNo || "—"} (${row.party || "Direct Entry"})`}
-          renderRowPreview={(row) => (
-            <div className="space-y-4 text-xs font-mono">
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-card/[0.03] border border-white/10">
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Date (Miti):</span>
-                  <span className="font-semibold text-white">{row.miti || "—"} ({row.date})</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Voucher No:</span>
-                  <span className="font-semibold text-emerald-400">#{row.voucherNo || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Voucher Type:</span>
-                  <Badge variant="outline" className="capitalize text-[10px] bg-white/5 border-white/10 text-muted-foreground/80">
-                    {row.voucherType || "Journal"}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Payment Mode:</span>
-                  <span className="font-semibold text-white capitalize">{row.paymentMode || "Bank"}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl bg-card/[0.03] border border-white/10 space-y-2">
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Party Name / Entity:</span>
-                  <span className="font-semibold text-white text-sm">{row.party || "—"}</span>
-                </div>
-                {row.pan && (
-                  <div>
-                    <span className="text-muted-foreground/80 block text-[10px]">PAN / VAT No:</span>
-                    <span className="text-muted-foreground/80">{row.pan}</span>
-                  </div>
-                )}
-                <div>
-                  <span className="text-muted-foreground/80 block text-[10px]">Particulars / Narration:</span>
-                  <p className="text-muted-foreground/80 text-xs font-sans mt-0.5">{row.particulars || "—"}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-card/[0.03] border border-white/10 text-center">
-                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                  <span className="text-[10px] text-muted-foreground/80 block">Inflow (Dr)</span>
-                  <span className="font-bold text-emerald-400">
-                    {row.debit > 0 ? `NPR ${formatNpr(row.debit)}` : "—"}
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <span className="text-[10px] text-muted-foreground/80 block">Outflow (Cr)</span>
-                  <span className="font-bold text-red-400">
-                    {row.credit > 0 ? `NPR ${formatNpr(row.credit)}` : "—"}
-                  </span>
-                </div>
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-[10px] text-muted-foreground/80 block">Running Bal</span>
-                  <span className={cn("font-bold", row.runningBalance >= 0 ? "text-emerald-400" : "text-red-400")}>
-                    NPR {formatNpr(row.runningBalance)}
-                  </span>
-                </div>
-              </div>
-
-              {row.attachmentUrl && (
-                <a
-                  href={sanitizeUrl(row.attachmentUrl) ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs transition-colors"
-                >
-                  <Eye className="h-4 w-4" /> View Supporting Bill / Scanned Voucher
-                </a>
-              )}
-            </div>
-          )}
+          onRowClick={(row) => {
+            setSelectedEntry(row as LedgerEntry);
+            setInspectorOpen(true);
+          }}
           emptyState={{
             icon: BookOpen,
             title: "No Journal Entries Recorded",
@@ -428,7 +457,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               <Button
                 size="sm"
                 onClick={() => setRecordInflowOpen(true)}
-                className="h-7 px-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md gap-1 snappy-btn shadow-xs"
+                className="h-7 px-2 text-xs font-bold bg-success hover:bg-success text-white rounded-md gap-1 snappy-btn shadow-xs"
                 title="Record Money In (Client Receipt / Running Bill)"
               >
                 <Plus className="h-3 w-3" /> Inflow
@@ -479,7 +508,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
               <Button
                 size="sm"
                 onClick={() => setRecordInflowOpen(true)}
-                className="h-7 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md gap-1 shadow-xs"
+                className="h-7 text-xs font-bold bg-success hover:bg-success text-white rounded-md gap-1 shadow-xs"
               >
                 <Plus className="h-3 w-3" /> Money In
               </Button>
@@ -508,7 +537,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                     className={cn(
                       "p-3.5 rounded-xl border bg-card shadow-xs transition-all hover:border-[#94a3b8] flex items-center justify-between gap-4 font-mono text-xs",
                       isInflow
-                        ? "border-l-4 border-l-emerald-500 border-[var(--border)]"
+                        ? "border-l-4 border-l-success border-[var(--border)]"
                         : "border-l-4 border-l-rose-500 border-[var(--border)]"
                     )}
                   >
@@ -516,7 +545,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                       <div
                         className={cn(
                           "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
-                          isInflow ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-rose-50 text-rose-600 border border-rose-200"
+                          isInflow ? "bg-success/10 text-success border border-success/30" : "bg-rose-50 text-rose-600 border border-rose-200"
                         )}
                       >
                         {isInflow ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
@@ -540,7 +569,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                         <div
                           className={cn(
                             "font-bold text-sm font-matrix",
-                            isInflow ? "text-emerald-700" : "text-rose-700"
+                            isInflow ? "text-success" : "text-rose-700"
                           )}
                         >
                           {isInflow ? `+ NPR ${formatNpr(entry.debit)}` : `- NPR ${formatNpr(entry.credit)}`}
@@ -561,6 +590,52 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
           )}
         </div>
       )}
+      </div>
+
+        </div>
+
+        {/* Cash Position chart pane */}
+        {showChart && (
+          <div className="hidden xl:block w-[360px] shrink-0 rounded-xl border border-[var(--border)] bg-card level-2-surface shadow-xs overflow-hidden">
+            <CashPositionChart entries={entriesWithRunning} forecastMode={forecastMode} />
+          </div>
+        )}
+
+        {/* Inspector pane */}
+        {inspectorOpen && (
+          <div className="hidden lg:block w-[320px] shrink-0 rounded-xl border border-[var(--border)] bg-card level-2-surface shadow-xs overflow-hidden">
+            <DayBookInspector
+              entry={selectedEntry}
+              open={inspectorOpen}
+              onClose={() => setInspectorOpen(false)}
+              onEdit={(e) => {
+                setEditEntry(e);
+                setEditDialogOpen(true);
+              }}
+              onReverse={confirmReverse}
+              onAttach={(entry, file) => {
+                if (!entry.id || !entry.source) return;
+                if (entry.source !== "payment" && entry.source !== "site_expense" && entry.source !== "head_office_expense") {
+                  toast.error("Attach this file from the source module.");
+                  return;
+                }
+                attachMut.mutate({ source: entry.source, id: entry.id, fileName: file.fileName, fileType: file.fileType, fileSize: file.fileSize, data: file.data });
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <EditLedgerEntryDialog
+        entry={editEntry}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSaved={() => {
+          setInspectorOpen(false);
+          setSelectedEntry(null);
+          utils.accounting.dayBook.invalidate();
+        }}
+      />
 
       {/* Modal: Record Inflow (Money In) - 16:10 Widescreen Aero Modal */}
       <Dialog open={recordInflowOpen} onOpenChange={setRecordInflowOpen}>
@@ -757,7 +832,7 @@ export function DayBookTab({ projectId }: { projectId?: string }) {
                 });
               }}
               disabled={createInflowMut.isPending || !inflowSource.trim() || !inflowAmount}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-8 px-4 text-xs rounded-lg shadow-xs transition-all"
+              className="bg-success hover:bg-success text-white font-bold h-8 px-4 text-xs rounded-lg shadow-xs transition-all"
             >
               {createInflowMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />} Save Inflow (दाखिला सुरक्षित)
             </Button>

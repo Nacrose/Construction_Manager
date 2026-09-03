@@ -28,7 +28,7 @@ const CATEGORY_CONFIG = {
   material: { label: "Material", icon: Package, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/30" },
   labor: { label: "Labor", icon: HardHat, color: "text-info", bg: "bg-info/10 dark:bg-[var(--navy-deep)]/30" },
   equipment: { label: "Equipment", icon: Wrench, color: "text-purple-600", bg: "bg-purple-50 dark:bg-purple-950/30" },
-  subcontractor: { label: "Subcontractor", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30" },
+  subcontractor: { label: "Subcontractor", icon: Users, color: "text-success", bg: "bg-success/10 dark:bg-success/30" },
   overhead: { label: "Overhead", icon: Receipt, color: "text-muted-foreground", bg: "bg-muted/60 dark:bg-[var(--navy-mid)]/50" },
 };
 

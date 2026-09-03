@@ -24,13 +24,13 @@ import { format } from "date-fns";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 function getUtilizationColor(rate: number) {
-  if (rate > 70) return "text-emerald-600 bg-emerald-50 dark:bg-emerald-950 dark:text-emerald-400";
+  if (rate > 70) return "text-success bg-success/10 dark:bg-success dark:text-success/80";
   if (rate > 40) return "text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400";
   return "text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400";
 }
 
 function getBarColor(rate: number) {
-  if (rate > 70) return "#22c55e";
+  if (rate > 70) return "#4a8b57";
   if (rate > 40) return "#eab308";
   return "#ef4444";
 }
@@ -210,7 +210,7 @@ export default function EquipmentUtilizationPage({
             <Card>
               <CardContent className="p-3">
                 <div className="text-xs text-muted-foreground font-medium">High (&gt;70%)</div>
-                <div className="text-xl font-bold mt-1 text-emerald-600">{summary?.high}</div>
+                <div className="text-xl font-bold mt-1 text-success">{summary?.high}</div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">Optimal usage</div>
               </CardContent>
             </Card>

@@ -109,12 +109,12 @@ export function BoqVersionsTab({
               item.baselineQty !== null && item.baselineRate !== null ? (
                 <div className="font-mono text-xs">
                   {item.quantity !== item.baselineQty && (
-                    <span className={item.quantity > item.baselineQty ? "text-emerald-500 font-bold" : "text-red-500 font-bold"}>
+                    <span className={item.quantity > item.baselineQty ? "text-success/90 font-bold" : "text-red-500 font-bold"}>
                       qty: {item.quantity > item.baselineQty ? "+" : ""}{(item.quantity - item.baselineQty).toFixed(3)}
                     </span>
                   )}
                   {item.rate !== item.baselineRate && (
-                    <span className={`ml-2 font-bold ${item.rate > item.baselineRate ? "text-emerald-500" : "text-red-500"}`}>
+                    <span className={`ml-2 font-bold ${item.rate > item.baselineRate ? "text-success/90" : "text-red-500"}`}>
                       rate: {item.rate > item.baselineRate ? "+" : ""}{formatNpr(item.rate - item.baselineRate)}
                     </span>
                   )}
@@ -167,7 +167,7 @@ export function BoqVersionsTab({
       header: "Qty \u0394",
       align: "right",
       render: (_, r) => (
-        <span className={`font-mono text-xs ${r.qtyDiff > 0 ? "text-emerald-600 font-bold" : r.qtyDiff < 0 ? "text-red-600 font-bold" : ""}`}>
+        <span className={`font-mono text-xs ${r.qtyDiff > 0 ? "text-success font-bold" : r.qtyDiff < 0 ? "text-red-600 font-bold" : ""}`}>
           {r.qtyDiff > 0 ? "+" : ""}{r.qtyDiff.toFixed(3) || "\u2014"}
         </span>
       ),
@@ -189,7 +189,7 @@ export function BoqVersionsTab({
       header: "Rate \u0394",
       align: "right",
       render: (_, r) => (
-        <span className={`font-mono text-xs ${r.rateDiff > 0 ? "text-emerald-600 font-bold" : r.rateDiff < 0 ? "text-red-600 font-bold" : ""}`}>
+        <span className={`font-mono text-xs ${r.rateDiff > 0 ? "text-success font-bold" : r.rateDiff < 0 ? "text-red-600 font-bold" : ""}`}>
           {r.rateDiff > 0 ? "+" : ""}{r.rateDiff ? formatNpr(r.rateDiff) : "\u2014"}
         </span>
       ),
@@ -199,7 +199,7 @@ export function BoqVersionsTab({
       header: "Amount \u0394",
       align: "right",
       render: (_, r) => (
-        <span className={`font-mono text-xs font-bold ${r.amountDiff > 0 ? "text-emerald-600" : r.amountDiff < 0 ? "text-red-600" : ""}`}>
+        <span className={`font-mono text-xs font-bold ${r.amountDiff > 0 ? "text-success" : r.amountDiff < 0 ? "text-red-600" : ""}`}>
           {r.amountDiff > 0 ? "+" : ""}{r.amountDiff ? formatNpr(r.amountDiff) : "\u2014"}
         </span>
       ),

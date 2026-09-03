@@ -64,7 +64,7 @@ export function CrossProjectFinancialsCard() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-white/10 text-emerald-400 font-semibold tracking-wider">
+              <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-white/10 text-success/80 font-semibold tracking-wider">
                 Multi-Project P&amp;L
               </span>
               <span className="text-xs text-muted-foreground font-mono">
@@ -84,7 +84,7 @@ export function CrossProjectFinancialsCard() {
               variant="outline"
               className={cn(
                 "h-8 px-3 text-xs font-mono font-bold border-white/20 backdrop-blur-md",
-                isProfit ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
+                isProfit ? "bg-success/20 text-success/80" : "bg-red-500/20 text-red-300"
               )}
             >
               {isProfit ? <TrendingUp className="h-3.5 w-3.5 mr-1" /> : <TrendingDown className="h-3.5 w-3.5 mr-1" />}
@@ -103,7 +103,7 @@ export function CrossProjectFinancialsCard() {
           </div>
           <div>
             <div className="text-[10px] text-muted-foreground/80 uppercase">Certified Revenue</div>
-            <div className="text-base font-bold text-emerald-400 mt-0.5">
+            <div className="text-base font-bold text-success/80 mt-0.5">
               {formatNpr(totals.totalRevenueCertified)}
             </div>
           </div>
@@ -115,7 +115,7 @@ export function CrossProjectFinancialsCard() {
           </div>
           <div>
             <div className="text-[10px] text-muted-foreground/80 uppercase">Net Profit / (Loss)</div>
-            <div className={cn("text-base font-bold mt-0.5", isProfit ? "text-emerald-400" : "text-red-400")}>
+            <div className={cn("text-base font-bold mt-0.5", isProfit ? "text-success/80" : "text-red-400")}>
               {isProfit ? "+" : ""}{formatNpr(totals.totalGrossProfit)}
             </div>
           </div>
@@ -190,7 +190,7 @@ export function CrossProjectFinancialsCard() {
 
                     {/* Gross Profit / Loss */}
                     <td className="px-3 py-3 text-right font-bold">
-                      <span className={cn(projectProfit ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                      <span className={cn(projectProfit ? "text-success dark:text-success/80" : "text-red-600 dark:text-red-400")}>
                         {projectProfit ? "+" : ""}{formatNpr(p.grossProfit)}
                       </span>
                     </td>
@@ -203,7 +203,7 @@ export function CrossProjectFinancialsCard() {
                           className={cn(
                             "text-[10px] px-1.5 py-0 font-mono",
                             projectProfit
-                              ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300"
+                              ? "bg-success/10 dark:bg-success/40 text-success dark:text-success/80 border-success/40"
                               : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300"
                           )}
                         >

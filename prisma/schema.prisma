@@ -844,6 +844,10 @@ model BoqItem {
   category  String? // e.g. "Civil", "Structural" (legacy, kept for compatibility)
   section   String? // e.g. "A) Provisional Items", "B) Civil Cost" (matches IPC format)
   tags      String? // JSON string array: ["priority", "revised", "pending"]
+  // Curated key words for the collapsed BOQ keyline + highlight. The collapsed
+  // one-line summary and the highlight segmentation are DERIVED from this in
+  // src/lib (ADR-0006 §2 — never stored redundantly).
+  keyTerms  String? // comma-separated key words e.g. "clearance, grubbing"
   sortOrder Int      @default(0)
   locked    Boolean  @default(false)
   createdAt DateTime @default(now())

@@ -32,7 +32,7 @@ export function EquipmentSection({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-emerald-600" /> Equipment & Machinery Log
+            <Wrench className="h-4 w-4 text-success" /> Equipment & Machinery Log
           </h3>
           <p className="text-[11px] text-muted-foreground">
             Running hours and fuel automatically sync to the project fleet EquipmentLog.

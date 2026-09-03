@@ -186,7 +186,7 @@ export function SalesRegisterTab({
             <button
               type="button"
               onClick={() => setSelectedScan({ url: r.scannedBillUrl!, name: r.invoiceNo })}
-              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
+              className="inline-flex items-center gap-1 text-[11px] text-success dark:text-success/80 hover:underline font-medium"
             >
               <Eye className="h-3 w-3" /> View
             </button>
@@ -242,7 +242,7 @@ export function SalesRegisterTab({
               ⚠️ {totals.missingScansCount} Missing
             </Badge>
           ) : (
-            <Badge className="h-4.5 px-1.5 text-[10px] bg-emerald-100 text-emerald-800">
+            <Badge className="h-4.5 px-1.5 text-[10px] bg-success/15 text-success">
               100% Attached
             </Badge>
           )}
@@ -287,7 +287,7 @@ export function SalesRegisterTab({
                 <a
                   href={sanitizeUrl(selectedScan.url) ?? "#"}
                   download={`sales-invoice-${selectedScan.name}`}
-                  className="text-xs text-emerald-400 hover:underline font-mono"
+                  className="text-xs text-success/80 hover:underline font-mono"
                 >
                   Download File
                 </a>

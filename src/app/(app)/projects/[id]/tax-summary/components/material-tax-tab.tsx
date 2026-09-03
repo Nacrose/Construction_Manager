@@ -55,9 +55,9 @@ export function MaterialTaxTab({ query }: { query: any }) {
             NPR {fmt(totals.totalTdsAmount)}
           </p>
         </Card>
-        <Card className="p-4 border-emerald-300 dark:border-emerald-800 bg-emerald-50/20">
+        <Card className="p-4 border-success/40 dark:border-success bg-success/20">
           <p className="text-xs text-muted-foreground">Total Net Payable</p>
-          <p className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400">
+          <p className="mt-1 text-lg font-bold text-success dark:text-success/80">
             NPR {fmt(totals.totalNetPayable)}
           </p>
         </Card>

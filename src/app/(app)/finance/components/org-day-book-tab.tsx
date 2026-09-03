@@ -151,12 +151,12 @@ export function OrgDayBookTab() {
           <div className="h-3 w-[1px] bg-[var(--border)]" />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Total Invoiced / Inflow (Cr):</span>
-            <span className="font-bold text-emerald-700 font-matrix">NPR {formatNpr(summary.totalCredit)}</span>
+            <span className="font-bold text-success font-matrix">NPR {formatNpr(summary.totalCredit)}</span>
           </div>
           <div className="h-3 w-[1px] bg-[var(--border)]" />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Net Flow:</span>
-            <span className={cn("font-bold font-matrix", summary.totalCredit - summary.totalDebit >= 0 ? "text-emerald-700" : "text-rose-700")}>
+            <span className={cn("font-bold font-matrix", summary.totalCredit - summary.totalDebit >= 0 ? "text-success" : "text-rose-700")}>
               NPR {formatNpr(summary.totalCredit - summary.totalDebit)}
             </span>
           </div>
@@ -207,7 +207,7 @@ export function OrgDayBookTab() {
                 <SelectTrigger className="h-8 text-xs font-mono bg-[#f8fbfe] border-[var(--border)] text-foreground rounded-lg">
                   <SelectValue placeholder="All Vouchers" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-emerald-500/30 text-xs text-foreground">
+                <SelectContent className="bg-card border-success/30 text-xs text-foreground">
                   <SelectItem value="all">All Vouchers</SelectItem>
                   <SelectItem value="payment">Disbursements (भुक्तानी)</SelectItem>
                   <SelectItem value="billing">Inflows / Receipts</SelectItem>

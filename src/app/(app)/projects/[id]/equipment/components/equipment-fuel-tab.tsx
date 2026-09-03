@@ -89,7 +89,7 @@ export function EquipmentFuelTab({
           ? "text-red-600 font-bold"
           : v > 0
             ? "text-amber-600 font-semibold"
-            : "text-emerald-600 font-medium";
+            : "text-success font-medium";
         return (
           <div className={`text-right font-mono text-xs ${color}`}>
             {v > 0 ? "+" : ""}
@@ -118,7 +118,7 @@ export function EquipmentFuelTab({
             </Badge>
           );
         return (
-          <Badge className="bg-emerald-100 text-emerald-700 text-[9.5px] dark:bg-emerald-950 dark:text-emerald-300 font-medium whitespace-nowrap">
+          <Badge className="bg-success/15 text-success text-[9.5px] dark:bg-success dark:text-success/80 font-medium whitespace-nowrap">
             Normal
           </Badge>
         );

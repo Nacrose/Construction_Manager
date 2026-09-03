@@ -25,7 +25,7 @@ export const BLOCK_TYPES: {
 }[] = [
   { type: "text", label: "Text", icon: Type, color: "#3b82f6" },
   { type: "table", label: "Table", icon: TableIcon, color: "#f59e0b" },
-  { type: "kpi", label: "KPI Card", icon: Gauge, color: "#10b981" },
+  { type: "kpi", label: "KPI Card", icon: Gauge, color: "#4a8b57" },
   { type: "image", label: "Image / Logo", icon: ImageIcon, color: "#8b5cf6" },
   { type: "divider", label: "Divider", icon: Minus, color: "#6b7280" },
   { type: "signature", label: "Signature", icon: PenTool, color: "#ec4899" },

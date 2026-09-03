@@ -195,7 +195,7 @@ export function NeonTable<T extends Record<string, any>>({
                         const val = row[col.key]
                         return (
                           <TableCell key={col.key} style={{ width: columnWidths[col.key] ?? col.width }}
-                            className={cn(col.className, col.editable && "cursor-text hover:bg-muted/30", col.type === "number" && "font-mono tabular-nums text-right", col.type === "boolean" && (val ? "text-emerald-600" : "text-red-600"), val == null && "text-muted-foreground/40 italic")}
+                            className={cn(col.className, col.editable && "cursor-text hover:bg-muted/30", col.type === "number" && "font-mono tabular-nums text-right", col.type === "boolean" && (val ? "text-success" : "text-red-600"), val == null && "text-muted-foreground/40 italic")}
                             onClick={e => { if (col.editable) { e.stopPropagation(); startEdit(rid, col.key, val) } }}>
                             {isEditing ? (
                               <div className="flex items-center gap-1">
@@ -206,7 +206,7 @@ export function NeonTable<T extends Record<string, any>>({
                                 ) : (
                                   <input type={col.type === "number" ? "number" : col.type === "date" ? "date" : "text"} value={editValue} onChange={e => setEditValue(e.target.value)} onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null) }} onBlur={saveEdit} autoFocus className="h-7 w-full rounded border border-primary bg-background px-1.5 text-xs" />
                                 )}
-                                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><button onClick={saveEdit} className="rounded p-0.5 hover:bg-emerald-100"><Check className="h-3 w-3 text-emerald-600" /></button><button onClick={() => setEditing(null)} className="rounded p-0.5 hover:bg-red-100"><X className="h-3 w-3 text-red-600" /></button></>}
+                                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><button onClick={saveEdit} className="rounded p-0.5 hover:bg-success/15"><Check className="h-3 w-3 text-success" /></button><button onClick={() => setEditing(null)} className="rounded p-0.5 hover:bg-red-100"><X className="h-3 w-3 text-red-600" /></button></>}
                               </div>
                             ) : col.render ? col.render(row) : (
                               <span className="truncate block max-w-[300px]" title={col.format ? col.format(val) : String(val ?? "")}>{col.format ? col.format(val) : val == null ? "—" : String(val)}</span>

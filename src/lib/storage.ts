@@ -160,7 +160,10 @@ export function validateUploadContent(buf: Buffer, declaredMime: string): Upload
  */
 export async function reencodeImage(buf: Buffer, kind: UploadKind): Promise<{ buffer: Buffer; mime: string }> {
   const { default: sharp } = await import("sharp");
-  const pipeline = sharp(buf, { limitInputPixels: 50_000_000, failOn: "error" }).rotate().withMetadata(false);
+  // sharp strips metadata (EXIF/ICC/comments) by default when re-encoding; we
+  // deliberately do NOT call keepMetadata/withMetadata, so any embedded
+  // payload is dropped and only the re-encoded pixels survive.
+  const pipeline = sharp(buf, { limitInputPixels: 50_000_000, failOn: "error" }).rotate();
   if (kind === "png") return { buffer: await pipeline.png().toBuffer(), mime: "image/png" };
   if (kind === "jpeg") return { buffer: await pipeline.jpeg({ quality: 88 }).toBuffer(), mime: "image/jpeg" };
   if (kind === "webp") return { buffer: await pipeline.webp({ quality: 88 }).toBuffer(), mime: "image/webp" };

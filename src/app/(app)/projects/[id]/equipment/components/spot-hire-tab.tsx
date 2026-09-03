@@ -218,7 +218,7 @@ export function SpotHireTab({
       header: "Net Due",
       align: "right",
       render: (_, t) => (
-        <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300 text-xs">
+        <span className="font-bold font-mono text-success dark:text-success/80 text-xs">
           {formatNpr(t.netPayable)}
         </span>
       ),
@@ -243,7 +243,7 @@ export function SpotHireTab({
         <Badge
           variant="secondary"
           className={cn("text-[9px] px-1.5 py-0 capitalize font-mono", {
-            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold":
+            "bg-success/15 text-success dark:bg-success dark:text-success/80 font-bold":
               t.isBilled,
             "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300": !t.isBilled,
           })}
@@ -349,7 +349,7 @@ export function SpotHireTab({
       header: "Unbilled Payable",
       align: "right",
       render: (_, v) => (
-        <span className="font-bold font-mono text-emerald-700 dark:text-emerald-300 text-xs">
+        <span className="font-bold font-mono text-success dark:text-success/80 text-xs">
           {formatNpr(v.unbilledAmount)}
         </span>
       ),
@@ -421,7 +421,7 @@ export function SpotHireTab({
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="h-7 text-xs gap-1 font-mono bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-7 text-xs gap-1 font-mono bg-success hover:bg-success text-white"
             >
               <Plus className="h-3 w-3" />
               Log Spot Ticket
@@ -454,7 +454,7 @@ export function SpotHireTab({
           </div>
 
           <div>
-            <span className="text-emerald-700 dark:text-emerald-300 font-bold">
+            <span className="text-success dark:text-success/80 font-bold">
               💰 Unbilled Outstanding: {formatNpr(summary.unbilledAmount)}
             </span>
           </div>

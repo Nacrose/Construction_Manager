@@ -99,11 +99,11 @@ export function ProgressSCurve({ projectId }: Props) {
           </div>
           <div className="rounded border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Actual</div>
-            <div className="font-bold text-emerald-600">{currentActualPct}%</div>
+            <div className="font-bold text-success">{currentActualPct}%</div>
           </div>
-          <div className={cn("rounded border p-2 text-center", scheduleVariance >= 0 ? "border-emerald-200" : "border-red-200")}>
+          <div className={cn("rounded border p-2 text-center", scheduleVariance >= 0 ? "border-success/30" : "border-red-200")}>
             <div className="text-[9px] text-muted-foreground uppercase">SV</div>
-            <div className={cn("font-bold", scheduleVariance >= 0 ? "text-emerald-600" : "text-red-600")}>
+            <div className={cn("font-bold", scheduleVariance >= 0 ? "text-success" : "text-red-600")}>
               {scheduleVariance > 0 ? "+" : ""}{scheduleVariance}%
             </div>
           </div>
@@ -144,7 +144,7 @@ export function ProgressSCurve({ projectId }: Props) {
               <path
                 d={actualPath}
                 fill="none"
-                stroke="#10b981"
+                stroke="#4a8b57"
                 strokeWidth="1"
               />
             )}
@@ -174,7 +174,7 @@ export function ProgressSCurve({ projectId }: Props) {
             <span className="h-0.5 w-4 border-t-2 border-dashed border-info/60" /> Planned
           </span>
           <span className="flex items-center gap-1">
-            <span className="h-0.5 w-4 border-t-2 border-emerald-500" /> Actual
+            <span className="h-0.5 w-4 border-t-2 border-success" /> Actual
           </span>
           <span className="flex items-center gap-1">
             <span className="h-3 w-px bg-red-500" /> Today

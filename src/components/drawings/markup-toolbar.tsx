@@ -24,7 +24,7 @@ const TOOLS: { tool: MarkupTool; icon: typeof MousePointer; label: string; short
   { tool: "staged", icon: CheckCircle2, label: "Work Staged", shortcut: "G" },
 ];
 
-const COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#ffffff"];
+const COLORS = ["#ef4444", "#f97316", "#eab308", "#4a8b57", "#3b82f6", "#a855f7", "#ec4899", "#ffffff"];
 
 export function MarkupToolbar({
   activeTool, onToolChange, activeColor, onColorChange, onDeleteSelected, selectedMarkupId,

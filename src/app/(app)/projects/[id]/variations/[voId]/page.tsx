@@ -200,7 +200,7 @@ export default function VariationOrderDetailsPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="default"
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="gap-2 bg-success hover:bg-success text-white"
               onClick={() => setConfirmApproveOpen(true)}
               disabled={statusMutation.isPending || vo.items.length === 0}
             >
@@ -236,7 +236,7 @@ export default function VariationOrderDetailsPage() {
                     <th className="py-3 px-4 font-medium text-right text-primary">New Qty</th>
                     <th className="py-3 px-4 font-medium text-right">Prev Rate</th>
                     <th className="py-3 px-4 font-medium text-right text-primary">New Rate</th>
-                    <th className="py-3 px-4 font-medium text-right text-emerald-600">Delta Amount</th>
+                    <th className="py-3 px-4 font-medium text-right text-success">Delta Amount</th>
                     {isEditable && <th className="py-3 px-4 text-right">Actions</th>}
                   </tr>
                 </thead>
@@ -268,7 +268,7 @@ export default function VariationOrderDetailsPage() {
                         <td className="py-3 px-4 text-right font-medium">
                           ${item.newRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
-                        <td className={cn("py-3 px-4 text-right font-bold", delta > 0 ? "text-emerald-600" : delta < 0 ? "text-red-500" : "")}>
+                        <td className={cn("py-3 px-4 text-right font-bold", delta > 0 ? "text-success" : delta < 0 ? "text-red-500" : "")}>
                           {delta > 0 ? "+" : ""}${delta.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         {isEditable && (

@@ -138,7 +138,7 @@ export function OrgInventoryTab() {
             <div className="flex items-center gap-1 text-xs font-bold leading-tight">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isLow ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                  isLow ? "bg-amber-500 animate-pulse" : "bg-success"
                 }`}
               />
               <span className={isLow ? "text-amber-600 dark:text-amber-400" : "text-foreground"}>

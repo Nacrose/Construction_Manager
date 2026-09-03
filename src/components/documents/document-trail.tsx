@@ -43,9 +43,9 @@ const DOC_TYPE_CONFIG = {
   signed_hardcopy: {
     label: "Signed Hardcopy",
     icon: FileSignature,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50 dark:bg-emerald-950/30",
-    border: "border-emerald-200 dark:border-emerald-900",
+    color: "text-success",
+    bg: "bg-success/10 dark:bg-success/30",
+    border: "border-success/30 dark:border-success",
   },
   supporting_doc: {
     label: "Supporting Document",

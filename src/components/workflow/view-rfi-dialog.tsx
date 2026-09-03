@@ -227,7 +227,7 @@ export function ViewRfiDialog({
         .label { color: #666; font-weight: 500; width: 130px; }
         .section-title { font-size: 13px; font-weight: 600; margin: 16px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
         .tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; border: 1px solid #ccc; margin-right: 4px; }
-        .tag-green { background: #e6f7e6; border-color: #b3d9b3; }
+        .tag-green { background: #e6f7e6; border-color: #d9efd9; }
         .tag-red { background: #fde8e8; border-color: #f5baba; }
         .tag-amber { background: #fff3cd; border-color: #ffc107; }
       </style></head>
@@ -312,7 +312,7 @@ export function ViewRfiDialog({
               <span className="text-muted-foreground">Work {rfi.workDate ? format(new Date(rfi.workDate), "MMM d") : "N/A"}</span>
               {rfi.status === "submitted" && rfi.submittedAt && (() => {
                 const hrs = differenceInHours(new Date(), new Date(rfi.submittedAt));
-                const color = hrs < 48 ? "text-emerald-600" : hrs < 120 ? "text-amber-600" : "text-red-600";
+                const color = hrs < 48 ? "text-success" : hrs < 120 ? "text-amber-600" : "text-red-600";
                 return <>
                   <span className="text-muted-foreground">·</span>
                   <span className={color}>{Math.floor(hrs / 24)}d {hrs % 24}h</span>
@@ -410,7 +410,7 @@ export function ViewRfiDialog({
                             <TableCell className="text-xs py-1 px-2">
                               <span className={cn(
                                 "text-[10px] font-medium px-1.5 py-0.5 rounded",
-                                item.paymentType === "payable" && "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+                                item.paymentType === "payable" && "bg-success/10 text-success dark:bg-success dark:text-success/80",
                                 item.paymentType === "unpayable" && "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400",
                                 item.paymentType === "temporary" && "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
                               )}>
@@ -445,7 +445,7 @@ export function ViewRfiDialog({
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs"><strong>{resp.responder.name}</strong> <span className="text-muted-foreground">· {formatDistanceToNow(new Date(resp.createdAt), { addSuffix: true })}</span></span>
                         <Badge variant="outline" className={`text-[9px] capitalize px-1 py-0 ${
-                          resp.decision === "approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                          resp.decision === "approved" ? "bg-success/10 text-success border-success/30" :
                           resp.decision === "rejected" ? "bg-red-50 text-red-700 border-red-200" :
                           resp.decision === "clarifications_requested" ? "bg-amber-50 text-amber-700 border-amber-200" :
                           "bg-info/10 text-info border-info/30"

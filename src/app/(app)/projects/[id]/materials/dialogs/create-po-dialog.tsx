@@ -247,7 +247,7 @@ export function CreatePODialog({
               <span>Subtotal:</span>
               <span>NPR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
-            <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+            <div className="flex justify-between text-success dark:text-success/80">
               <span>+ 13% VAT:</span>
               <span>NPR {vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>

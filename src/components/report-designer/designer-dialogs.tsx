@@ -291,7 +291,7 @@ export function HelpDialog({
                 equipment, etc.) and which columns to show.
               </div>
               <div>
-                <strong className="text-emerald-600">KPI Card</strong> — large number + small
+                <strong className="text-success">KPI Card</strong> — large number + small
                 label, sourced from any token.
               </div>
               <div>
@@ -467,7 +467,7 @@ export function StarterGalleryDialog({
                     ...c,
                     style: {
                       ...c.style,
-                      color: c.style.color === "#059669" ? "#1e3a8a" : c.style.color,
+                      color: c.style.color === "#4a8b57" ? "#1e3a8a" : c.style.color,
                     },
                   }));
                   onSelectLayout(layout);

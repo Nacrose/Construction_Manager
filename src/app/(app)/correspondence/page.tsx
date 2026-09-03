@@ -79,7 +79,7 @@ export default function OrgCorrespondencePage() {
               <ArrowDownLeft className="h-4 w-4" />
             </span>
           ) : (
-            <span className="inline-flex items-center text-emerald-400 font-mono text-xs" title="Outgoing (चलानी)">
+            <span className="inline-flex items-center text-success/80 font-mono text-xs" title="Outgoing (चलानी)">
               <ArrowUpRight className="h-4 w-4" />
             </span>
           ),
@@ -91,7 +91,7 @@ export default function OrgCorrespondencePage() {
         sortable: true,
         render: (val, r) => (
           <div>
-            <span className="font-mono font-bold text-emerald-400 text-xs">{val || r.theirRef || "—"}</span>
+            <span className="font-mono font-bold text-success/80 text-xs">{val || r.theirRef || "—"}</span>
             {val && r.theirRef && (
               <span className="block text-[10px] text-muted-foreground/80 font-mono">
                 Ext: {r.theirRef}
@@ -205,7 +205,7 @@ export default function OrgCorrespondencePage() {
               e.stopPropagation();
               setDetailId(r.id);
             }}
-            className="h-6 px-2 text-[11px] font-mono text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+            className="h-6 px-2 text-[11px] font-mono text-success/80 hover:text-success/80 hover:bg-success/10"
           >
             View
           </Button>

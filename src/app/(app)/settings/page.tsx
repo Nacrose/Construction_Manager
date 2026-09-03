@@ -40,7 +40,7 @@ export default function SettingsPage() {
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Sliders className="h-4 w-4 text-emerald-400" /> Navigation Dock Layout
+              <Sliders className="h-4 w-4 text-success/80" /> Navigation Dock Layout
             </CardTitle>
             <CardDescription className="text-xs">
               Choose dock screen positioning and auto-hide behavior.

@@ -20,7 +20,7 @@ import { useRegister } from "@/hooks/use-register";
 
 const CATEGORIES = ["material", "transport", "labor", "food", "accommodation", "utility", "office", "travel", "other"];
 const PAYMENT_MODES = ["cash", "bank_transfer", "cheque", "mobile"];
-const PIE_COLORS = ["#0ea5e9", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6b7280"];
+const PIE_COLORS = ["#0ea5e9", "#8b5cf6", "#f59e0b", "#4a8b57", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6b7280"];
 
 type Expense = {
   id: string;
@@ -192,7 +192,7 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                className="h-7 text-success hover:text-success hover:bg-success/10"
                 onClick={() => approveMutation.mutate({ id: exp.id })}
                 disabled={approveMutation.isPending}
               >
@@ -239,7 +239,7 @@ export default function ExpensesPage({ params }: { params: Promise<{ id: string 
         </Card>
         <Card>
           <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Approved</CardTitle></CardHeader>
-          <CardContent><div className="text-xl font-bold font-mono text-emerald-600">{formatNpr(stats?.totalApproved || 0)}</div></CardContent>
+          <CardContent><div className="text-xl font-bold font-mono text-success">{formatNpr(stats?.totalApproved || 0)}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-1.5"><CardTitle className="text-xs text-muted-foreground font-mono uppercase">Vouchers Count</CardTitle></CardHeader>
@@ -403,7 +403,7 @@ function NewExpenseForm({ projectId, onDone }: { projectId: string; onDone: () =
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Total</Label>
-          <Input value={formatNpr((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0))} readOnly className="h-8 text-xs bg-white/10 border-white/10 text-emerald-400 font-mono font-bold" />
+          <Input value={formatNpr((parseFloat(amount) || 0) + (parseFloat(vatAmount) || 0))} readOnly className="h-8 text-xs bg-white/10 border-white/10 text-success/80 font-mono font-bold" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -428,10 +428,10 @@ function NewExpenseForm({ projectId, onDone }: { projectId: string; onDone: () =
       <div className="space-y-1.5">
         <Label className="text-xs">Receipt Photo</Label>
         <Input type="file" accept="image/*" onChange={handleReceiptChange} className="text-xs bg-white/5 border-white/10 text-white file:text-xs file:bg-white/10 file:text-white file:border-0 file:rounded-md file:mr-2" />
-        {receiptFile && <p className="text-xs text-emerald-400 font-mono">{receiptFile.name}</p>}
+        {receiptFile && <p className="text-xs text-success/80 font-mono">{receiptFile.name}</p>}
       </div>
       <div className="flex justify-end pt-2">
-        <Button type="submit" disabled={mutation.isPending} className="h-8 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white">
+        <Button type="submit" disabled={mutation.isPending} className="h-8 text-xs font-mono bg-success hover:bg-success text-white">
           {mutation.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
           Create Expense
         </Button>

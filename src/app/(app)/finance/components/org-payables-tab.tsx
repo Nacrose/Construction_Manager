@@ -195,12 +195,12 @@ export function OrgPayablesTab() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-emerald-500 shadow-sm bg-card">
+        <Card className="border-l-4 border-l-success shadow-sm bg-card">
           <CardContent className="p-4 space-y-1">
             <div className="text-[10px] font-mono text-muted-foreground uppercase">
               Active Creditors (आपूर्तिकर्ता / ठेकेदार)
             </div>
-            <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+            <div className="text-2xl font-bold font-mono text-success dark:text-success/80">
               {suppliers.length}{" "}
               <span className="text-xs text-muted-foreground font-normal">entities</span>
             </div>
@@ -268,7 +268,7 @@ export function OrgPayablesTab() {
       ) : suppliers.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-2">
-            <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-1" />
+            <CheckCircle2 className="h-10 w-10 text-success/90 mb-1" />
             <p className="text-sm font-semibold text-foreground font-mono">
               No Outstanding Payables Found
             </p>

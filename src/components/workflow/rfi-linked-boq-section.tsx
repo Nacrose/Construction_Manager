@@ -110,7 +110,7 @@ export function RfiLinkedBoqSection({
                         <SelectTrigger
                           className={cn(
                             "h-8 text-[11px] font-bold bg-background border-border/80",
-                            it.paymentType === "payable" && "text-emerald-400",
+                            it.paymentType === "payable" && "text-success/80",
                             it.paymentType === "unpayable" && "text-destructive",
                             it.paymentType === "temporary" && "text-amber-400"
                           )}
@@ -118,7 +118,7 @@ export function RfiLinkedBoqSection({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="payable" className="text-xs text-emerald-400">
+                          <SelectItem value="payable" className="text-xs text-success/80">
                             Payable
                           </SelectItem>
                           <SelectItem value="unpayable" className="text-xs text-destructive">

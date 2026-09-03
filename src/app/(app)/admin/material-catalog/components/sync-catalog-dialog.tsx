@@ -213,7 +213,7 @@ export function SyncCatalogDialog({
           <>
             <div className="flex items-center justify-between gap-3 py-1">
               <div className="flex items-center gap-2">
-                <Badge className="bg-emerald-600/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/30 text-[10px] font-medium">
+                <Badge className="bg-success/10 text-success dark:text-success/80 border-success/30 text-[10px] font-medium">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   {allItems.length - newItemCount} Already Synced
                 </Badge>
@@ -362,7 +362,7 @@ export function SyncCatalogDialog({
                                     className={cn(
                                       "flex items-center justify-between px-4 py-1.5 pl-8 transition-colors select-none",
                                       item.alreadySynced
-                                        ? "opacity-60 cursor-default bg-emerald-50/40 dark:bg-emerald-950/10"
+                                        ? "opacity-60 cursor-default bg-success/40 dark:bg-success/10"
                                         : isSelected
                                         ? "bg-primary/10 cursor-pointer"
                                         : "hover:bg-muted/40 cursor-pointer"
@@ -379,7 +379,7 @@ export function SyncCatalogDialog({
                                       <span
                                         className={cn(
                                           item.alreadySynced &&
-                                            "text-muted-foreground line-through decoration-emerald-500/50"
+                                            "text-muted-foreground line-through decoration-success/50"
                                         )}
                                       >
                                         {item.subCategory ? (
@@ -401,7 +401,7 @@ export function SyncCatalogDialog({
                                       {item.alreadySynced ? (
                                         <Badge
                                           variant="outline"
-                                          className="text-[9px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-300"
+                                          className="text-[9px] bg-success/10 text-success dark:bg-success/30 dark:text-success/80 border-success/40"
                                         >
                                           Synced
                                         </Badge>

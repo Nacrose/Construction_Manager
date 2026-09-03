@@ -287,7 +287,7 @@ export function LogTransactionDialog({
                 {Number(vatPercent) > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">+ VAT ({vatPercent}%):</span>
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400">NPR {vatAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="font-mono text-success dark:text-success/80">NPR {vatAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {Number(tdsPercent) > 0 && (

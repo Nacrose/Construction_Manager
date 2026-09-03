@@ -74,7 +74,7 @@ export function OrgPartyStatementTab() {
         accessor: (r) => r.projectCode || "HO",
         width: "100px",
         render: (val) => (
-          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-emerald-400">
+          <Badge variant="outline" className="text-[10px] font-bold bg-white/5 border-white/10 text-success/80">
             {val}
           </Badge>
         ),
@@ -83,7 +83,7 @@ export function OrgPartyStatementTab() {
         key: "voucherNo",
         header: "Voucher #",
         width: "120px",
-        render: (val) => <span className="font-bold text-emerald-400">{val}</span>,
+        render: (val) => <span className="font-bold text-success/80">{val}</span>,
       },
       {
         key: "particulars",
@@ -107,7 +107,7 @@ export function OrgPartyStatementTab() {
         align: "right",
         width: "130px",
         render: (val) => (
-          <span className="font-bold text-emerald-400">
+          <span className="font-bold text-success/80">
             {val > 0 ? formatNpr(val) : "—"}
           </span>
         ),

@@ -37,12 +37,12 @@ const TYPE_CONFIG: Record<
   string,
   { icon: React.ComponentType<{ className?: string }>; color: string; label: string }
 > = {
-  daily_report: { icon: FileText, color: "text-emerald-600", label: "Daily Report" },
+  daily_report: { icon: FileText, color: "text-success", label: "Daily Report" },
   rfi: { icon: FileCheck, color: "text-info", label: "RFI" },
   ipc: { icon: Receipt, color: "text-amber-600", label: "IPC" },
   drawing: { icon: Compass, color: "text-purple-600", label: "Drawing" },
   correspondence: { icon: Mail, color: "text-muted-foreground", label: "Letter" },
-  signed_doc: { icon: Shield, color: "text-teal-600", label: "Signed Doc" },
+  signed_doc: { icon: Shield, color: "text-success", label: "Signed Doc" },
   submittal: { icon: FileCheck, color: "text-info", label: "Submittal" },
 };
 

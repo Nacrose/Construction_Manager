@@ -13,6 +13,11 @@ import { toMoney, subMoney } from "@/lib/money";
 import { adToBs } from "@/lib/nepali-calendar";
 import { createJournalEntry, clientReceiptEntry, type InflowType } from "@/lib/journal-entry";
 import { aggregateTrialBalance, assertGlBalanced } from "@/server/utils/gl-trial-balance";
+import {
+  updateLedgerEntry as updateLedgerEntryOp,
+  reverseLedgerEntry as reverseLedgerEntryOp,
+  attachLedgerFile as attachLedgerFileOp,
+} from "@/server/utils/ledger-entry";
 
 export const accountingRouter = router({
   /**
@@ -79,10 +84,11 @@ export const accountingRouter = router({
 
       // Execute all transaction source queries in parallel for maximum speed
       const [payments, vendorBills, subBills, ipcs, hoExpenses, siteExpenses] = await Promise.all([
-        // 1. Payments / Disbursements
+        // 1. Payments / Disbursements (exclude voided/reversed entries)
         db.payment.findMany({
           where: {
             ...projectFilter,
+            status: { not: "cancelled" },
             ...(input.fromDate || input.toDate
               ? {
                   paymentDate: {
@@ -1109,5 +1115,150 @@ export const accountingRouter = router({
       });
 
       return { success: true, paymentId: payment.id };
+    }),
+
+  /**
+   * Resolve a single ledger (day-book) entry to its underlying source record.
+   * Used by the inspector to load editable fields before Edit / Reverse.
+   */
+  getLedgerSource: protectedProcedure
+    .input(
+      z.object({
+        source: z.enum(["payment", "vendor_bill", "subcontractor_bill", "ipc", "site_expense", "head_office_expense"]),
+        id: z.string().min(1),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const user = await db.user.findUniqueOrThrow({
+        where: { id: ctx.user.id },
+        select: { organizationId: true },
+      });
+      if (!user.organizationId) throw new TRPCError({ code: "FORBIDDEN", message: "No organization context." });
+
+      switch (input.source) {
+        case "payment": {
+          const row = await db.payment.findFirst({
+            where: { id: input.id, project: { organizationId: user.organizationId } },
+            select: {
+              id: true, projectId: true, payeeName: true, payeeType: true, partyPan: true,
+              invoiceNumber: true, amount: true, tdsDeducted: true, netPaid: true,
+              paymentDate: true, paymentMiti: true, paymentMode: true, chequeNo: true,
+              bankAccount: true, category: true, subCategory: true, notes: true,
+              voucherType: true, accountingVoucherNo: true, accountingSoftware: true,
+              scannedBillUrl: true, scannedBillName: true, status: true,
+            },
+          });
+          return { found: Boolean(row), projectId: row ? row.projectId : null, source: "payment" as const, record: row };
+        }
+        case "vendor_bill": {
+          const row = await db.vendorBill.findFirst({
+            where: { id: input.id, project: { organizationId: user.organizationId } },
+            select: {
+              id: true, projectId: true, billNumber: true, billDate: true, grossAmount: true,
+              vatAmount: true, netPayable: true, fileUrl: true,
+            },
+          });
+          return { found: Boolean(row), projectId: row ? row.projectId : null, source: "vendor_bill" as const, record: row };
+        }
+        case "subcontractor_bill": {
+          const row = await db.subcontractorBill.findFirst({
+            where: { id: input.id, project: { organizationId: user.organizationId } },
+            select: { id: true, projectId: true, number: true, billDate: true, netPayable: true, scannedBillUrl: true },
+          });
+          return { found: Boolean(row), projectId: row ? row.projectId : null, source: "subcontractor_bill" as const, record: row };
+        }
+        case "ipc": {
+          const row = await db.ipc.findFirst({
+            where: { id: input.id, project: { organizationId: user.organizationId } },
+            select: { id: true, projectId: true, number: true, issueDate: true, grossAmount: true, netPayable: true },
+          });
+          return { found: Boolean(row), projectId: row ? row.projectId : null, source: "ipc" as const, record: row };
+        }
+        case "site_expense": {
+          const row = await db.siteExpense.findFirst({
+            where: { id: input.id, project: { organizationId: user.organizationId } },
+            select: {
+              id: true, projectId: true, number: true, date: true, category: true, description: true,
+              amount: true, vatAmount: true, totalAmount: true, paymentMode: true,
+              referenceNo: true, vendorName: true, receiptData: true, receiptName: true, status: true,
+            },
+          });
+          return { found: Boolean(row), projectId: row ? row.projectId : null, source: "site_expense" as const, record: row };
+        }
+        case "head_office_expense": {
+          const row = await db.headOfficeExpense.findFirst({
+            where: { id: input.id, organizationId: user.organizationId },
+            select: {
+              id: true, organizationId: true, date: true, miti: true, category: true, particulars: true,
+              amount: true, paymentMode: true, chequeNo: true, voucherNo: true, scannedBillUrl: true, notes: true,
+            },
+          });
+          return { found: Boolean(row), projectId: null, source: "head_office_expense" as const, record: row };
+        }
+      }
+    }),
+
+  /**
+   * Edit a ledger (day-book) entry's underlying source record in place.
+   * Guards: project membership + write right + fiscal-year lock.
+   */
+  updateLedgerEntry: protectedProcedure
+    .input(
+      z.object({
+        source: z.enum(["payment", "vendor_bill", "subcontractor_bill", "ipc", "site_expense", "head_office_expense"]),
+        id: z.string().min(1),
+        patch: z.object({
+          date: z.string().optional(),
+          particulars: z.string().optional(),
+          amount: z.number().optional(),
+          payeeName: z.string().optional(),
+          partyPan: z.string().optional().nullable(),
+          paymentMode: z.string().optional(),
+          voucherType: z.string().optional(),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return updateLedgerEntryOp(ctx.user, input.source, input.id, input.patch);
+    }),
+
+  /**
+   * Reverse / void a ledger entry. Payments are cancelled (non-destructive).
+   * Head-office & site expenses are removed. Bills / IPCs route to their module.
+   */
+  reverseLedgerEntry: protectedProcedure
+    .input(
+      z.object({
+        source: z.enum(["payment", "vendor_bill", "subcontractor_bill", "ipc", "site_expense", "head_office_expense"]),
+        id: z.string().min(1),
+        reason: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return reverseLedgerEntryOp(ctx.user, input.source, input.id, input.reason);
+    }),
+
+  /**
+   * Upload a file and attach it to a ledger entry's source record.
+   * Persists the stored URL reference on the source row.
+   */
+  attachLedgerFile: protectedProcedure
+    .input(
+      z.object({
+        source: z.enum(["payment", "vendor_bill", "subcontractor_bill", "ipc", "site_expense", "head_office_expense"]),
+        id: z.string().min(1),
+        fileName: z.string().min(1),
+        fileType: z.string().min(1),
+        fileSize: z.number().int().nonnegative().optional(),
+        data: z.string().min(1), // base64 payload
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      return attachLedgerFileOp(ctx.user, input.source, input.id, {
+        fileName: input.fileName,
+        fileType: input.fileType,
+        fileSize: input.fileSize,
+        data: input.data,
+      });
     }),
 });

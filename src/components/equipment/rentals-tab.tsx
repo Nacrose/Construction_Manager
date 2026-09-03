@@ -27,7 +27,7 @@ function npr(n: number) {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  active: { label: "Active", color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-950" },
+  active: { label: "Active", color: "text-success", bg: "bg-success/15 dark:bg-success" },
   stored_on_site: { label: "Stored on Site", color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-950" },
   returned: { label: "Returned", color: "text-muted-foreground", bg: "bg-muted dark:bg-[var(--navy-mid)]" },
 };
@@ -70,7 +70,7 @@ export function RentalsTab({ projectId }: { projectId: string }) {
       {/* Stats */}
       {rentalStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <Card className="p-3"><div className="text-lg font-bold text-emerald-600">{rentalStats.activeCount}</div><div className="text-[9px] text-muted-foreground uppercase">Active</div></Card>
+          <Card className="p-3"><div className="text-lg font-bold text-success">{rentalStats.activeCount}</div><div className="text-[9px] text-muted-foreground uppercase">Active</div></Card>
           <Card className="p-3"><div className="text-lg font-bold text-amber-600">{rentalStats.storedCount}</div><div className="text-[9px] text-muted-foreground uppercase">Stored</div></Card>
           <Card className="p-3"><div className="text-lg font-bold text-muted-foreground">{rentalStats.returnedCount}</div><div className="text-[9px] text-muted-foreground uppercase">Returned</div></Card>
           <Card className="p-3"><div className="text-lg font-bold text-info">{npr(rentalStats.dailyAccruing)}</div><div className="text-[9px] text-muted-foreground uppercase">Daily Accruing</div></Card>
@@ -415,7 +415,7 @@ function DamageDialog({ rentalId, projectId, onClose }: { rentalId: string; proj
                   <div key={d.id} className="rounded border p-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{d.description}</span>
-                      <span className={cn("rounded px-1 text-[9px] uppercase", d.status === "repaired" ? "bg-emerald-100 text-emerald-700" : d.status === "disputed" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700")}>{d.status}</span>
+                      <span className={cn("rounded px-1 text-[9px] uppercase", d.status === "repaired" ? "bg-success/15 text-success" : d.status === "disputed" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700")}>{d.status}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       {format(new Date(d.date), "dd MMM yy")} · {d.damageType} · {d.responsibleParty} · {npr(d.repairCost)} ({d.paidBy})

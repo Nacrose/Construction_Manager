@@ -185,7 +185,7 @@ export function RequisitionDetailView({
             <TrendingUp className="h-2.5 w-2.5" /> +{vr.variancePercent}% Over
           </span>
         ) : vr.plannedQty > 0 ? (
-          <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 font-mono">
+          <span className="inline-flex items-center gap-0.5 rounded bg-success/15 px-1.5 py-0.5 text-[9px] font-semibold text-success dark:bg-success dark:text-success/80 font-mono">
             <TrendingDown className="h-2.5 w-2.5" /> Within Budget
           </span>
         ) : (
@@ -212,7 +212,7 @@ export function RequisitionDetailView({
                 variant="outline"
                 className={cn("text-[10px] font-mono capitalize", {
                   "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300": req.status === "pending_approval",
-                  "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-300": req.status === "approved" || req.status === "ordered",
+                  "bg-success/10 text-success border-success/40 dark:bg-success dark:text-success/80": req.status === "approved" || req.status === "ordered",
                   "bg-info/10 text-info border-info/40 dark:bg-[var(--navy-deep)]/50 dark:text-info/80": req.status === "partially_ordered",
                   "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/50 dark:text-red-300": req.status === "rejected",
                 })}
@@ -243,7 +243,7 @@ export function RequisitionDetailView({
                 size="sm"
                 onClick={() => approveMut.mutate({ projectId, requisitionId })}
                 disabled={approveMut.isPending}
-                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-mono gap-1"
+                className="h-8 text-xs bg-success hover:bg-success text-white font-mono gap-1"
               >
                 {approveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Approve Requisition
@@ -320,7 +320,7 @@ export function RequisitionDetailView({
                         className={cn(
                           "p-3 rounded-xl border space-y-2 transition",
                           isSelected
-                            ? "bg-emerald-500/10 border-emerald-500/40 shadow-xs"
+                            ? "bg-success/10 border-success/40 shadow-xs"
                             : "bg-muted/15 border-border/80"
                         )}
                       >
@@ -330,7 +330,7 @@ export function RequisitionDetailView({
                             <span className="font-semibold text-xs text-foreground truncate max-w-[140px]">{q.partner.name}</span>
                           </div>
                           {isSelected && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[9px] py-0 px-1 font-mono">
+                            <Badge variant="secondary" className="bg-success/15 text-success dark:bg-success dark:text-success/80 text-[9px] py-0 px-1 font-mono">
                               Selected
                             </Badge>
                           )}

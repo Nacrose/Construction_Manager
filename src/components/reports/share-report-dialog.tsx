@@ -175,10 +175,10 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
           <div className="grid grid-cols-3 gap-2">
             <Button
               variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-emerald-50 hover:border-emerald-300 dark:hover:bg-emerald-950"
+              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-success/10 hover:border-success/40 dark:hover:bg-success"
               onClick={handleWhatsAppClient}
             >
-              <MessageCircle className="h-5 w-5 text-emerald-600" />
+              <MessageCircle className="h-5 w-5 text-success" />
               <div className="text-xs font-medium">WhatsApp</div>
               <div className="text-[10px] text-muted-foreground">Pre-filled for client</div>
             </Button>
@@ -224,7 +224,7 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
               className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950"
               onClick={handleCopyLink}
             >
-              {copied ? <Check className="h-5 w-5 text-emerald-600" /> : <LinkIcon className="h-5 w-5 text-amber-600" />}
+              {copied ? <Check className="h-5 w-5 text-success" /> : <LinkIcon className="h-5 w-5 text-amber-600" />}
               <div className="text-xs font-medium">{copied ? "Copied!" : "Copy Link"}</div>
               <div className="text-[10px] text-muted-foreground">Share anywhere</div>
             </Button>

@@ -288,7 +288,7 @@ export function UnrecognizedMaterialsTab({
               <Button
                 size="sm"
                 onClick={handleBulkPromote}
-                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="h-8 text-xs bg-success hover:bg-success text-white font-medium"
               >
                 Promote Selected ({selectedIds.size})
               </Button>
@@ -325,7 +325,7 @@ export function UnrecognizedMaterialsTab({
         </div>
       ) : filteredItems.length === 0 ? (
         <Card className="p-8 text-center border-dashed border-border/70 bg-muted/10">
-          <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+          <CheckCircle2 className="h-10 w-10 text-success/90 mx-auto mb-2 opacity-80" />
           <h3 className="text-sm font-semibold text-foreground">
             {searchQuery ? "No matching uncataloged materials" : "No uncataloged materials in this queue"}
           </h3>
@@ -433,7 +433,7 @@ export function UnrecognizedMaterialsTab({
                                         targetId: sugg.id,
                                       })
                                     }
-                                    className="h-6 text-[11px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 shrink-0 gap-1"
+                                    className="h-6 text-[11px] px-2 text-success hover:text-success hover:bg-success/10 dark:hover:bg-success/20 shrink-0 gap-1"
                                   >
                                     <Check className="h-3 w-3" />
                                     Map to this
@@ -486,7 +486,7 @@ export function UnrecognizedMaterialsTab({
                         </Button>
                       </>
                     ) : item.status === "mapped" ? (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 gap-1 px-2 py-1 text-xs">
+                      <Badge variant="outline" className="bg-success/10 text-success dark:bg-success/40 dark:text-success/80 border-success/30 gap-1 px-2 py-1 text-xs">
                         <CheckCircle2 className="h-3 w-3" /> Mapped
                       </Badge>
                     ) : item.status === "promoted" ? (

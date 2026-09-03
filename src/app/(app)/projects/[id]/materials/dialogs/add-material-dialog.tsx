@@ -340,9 +340,9 @@ export function AddMaterialDialog({
 
         {/* Opening Stock & Valuation (Only for Materials) */}
         {resourceType === "material" && (
-          <div className="p-2.5 rounded-lg border border-emerald-500/20 bg-emerald-950/10 space-y-2">
+          <div className="p-2.5 rounded-lg border border-success/20 bg-success/10 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-400">
+              <span className="text-[11px] font-bold text-success/80">
                 Opening Stock Onboarding (सुरुवाती मौज्दात)
               </span>
               <span className="text-[9px] text-muted-foreground">

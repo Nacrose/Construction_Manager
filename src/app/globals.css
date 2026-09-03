@@ -59,6 +59,9 @@ main,
   --color-paper: var(--paper);
   --color-navy-deep: var(--navy-deep);
   --color-navy-mid: var(--navy-mid);
+  /* Single brand-compatible success green (replaces the old matrix-phase
+     scattered emerald/green shades). */
+  --color-success: var(--success);
 }
 
 /* Disable Chrome, Safari, Edge, Opera spin buttons */
@@ -133,6 +136,9 @@ html {
   --input: #ded4c7;
   --ring: #9f5b35;
   --info: #3f7180;
+  /* Muted, warm-compatible green — reads on the cream paper without clashing
+     with the amber/clay accent. Single success hue app-wide. */
+  --success: #4a8b57;
 
   /* Charts */
   --chart-1: #b97547;
@@ -205,6 +211,7 @@ html {
   --input: #16304a;
   --ring: #fbbf24;
   --info: #7dd3fc;
+  --success: #6fcf87;
 
   --chart-1: #fbbf24;
   --chart-2: #60a5fa;
@@ -280,10 +287,23 @@ html {
    BLUEPRINT Drafting Utilities
    ────────────────────────────────────────────────────────────── */
 @layer utilities {
-  /* Monospace figures for amounts, codes, and dates */
+  /* Monster figures for amounts, codes, and dates */
   .font-matrix {
     font-family: var(--font-mono), monospace;
     letter-spacing: -0.02em;
+  }
+
+  /* BOQ grid — guaranteed, visible column separators */
+  .boq-grid {
+    border-collapse: collapse;
+  }
+  .boq-grid th,
+  .boq-grid td {
+    border-right: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  }
+  .boq-grid th:last-child,
+  .boq-grid td:last-child {
+    border-right: 0;
   }
 
   /* Fine drafting grid — the paper texture. Layer a 12px pencil

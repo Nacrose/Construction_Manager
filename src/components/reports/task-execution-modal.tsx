@@ -86,7 +86,7 @@ export function TaskExecutionModal({ projectId, task }: { projectId: string; tas
               <p className="text-[10px] text-muted-foreground">Dispatched/Placed ({task.unit || "unit"})</p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Payable (Measured)</Label>
+              <Label className="text-xs font-semibold text-success dark:text-success/80">Payable (Measured)</Label>
               <Input
                 type="number"
                 step="any"
@@ -105,7 +105,7 @@ export function TaskExecutionModal({ projectId, task }: { projectId: string; tas
                   "font-mono font-semibold px-2 py-0.5 rounded text-[11px]",
                   variance > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" :
                   variance < 0 ? "bg-info/15 text-info dark:bg-[var(--navy-deep)]/40 dark:text-info/80" :
-                  "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  "bg-success/15 text-success dark:bg-success/40 dark:text-success/80"
                 )}>
                   {variance > 0 ? `+${variance.toFixed(2)} ${task.unit || ""} (${variancePct.toFixed(1)}% Wastage)` :
                    variance < 0 ? `${variance.toFixed(2)} ${task.unit || ""} (Saving)` :

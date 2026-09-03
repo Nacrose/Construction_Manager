@@ -137,7 +137,7 @@ function RevisionDocContent({ params }: { params: Promise<{ id: string; versionI
               <td className="p-2 font-medium">Total Duration</td>
               <td className="p-2 text-right font-mono">{impact.prevDuration} days</td>
               <td className="p-2 text-right font-mono">{impact.currDuration} days</td>
-              <td className={`p-2 text-right font-mono font-bold ${impact.durationChange > 0 ? "text-red-600" : impact.durationChange < 0 ? "text-emerald-600" : ""}`}>
+              <td className={`p-2 text-right font-mono font-bold ${impact.durationChange > 0 ? "text-red-600" : impact.durationChange < 0 ? "text-success" : ""}`}>
                 {impact.durationChange > 0 ? "+" : ""}{impact.durationChange} days
               </td>
             </tr>

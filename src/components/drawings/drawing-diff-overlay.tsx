@@ -105,12 +105,12 @@ export function DrawingDiffOverlay({
             variant={mode === "overlay" ? "default" : "ghost"}
             className={cn(
               "h-7 text-xs gap-1.5 font-mono",
-              mode === "overlay" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "text-muted-foreground"
+              mode === "overlay" ? "bg-success/20 text-success/80 border border-success/40" : "text-muted-foreground"
             )}
             onClick={() => handleModeChange("overlay")}
             title="Chromatic Red/Green Bluebeam Overlay Diff"
           >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+            <Sparkles className="h-3.5 w-3.5 text-success/80" />
             Red / Green Diff
           </Button>
 

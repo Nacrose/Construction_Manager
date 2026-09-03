@@ -257,7 +257,7 @@ function OfflineBanner({
   } else {
     icon = <CheckCircle2 className="h-4 w-4" />;
     message = "All changes synced";
-    bgClass = "bg-emerald-500/95 text-white border-emerald-600/40";
+    bgClass = "bg-success/95 text-white border-success/40";
   }
 
   return (

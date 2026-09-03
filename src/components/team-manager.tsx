@@ -37,7 +37,7 @@ type _Member = {
 const ROLES = ["project_manager", "engineer", "coordinator"] as const;
 
 const ROLE_STYLES: Record<string, string> = {
-  project_manager: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  project_manager: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   engineer: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   coordinator: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
 };
@@ -110,7 +110,7 @@ export function TeamManager({
               className="flex items-center justify-between rounded-md border p-2"
             >
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-medium text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success text-xs font-medium text-white">
                   {m.user.name
                     .split(" ")
                     .map((p) => p[0])

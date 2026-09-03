@@ -40,7 +40,7 @@ export default function AdminDatabase() {
               <span
                 className={
                   verify.data.ok
-                    ? "text-xs font-medium text-green-600"
+                    ? "text-xs font-medium text-success"
                     : "text-xs font-medium text-red-600"
                 }
               >

@@ -15,8 +15,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -202,7 +200,6 @@ function CreateProjectDialog({
   const [client, setClient] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [operationalPreset, setOperationalPreset] = useState<"record_keeper" | "lean" | "enterprise">("record_keeper");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -212,7 +209,6 @@ function CreateProjectDialog({
       client: client || undefined,
       location: location || undefined,
       description: description || undefined,
-      operationalPreset,
     });
   }
 
@@ -229,34 +225,6 @@ function CreateProjectDialog({
         </div>
       </div>
       <form onSubmit={submit} className="p-6 space-y-4 text-xs bg-card">
-        {/* Preset Selector */}
-        <div className="space-y-1.5">
-          <Label className="text-[11px] font-semibold text-foreground/80">Contractor Scale &amp; Operational Mode *</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { key: "record_keeper" as const, icon: "📒", title: "Record-Keeper", sub: "Actuals only: Day Book, materials & labor." },
-              { key: "lean" as const, icon: "⚡", title: "Lean Builder", sub: "Actuals + Daily Lookahead & Punch Lists." },
-              { key: "enterprise" as const, icon: "🏛️", title: "Full Enterprise", sub: "CPM Gantt, 3-Way Match & JV Consortia." },
-            ].map((p) => (
-              <div
-                key={p.key}
-                onClick={() => setOperationalPreset(p.key)}
-                className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
-                  operationalPreset === p.key
-                    ? "border-[var(--primary)] bg-info/10 text-foreground ring-1 ring-[var(--primary)] shadow-xs"
-                    : "border-[var(--border)] bg-muted/60 text-muted-foreground hover:border-[var(--primary)] hover:text-foreground"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
-                  <span>{p.icon}</span>
-                  <span>{p.title}</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{p.sub}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label htmlFor="p-name" className="text-[11px] font-semibold text-foreground/80">Project Name *</Label>

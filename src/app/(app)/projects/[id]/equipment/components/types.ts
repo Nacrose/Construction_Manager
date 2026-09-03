@@ -50,7 +50,7 @@ export type Maintenance = {
 };
 
 export const STATUS_STYLES: Record<string, string> = {
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  active: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   maintenance: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   breakdown: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   idle: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",

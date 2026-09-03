@@ -72,7 +72,7 @@ export function MaterialsGateTab({
                     className={
                       g.status === "pending"
                         ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 capitalize text-[10px]"
-                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 capitalize text-[10px]"
+                        : "bg-success/15 text-success dark:bg-success dark:text-success/80 capitalize text-[10px]"
                     }
                   >
                     {g.status}
@@ -98,7 +98,7 @@ export function MaterialsGateTab({
                   <Button
                     size="sm"
                     onClick={() => openGateVerification(g)}
-                    className="h-6.5 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"
+                    className="h-6.5 text-[11px] bg-success hover:bg-success text-white rounded-md"
                   >
                     Verify & Unload (GRN)
                   </Button>

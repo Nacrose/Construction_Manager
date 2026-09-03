@@ -209,7 +209,7 @@ export function IngredientPicker({
                     className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted transition-colors border-b border-border/30 last:border-0"
                     onClick={() => select(item)}
                   >
-                    <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <Check className="h-3.5 w-3.5 text-success/90 shrink-0" />
                     <span className="flex-1 truncate font-medium">{item.name}</span>
                     {item.unit && (
                       <span className="text-[10px] text-muted-foreground font-mono bg-muted/60 px-1 py-0.5 rounded">

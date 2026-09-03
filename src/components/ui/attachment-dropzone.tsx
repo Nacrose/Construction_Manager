@@ -90,12 +90,12 @@ export function AttachmentDropzone({
       {value ? (
         <div className="relative flex items-center justify-between p-3 rounded-xl bg-card border border-[var(--border)] group">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="h-10 w-10 shrink-0 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <div className="h-10 w-10 shrink-0 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center text-success/80">
               {isPdf ? <FileText className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />}
             </div>
             <div className="truncate text-xs">
               <div className="font-medium text-foreground flex items-center gap-1.5">
-                <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                <CheckCircle className="h-3.5 w-3.5 text-success/80" />
                 <span>Attachment Attached</span>
               </div>
               <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
@@ -112,7 +112,7 @@ export function AttachmentDropzone({
               onClick={() => setPreviewOpen(true)}
               className="h-8 px-2.5 text-xs gap-1 font-mono bg-transparent border-[var(--border)] text-foreground/80 hover:text-foreground"
             >
-              <Eye className="h-3.5 w-3.5 text-emerald-400" />
+              <Eye className="h-3.5 w-3.5 text-success/80" />
               Preview
             </Button>
             {!disabled && (
@@ -138,8 +138,8 @@ export function AttachmentDropzone({
           onDrop={handleDrop}
           onClick={() => !disabled && fileInputRef.current?.click()}
           className={cn(
-            "relative flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-dashed border-[var(--border)] bg-card hover:border-emerald-500/40 hover:bg-card/[0.02] cursor-pointer transition-all text-center",
-            isDragging && "border-emerald-500 bg-emerald-500/5",
+            "relative flex flex-col items-center justify-center p-3.5 rounded-xl border-2 border-dashed border-[var(--border)] bg-card hover:border-success/40 hover:bg-card/[0.02] cursor-pointer transition-all text-center",
+            isDragging && "border-success bg-success/5",
             disabled && "opacity-50 cursor-not-allowed"
           )}
         >
@@ -154,14 +154,14 @@ export function AttachmentDropzone({
 
           {isUploading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+              <Loader2 className="h-4 w-4 animate-spin text-success/80" />
               Uploading & Processing Attachment...
             </div>
           ) : (
             <>
-              <UploadCloud className="h-6 w-6 text-muted-foreground mb-1 group-hover:text-emerald-400 transition-colors" />
+              <UploadCloud className="h-6 w-6 text-muted-foreground mb-1 group-hover:text-success/80 transition-colors" />
               <p className="text-xs font-semibold text-foreground">
-                Drag &amp; drop file here, or <span className="text-emerald-400 underline">browse</span>
+                Drag &amp; drop file here, or <span className="text-success/80 underline">browse</span>
               </p>
               <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                 Supports PDF, JPG, PNG up to {maxSizeMb}MB

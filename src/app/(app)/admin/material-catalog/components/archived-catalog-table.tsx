@@ -64,7 +64,7 @@ export function ArchivedCatalogTable({
           <Button
             size="sm"
             variant="outline"
-            className="h-6 text-[11px] gap-1 px-2 text-emerald-700 dark:text-emerald-300 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+            className="h-6 text-[11px] gap-1 px-2 text-success dark:text-success/80 border-success/40 hover:bg-success/10 dark:hover:bg-success/20"
             onClick={() => restoreCatalogMut.mutate({ id: item.id })}
             disabled={restoreCatalogMut.isPending}
             title="Restore this item to the active catalog"

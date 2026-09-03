@@ -160,7 +160,7 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
         header: "Paid",
         align: "right",
         width: "120px",
-        render: (val) => <span className="text-emerald-600 dark:text-emerald-400 font-mono">{formatNpr(val)}</span>,
+        render: (val) => <span className="text-success dark:text-success/80 font-mono">{formatNpr(val)}</span>,
       },
       {
         key: "balanceDue",
@@ -181,7 +181,7 @@ export function OutstandingPayablesTab({ projectId, onPayNow }: OutstandingPayab
         render: (_, item) => (
           <Button
             size="sm"
-            className="h-7 gap-1 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            className="h-7 gap-1 px-2.5 text-xs bg-success hover:bg-success text-white shadow-sm"
             onClick={() =>
               onPayNow({
                 entityType: item.entityType,

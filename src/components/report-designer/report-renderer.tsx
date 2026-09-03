@@ -126,7 +126,7 @@ export function ReportRenderer({ layout, entityType, data, scale = 1, forPrint =
           </div>
           {[
             { wbs: "1", name: "Project Start", days: "01 Jan - 15 Feb", barLeft: "10%", barWidth: "25%", color: "#3b82f6" },
-            { wbs: "1.1", name: "Site Mobilization", days: "02 Jan - 20 Jan", barLeft: "10%", barWidth: "12%", color: "#10b981" },
+            { wbs: "1.1", name: "Site Mobilization", days: "02 Jan - 20 Jan", barLeft: "10%", barWidth: "12%", color: "#4a8b57" },
             { wbs: "1.2", name: "Excavation Works", days: "21 Jan - 15 Feb", barLeft: "22%", barWidth: "13%", color: "#f59e0b" },
           ].map((row, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center" }}>
@@ -162,7 +162,7 @@ export function ReportRenderer({ layout, entityType, data, scale = 1, forPrint =
             left: `${layout.page.margin.left * MM_TO_PX * (forPrint ? 1 : scale)}px`,
             width: `${(getPageSize(layout.page).w - layout.page.margin.left - layout.page.margin.right) * MM_TO_PX * (forPrint ? 1 : scale)}px`,
             background: "#f0fdf4",
-            border: `1px solid #bbf7d0`,
+            border: `1px solid #d9efd9`,
             padding: `${4 * scale}px ${8 * scale}px`,
             fontSize: `${9 * (forPrint ? 1 : scale)}pt`,
             borderRadius: "2px",
@@ -262,7 +262,7 @@ function CellRenderer({ cell, tokenCtx, data, scale, forPrint }: {
           <div style={{
             fontSize: `${14 * (forPrint ? 1 : scale)}pt`,
             fontWeight: 600,
-            color: s.color || "#059669",
+            color: s.color || "#4a8b57",
             lineHeight: 1.2,
           }}>
             {val}
@@ -345,7 +345,7 @@ function CellRenderer({ cell, tokenCtx, data, scale, forPrint }: {
           value = report?.clientApprovedAt ? (
             <>
               <div style={{ fontSize: `${7 * (forPrint ? 1 : scale)}pt`, color: "#6b7280" }}>Approved on</div>
-              <div style={{ fontWeight: 500, color: "#059669" }}>{approvedDateStr}</div>
+              <div style={{ fontWeight: 500, color: "#4a8b57" }}>{approvedDateStr}</div>
             </>
           ) : <div style={{ fontSize: `${7 * (forPrint ? 1 : scale)}pt`, color: "#9ca3af", fontStyle: "italic" }}>Awaiting approval</div>;
           break;

@@ -179,7 +179,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
       key: "paidAmount",
       header: "Paid",
       align: "right",
-      render: (_, bill) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(bill.paidAmount)}</span>,
+      render: (_, bill) => <span className="font-mono text-xs text-success dark:text-success/80">{formatNpr(bill.paidAmount)}</span>,
     },
     {
       key: "status",
@@ -219,7 +219,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
             <Button
               variant="outline"
               size="sm"
-              className="h-6 text-[10px] text-emerald-700 dark:text-emerald-300 border-emerald-300 gap-1 bg-emerald-50/50 dark:bg-emerald-950/20"
+              className="h-6 text-[10px] text-success dark:text-success/80 border-success/40 gap-1 bg-success dark:bg-success/20"
               onClick={() => setVerifyBillId(bill.id)}
             >
               <ShieldCheck className="h-3 w-3" /> Verify
@@ -229,7 +229,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 text-[10px] text-emerald-600"
+              className="h-6 text-[10px] text-success"
               onClick={() => {
                 const remaining = bill.netPayable - bill.paidAmount;
                 markPaidMut.mutate({ projectId: id, billId: bill.id, amount: remaining });
@@ -266,7 +266,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
       key: "paid",
       header: "Paid",
       align: "right",
-      render: (_, sub) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(sub.paid)}</span>,
+      render: (_, sub) => <span className="font-mono text-xs text-success dark:text-success/80">{formatNpr(sub.paid)}</span>,
     },
     {
       key: "outstanding",
@@ -323,7 +323,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
                   </div>
                   <div className="rounded-xl border bg-card p-3 space-y-1">
                     <p className="text-[10px] text-muted-foreground uppercase font-mono">Total Paid</p>
-                    <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatNpr(billsData.summary.totalPaid)}</p>
+                    <p className="text-xl font-bold font-mono text-success dark:text-success/80">{formatNpr(billsData.summary.totalPaid)}</p>
                     <p className="text-[11px] text-muted-foreground font-mono">Disbursed to subcontractors</p>
                   </div>
                   <div className="rounded-xl border bg-card p-3 space-y-1">
@@ -517,9 +517,9 @@ function BillDetailView({
           <Badge variant="secondary" className={cn("capitalize text-[10px] ml-2", {
             "bg-muted text-foreground/80": bill.status === "draft",
             "bg-amber-100 text-amber-700": bill.status === "submitted",
-            "bg-teal-100 text-teal-800": bill.status === "verified",
+            "bg-success text-success": bill.status === "verified",
             "bg-info/15 text-info": bill.status === "certified",
-            "bg-emerald-100 text-emerald-700": bill.status === "paid",
+            "bg-success/15 text-success": bill.status === "paid",
             "bg-red-100 text-red-700": bill.status === "disputed",
           })}>
             {bill.status}
@@ -574,7 +574,7 @@ function BillDetailView({
         </div>
         <div className="w-full bg-white/10 rounded-full h-2">
           <div
-            className="bg-emerald-500 h-2 rounded-full transition-all"
+            className="bg-success h-2 rounded-full transition-all"
             style={{ width: `${Math.min(100, bill.netPayable > 0 ? (bill.paidAmount / bill.netPayable) * 100 : 0)}%` }}
           />
         </div>
@@ -589,7 +589,7 @@ function BillDetailView({
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold font-sans">Line Items &amp; Measurement Breakdown</h3>
           {onVerify && (bill.status === "submitted" || bill.status === "verified" || bill.status === "draft") && isAdmin && (
-            <Button size="sm" variant="outline" onClick={onVerify} className="h-7 text-xs gap-1 text-emerald-300 border-emerald-500 font-mono">
+            <Button size="sm" variant="outline" onClick={onVerify} className="h-7 text-xs gap-1 text-success/80 border-success font-mono">
               <ShieldCheck className="h-3.5 w-3.5" /> Engineer Line-Item Verification
             </Button>
           )}
@@ -602,7 +602,7 @@ function BillDetailView({
                   <th className="text-left p-2 font-medium">BOQ Code</th>
                   <th className="text-left p-2 font-medium font-sans">Description</th>
                   <th className="text-right p-2 font-medium">Claimed Qty</th>
-                  <th className="text-right p-2 font-medium text-emerald-400">Verified Qty</th>
+                  <th className="text-right p-2 font-medium text-success/80">Verified Qty</th>
                   <th className="text-right p-2 font-medium text-red-400">Disallowed</th>
                   <th className="text-right p-2 font-medium">Rate</th>
                   <th className="text-right p-2 font-medium">Amount</th>
@@ -625,7 +625,7 @@ function BillDetailView({
                         )}
                       </td>
                       <td className="p-2 text-right text-white/60">{item.thisQty} {item.unit}</td>
-                      <td className="p-2 text-right font-bold text-emerald-400">{verifiedQty} {item.unit}</td>
+                      <td className="p-2 text-right font-bold text-success/80">{verifiedQty} {item.unit}</td>
                       <td className={cn("p-2 text-right", disallowed > 0 ? "text-red-400 font-bold" : "text-white/60")}>
                         {disallowed > 0 ? `-${disallowed}` : "0"}
                       </td>
@@ -671,7 +671,7 @@ function BillDetailView({
         {onVerify && (bill.status === "submitted" || bill.status === "verified") && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 font-semibold font-mono text-xs"
+            className="bg-success hover:bg-success text-white gap-1.5 font-semibold font-mono text-xs"
             onClick={onVerify}
           >
             <ShieldCheck className="h-3.5 w-3.5" />
@@ -681,7 +681,7 @@ function BillDetailView({
         {bill.status === "certified" && isAdmin && (
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs"
+            className="bg-success hover:bg-success text-white font-mono text-xs"
             onClick={() => {
               const remaining = bill.netPayable - bill.paidAmount;
               markPaidMut.mutate({ projectId, billId: bill.id, amount: remaining });

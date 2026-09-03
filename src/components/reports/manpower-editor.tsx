@@ -39,7 +39,7 @@ export function ManpowerEditor({ value, onChange }: { value: string; onChange: (
           <button type="button" onClick={() => remove(i)} className="text-red-500 text-xs shrink-0">✕</button>
         </div>
       ))}
-      <button type="button" onClick={add} className="text-xs text-emerald-600 hover:underline">+ Add row</button>
+      <button type="button" onClick={add} className="text-xs text-success hover:underline">+ Add row</button>
     </div>
   );
 }

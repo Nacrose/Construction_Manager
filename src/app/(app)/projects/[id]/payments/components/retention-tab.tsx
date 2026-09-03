@@ -62,7 +62,7 @@ export function RetentionTab({ projectId }: { projectId: string }) {
       key: "released",
       header: "Released",
       align: "right",
-      render: (_, r) => <span className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatNpr(r.released)}</span>,
+      render: (_, r) => <span className="font-mono text-xs text-success dark:text-success/80">{formatNpr(r.released)}</span>,
     },
     {
       key: "held",
@@ -106,7 +106,7 @@ export function RetentionTab({ projectId }: { projectId: string }) {
             <div className="text-[9px] text-muted-foreground uppercase font-mono">Currently Held</div>
           </Card>
           <Card className="p-3 text-center bg-card">
-            <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatNpr(totals.totalReleased)}</div>
+            <div className="text-lg font-bold font-mono text-success dark:text-success/80">{formatNpr(totals.totalReleased)}</div>
             <div className="text-[9px] text-muted-foreground uppercase font-mono">Released to Date</div>
           </Card>
           <Card className="p-3 text-center bg-card">
@@ -166,7 +166,7 @@ export function RetentionTab({ projectId }: { projectId: string }) {
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs"
+              className="bg-success hover:bg-success text-white font-mono text-xs"
               onClick={() => {
                 if (!releaseFor || !releaseAmount) return;
                 releaseMut.mutate({

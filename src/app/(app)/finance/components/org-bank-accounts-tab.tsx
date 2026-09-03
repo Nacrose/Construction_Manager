@@ -104,7 +104,7 @@ export function OrgBankAccountsTab() {
           <div className="h-4 w-[1px] bg-secondary" />
           <div className="flex items-center gap-1.5 text-xs font-matrix">
             <span className="text-[11px] text-muted-foreground font-sans">Total Balance:</span>
-            <span className="font-bold text-emerald-700">NPR {formatNpr(totalBalance)}</span>
+            <span className="font-bold text-success">NPR {formatNpr(totalBalance)}</span>
           </div>
         </div>
 
@@ -121,7 +121,7 @@ export function OrgBankAccountsTab() {
       {/* Account Grid */}
       {accounts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-card rounded-lg border border-dashed border-[var(--border)] space-y-2 shadow-xs">
-          <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-200">
+          <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center text-success border border-success/30">
             <Wallet className="h-5 w-5" />
           </div>
           <h3 className="text-xs font-bold text-foreground">No Bank Accounts or Wallets Added</h3>
@@ -158,7 +158,7 @@ export function OrgBankAccountsTab() {
                       <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
                         {acc.bankName}
                         {acc.isDefault && (
-                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[9px] font-mono px-1 py-0">
+                          <Badge className="bg-success/15 text-success border-success/40 text-[9px] font-mono px-1 py-0">
                             Default
                           </Badge>
                         )}
@@ -187,7 +187,7 @@ export function OrgBankAccountsTab() {
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60 font-matrix">
                     <span className="text-muted-foreground text-[11px] font-sans">Current Balance:</span>
-                    <span className="font-bold text-emerald-700 text-sm">
+                    <span className="font-bold text-success text-sm">
                       NPR {formatNpr(acc.currentBalance || 0)}
                     </span>
                   </div>

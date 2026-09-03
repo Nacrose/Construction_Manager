@@ -1,5 +1,5 @@
 {
-  "$comment": "RLS rollout tracker (docs/plans/rls-rollout.md). covered = policy SQL exists in prisma/migrations; planned = phase assignment; excluded = RLS deliberately not applied (reason per table). Every org/project-scoped model in schema.prisma MUST appear in exactly one of the three \u2014 enforced by src/server/routers/__tests__/rls-coverage.test.ts. Regenerate with: npx tsx scripts/rls-inventory.ts (covered/excluded are preserved; planned lists are regenerated).",
+  "$comment": "RLS rollout tracker (docs/plans/rls-rollout.md). covered = policy SQL exists in prisma/migrations; planned = phase assignment; excluded = RLS deliberately not applied (reason per table). Every org/project-scoped model in schema.prisma MUST appear in exactly one of the three — enforced by src/server/routers/__tests__/rls-coverage.test.ts. Regenerate with: npx tsx scripts/rls-inventory.ts (covered/excluded are preserved; planned lists are regenerated).",
   "covered": [
     "AnalysisLibrary",
     "ApprovedDocument",
@@ -47,8 +47,8 @@
     "Partner",
     "Payment",
     "PaymentCategory",
-    "PayrollAllocation",
     "PayrollAdvanceRecovery",
+    "PayrollAllocation",
     "PayrollPersonRecord",
     "PayrollRun",
     "Person",
@@ -85,11 +85,12 @@
     "VariationOrder",
     "VatBill",
     "VendorBill",
-    "VendorPayment"
+    "VendorPayment",
+    "WorksheetDocument"
   ],
   "excluded": {
-    "User": "queried pre-auth (login/signup/first-user check) before org context exists \u2014 app-level filtering only",
-    "OutboxEvent": "infra table (transactional outbox) \u2014 written by the app with explicit organizationId values, read only by the server-side worker and admin diagnostics; no client surface, no tenant-scoped queries"
+    "User": "queried pre-auth (login/signup/first-user check) before org context exists — app-level filtering only",
+    "OutboxEvent": "infra table (transactional outbox) — written by the app with explicit organizationId values, read only by the server-side worker and admin diagnostics; no client surface, no tenant-scoped queries"
   },
   "planned": {
     "phase1_org_money": [],
@@ -102,7 +103,7 @@
     "phase3c_project_documents": []
   },
   "dropped": {
-    "Staff": "dropped by 20260903120000_workforce_identity_clean_break (ADR-0005/0008) \u2014 replaced by Person + ProjectStaffAssignment",
-    "PayrollStaffRecord": "dropped by 20260903120000_workforce_identity_clean_break (ADR-0007/0008) \u2014 replaced by PayrollPersonRecord"
+    "Staff": "dropped by 20260903120000_workforce_identity_clean_break (ADR-0005/0008) — replaced by Person + ProjectStaffAssignment",
+    "PayrollStaffRecord": "dropped by 20260903120000_workforce_identity_clean_break (ADR-0007/0008) — replaced by PayrollPersonRecord"
   }
 }

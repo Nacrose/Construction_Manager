@@ -13,7 +13,7 @@ export const RES_TABS = [
 export const TICKET_STATUS_STYLES: Record<string, string> = {
   dispatched: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80",
   in_transit: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  delivered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  delivered: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   rejected: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
   cancelled: "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80",
 };
@@ -35,7 +35,7 @@ export const PLANT_TYPE_LABELS: Record<
   wmm_wet_mix: {
     label: "Wet Mix Macadam (WMM)",
     icon: Layers,
-    color: "text-emerald-600 dark:text-emerald-400",
+    color: "text-success dark:text-success/80",
   },
   crusher: {
     label: "Aggregate Crusher Plant",

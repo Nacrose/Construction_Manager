@@ -85,7 +85,7 @@ export default function RateCatalogsPage() {
             <Tag className="h-4 w-4 text-info" /> Rate Catalogs
           </TabsTrigger>
           <TabsTrigger value="presets" className="gap-2 text-xs font-semibold px-4 py-1.5">
-            <BookTemplate className="h-4 w-4 text-teal-500" /> Presets
+            <BookTemplate className="h-4 w-4 text-success" /> Presets
           </TabsTrigger>
           <TabsTrigger
             value="unrecognized"

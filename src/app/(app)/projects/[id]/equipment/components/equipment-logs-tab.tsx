@@ -129,7 +129,7 @@ export function EquipmentLogsTab({
       maxSize: 95,
       header: () => <div className="text-right">Fuel (L)</div>,
       cell: ({ row }) => (
-        <div className="text-right text-emerald-600 font-semibold font-mono text-xs">
+        <div className="text-right text-success font-semibold font-mono text-xs">
           {row.original.fuelFilled > 0 ? `${row.original.fuelFilled} L` : "—"}
         </div>
       ),
@@ -239,7 +239,7 @@ export function EquipmentLogsTab({
                     </div>
                     <div>
                       <span className="text-muted-foreground">Fuel Refilled:</span>{" "}
-                      <strong className="font-mono text-emerald-600">
+                      <strong className="font-mono text-success">
                         {t.totalFuel > 0 ? `${t.totalFuel} L` : "—"}
                       </strong>
                     </div>

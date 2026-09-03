@@ -303,7 +303,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                               ? "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80"
                               : isSub
                               ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"
-                              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                              : "bg-success/15 text-success dark:bg-success dark:text-success/80"
                           )}
                         >
                           {p.type}
@@ -388,7 +388,7 @@ export default function PaymentsPage({ params }: { params: Promise<{ id: string 
                         });
                         setRecordPaymentOpen(true);
                       }}
-                      className="h-8 text-xs font-bold font-mono bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="h-8 text-xs font-bold font-mono bg-success hover:bg-success text-white"
                     >
                       Pay Now (भुक्तानी)
                     </Button>

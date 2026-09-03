@@ -64,7 +64,7 @@ export function MaterialsOrdersTab({
               statusBadge = "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
             if (po.status === "received")
               statusBadge =
-                "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+                "bg-success/15 text-success dark:bg-success dark:text-success/80";
             if (po.status === "cancelled")
               statusBadge = "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300";
 
@@ -124,7 +124,7 @@ export function MaterialsOrdersTab({
                   </div>
                   <div className="flex justify-between items-center pt-0.5">
                     <span className="text-[10px] text-muted-foreground">Total (incl. VAT)</span>
-                    <span className="font-bold text-xs text-emerald-600 dark:text-emerald-400 font-mono">
+                    <span className="font-bold text-xs text-success dark:text-success/80 font-mono">
                       NPR {po.totalAmount.toLocaleString()}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ export function MaterialsOrdersTab({
                         <Button
                           size="sm"
                           variant="default"
-                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"
+                          className="h-7 text-xs bg-success hover:bg-success text-white rounded-md"
                           onClick={() =>
                             updatePOStatusMutation.mutate({
                               projectId,

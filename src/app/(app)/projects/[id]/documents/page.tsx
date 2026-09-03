@@ -21,7 +21,7 @@ type Doc = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  drawing: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  drawing: "bg-success/15 text-success dark:bg-success dark:text-success/80",
   spec: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
   contract: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   report: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
@@ -85,7 +85,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ id: string
           {filtered.map((d) => (
             <Card key={d.id}>
               <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-success/10 text-success dark:bg-success dark:text-success/80">
                   <FileText className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">

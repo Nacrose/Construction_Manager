@@ -307,7 +307,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
       {/* Header Banner & Agreement Status */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#f8fbfe]/80 p-5 rounded-2xl border border-[var(--border)] shadow-sm">
         <div className="flex items-center gap-3.5">
-          <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[var(--primary)]">
+          <div className="h-11 w-11 rounded-xl bg-success/10 border border-success/20 flex items-center justify-center text-[var(--primary)]">
             <Handshake className="h-6 w-6" />
           </div>
           <div>
@@ -316,7 +316,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                 {agreement ? agreement.partnerName : "No JV Partner Configured"}
               </h3>
               {agreement ? (
-                <Badge className="bg-emerald-500/20 text-[var(--primary)] border-emerald-500/30 text-[10px]">
+                <Badge className="bg-success/20 text-[var(--primary)] border-success/30 text-[10px]">
                   {agreement.commissionRate}% Commission Model
                 </Badge>
               ) : (
@@ -605,7 +605,7 @@ export function ProjectJvTab({ projectId }: { projectId: string }) {
                   <span>Less 1.5% TDS:</span>
                   <span>- Rs. {formatNpr(((parseFloat(payoutGross) || 0) * (parseFloat(tdsPercent) || 1.5)) / 100)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-emerald-700 border-t border-[var(--border)] pt-1 text-sm font-matrix">
+                <div className="flex justify-between font-bold text-success border-t border-[var(--border)] pt-1 text-sm font-matrix">
                   <span>Net Disbursed:</span>
                   <span>
                     Rs.{" "}

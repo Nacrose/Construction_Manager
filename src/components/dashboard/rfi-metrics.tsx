@@ -59,7 +59,7 @@ export function RfiMetrics({ projectId }: Props) {
           </div>
           <div className="rounded-lg border p-2 text-center">
             <div className="text-[9px] text-muted-foreground uppercase">Fastest</div>
-            <div className="text-sm font-bold text-emerald-600">
+            <div className="text-sm font-bold text-success">
               {data.minResponseHours > 0 ? formatHours(data.minResponseHours) : "—"}
             </div>
           </div>
@@ -75,7 +75,7 @@ export function RfiMetrics({ projectId }: Props) {
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(data.byStatus).map(([status, count]) => (
             <div key={status} className={cn("rounded px-2 py-1 font-medium capitalize", 
-              status === "approved" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" :
+              status === "approved" ? "bg-success/15 text-success dark:bg-success dark:text-success/80" :
               status === "submitted" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400" :
               status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400" :
               "bg-muted text-muted-foreground dark:bg-[var(--navy-mid)] dark:text-muted-foreground/80"
@@ -112,7 +112,7 @@ export function RfiMetrics({ projectId }: Props) {
         )}
 
         {data.overdue.length === 0 && data.respondedCount > 0 && (
-          <div className="flex items-center gap-2 text-xs text-emerald-600">
+          <div className="flex items-center gap-2 text-xs text-success">
             <CheckCircle2 className="h-3.5 w-3.5" />
             All submitted RFIs have been responded to.
           </div>

@@ -396,7 +396,7 @@ export function LogSpotHireDialog({
           </div>
 
           {/* Live Cost Summary Banner */}
-          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 rounded border border-emerald-300 dark:border-emerald-800 flex items-center justify-between text-xs font-mono">
+          <div className="p-2.5 bg-success/10 dark:bg-success/30 rounded border border-success/40 dark:border-success flex items-center justify-between text-xs font-mono">
             <div>
               <span className="text-muted-foreground text-[10px]">Gross Rate Calculation:</span>
               <p className="font-bold text-foreground">
@@ -405,7 +405,7 @@ export function LogSpotHireDialog({
             </div>
             <div className="text-right">
               <span className="text-muted-foreground text-[10px]">NET PAYABLE AMOUNT:</span>
-              <p className="text-base font-extrabold text-emerald-700 dark:text-emerald-300">
+              <p className="text-base font-extrabold text-success dark:text-success/80">
                 NPR {netPayable.toLocaleString()}
               </p>
             </div>

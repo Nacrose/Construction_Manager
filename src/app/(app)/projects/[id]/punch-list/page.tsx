@@ -59,7 +59,7 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
               { label: "Total", value: stats.total, color: "text-foreground/80" },
               { label: "Open", value: stats.open, color: "text-rose-700" },
               { label: "In Progress", value: stats.inProgress, color: "text-amber-700" },
-              { label: "Resolved", value: stats.resolved, color: "text-emerald-700" },
+              { label: "Resolved", value: stats.resolved, color: "text-success" },
               { label: "Verified", value: stats.verified, color: "text-[var(--primary)]" },
             ].map(s => (
               <Card key={s.label} className="p-3 text-center bg-card border-[var(--border)] shadow-xs rounded-xl">
@@ -111,7 +111,7 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
               <Card key={item.id} className="bg-card border-[var(--border)] shadow-xs hover:border-[var(--primary)] transition-all rounded-xl">
                 <CardContent className="p-3 flex items-start gap-3">
                   <div className={cn("shrink-0 h-8 w-8 rounded-full flex items-center justify-center", sev.bg)}>
-                    {item.severity === "critical" ? <AlertTriangle className={cn("h-4 w-4", sev.color)} /> : item.status === "resolved" || item.status === "verified" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Wrench className={cn("h-4 w-4", sev.color)} />}
+                    {item.severity === "critical" ? <AlertTriangle className={cn("h-4 w-4", sev.color)} /> : item.status === "resolved" || item.status === "verified" ? <CheckCircle2 className="h-4 w-4 text-success" /> : <Wrench className={cn("h-4 w-4", sev.color)} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export default function PunchListPage({ params }: { params: Promise<{ id: string
                       <span className={cn("rounded px-1.5 py-0.5 text-[9px] font-bold",
                         item.status === "open" ? "bg-red-50 text-red-700 border border-red-200" :
                         item.status === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                        item.status === "resolved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                        item.status === "resolved" ? "bg-success/10 text-success border border-success/30" :
                         item.status === "verified" ? "bg-info/10 text-info border border-info/30" :
                         "bg-muted text-muted-foreground border border-border"
                       )}>{STATUS_FLOW[item.status] ?? item.status}</span>

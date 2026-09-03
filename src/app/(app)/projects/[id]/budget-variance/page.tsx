@@ -71,13 +71,13 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
             <Card className={cn(
               "p-4",
               data.totals.totalVariance >= 0
-                ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/20"
+                ? "border-success/40 dark:border-success bg-success/20"
                 : "border-red-300 dark:border-red-800 bg-red-50/20"
             )}>
               <p className="text-xs text-muted-foreground uppercase">Variance</p>
               <p className={cn(
                 "mt-1 text-lg font-bold",
-                data.totals.totalVariance >= 0 ? "text-emerald-600" : "text-red-600"
+                data.totals.totalVariance >= 0 ? "text-success" : "text-red-600"
               )}>
                 {data.totals.totalVariance >= 0 ? "+" : ""}{formatNpr(data.totals.totalVariance)}
               </p>
@@ -89,12 +89,12 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
               <p className="text-xs text-muted-foreground uppercase">Variance %</p>
               <p className={cn(
                 "mt-1 text-lg font-bold",
-                data.totals.totalVariancePercent >= 0 ? "text-emerald-600" : "text-red-600"
+                data.totals.totalVariancePercent >= 0 ? "text-success" : "text-red-600"
               )}>
                 {data.totals.totalVariancePercent >= 0 ? "+" : ""}{data.totals.totalVariancePercent.toFixed(1)}%
               </p>
               <div className="flex gap-2 mt-1 text-[10px]">
-                <span className="text-emerald-600">{data.totals.underBudgetCount} under</span>
+                <span className="text-success">{data.totals.underBudgetCount} under</span>
                 <span className="text-red-600">{data.totals.overBudgetCount} over</span>
               </div>
             </Card>
@@ -125,19 +125,19 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                       <TableCell className="text-right font-mono text-xs text-amber-600">{formatNpr(s.actualAmount)}</TableCell>
                       <TableCell className={cn(
                         "text-right font-mono text-xs font-semibold",
-                        s.variance >= 0 ? "text-emerald-600" : "text-red-600"
+                        s.variance >= 0 ? "text-success" : "text-red-600"
                       )}>
                         {s.variance >= 0 ? "+" : ""}{formatNpr(s.variance)}
                       </TableCell>
                       <TableCell className={cn(
                         "text-right font-mono text-xs",
-                        s.variancePercent >= 0 ? "text-emerald-600" : "text-red-600"
+                        s.variancePercent >= 0 ? "text-success" : "text-red-600"
                       )}>
                         {s.variancePercent >= 0 ? "+" : ""}{s.variancePercent.toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-center">
                         {s.variance > 0 ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px]">
+                          <Badge className="bg-success/15 text-success dark:bg-success dark:text-success/80 text-[10px]">
                             <TrendingUp className="h-3 w-3 mr-1" /> Under
                           </Badge>
                         ) : s.variance < 0 ? (
@@ -182,7 +182,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                       </span>
                       <span className={cn(
                         "text-xs font-mono font-semibold",
-                        section.variance >= 0 ? "text-emerald-600" : "text-red-600"
+                        section.variance >= 0 ? "text-success" : "text-red-600"
                       )}>
                         {section.variance >= 0 ? "+" : ""}{formatNpr(section.variance)}
                       </span>
@@ -216,7 +216,7 @@ export default function BudgetVariancePage({ params }: { params: Promise<{ id: s
                                 <TableCell className="text-right text-xs font-mono text-amber-600">{formatNpr(item.actualAmount)}</TableCell>
                                 <TableCell className={cn(
                                   "text-right text-xs font-mono font-semibold",
-                                  item.variance >= 0 ? "text-emerald-600" : "text-red-600"
+                                  item.variance >= 0 ? "text-success" : "text-red-600"
                                 )}>
                                   {item.variance >= 0 ? "+" : ""}{formatNpr(item.variance)}
                                 </TableCell>

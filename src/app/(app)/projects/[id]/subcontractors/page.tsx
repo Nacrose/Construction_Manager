@@ -185,7 +185,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
           className={cn(
             "inline-block rounded px-1.5 py-0.5 text-[9px] font-medium uppercase font-mono",
             t.executionStatus === "done"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+              ? "bg-success/15 text-success dark:bg-success dark:text-success/80"
               : t.executionStatus === "partially_completed"
               ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
               : t.executionStatus === "uncompleted"
@@ -379,7 +379,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                     <div className="space-y-4">
                       <div className="grid grid-cols-4 gap-3">
                         <div className="rounded-md border p-3 text-center bg-muted/20">
-                          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">{worksData.stats.totalTasks}</div>
+                          <div className="text-xl font-bold font-mono text-success dark:text-success/80">{worksData.stats.totalTasks}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wide font-mono">Total Tasks</div>
                         </div>
                         <div className="rounded-md border p-3 text-center bg-muted/20">
@@ -420,7 +420,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
                                   className={cn(
                                     "rounded px-1 text-[8px] uppercase",
                                     rfi.status === "approved"
-                                      ? "bg-emerald-100 text-emerald-700"
+                                      ? "bg-success/15 text-success"
                                       : rfi.status === "submitted"
                                       ? "bg-amber-100 text-amber-700"
                                       : "bg-muted text-muted-foreground"

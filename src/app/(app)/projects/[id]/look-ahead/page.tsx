@@ -358,7 +358,7 @@ function ConflictsTab({ projectId, startDate, endDate }: { projectId: string; st
       {stats && (
         <div className="grid grid-cols-3 gap-2">
           <Card className="p-3 text-center">
-            <div className={cn("text-lg font-bold", stats.total > 0 ? "text-red-600" : "text-emerald-600")}>
+            <div className={cn("text-lg font-bold", stats.total > 0 ? "text-red-600" : "text-success")}>
               {stats.total}
             </div>
             <div className="text-[9px] text-muted-foreground uppercase">Total Conflicts</div>
@@ -377,7 +377,7 @@ function ConflictsTab({ projectId, startDate, endDate }: { projectId: string; st
       {/* Conflicts list */}
       {conflicts.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
-          <Users className="mx-auto h-10 w-10 mb-2 text-emerald-500/40" />
+          <Users className="mx-auto h-10 w-10 mb-2 text-success/40" />
           No resource conflicts in this period.
         </CardContent></Card>
       ) : (

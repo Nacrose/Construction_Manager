@@ -140,7 +140,7 @@ export function MaterialsInventoryTab({
                 className={cn(
                   "text-[9px] px-1 py-0 font-mono capitalize",
                   type === "labor"
-                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                    ? "bg-success/10 text-success border-success/30"
                     : "bg-amber-500/10 text-amber-600 border-amber-500/30"
                 )}
               >
@@ -216,7 +216,7 @@ export function MaterialsInventoryTab({
 
         let statusText = "Healthy";
         let statusColor =
-          "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+          "bg-success/15 text-success dark:bg-success dark:text-success/80";
         let progressVal = Math.min(
           100,
           (m.currentStock / (m.reorderLevel || m.minStock || 1)) * 100
@@ -271,9 +271,9 @@ export function MaterialsInventoryTab({
               <DropdownMenuContent align="end" className="w-44 p-1.5 rounded-xl shadow-lg">
                 <DropdownMenuItem
                   onClick={() => openQuickTxn(row.original.id, "receive")}
-                  className="cursor-pointer gap-2 text-xs font-medium py-1.5 text-emerald-700 dark:text-emerald-300"
+                  className="cursor-pointer gap-2 text-xs font-medium py-1.5 text-success dark:text-success/80"
                 >
-                  <Plus className="h-4 w-4 text-emerald-600" />
+                  <Plus className="h-4 w-4 text-success" />
                   <span>Receive Stock</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem

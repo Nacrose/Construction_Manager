@@ -254,7 +254,7 @@ export function OnboardingModal() {
           {step === "sync" && (
             <div className="space-y-3">
               <div className="flex items-center gap-3 rounded-lg border p-3">
-                <RefreshCw className="h-5 w-5 text-emerald-500 shrink-0" />
+                <RefreshCw className="h-5 w-5 text-success/90 shrink-0" />
                 <div className="flex-1 text-sm">
                   <p className="font-medium">Changes auto-sync when you reconnect</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -265,19 +265,19 @@ export function OnboardingModal() {
 
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success/90" />
                   <span>Top banner shows pending count</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success/90" />
                   <span>Auto-replays on <code className="text-xs bg-muted px-1 rounded">online</code> event</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success/90" />
                   <span>Manual sync button on Sync Status page</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success/90" />
                   <span>Conflicts: last-write-wins</span>
                 </div>
               </div>
@@ -294,8 +294,8 @@ export function OnboardingModal() {
 
           {step === "done" && (
             <div className="space-y-4 text-center py-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 ring-2 ring-emerald-500/30">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10 ring-2 ring-success/30">
+                <CheckCircle2 className="h-8 w-8 text-success/90" />
               </div>
               <div>
                 <p className="font-medium">You&rsquo;re ready to work on site.</p>

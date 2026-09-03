@@ -38,8 +38,8 @@ export function BoqTabHeader({
   });
 
   return (
-    <header className="no-print sticky top-0 z-30 border-b border-border/75 bg-background/92 pb-2 pt-0 backdrop-blur-md">
-      <div className="flex min-h-10 items-center gap-2">
+    <header className="no-print sticky top-0 z-30 border-b border-border/75 bg-background/92 pb-1 pt-0 backdrop-blur-md">
+      <div className="flex min-h-9 items-center gap-2">
         <div className="min-w-0 mr-1">
           <h1 className="text-sm font-semibold text-foreground">BOQ & rates</h1>
           <p className="text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">Commercial register</p>

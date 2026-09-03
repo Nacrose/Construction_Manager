@@ -39,7 +39,7 @@ export function PlantsManagementTab({
                   className={cn(
                     "text-[10px] capitalize",
                     p.status === "active"
-                      ? "bg-emerald-100 text-emerald-800"
+                      ? "bg-success/15 text-success"
                       : "bg-amber-100 text-amber-800"
                   )}
                 >

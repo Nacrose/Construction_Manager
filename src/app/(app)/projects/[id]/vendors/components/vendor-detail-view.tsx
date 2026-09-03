@@ -120,7 +120,7 @@ export function VendorDetailFullPage({
             className={cn(
               "capitalize text-[10px]",
               partner.status === "active"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                ? "bg-success/15 text-success dark:bg-success dark:text-success/80"
                 : "bg-muted text-muted-foreground"
             )}
           >
@@ -218,7 +218,7 @@ export function VendorDetailFullPage({
                             </div>
                           </td>
                           <td className="p-3 text-muted-foreground">{s.unit}</td>
-                          <td className="p-3 text-right font-medium text-emerald-600">
+                          <td className="p-3 text-right font-medium text-success">
                             NPR {s.exFactoryRate.toLocaleString()}
                           </td>
                           <td className="p-3 text-right text-muted-foreground">
@@ -479,7 +479,7 @@ export function VendorDetailFullPage({
                       </div>
                       <div className="flex justify-between border-t pt-2 text-sm font-bold text-foreground">
                         <span>Delivered Total:</span>
-                        <span className="text-emerald-600">
+                        <span className="text-success">
                           NPR {calcDeliveredCost.toLocaleString()}
                         </span>
                       </div>

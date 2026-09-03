@@ -94,7 +94,7 @@ export function EquipmentMaintenanceTab({
       cell: ({ row }) => {
         const color =
           row.original.status === "resolved"
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            ? "bg-success/15 text-success dark:bg-success dark:text-success/80"
             : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
         return (
           <Badge
@@ -130,7 +130,7 @@ export function EquipmentMaintenanceTab({
             <Button
               size="sm"
               variant="outline"
-              className="h-6.5 px-2 text-[10.5px] font-medium border-emerald-300 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 gap-1 rounded-md"
+              className="h-6.5 px-2 text-[10.5px] font-medium border-success/40 text-success bg-success hover:bg-success/15 gap-1 rounded-md"
               onClick={() => {
                 setActiveMaintId(row.original.id);
                 setResolveOpen(true);

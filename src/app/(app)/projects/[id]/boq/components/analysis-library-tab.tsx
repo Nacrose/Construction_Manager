@@ -30,7 +30,7 @@ function MatrixPanel({ title, children, className }: { title: string; children: 
     )}>
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/60 bg-muted/60 select-none shrink-0 relative z-10">
         <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_#34d399]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_#6fcf87]" />
           <span className="text-xs font-mono font-bold tracking-wider text-primary uppercase">{title}</span>
         </div>
       </div>
@@ -449,7 +449,7 @@ export function AnalysisLibraryTab({ projectId, canWrite }: { projectId: string;
                         return s + (v?.ratePerUnit ?? 0) * i.quantity;
                       }, 0);
                       return (
-                        <td key={lib} className={`p-3 text-right ${lib === "client_estimate" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                        <td key={lib} className={`p-3 text-right ${lib === "client_estimate" ? "text-success dark:text-success/80" : "text-muted-foreground"}`}>
                           {formatNpr(total)}
                         </td>
                       );

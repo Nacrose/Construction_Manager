@@ -30,8 +30,8 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)] dark:text-foreground/80",
   submitted: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   certified: "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info",
-  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  paid: "bg-emerald-600 text-white",
+  approved: "bg-success/15 text-success dark:bg-success dark:text-success/80",
+  paid: "bg-success text-white",
 };
 
 import { AnimatedPage } from "@/components/ui/animated-page";

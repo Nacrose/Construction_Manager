@@ -94,7 +94,7 @@ export function MaterialsRequisitionsTab({
               let statusBadge = "bg-muted text-muted-foreground";
               if (req.status === "approved")
                 statusBadge =
-                  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+                  "bg-success/15 text-success dark:bg-success dark:text-success/80";
               if (req.status === "partially_ordered")
                 statusBadge = "bg-info/15 text-info dark:bg-[var(--navy-deep)] dark:text-info/80";
               if (req.status === "ordered")
@@ -160,7 +160,7 @@ export function MaterialsRequisitionsTab({
                     </div>
                     <div className="flex justify-between items-center pt-0.5">
                       <span className="text-[10px] text-muted-foreground">Quote Value</span>
-                      <span className="font-bold text-xs text-emerald-600 dark:text-emerald-400 font-mono">
+                      <span className="font-bold text-xs text-success dark:text-success/80 font-mono">
                         NPR {totalAmount.toLocaleString()}
                       </span>
                     </div>

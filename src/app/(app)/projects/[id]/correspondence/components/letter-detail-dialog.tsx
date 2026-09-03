@@ -84,7 +84,7 @@ export function LetterDetailDialog({ letterId, projectId, onClose, onUpdated }: 
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {letter?.direction === "incoming" ? <ArrowDownLeft className="h-4 w-4 text-info" /> : <ArrowUpRight className="h-4 w-4 text-emerald-600" />}
+            {letter?.direction === "incoming" ? <ArrowDownLeft className="h-4 w-4 text-info" /> : <ArrowUpRight className="h-4 w-4 text-success" />}
             {letter?.ourRef ?? "Loading..."}
           </DialogTitle>
           {letter && <DialogDescription>{letter.subject}</DialogDescription>}

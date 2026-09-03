@@ -239,7 +239,7 @@ export function LeavesTab({
                     })
                   }
                   disabled={approveMut.isPending}
-                  className="h-6 text-[10px] text-emerald-600 border-emerald-500/30 gap-1 bg-emerald-50 px-2 hover:bg-emerald-100 font-bold"
+                  className="h-6 text-[10px] text-success border-success/30 gap-1 bg-success/10 px-2 hover:bg-success/15 font-bold"
                 >
                   <CheckCircle2 className="h-3 w-3" /> Approve
                 </Button>
@@ -327,7 +327,7 @@ export function LeavesTab({
             ⏳ Pending: {pendingCount}
           </span>
           <span className="text-muted-foreground">│</span>
-          <span className="text-emerald-600 font-semibold">
+          <span className="text-success font-semibold">
             ✓ Approved: {approvedCount}
           </span>
           {rejectedCount > 0 && (
@@ -454,7 +454,7 @@ export function LeavesTab({
               type="submit"
               size="sm"
               disabled={createMut.isPending}
-              className="h-9 px-5 text-xs font-mono bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl"
+              className="h-9 px-5 text-xs font-mono bg-success hover:bg-success text-white font-semibold rounded-xl"
             >
               {createMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
               Submit Leave Request

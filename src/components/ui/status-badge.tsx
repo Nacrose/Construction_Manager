@@ -75,13 +75,13 @@ const statusMap: Record<string, StatusConfig> = {
   approved: {
     label: "Approved",
     labelNp: "स्वीकृत",
-    className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    className: "bg-success/10 text-success/80 border-success/30",
     icon: CheckCircle2,
   },
   active: {
     label: "Active",
     labelNp: "सक्रिय",
-    className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    className: "bg-success/10 text-success/80 border-success/30",
     icon: PlayCircle,
   },
   in_progress: {
@@ -123,7 +123,7 @@ const statusMap: Record<string, StatusConfig> = {
   completed: {
     label: "Completed",
     labelNp: "सम्पन्न",
-    className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    className: "bg-success/10 text-success/80 border-success/30",
     icon: CheckCircle2,
   },
   overdue: {

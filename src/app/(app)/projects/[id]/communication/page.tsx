@@ -20,7 +20,7 @@ const CHANNEL_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 const CHANNEL_COLORS: Record<string, string> = {
-  public: "text-info", group: "text-purple-600", personal: "text-muted-foreground", project_order: "text-amber-600", org_order: "text-emerald-600",
+  public: "text-info", group: "text-purple-600", personal: "text-muted-foreground", project_order: "text-amber-600", org_order: "text-success",
 };
 
 export default function CommunicationPage({ params }: { params: Promise<{ id: string }> }) {

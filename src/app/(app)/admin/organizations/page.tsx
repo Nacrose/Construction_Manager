@@ -79,7 +79,7 @@ export default function AdminOrganizations() {
                 <div>
                   <DialogTitle className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
                     Create Contractor Organization
-                    <span className="text-[10px] font-mono font-normal text-[var(--primary)] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span className="text-[10px] font-mono font-normal text-[var(--primary)] bg-success/10 px-2 py-0.5 rounded border border-success/20">
                       नयाँ कम्पनी दर्ता
                     </span>
                   </DialogTitle>
@@ -123,7 +123,7 @@ export default function AdminOrganizations() {
                       {o.orgScale === "single_project_jv" ? "Single Dedicated Project" : "Multi-Project Firm"}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <span className="text-[var(--primary)] font-mono text-[11px] bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span className="text-[var(--primary)] font-mono text-[11px] bg-success/10 px-2 py-0.5 rounded border border-success/20">
                         {o.financeLocation === "centralized"
                           ? "HQ Imprest + Bulk Central"
                           : o.financeLocation === "site_autonomous"
@@ -248,7 +248,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g. Anturam Construction Pvt. Ltd."
-              className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-medium focus:border-emerald-500"
+              className="h-9 text-xs bg-card border-[var(--border)] text-foreground font-medium focus:border-success"
               autoFocus
             />
           </div>
@@ -256,7 +256,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
           <div className="grid grid-cols-2 gap-2.5">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground/90">Workspace Domain *</Label>
-              <div className="flex items-center rounded-md border border-[var(--border)] bg-card px-2.5 h-9 focus-within:border-emerald-500">
+              <div className="flex items-center rounded-md border border-[var(--border)] bg-card px-2.5 h-9 focus-within:border-success">
                 <span className="text-muted-foreground font-mono text-xs mr-0.5">@</span>
                 <input
                   value={domain}
@@ -344,7 +344,7 @@ function CreateOrgForm({ mut }: { mut: ReturnType<typeof trpc.admin.createOrgani
               adminPassword: adminPassword,
             })
           }
-          className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-6 h-9"
+          className="bg-success hover:bg-success/60 text-black font-bold text-xs px-6 h-9"
         >
           {mut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Create Organization &amp; Admin
         </Button>
@@ -402,7 +402,7 @@ function EditOrgForm({
               status,
             })
           }
-          className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-6 h-9"
+          className="bg-success hover:bg-success/60 text-black font-bold text-xs px-6 h-9"
         >
           {mut.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />} Save Changes
         </Button>

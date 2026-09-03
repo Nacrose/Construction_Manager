@@ -15,7 +15,7 @@ const CATEGORIES = [
   { key: "material", label: "Material", color: "bg-amber-500" },
   { key: "labor", label: "Labor", color: "bg-info/70" },
   { key: "equipment", label: "Equipment", color: "bg-purple-500" },
-  { key: "subcontractor", label: "Subcontractor", color: "bg-emerald-500" },
+  { key: "subcontractor", label: "Subcontractor", color: "bg-success" },
   { key: "overhead", label: "Overhead", color: "bg-muted/600" },
 ];
 
@@ -56,9 +56,9 @@ export function CostVsBudget({ projectId }: Props) {
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Actual</div>
             <div className="text-lg font-bold text-info">{formatNpr(data.totalActual)}</div>
           </div>
-          <div className={cn("rounded-lg border p-3", variancePositive ? "border-emerald-200 bg-emerald-50/30" : "border-red-200 bg-red-50/30")}>
+          <div className={cn("rounded-lg border p-3", variancePositive ? "border-success/30 bg-success/30" : "border-red-200 bg-red-50/30")}>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Variance</div>
-            <div className={cn("text-lg font-bold flex items-center gap-1", variancePositive ? "text-emerald-600" : "text-red-600")}>
+            <div className={cn("text-lg font-bold flex items-center gap-1", variancePositive ? "text-success" : "text-red-600")}>
               {variancePositive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
               {data.variancePct}%
             </div>

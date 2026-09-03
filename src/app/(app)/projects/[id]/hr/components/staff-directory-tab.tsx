@@ -104,7 +104,7 @@ export function StaffDirectoryTab({
         <Badge
           variant="secondary"
           className={cn("text-[9px] px-1.5 py-0 capitalize", {
-            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":
+            "bg-success/15 text-success dark:bg-success dark:text-success/80":
               worker.category === "skilled",
             "bg-muted text-foreground/80 dark:bg-[var(--navy-mid)]": worker.category === "unskilled",
             "bg-amber-100 text-amber-800 dark:bg-amber-950": worker.category === "supervisor",
@@ -315,7 +315,7 @@ export function StaffDirectoryTab({
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground font-semibold">Total: {staffList.length}</span>
           <span className="text-muted-foreground/40">│</span>
-          <span className="text-emerald-600 dark:text-emerald-400">Skilled: {skilledCount}</span>
+          <span className="text-success dark:text-success/80">Skilled: {skilledCount}</span>
           <span className="text-muted-foreground/40">│</span>
           <span className="text-muted-foreground dark:text-muted-foreground/80">Unskilled: {unskilledCount}</span>
           <span className="text-muted-foreground/40">│</span>
