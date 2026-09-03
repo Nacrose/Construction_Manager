@@ -17,7 +17,7 @@
  *     flag and allowance math
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -72,6 +72,8 @@ function reqItem(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // capabilityGuard resolves org policy on every gated mutation (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── create ─────────────────────────────────────────────────────────────────
@@ -579,5 +581,37 @@ describe("requisition.checkBudgetVariance", () => {
     expect(row.remainingAllowance).toBe(50);
     expect(row.isOverBudget).toBe(true);
     expect(row.variancePercent).toBe(25);
+  });
+});
+
+// ─── Phase C capability gates (ADR-0004) ────────────────────────────────────
+describe("requisition capability gates", () => {
+  it("create FORBIDDENs when the org has no procurement chain (owner_led)", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture({ operatingMethod: "owner_led" }));
+    const caller = createCaller(requisitionRouter, USER);
+    await expectTRPCError(
+      caller.create({ projectId: "p-1", items: [] }),
+      "FORBIDDEN"
+    );
+  });
+
+  it("create still requires a procurement chain when an active version narrows it", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { procurementChain: "none" } })
+    );
+    const caller = createCaller(requisitionRouter, USER);
+    await expectTRPCError(caller.create({ projectId: "p-1", items: [] }), "FORBIDDEN");
+  });
+
+  it("quote-only chains may approve PRs but may not generate POs", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { procurementChain: "quotes" } })
+    );
+    const caller = createCaller(requisitionRouter, USER);
+    // generatePOs requires the FULL chain — PO issuance is beyond "quotes".
+    await expectTRPCError(
+      caller.generatePOs({ projectId: "p-1", items: [{ requisitionItemId: "ri-1", quantityToOrder: 1 }] }),
+      "FORBIDDEN"
+    );
   });
 });

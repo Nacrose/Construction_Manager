@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure } from "@/server/trpc";
+import { protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertOrgBankAccount } from "@/lib/authz";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -406,6 +406,7 @@ export const materialTransactionProcedures = {
     }),
 
   createGateEntry: protectedProcedure
+    .use(capabilityGuard({ gateRegister: true })) // ADR-0004: gate register is a capability
     .input(GateEntrySchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
@@ -691,6 +692,7 @@ export const materialTransactionProcedures = {
    * 4. If paid now: debits chosen company bank/cash account & logs voucher.
    */
   logDirectDelivery: protectedProcedure
+    .use(capabilityGuard({ directPurchase: true })) // ADR-0004: direct purchase is a capability
     .input(
       z.object({
         projectId: z.string(),

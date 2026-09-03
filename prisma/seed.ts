@@ -1,4 +1,5 @@
 import { createSeedDb, enableSeedRlsBypass } from "./seed-rls";
+import { methodDefaults } from "../src/lib/capabilities";
 import bcrypt from "bcryptjs";
 
 const db = createSeedDb();
@@ -47,15 +48,7 @@ async function seedSuperAdmin() {
  * are not merely hidden. New transactions bind this version; history is
  * never reinterpreted under later settings.
  */
-const OWNER_LED_CAPABILITIES = {
-  procurementChain: "none",
-  inventoryControl: "none",
-  gateRegister: false,
-  financeReview: "owner_recorded",
-  directPurchase: true,
-  directExpense: true,
-  workforcePlanning: true,
-};
+const OWNER_LED_CAPABILITIES = methodDefaults("owner_led");
 
 async function seedOwnerLedOrg() {
   const orgCode = process.env.DEMO_ORG_CODE?.trim();

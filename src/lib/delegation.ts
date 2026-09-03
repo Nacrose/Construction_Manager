@@ -1,16 +1,23 @@
 /**
- * Delegation Engine — enforces per-org financial authority rules.
- * Based on the organization's operatingModel.
+ * Delegation Engine — enforces per-org financial SPENDING LIMITS.
+ *
+ * Post Phase C (ADR-0004) this module owns exactly ONE of the three
+ * authority axes: delegation `maxAmount` gates *how much*. The other two
+ * live elsewhere and must never be re-merged here:
+ *   - Capabilities gate *what the org can do*  → src/lib/capabilities.ts
+ *   - Roles gate *who*                          → src/lib/authz.ts + proc.* tiers
+ *
+ * The legacy four-value workflow vocabulary (seeded role lists,
+ * model-derived HQ-only branches) was removed with its Organization column
+ * and DelegationRule.allowedRoles in the policy phase. Rules are now
+ * org-admin-configured spending limits; the
+ * one org-profile control that survives is the imprest petty-cash limit,
+ * keyed on `financeLocation` (a setup-wizard field, not the deprecated
+ * operating model).
  */
 import { db } from "@/lib/db";
 import { TRPCError } from "@trpc/server";
 import type { AuthUser } from "@/lib/auth";
-
-export type OperatingModel =
-  | "hq_centralized_imprest"
-  | "hybrid_daybook_hq_procure"
-  | "decentralized_site_and_hq"
-  | "single_project_jv";
 
 export type DelegationAction =
   | "create_payment"
@@ -29,131 +36,16 @@ export type DelegationAction =
   | "record_jv_payout"
   | "log_direct_material_purchase"
   // H-16: payroll moves money like any other path — it previously had NO
-  // DelegationAction at all, so org maxAmount/role rules never applied.
+  // DelegationAction at all, so org maxAmount rules never applied.
   | "create_payroll_run"
   | "disburse_payroll";
 
-const HQ_ONLY_ACTIONS: DelegationAction[] = [
-  "create_payment", "bulk_create_payments", "create_vendor_bill",
-  "record_vendor_payment", "create_subcontractor_bill", "mark_subcontractor_paid",
-  "create_purchase_order", "settle_multi_bill", "create_bank_account",
-  "create_head_office_expense", "release_retention", "record_jv_payout",
-  "disburse_payroll",
-];
-
-export const DEFAULT_DELEGATION_RULES: Record<OperatingModel, Array<{
-  action: string; maxAmount: number | null; allowedRoles: string[]; siteScopedOnly: boolean;
-}>> = {
-  hq_centralized_imprest: [
-    { action: "create_site_expense", maxAmount: 25000, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: true },
-    { action: "approve_site_expense", maxAmount: 25000, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_payment", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "bulk_create_payments", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_vendor_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_vendor_payment", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_subcontractor_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "mark_subcontractor_paid", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_purchase_order", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "settle_multi_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_bank_account", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_head_office_expense", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "log_direct_material_purchase", maxAmount: 25000, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: true },
-    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-  ],
-  hybrid_daybook_hq_procure: [
-    { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "bulk_create_payments", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_site_expense", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "approve_site_expense", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_vendor_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_vendor_payment", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_subcontractor_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "mark_subcontractor_paid", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_purchase_order", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "settle_multi_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_bank_account", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_head_office_expense", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-  ],
-  decentralized_site_and_hq: [
-    { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "bulk_create_payments", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_site_expense", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "approve_site_expense", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_vendor_bill", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "record_vendor_payment", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_subcontractor_bill", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "mark_subcontractor_paid", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_purchase_order", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "settle_multi_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_bank_account", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_head_office_expense", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-  ],
-  single_project_jv: [
-    { action: "create_payment", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "bulk_create_payments", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_site_expense", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "approve_site_expense", maxAmount: null, allowedRoles: ["coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_vendor_bill", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "record_vendor_payment", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_subcontractor_bill", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "mark_subcontractor_paid", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_purchase_order", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "settle_multi_bill", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_bank_account", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "create_head_office_expense", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "release_retention", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "record_jv_payout", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "log_direct_material_purchase", maxAmount: null, allowedRoles: ["engineer", "coordinator", "project_manager"], siteScopedOnly: false },
-    { action: "create_payroll_run", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-    { action: "disburse_payroll", maxAmount: null, allowedRoles: ["project_manager", "coordinator"], siteScopedOnly: false },
-  ],
-};
-
-export async function getOrgConfig(orgId: string | null | undefined) {
-  if (!orgId) return null;
-  const org = await db.organization.findUnique({
-    where: { id: orgId },
-    select: { operatingModel: true, sitePettyCashLimit: true },
-  });
-  if (!org) {
-    return {
-      operatingModel: "hybrid_project_autonomous" as OperatingModel,
-      sitePettyCashLimit: 50000,
-      rules: new Map<string, { maxAmount: number | null; allowedRoles: string[]; siteScopedOnly: boolean }>(),
-    };
-  }
-
-  const rules = await db.delegationRule.findMany({
-    where: { organizationId: orgId },
-  });
-  const ruleMap = new Map<string, { maxAmount: number | null; allowedRoles: string[]; siteScopedOnly: boolean }>();
-  for (const r of rules) {
-    ruleMap.set(r.action, {
-      maxAmount: r.maxAmount,
-      allowedRoles: JSON.parse(r.allowedRoles || "[]"),
-      siteScopedOnly: r.siteScopedOnly,
-    });
-  }
-  return {
-    operatingModel: (org.operatingModel || "hybrid_project_autonomous") as OperatingModel,
-    sitePettyCashLimit: org.sitePettyCashLimit ?? 50000,
-    rules: ruleMap,
-  };
-}
-
+/**
+ * Throws when the action's amount exceeds the org's configured delegation
+ * limit for that action, or the imprest petty-cash limit for site expenses.
+ * Role/authority checks belong to the caller's procedure chain — this guard
+ * is amount-only.
+ */
 export async function assertDelegation(
   user: AuthUser,
   action: DelegationAction,
@@ -167,91 +59,44 @@ export async function assertDelegation(
     });
   }
 
-  const config = await getOrgConfig(user.organizationId);
-  if (!config) {
+  const [org, rules] = await Promise.all([
+    db.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { financeLocation: true, sitePettyCashLimit: true },
+    }),
+    db.delegationRule.findMany({
+      where: { organizationId: user.organizationId },
+      select: { action: true, maxAmount: true },
+    }),
+  ]);
+  if (!org) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Organization delegation configuration not found.",
     });
   }
 
-  const rule = config.rules.get(action);
-
-  if (rule) {
-    if (rule.allowedRoles.length > 0) {
-      const userOrgRole = user.orgRole || "";
-      // ADR-0005: user-level project roles no longer exist — delegation
-      // role checks key on the org role only. (allowedRoles itself is
-      // removed by the policy phase, ADR-0004.)
-      const hasRole =
-        rule.allowedRoles.includes(userOrgRole) ||
-        userOrgRole === "org_admin" ||
-        userOrgRole === "owner";
-      if (!hasRole) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `Your role is not authorized for "${action}" under the current operating model (${config.operatingModel}). Required: ${rule.allowedRoles.join(", ")}.`,
-        });
-      }
-    }
-    if (rule.maxAmount !== null && amount !== undefined && amount > rule.maxAmount) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `Amount NPR ${amount.toLocaleString()} exceeds the delegation limit of NPR ${rule.maxAmount.toLocaleString()} for "${action}". Please request HQ approval.`,
-      });
-    }
-  } else {
-    // No explicit rule — apply model-based defaults
-    if (config.operatingModel === "hq_centralized_imprest") {
-      if (HQ_ONLY_ACTIONS.includes(action)) {
-        const userOrgRole = user.orgRole || "";
-        const isHqRole = userOrgRole === "org_admin" || userOrgRole === "owner" ||
-          userOrgRole === "project_manager" || userOrgRole === "coordinator";
-        if (!isHqRole) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Action "${action}" requires HQ authorization under the centralized operating model. Please contact your Project Manager at Head Office.`,
-          });
-        }
-      }
-      if (action === "create_site_expense" && amount !== undefined && amount > config.sitePettyCashLimit) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `Site expense of NPR ${amount.toLocaleString()} exceeds the petty cash limit of NPR ${config.sitePettyCashLimit.toLocaleString()}. Please request HQ to process this payment.`,
-        });
-      }
-    } else if (config.operatingModel === "hybrid_daybook_hq_procure") {
-      const hqOnlyInHybrid: DelegationAction[] = [
-        "create_vendor_bill", "create_purchase_order", "settle_multi_bill",
-        "create_bank_account", "create_head_office_expense",
-      ];
-      if (hqOnlyInHybrid.includes(action)) {
-        const userOrgRole = user.orgRole || "";
-        const isHqRole = userOrgRole === "org_admin" || userOrgRole === "owner" ||
-          userOrgRole === "project_manager" || userOrgRole === "coordinator";
-        if (!isHqRole) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `Action "${action}" is reserved for HQ under the hybrid operating model.`,
-          });
-        }
-      }
-    }
-    // "decentralized_site_and_hq" — no additional restrictions
+  // Imprest petty-cash ceiling: under an imprest-only finance location a
+  // single site expense above the org's petty-cash limit needs HQ — the
+  // amount axis of the same control the schema column documents.
+  if (
+    action === "create_site_expense" &&
+    org.financeLocation === "imprest_only" &&
+    org.sitePettyCashLimit != null &&
+    amount !== undefined &&
+    amount > org.sitePettyCashLimit
+  ) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Site expense of NPR ${amount.toLocaleString()} exceeds the petty cash limit of NPR ${Number(org.sitePettyCashLimit).toLocaleString()}. Please request HQ to process this payment.`,
+    });
   }
-}
 
-export async function seedDelegationRules(orgId: string, model: OperatingModel): Promise<void> {
-  const defaults = DEFAULT_DELEGATION_RULES[model];
-  if (!defaults) return;
-  await db.delegationRule.deleteMany({ where: { organizationId: orgId } });
-  await db.delegationRule.createMany({
-    data: defaults.map(d => ({
-      organizationId: orgId,
-      action: d.action,
-      maxAmount: d.maxAmount,
-      allowedRoles: JSON.stringify(d.allowedRoles),
-      siteScopedOnly: d.siteScopedOnly,
-    })),
-  });
+  const rule = rules.find((r) => r.action === action);
+  if (rule?.maxAmount != null && amount !== undefined && amount > Number(rule.maxAmount)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Amount NPR ${amount.toLocaleString()} exceeds the delegation limit of NPR ${Number(rule.maxAmount).toLocaleString()} for "${action}". Please request HQ approval.`,
+    });
+  }
 }

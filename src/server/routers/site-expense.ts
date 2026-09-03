@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createDomainRouter, financialGuard, protectedProcedure } from "@/server/trpc";
+import { createDomainRouter, financialGuard, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { invalidateProjectCache } from "@/lib/cache";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
@@ -76,6 +76,7 @@ export const siteExpenseRouter = router({
 
   /** Create expense (auto-generate number EXP-{seq}). */
   create: proc.write
+    .use(capabilityGuard({ directExpense: true })) // ADR-0004: direct expense is a capability
     .use(financialGuard({
       action: "create_site_expense",
       dateField: "date",
@@ -166,6 +167,7 @@ export const siteExpenseRouter = router({
 
   /** Update expense fields. */
   update: protectedProcedure
+    .use(capabilityGuard({ directExpense: true }))
     .input(z.object({
       id: z.string(),
       date: z.string().optional(),
@@ -215,6 +217,7 @@ export const siteExpenseRouter = router({
 
   /** PM approves expense. */
   approve: protectedProcedure
+    .use(capabilityGuard({ directExpense: true })) // unposted work binds to the ACTIVE policy (ADR-0004 §3)
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const expense = await db.siteExpense.findUnique({

@@ -27,6 +27,13 @@ import {
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { assertDelegation, type DelegationAction } from "@/lib/delegation";
 import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  describeCapabilityShortfall,
+  type CapabilityRequirement,
+  type OperatingCapabilities,
+  type OperatingMethod,
+} from "@/lib/capabilities";
+import { resolveOrgPolicy } from "@/lib/policy-version";
 
 // ─── Context ───────────────────────────────────────────────────
 // The context is created per-request. We lazily resolve the user
@@ -295,6 +302,52 @@ export function createDomainRouter() {
       manager: projectProcedure("manager"),
     },
   };
+}
+
+/**
+ * Capability gate (ADR-0004 §2 + ADR-0006 §6) — middleware at the
+ * procedure factory, not per-router calls: a router cannot forget it.
+ *
+ * Resolves the caller's org policy (ACTIVE OrganizationPolicyVersion,
+ * else method defaults — src/lib/policy-version.ts) and asserts every
+ * declared requirement. Capabilities gate *what the org can do*; this
+ * guard never answers "who" (proc guards and roles) or "how much"
+ * (financialGuard and assertDelegation).
+ *
+ *   proc.write.use(capabilityGuard({ procurementChain: "full" }))
+ *
+ * Composition: chain AFTER a proc.* guard (auth done), BEFORE/independent
+ * of financialGuard. The resolved policy is injected into ctx so handlers
+ * — and, from Phase F, the engine context — read one authoritative snapshot.
+ * Reads of gated domains stay ungated by design: with the capability off no
+ * rows exist for the org, so lists are naturally empty; mutations are the
+ * boundary where "does not exist server-side" is enforced.
+ */
+export function capabilityGuard(requirements: CapabilityRequirement) {
+  return t.middleware(async ({ ctx, next }) => {
+    // Fail loud — statically-impossible states must never pass silently
+    // (same contract as financialGuard).
+    const user = ctx.user;
+    if (!user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Authentication required." });
+    }
+
+    const policy = await resolveOrgPolicy(user.organizationId);
+    const shortfall = describeCapabilityShortfall(policy.capabilities, requirements);
+    if (shortfall) {
+      throw new TRPCError({ code: "FORBIDDEN", message: shortfall.message });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        user,
+        operatingMethod: policy.operatingMethod as OperatingMethod,
+        operatingCapabilities: policy.capabilities as OperatingCapabilities,
+        policyVersionId: policy.policyVersionId,
+      },
+    });
+  });
 }
 
 /**

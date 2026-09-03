@@ -69,7 +69,10 @@ const BASELINES = {
   // remediation — not regression. Baselines re-pinned.
   HAND_ROLLED_AUTHZ: 458,
   HAND_ROLLED_FISCAL: 44,
-  SERVER_FLOAT_MONEY: 35,
+  // +3 (2026-09-03, Phase C): delegation.ts compares DB Decimal limits
+  // against request amounts (Number() at the DB boundary — petty-cash cap
+  // and per-action maxAmount). Deliberate, reviewed boundary coercions.
+  SERVER_FLOAT_MONEY: 38,
   /** Router float-money coercions — pinned after the Decimal hardening pass
    *  (journal-entry balance check, site-expense totals, bank-guarantee
    *  balance increments, accounting netAmount now ride Prisma.Decimal via

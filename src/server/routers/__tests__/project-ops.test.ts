@@ -23,7 +23,7 @@
  *     the row must be verified against input.projectId BEFORE deletion
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -52,6 +52,8 @@ const basePayment = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // assertDelegation/capabilityGuard resolve the caller's org (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── payment.create ─────────────────────────────────────────────────────────

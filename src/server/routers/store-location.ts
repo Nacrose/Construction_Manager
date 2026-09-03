@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
@@ -105,6 +105,7 @@ export const storeLocationRouter = router({
 
   /** Create a new store location. */
   create: protectedProcedure
+    .use(capabilityGuard({ inventoryControl: "basic" })) // ADR-0004: stores require inventory control
     .input(CreateStoreLocationSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
@@ -134,6 +135,7 @@ export const storeLocationRouter = router({
 
   /** Update a store location. */
   update: protectedProcedure
+    .use(capabilityGuard({ inventoryControl: "basic" }))
     .input(UpdateStoreLocationSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await db.storeLocation.findUnique({
@@ -171,6 +173,7 @@ export const storeLocationRouter = router({
 
   /** Inter-store stock transfer. */
   transferStock: protectedProcedure
+    .use(capabilityGuard({ inventoryControl: "basic" }))
     .input(TransferStockSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

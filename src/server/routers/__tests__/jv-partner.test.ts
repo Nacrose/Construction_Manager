@@ -11,8 +11,8 @@
  *       · no agreement → NOT_FOUND
  *       · TDS math (default 1.5%) and net = gross − TDS
  *       · bank account decremented by the NET amount
- *       · delegation: under hq_centralized_imprest an engineer is FORBIDDEN
- *         from JV payouts, a coordinator passes
+ *       · delegation: a payout above the org's maxAmount rule is
+ *         FORBIDDEN (delegation is amount-only since Phase C)
  *       · fiscal lock on the payout date blocks the disbursement
  *       · NEW GUARD: payout exceeding the outstanding commission balance
  *         is rejected (no paying unearned commission out of the org bank)
@@ -22,7 +22,7 @@
  *     verifying org ownership of the bank account
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -72,6 +72,8 @@ function certifiedClientIpcs() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // assertDelegation/capabilityGuard resolve the caller's org (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── getAgreement ───────────────────────────────────────────────────────────
@@ -250,13 +252,11 @@ describe("jvPartner.recordPayout", () => {
     expect(anyDb.jvCommissionPayout.create).toHaveBeenCalled();
   });
 
-  it("engineers are FORBIDDEN under the centralized operating model", async () => {
+  it("FORBIDDENs payouts above the org's delegation maxAmount rule", async () => {
     member("engineer");
-    anyDb.organization.findUnique.mockResolvedValue({
-      operatingModel: "hq_centralized_imprest",
-      sitePettyCashLimit: 25000,
-    });
-    anyDb.delegationRule.findMany.mockResolvedValue([]);
+    anyDb.delegationRule.findMany.mockResolvedValue([
+      { action: "record_jv_payout", maxAmount: 1000 },
+    ]);
     anyDb.companyBankAccount.findUnique.mockResolvedValue({
       id: "bank-1",
       organizationId: "org-1",

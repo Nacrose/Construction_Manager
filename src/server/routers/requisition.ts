@@ -5,7 +5,7 @@ import { z } from "zod";
 import { safeUrlSchema } from "@/lib/safe-url";
 import { TRPCError } from "@trpc/server";
 import { Prisma } from "@prisma/client";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertCanWrite, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
@@ -499,7 +499,10 @@ export const requisitionRouter = router({
     }),
 
   /** Create a purchase requisition with quotation comparisons. */
-  create: protectedProcedure.input(CreateRequisitionSchema).mutation(async ({ ctx, input }) => {
+  create: protectedProcedure
+    // ADR-0004: requisitions/quotes do not exist without a procurement chain.
+    .use(capabilityGuard({ procurementChain: "quotes" }))
+    .input(CreateRequisitionSchema).mutation(async ({ ctx, input }) => {
     await assertCanWrite(ctx.user, input.projectId);
 
     // Validate selected rates and justification
@@ -578,6 +581,7 @@ export const requisitionRouter = router({
 
   /** Approve or Reject a requisition. */
   updateStatus: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "quotes" }))
     .input(UpdateRequisitionStatusSchema)
     .mutation(async ({ ctx, input }) => {
       await assertProjectAdmin(ctx.user, input.projectId);
@@ -736,6 +740,7 @@ export const requisitionRouter = router({
 
   /** Approve a purchase requisition (alias for updateStatus with cleaner semantics). */
   approvePr: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "quotes" }))
     .input(
       z.object({
         projectId: z.string(),
@@ -778,6 +783,7 @@ export const requisitionRouter = router({
 
   /** Reject a purchase requisition with mandatory reason. */
   rejectPr: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "quotes" }))
     .input(
       z.object({
         projectId: z.string(),
@@ -921,12 +927,15 @@ export const requisitionRouter = router({
     }),
 
   /** Generate Vendor-Isolated Purchase Orders (supporting 3-way entry: Requisition-First, Material-First, Vendor-First). */
-  generatePOs: protectedProcedure.input(GeneratePOsSchema).mutation(async ({ ctx, input }) => {
+  generatePOs: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "full" })) // PO issuance = full chain
+    .input(GeneratePOsSchema).mutation(async ({ ctx, input }) => {
     return await executeGeneratePOs(ctx.user, input);
   }),
 
   /** Legacy procedure maintained for backward compatibility */
   generatePO: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "full" })) // PO issuance = full chain
     .input(z.object({ projectId: z.string(), requisitionId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

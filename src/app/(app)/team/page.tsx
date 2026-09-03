@@ -59,7 +59,7 @@ export default function TeamPage() {
   // Organization configuration state
   const [orgScale, setOrgScale] = useState<string>("multi_project");
   const [partnershipType, setPartnershipType] = useState<string>("sole");
-  const [operatingModel, setOperatingModel] = useState<string>("decentralized_site_and_hq");
+  const [operatingMethod, setOperatingMethod] = useState<string>("owner_led");
   const [pettyCashLimit, setPettyCashLimit] = useState<number>(50000);
 
   // Sync state when orgData loads
@@ -67,7 +67,7 @@ export default function TeamPage() {
     if (orgData?.org) {
       setOrgScale(orgData.org.orgScale || "multi_project");
       setPartnershipType(orgData.org.partnershipType || "sole");
-      setOperatingModel(orgData.org.operatingModel || "decentralized_site_and_hq");
+      setOperatingMethod(orgData.org.operatingMethod || "owner_led");
       setPettyCashLimit(orgData.org.sitePettyCashLimit ?? 50000);
     }
   }, [orgData]);
@@ -313,7 +313,7 @@ export default function TeamPage() {
                   updateOrgMut.mutate({
                     orgScale: orgScale as any,
                     partnershipType: partnershipType as any,
-                    operatingModel: operatingModel as any,
+                    operatingMethod: operatingMethod as any,
                     sitePettyCashLimit: pettyCashLimit,
                   })
                 }
@@ -404,47 +404,47 @@ export default function TeamPage() {
                 </div>
               </div>
 
-              {/* 3. Financial & Procurement Authority */}
+              {/* 3. Operating Method (ADR-0004 — workflow template, not a size class) */}
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-foreground/90">Operating Delegation Model *</Label>
+                <Label className="text-xs font-semibold text-foreground/90">Operating Method *</Label>
                 <div className="space-y-2">
                   <div
-                    onClick={() => setOperatingModel("decentralized_site_and_hq")}
+                    onClick={() => setOperatingMethod("owner_led")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
-                      operatingModel === "decentralized_site_and_hq"
+                      operatingMethod === "owner_led"
                         ? "border-emerald-500 bg-emerald-500/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-foreground">⚡ Autonomous Site &amp; HQ</div>
-                    <p className="text-[11px] text-muted-foreground mt-1">Site managers create bills and approve expenses up to petty cash limit.</p>
+                    <div className="font-semibold text-xs text-foreground">🔧 Owner-Led</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Direct purchases &amp; expenses only — no requisitions, POs, quotes or stores exist server-side.</p>
                   </div>
 
                   <div
-                    onClick={() => setOperatingModel("hybrid_daybook_hq_procure")}
+                    onClick={() => setOperatingMethod("crew_led")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
-                      operatingModel === "hybrid_daybook_hq_procure"
+                      operatingMethod === "crew_led"
                         ? "border-emerald-500 bg-emerald-500/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-foreground">🔄 Hybrid Day Book + HQ Procure</div>
-                    <p className="text-[11px] text-muted-foreground mt-1">Daily expenses at site; major procurement centrally reviewed at HQ.</p>
+                    <div className="font-semibold text-xs text-foreground">👥 Crew-Led</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Quote comparisons and basic stock tracking; POs and gate register stay off.</p>
                   </div>
 
                   <div
-                    onClick={() => setOperatingModel("hq_centralized_imprest")}
+                    onClick={() => setOperatingMethod("delegated")}
                     className={cn(
                       "p-3 rounded-xl border cursor-pointer transition-all",
-                      operatingModel === "hq_centralized_imprest"
+                      operatingMethod === "delegated"
                         ? "border-emerald-500 bg-emerald-500/10 text-foreground"
                         : "border-[var(--border)] bg-card text-muted-foreground hover:border-[var(--primary)]"
                     )}
                   >
-                    <div className="font-semibold text-xs text-foreground">🏛️ HQ Centralized Imprest</div>
-                    <p className="text-[11px] text-muted-foreground mt-1">Strict petty cash advance system with HQ accounting control.</p>
+                    <div className="font-semibold text-xs text-foreground">🏢 Delegated</div>
+                    <p className="text-[11px] text-muted-foreground mt-1">Full procurement chain, controlled stores, gate register and delegated finance review.</p>
                   </div>
                 </div>
               </div>

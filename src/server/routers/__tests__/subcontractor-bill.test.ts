@@ -10,7 +10,7 @@
  *     payment JE posted under its OWN source (subcontractor_payment)
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -31,6 +31,8 @@ function member(role: string | null) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // assertDelegation/capabilityGuard resolve the caller's org (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 const createInput = {

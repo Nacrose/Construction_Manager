@@ -17,7 +17,7 @@
  *     overhead account, atomic decrement in the same transaction
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -36,6 +36,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   // most finance procedures re-fetch the caller's org membership
   anyDb.user.findUniqueOrThrow.mockResolvedValue({ organizationId: "org-1" });
+  // assertDelegation resolves the caller's org for money actions (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── orgBankAccounts ────────────────────────────────────────────────────────

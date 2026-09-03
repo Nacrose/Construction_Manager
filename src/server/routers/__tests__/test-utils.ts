@@ -21,6 +21,43 @@
  */
 import { vi, expect } from "vitest";
 import type { AuthUser } from "@/lib/auth";
+import { METHOD_CAPABILITY_DEFAULTS, type OperatingCapabilities } from "@/lib/capabilities";
+
+/**
+ * Org row satisfying capabilityGuard's resolveOrgPolicy. Defaults to the
+ * delegated method (all capabilities on) so un-gated behavior is preserved;
+ * pass a method or partial capability overrides to exercise the gate.
+ *
+ * - Without `capabilities`: resolves through method defaults (no active
+ *   version row) — the pre-bootstrap shape.
+ * - With `capabilities`: an ACTIVE OrganizationPolicyVersion snapshot is
+ *   returned with the overrides merged over the delegated defaults.
+ */
+export function orgPolicyFixture(opts?: {
+  operatingMethod?: "owner_led" | "crew_led" | "delegated";
+  capabilities?: Partial<OperatingCapabilities>;
+}) {
+  const method = opts?.operatingMethod ?? "delegated";
+  if (opts?.capabilities) {
+    return {
+      operatingMethod: method,
+      activePolicyVersionId: "pv-1",
+      activePolicyVersion: {
+        version: 1,
+        operatingMethod: method,
+        capabilities: { ...METHOD_CAPABILITY_DEFAULTS.delegated, ...opts.capabilities },
+      },
+    };
+  }
+  return {
+    operatingMethod: method,
+    activePolicyVersionId: null,
+    activePolicyVersion: null,
+    // assertDelegation fields — centralized finance, default petty-cash cap.
+    financeLocation: "centralized",
+    sitePettyCashLimit: 50000,
+  };
+}
 
 type AnyFn = (...args: any[]) => any;
 

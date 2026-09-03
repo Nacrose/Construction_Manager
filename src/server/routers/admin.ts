@@ -16,6 +16,8 @@ import { audit } from "@/lib/audit";
 import { hashPassword, setImpersonation, sanitizeAuthUser, type AuthUser } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import { passwordSchema } from "@/lib/password-policy";
+import { capabilityOverridesSchema } from "@/lib/capabilities";
+import { activatePolicyVersion, ensureActivePolicyVersion, resolveOrgPolicy } from "@/lib/policy-version";
 
 
 /** Build impersonation audit metadata for the current admin session. */
@@ -90,6 +92,7 @@ export const adminRouter = router({
         orgScale: z.enum(["single_project_jv", "multi_project"]).default("multi_project"),
         partnershipType: z.enum(["sole", "lead_partner_jv", "joint_jv"]).default("sole"),
         financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).default("centralized"),
+        operatingMethod: z.enum(["owner_led", "crew_led", "delegated"]).default("owner_led"),
         // Optional initial org-admin account
         adminName: z.string().optional(),
         adminEmail: z.string().min(3).optional(),
@@ -106,12 +109,15 @@ export const adminRouter = router({
           orgScale: input.orgScale,
           partnershipType: input.partnershipType,
           financeLocation: input.financeLocation,
+          operatingMethod: input.operatingMethod,
         },
       });
 
-      // Seed default delegation rules for the new org
-      const { seedDelegationRules } = await import("@/lib/delegation");
-      await seedDelegationRules(org.id, "decentralized_site_and_hq");
+      // Active policy snapshot v1 — every org MUST have one (ADR-0004).
+      await ensureActivePolicyVersion(org.id, {
+        activatedById: ctx.user.id,
+        notes: "Initial policy — org created by platform admin",
+      });
 
       let adminUser: { id: string; email: string } | null = null;
       if (input.adminEmail && input.adminName && input.adminPassword) {
@@ -471,48 +477,49 @@ export const adminRouter = router({
       return { user: { id: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin, orgRole: user.orgRole } };
     }),
 
-  // ── Operating Model Configuration ────────────────────────────
+  // ── Operating Policy Configuration (ADR-0004) ────────────────────────────
 
-  /** Set the operating model for an org + seed delegation rules. */
-  setOperatingModel: superAdminProcedure
+  /**
+   * Activate a new operating-method policy version for an org (ADR-0004).
+   * Forward-only: creates version N+1, supersedes the previous snapshot;
+   * posted history bound to older versions is never reinterpreted.
+   */
+  setOrgOperatingMethod: superAdminProcedure
     .input(z.object({
       organizationId: z.string(),
-      operatingModel: z.enum(["hq_centralized_imprest", "hybrid_daybook_hq_procure", "decentralized_site_and_hq", "single_project_jv"]),
-      sitePettyCashLimit: z.number().min(0).optional(),
+      operatingMethod: z.enum(["owner_led", "crew_led", "delegated"]),
+      capabilities: capabilityOverridesSchema.optional(),
+      notes: z.string().max(500).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const org = await db.organization.update({
-        where: { id: input.organizationId },
-        data: {
-          operatingModel: input.operatingModel,
-          ...(input.sitePettyCashLimit !== undefined ? { sitePettyCashLimit: input.sitePettyCashLimit } : {}),
-        },
+      const version = await activatePolicyVersion({
+        organizationId: input.organizationId,
+        operatingMethod: input.operatingMethod,
+        capabilities: input.capabilities,
+        notes: input.notes ?? null,
+        activatedById: ctx.user.id,
       });
-
-      // Seed delegation rules for the new operating model
-      const { seedDelegationRules } = await import("@/lib/delegation");
-      await seedDelegationRules(input.organizationId, input.operatingModel as any);
 
       await audit({
         userId: ctx.user.id,
-        action: "admin.org.set_operating_model",
+        action: "admin.org.set_operating_method",
         entityType: "organization",
         entityId: input.organizationId,
-        metadata: { operatingModel: input.operatingModel, sitePettyCashLimit: input.sitePettyCashLimit },
+        metadata: {
+          operatingMethod: input.operatingMethod,
+          capabilities: input.capabilities ?? null,
+          policyVersion: version.version,
+        },
       });
 
-      return { org };
+      return { policyVersion: version };
     }),
 
-  /** Get delegation rules for an org. */
+  /** Get delegation rules (spending limits) + resolved policy for an org. */
   getDelegationRules: superAdminProcedure
     .input(z.object({ organizationId: z.string() }))
     .query(async ({ input }) => {
-      const org = await db.organization.findUnique({
-        where: { id: input.organizationId },
-        select: { operatingModel: true, sitePettyCashLimit: true },
-      });
-      if (!org) throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
+      const policy = await resolveOrgPolicy(input.organizationId);
 
       const rules = await db.delegationRule.findMany({
         where: { organizationId: input.organizationId },
@@ -521,25 +528,22 @@ export const adminRouter = router({
        });
 
       return {
-        operatingModel: org.operatingModel,
-        sitePettyCashLimit: org.sitePettyCashLimit,
-        rules: rules.map(r => ({
+        operatingMethod: policy.operatingMethod,
+        capabilities: policy.capabilities,
+        policyVersionId: policy.policyVersionId,
+        rules: rules.map((r) => ({
           id: r.id,
           action: r.action,
           maxAmount: r.maxAmount,
-          allowedRoles: JSON.parse(r.allowedRoles || "[]"),
-          siteScopedOnly: r.siteScopedOnly,
         })),
       };
     }),
 
-  /** Update a single delegation rule. */
+  /** Update a single delegation rule (spending limit only — ADR-0004). */
   updateDelegationRule: superAdminProcedure
     .input(z.object({
       ruleId: z.string(),
       maxAmount: z.number().nullable().optional(),
-      allowedRoles: z.array(z.string()).optional(),
-      siteScopedOnly: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { ruleId, ...data } = input;
@@ -547,8 +551,6 @@ export const adminRouter = router({
         where: { id: ruleId },
         data: {
           ...(data.maxAmount !== undefined ? { maxAmount: data.maxAmount } : {}),
-          ...(data.allowedRoles !== undefined ? { allowedRoles: JSON.stringify(data.allowedRoles) } : {}),
-          ...(data.siteScopedOnly !== undefined ? { siteScopedOnly: data.siteScopedOnly } : {}),
         },
       });
       await audit({

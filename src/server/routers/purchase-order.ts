@@ -3,7 +3,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { invalidateProjectCache } from "@/lib/cache";
 import { assertProjectMember, assertCanWrite, getProjectRole } from "@/lib/authz";
@@ -100,6 +100,7 @@ export const purchaseOrderRouter = router({
 
   /** Create purchase order. */
   create: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "full" })) // ADR-0004: POs require the full chain
     .input(CreatePurchaseOrderSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
@@ -250,6 +251,7 @@ export const purchaseOrderRouter = router({
 
   /** Update status of a Purchase Order (Admin role only for issued/received). */
   updateStatus: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "full" }))
     .input(UpdatePOStatusSchema)
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);
@@ -418,6 +420,7 @@ export const purchaseOrderRouter = router({
 
   /** Delete a draft Purchase Order. */
   delete: protectedProcedure
+    .use(capabilityGuard({ procurementChain: "full" }))
     .input(z.object({ projectId: z.string(), poId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await assertCanWrite(ctx.user, input.projectId);

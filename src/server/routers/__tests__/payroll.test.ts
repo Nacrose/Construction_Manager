@@ -14,7 +14,7 @@
  *     labor line carries the allocation's projectId
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -35,6 +35,8 @@ function member(role: string | null) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // assertDelegation/capabilityGuard resolve the caller's org (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── createPayrollRun ────────────────────────────────────────────────────────
@@ -131,6 +133,10 @@ describe("payroll.createPayrollRun", () => {
     anyDb.organization.findUnique.mockResolvedValue({
       id: ENGINEER.organizationId,
       activePolicyVersionId: "policy-1",
+      operatingMethod: "delegated", // capabilityGuard: all capabilities on
+      activePolicyVersion: null,
+      financeLocation: "centralized",
+      sitePettyCashLimit: 50000,
     });
     anyDb.payrollRun.upsert.mockResolvedValue({ id: "run-1" });
     anyDb.payrollPersonRecord.create.mockResolvedValue({ id: "rec-1" });
@@ -385,5 +391,19 @@ describe("payroll.updateStaffPayment", () => {
     const updateData = anyDb.payrollPersonRecord.update.mock.calls[0][0].data;
     expect(updateData.paidAmount).toBe(20790);
     expect(updateData.paymentStatus).toBe("paid");
+  });
+});
+
+// ─── Phase C capability gates (ADR-0004) ────────────────────────────────────
+describe("payroll capability gates", () => {
+  it("createPayrollRun FORBIDDENs when the org disables workforcePlanning", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { workforcePlanning: false } })
+    );
+    const caller = createCaller(payrollRouter, ENGINEER);
+    await expectTRPCError(
+      caller.createPayrollRun({ projectId: "p-1", month: "2081-05", records: [] } as any),
+      "FORBIDDEN"
+    );
   });
 });

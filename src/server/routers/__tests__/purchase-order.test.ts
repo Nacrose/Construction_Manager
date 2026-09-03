@@ -15,7 +15,7 @@
  *   - Only draft POs can be deleted
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -50,6 +50,8 @@ function material() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // capabilityGuard resolves org policy on every gated mutation (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── create ─────────────────────────────────────────────────────────────────
@@ -374,5 +376,28 @@ describe("purchaseOrder.delete", () => {
     const res = await caller.delete({ projectId: "p-1", poId: "po-1" });
     expect(res.ok).toBe(true);
     expect(anyDb.purchaseOrder.delete).toHaveBeenCalledWith({ where: { id: "po-1" } });
+  });
+});
+
+// ─── Phase C capability gates (ADR-0004) ────────────────────────────────────
+describe("purchaseOrder capability gates", () => {
+  it("create FORBIDDENs under a quote-only chain (PO issuance requires full)", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { procurementChain: "quotes" } })
+    );
+    const caller = createCaller(purchaseOrderRouter, ENGINEER);
+    await expectTRPCError(
+      caller.create({ projectId: "p-1", items: [{ materialId: "mat-1", quantity: 1, rate: 10 }] }),
+      "FORBIDDEN"
+    );
+  });
+
+  it("create FORBIDDENs outright under owner_led (POs do not exist server-side)", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture({ operatingMethod: "owner_led" }));
+    const caller = createCaller(purchaseOrderRouter, ENGINEER);
+    await expectTRPCError(
+      caller.create({ projectId: "p-1", items: [{ materialId: "mat-1", quantity: 1, rate: 10 }] }),
+      "FORBIDDEN"
+    );
   });
 });

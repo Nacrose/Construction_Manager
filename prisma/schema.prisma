@@ -58,18 +58,9 @@ model Organization {
   activePolicyVersion   OrganizationPolicyVersion? @relation("ActivePolicyVersion", fields: [activePolicyVersionId], references: [id], onDelete: SetNull)
   activePolicyVersionId String?                    @unique // one active version per org
 
-  // DEPRECATED (ADR-0004): legacy four-value workflow vocabulary.
-  // Kept only until the policy phase (C) removes it; do not read in
-  // new code — use resolveCapabilities(org) instead.
-  operatingModel String @default("decentralized_site_and_hq")
-  // "hq_centralized_imprest"   — HQ does all finance/procurement; site logs petty cash only
-  // "hybrid_daybook_hq_procure" — Site + HQ both log Day Book; HQ manages bulk procurement
-  // "decentralized_site_and_hq" — Site PMs have full local authority (default)
-  // "single_project_jv"        — JV SPV mode (Phase 3 — not yet implemented)
-
   sitePettyCashLimit Decimal @default(25000.0) @db.Decimal(15, 2)
   // Maximum single voucher amount a Site Engineer can create without HQ approval.
-  // Only enforced when financeLocation = "imprest_only".
+  // Only enforced when financeLocation = "imprest_only" (see delegation.ts).
 
   policyVersions       OrganizationPolicyVersion[]
   users                User[]
@@ -101,10 +92,12 @@ model Organization {
 model DelegationRule {
   id             String   @id @default(cuid())
   organizationId String
-  action         String // e.g. "create_payment", "create_vendor_bill", "create_po", "create_site_expense"
+  action         String // DelegationAction vocabulary — see src/lib/delegation.ts
   maxAmount      Decimal? @db.Decimal(15, 2) // null = unlimited; 0 = blocked entirely
-  allowedRoles   String   @default("[]") // JSON array: ["project_manager","coordinator","engineer"]
-  siteScopedOnly Boolean  @default(false) // true = only site-level roles (engineer), not HQ
+  // ADR-0004: the "who" axis (roles) and "what" axis (capabilities) live in
+  // authz.ts / capabilities.ts — a delegation rule is ONLY a spending limit.
+  // The legacy allowedRoles JSON and siteScopedOnly columns were dropped in
+  // the policy phase.
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -14,6 +14,8 @@ import { withOrgContext } from "@/lib/rls";
 import { buildPresetModules, ModulePreset } from "@/lib/project-modules";
 import { transitionEntityState } from "@/server/utils/state-machine";
 import { paginationInput, pageArgs, pageResult } from "@/lib/pagination";
+import { capabilityOverridesSchema } from "@/lib/capabilities";
+import { activatePolicyVersion, resolveOrgPolicy } from "@/lib/policy-version";
 
 const CreateProjectSchema = z.object({
   name: z.string().min(1).max(200),
@@ -79,15 +81,33 @@ export const projectRouter = router({
         orgScale: true,
         partnershipType: true,
         financeLocation: true,
-        operatingModel: true,
+        operatingMethod: true,
         sitePettyCashLimit: true,
+        activePolicyVersion: { select: { id: true, version: true, capabilities: true } },
       },
     });
     if (!org) throw new TRPCError({ code: "NOT_FOUND", message: "Organization not found." });
-    return { org };
+
+    // UI navigation is DERIVED from the resolved capability map — a
+    // projection, never the guard (ADR-0004 consequences).
+    const policy = await resolveOrgPolicy(ctx.user.organizationId);
+    return {
+      org: {
+        ...org,
+        capabilities: policy.capabilities,
+        policyVersionId: policy.policyVersionId,
+        policyVersionNumber: policy.policyVersionNumber,
+      },
+    };
   }),
 
-  /** Update organization scale & operating model (Org Admin only) */
+  /**
+   * Update organization profile (Org Admin only).
+   *
+   * Changing the operating method (or overriding capabilities) activates a
+   * NEW policy version — forward-only per ADR-0004 §3. Org-level policy is
+   * org-admin authority (ADR-0005).
+   */
   updateOrgProfile: orgAdminProcedure
     .input(
       z.object({
@@ -95,26 +115,35 @@ export const projectRouter = router({
         orgScale: z.enum(["single_project_jv", "multi_project"]).optional(),
         partnershipType: z.enum(["sole", "lead_partner_jv", "joint_jv"]).optional(),
         financeLocation: z.enum(["centralized", "site_autonomous", "imprest_only"]).optional(),
-        operatingModel: z.enum(["hq_centralized_imprest", "hybrid_daybook_hq_procure", "decentralized_site_and_hq", "single_project_jv"]).optional(),
+        operatingMethod: z.enum(["owner_led", "crew_led", "delegated"]).optional(),
+        capabilities: capabilityOverridesSchema.optional(),
+        policyNotes: z.string().max(500).optional(),
         sitePettyCashLimit: z.number().min(0).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const { operatingMethod, capabilities, policyNotes, ...profile } = input;
+
       const org = await db.organization.update({
         where: { id: ctx.user.organizationId! },
         data: {
-          ...(input.name ? { name: input.name } : {}),
-          ...(input.orgScale ? { orgScale: input.orgScale } : {}),
-          ...(input.partnershipType ? { partnershipType: input.partnershipType } : {}),
-          ...(input.financeLocation ? { financeLocation: input.financeLocation } : {}),
-          ...(input.operatingModel ? { operatingModel: input.operatingModel } : {}),
-          ...(input.sitePettyCashLimit !== undefined ? { sitePettyCashLimit: input.sitePettyCashLimit } : {}),
+          ...(profile.name ? { name: profile.name } : {}),
+          ...(profile.orgScale ? { orgScale: profile.orgScale } : {}),
+          ...(profile.partnershipType ? { partnershipType: profile.partnershipType } : {}),
+          ...(profile.financeLocation ? { financeLocation: profile.financeLocation } : {}),
+          ...(profile.sitePettyCashLimit !== undefined ? { sitePettyCashLimit: profile.sitePettyCashLimit } : {}),
         },
       });
 
-      if (input.operatingModel) {
-        const { seedDelegationRules } = await import("@/lib/delegation");
-        await seedDelegationRules(org.id, input.operatingModel as any);
+      // Policy change = new active version (history is never mutated).
+      if (operatingMethod || capabilities) {
+        await activatePolicyVersion({
+          organizationId: org.id,
+          operatingMethod,
+          capabilities,
+          notes: policyNotes ?? null,
+          activatedById: ctx.user.id,
+        });
       }
 
       await audit({

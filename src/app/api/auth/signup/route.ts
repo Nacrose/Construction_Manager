@@ -84,6 +84,10 @@ export async function POST(req: NextRequest) {
       },
       });
 
+      // Active policy snapshot v1 — every org MUST have one (ADR-0004).
+      const { ensureActivePolicyVersion } = await import("@/lib/policy-version");
+      await ensureActivePolicyVersion(org.id, { notes: "Initial policy — self-signup" }, tx);
+
       // Create user as org admin
       const user = await tx.user.create({
         data: {

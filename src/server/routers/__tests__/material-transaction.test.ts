@@ -22,7 +22,7 @@
  *     account FORBIDDEN
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -58,6 +58,8 @@ function material(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // capabilityGuard resolves org policy on every gated mutation (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── createTransaction: stock math ─────────────────────────────────────────
@@ -558,5 +560,30 @@ describe("materialTransaction.logDirectDelivery", () => {
       "FORBIDDEN",
     );
     expect(anyDb.payment.create).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Phase C capability gates (ADR-0004) ────────────────────────────────────
+describe("materialTransaction capability gates", () => {
+  it("logDirectDelivery FORBIDDENs when the org disables directPurchase", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { directPurchase: false } })
+    );
+    const caller = createCaller(materialTxnRouter, USER);
+    await expectTRPCError(
+      caller.logDirectDelivery({ projectId: "p-1", materialName: "Cement", quantity: 1, rate: 100, totalAmount: 100 } as any),
+      "FORBIDDEN"
+    );
+  });
+
+  it("createGateEntry FORBIDDENs when the org has no gate register", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { gateRegister: false } })
+    );
+    const caller = createCaller(materialTxnRouter, USER);
+    await expectTRPCError(
+      caller.createGateEntry({ projectId: "p-1", vehicleNo: "BA-2-PA-1234" }),
+      "FORBIDDEN"
+    );
   });
 });

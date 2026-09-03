@@ -13,7 +13,7 @@
  *   - Delegation petty-cash limit enforced on create
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -52,6 +52,8 @@ function pendingExpense(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // capabilityGuard resolves org policy on every gated mutation (Phase C).
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── create ─────────────────────────────────────────────────────────────────
@@ -90,7 +92,9 @@ describe("siteExpense.create", () => {
   it("FORBIDDENs amounts above the org petty-cash delegation limit", async () => {
     member("engineer");
     anyDb.organization.findUnique.mockResolvedValue({
-      operatingModel: "hq_centralized_imprest",
+      operatingMethod: "delegated", // capabilityGuard: all capabilities on
+      activePolicyVersion: null,
+      financeLocation: "imprest_only",
       sitePettyCashLimit: 25000,
     });
     anyDb.delegationRule.findMany.mockResolvedValue([]); // model defaults apply
@@ -297,5 +301,24 @@ describe("siteExpense.stats", () => {
     expect(res.totalApproved).toBe(1300);
     expect(res.totalAll).toBe(1800);
     expect(res.totalCount).toBe(3);
+  });
+});
+
+// ─── Phase C capability gates (ADR-0004) ────────────────────────────────────
+describe("siteExpense capability gates", () => {
+  it("create FORBIDDENs when the org disables directExpense", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { directExpense: false } })
+    );
+    const caller = createCaller(siteExpenseRouter, ENGINEER);
+    await expectTRPCError(caller.create({ projectId: "p-1", amount: 100 } as any), "FORBIDDEN");
+  });
+
+  it("approve FORBIDDENs when the org disables directExpense (unposted work binds to the active policy)", async () => {
+    anyDb.organization.findUnique.mockResolvedValue(
+      orgPolicyFixture({ capabilities: { directExpense: false } })
+    );
+    const caller = createCaller(siteExpenseRouter, ENGINEER);
+    await expectTRPCError(caller.approve({ id: "exp-1" }), "FORBIDDEN");
   });
 });

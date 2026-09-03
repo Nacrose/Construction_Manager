@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { assertOrgBankAccount } from "@/lib/authz";
 import { clientIpcWhere, subcontractorIpcWhere } from "@/server/utils/financial-scopes";
-import { DEFAULT_DELEGATION_RULES, type OperatingModel, type DelegationAction } from "@/lib/delegation";
+import {
+  METHOD_CAPABILITY_DEFAULTS,
+  OPERATING_METHODS,
+  capabilitiesSchema,
+  methodDefaults,
+  parseCapabilities,
+} from "@/lib/capabilities";
 import { getAuthSecret, COOKIE_NAME } from "@/lib/auth-config";
 
 describe("Architectural Invariants & SSOT Propagation Suite", () => {
@@ -79,46 +87,96 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
     });
   });
 
-  describe("3. Operating Model Financial Delegation Completeness", () => {
-    const allActions: DelegationAction[] = [
-      "create_payment",
-      "bulk_create_payments",
-      "create_vendor_bill",
-      "record_vendor_payment",
-      "create_subcontractor_bill",
-      "mark_subcontractor_paid",
-      "create_purchase_order",
-      "create_site_expense",
-      "approve_site_expense",
-      "settle_multi_bill",
-      "create_bank_account",
-      "create_head_office_expense",
-      "release_retention",
-      "record_jv_payout",
-      "log_direct_material_purchase",
-    ];
+  describe("3. Operating Capability Map Completeness (ADR-0004)", () => {
+    it("defines defaults for exactly the three operating methods", () => {
+      expect(Object.keys(METHOD_CAPABILITY_DEFAULTS).sort()).toEqual([...OPERATING_METHODS].sort());
+    });
 
-    const operatingModels: OperatingModel[] = [
-      "hq_centralized_imprest",
-      "hybrid_daybook_hq_procure",
-      "decentralized_site_and_hq",
-      "single_project_jv",
-    ];
-
-    for (const model of operatingModels) {
-      it(`defines default delegation rules for all financial actions in operating model: ${model}`, () => {
-        const rules = DEFAULT_DELEGATION_RULES[model];
-        expect(rules).toBeDefined();
-        const coveredActions = new Set(rules.map((r) => r.action));
-
-        for (const action of allActions) {
-          expect(
-            coveredActions.has(action),
-            `Action '${action}' must be defined in DEFAULT_DELEGATION_RULES for model '${model}'`
-          ).toBe(true);
-        }
+    it("owner_led defaults match the ADR-0004 §4 literal", () => {
+      // Quoted verbatim from the ADR: procurementChain none,
+      // inventoryControl none, gateRegister off, financeReview
+      // owner_recorded, directPurchase on, directExpense on,
+      // workforcePlanning on.
+      expect(METHOD_CAPABILITY_DEFAULTS.owner_led).toEqual({
+        procurementChain: "none",
+        inventoryControl: "none",
+        gateRegister: false,
+        financeReview: "owner_recorded",
+        directPurchase: true,
+        directExpense: true,
+        workforcePlanning: true,
       });
+    });
+
+    it("every method default is a valid, complete capability map", () => {
+      for (const method of OPERATING_METHODS) {
+        const parsed = capabilitiesSchema.safeParse(METHOD_CAPABILITY_DEFAULTS[method]);
+        expect(parsed.success, `method ${method} must satisfy the capability schema`).toBe(true);
+      }
+    });
+
+    it("direct purchase, direct expense and workforce planning are first-class in every method", () => {
+      // Product principles: direct purchase/expense are first-class
+      // citizens; payroll exists at every org size.
+      for (const method of OPERATING_METHODS) {
+        const caps = methodDefaults(method);
+        expect(caps.directPurchase, `${method}.directPurchase`).toBe(true);
+        expect(caps.directExpense, `${method}.directExpense`).toBe(true);
+        expect(caps.workforcePlanning, `${method}.workforcePlanning`).toBe(true);
+      }
+    });
+
+    it("methodDefaults fails loud on unknown methods; parseCapabilities fails loud on malformed maps", () => {
+      expect(() => methodDefaults("hybrid_daybook_hq_procure")).toThrow(/Unknown operating method/);
+      expect(() => parseCapabilities({ procurementChain: "sometimes" })).toThrow(/Invalid capabilities payload/);
+      expect(() => parseCapabilities({ ...METHOD_CAPABILITY_DEFAULTS.delegated, extra: true })).not.toThrow();
+    });
+  });
+
+  describe("3b. Policy Vocabulary Ratchet (shrink-only, ADR-0003/0004)", () => {
+    // The legacy four-value workflow vocabulary must never grow back:
+    // no code may read the dropped Organization column, seed rules from
+    // it, or hard-code its values. "single_project_jv" is deliberately
+    // NOT scanned — it is also the legitimate orgScale value.
+    const FORBIDDEN = [
+      /operatingModel/,
+      /seedDelegationRules/,
+      /hq_centralized_imprest/,
+      /hybrid_daybook_hq_procure/,
+      /decentralized_site_and_hq/,
+    ] as const;
+
+    function walk(dir: string, acc: string[] = []): string[] {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "node_modules" || entry.name === ".next") continue;
+          walk(p, acc);
+        } else if (/\.(ts|tsx)$/.test(entry.name)) {
+          acc.push(p);
+        }
+      }
+      return acc;
     }
+
+    it("src/ and prisma/seed.ts carry no legacy operating-model vocabulary", () => {
+      const repoRoot = path.resolve(__dirname, "../../..");
+      const self = path.resolve(__filename);
+      const files = [...walk(path.join(repoRoot, "src")), path.join(repoRoot, "prisma", "seed.ts")]
+        // The enforcement file necessarily spells out the forbidden
+        // patterns — it is its own allowlist entry.
+        .filter((f) => f !== self);
+      expect(files.length).toBeGreaterThan(100); // sanity: the sweep really ran
+
+      const offenders: string[] = [];
+      for (const file of files) {
+        const text = fs.readFileSync(file, "utf8");
+        for (const pattern of FORBIDDEN) {
+          if (pattern.test(text)) offenders.push(`${path.relative(repoRoot, file)} matches ${pattern}`);
+        }
+      }
+      expect(offenders, offenders.join("\n")).toEqual([]);
+    });
   });
 
   describe("4. Edge-Safe Authentication Configuration", () => {
@@ -169,6 +227,13 @@ describe("Architectural Invariants & SSOT Propagation Suite", () => {
       expect(trpc.projectProcedure).toBeDefined();
       expect(trpc.createDomainRouter).toBeDefined();
       expect(trpc.financialGuard).toBeDefined();
+      expect(trpc.capabilityGuard).toBeDefined();
+    });
+
+    it("capabilityGuard composes into a procedure chain (ADR-0006 §6 middleware-at-the-factory)", async () => {
+      const { capabilityGuard, protectedProcedure } = await import("@/server/trpc");
+      const chained = protectedProcedure.use(capabilityGuard({ procurementChain: "full" }));
+      expect(typeof chained.input).toBe("function");
     });
 
     it("projectProcedure factory returns a callable tRPC procedure with role middleware", async () => {

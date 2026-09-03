@@ -12,7 +12,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "@/server/trpc";
+import { router, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { invalidateProjectCache } from "@/lib/cache";
 import { withOrgContext } from "@/lib/rls";
@@ -213,6 +213,7 @@ export const payrollRouter = router({
 
   /** Create / Save persistent org-level Payroll Run and lock in advance recoveries. */
   createPayrollRun: protectedProcedure
+    .use(capabilityGuard({ workforcePlanning: true })) // ADR-0004: workforce planning is a capability
     .input(
       z.object({
         projectId: z.string(),
