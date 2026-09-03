@@ -5,7 +5,7 @@ import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
-import { Plus, Loader2 } from "lucide-react";
+import { CalendarRange, Plus, Loader2 } from "lucide-react";
 import { UndoRedoProvider, useUndoRedo } from "./undo-redo";
 import { useUserPreferences } from "@/components/user-preferences-provider";
 import {
@@ -23,7 +23,6 @@ import { Gantt } from "./components/Gantt";
 import { ResourcePage } from "./components/ResourcePage";
 import { SCurveChart } from "./components/SCurveChart";
 import { InlineAddRow } from "./components/InlineAddRow";
-import { GanttFullscreenPrompt } from "./components/GanttFullscreenPrompt";
 import { GanttCommandBar } from "./components/GanttCommandBar";
 import { GanttAnalysisModals } from "./components/GanttAnalysisModals";
 import { WorkPackageTemplatesModal } from "./components/WorkPackageTemplatesModal";
@@ -81,7 +80,6 @@ function GanttChartContent({
   const [replicateSourceTask, setReplicateSourceTask] = useState<Task | null>(null);
   const [jumpToTodayTrigger, setJumpToTodayTrigger] = useState(0);
   const [creatingVersion, setCreatingVersion] = useState(false);
-  const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const activeTab = view;
 
   const handleZoomChange = (newZoom: ZoomLevel) => {
@@ -309,20 +307,6 @@ function GanttChartContent({
     return () => window.removeEventListener("keydown", handleKeyboard);
   }, [undo, redo, fullScreen]);
 
-  useEffect(() => {
-    if (activeTab !== "schedule") return;
-    const preference =
-      getPref("ganttFullscreen", null) ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("gantt-fullscreen-preference")
-        : null);
-    if (preference === null) {
-      setShowFullscreenPrompt(true);
-    } else if (preference === "yes") {
-      setFullScreen(true);
-    }
-  }, [activeTab, getPref]);
-
   const dayLabels = useMemo(() => {
     return Array.from({ length: days }, (_, i) => {
       const d = addDays(rangeStart, i);
@@ -397,10 +381,22 @@ function GanttChartContent({
   return (
     <div
       className={cn(
-        "h-full flex flex-col font-mono p-1.5 bg-background",
-        fullScreen && "fixed inset-0 z-50 bg-background p-2.5"
+        "h-full flex flex-col font-mono bg-background",
+        fullScreen && "fixed inset-0 z-50 bg-background p-3"
       )}
     >
+      <header className="flex h-10 shrink-0 items-center justify-between border-b border-border/80 px-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <CalendarRange className="h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold text-foreground">Planning</h1>
+            <p className="truncate text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
+              {projectInfo?.project?.name ?? "Project schedule"}{currentVersion ? ` · ${currentVersion.name || `v${currentVersion.versionNumber}`}` : ""}
+            </p>
+          </div>
+        </div>
+        <p className="hidden text-[10px] text-muted-foreground md:block">Right-click tasks for actions · Drag divider to resize</p>
+      </header>
       <GanttCommandBar
         id={id}
         activeTab={activeTab}
@@ -455,7 +451,7 @@ function GanttChartContent({
         createVersionMutation={createVersionMutation}
       />
 
-      <div className="flex-1 min-h-0 mt-1.5 border border-border/90 rounded-lg overflow-hidden shadow-xs">
+      <div className="flex-1 min-h-0 mt-2 border border-border/90 rounded-[5px] overflow-hidden bg-card/65 shadow-[0_1px_3px_rgba(79,62,45,0.08)]">
         {showEVM || showConflicts || (isExecution && showVariance) ? (
           <GanttAnalysisModals
             showEVM={showEVM}
@@ -594,21 +590,6 @@ function GanttChartContent({
         replicateSourceTask={replicateSourceTask}
         onClearReplicateSource={() => setReplicateSourceTask(null)}
       />
-
-      {/* Fullscreen prompt — shown on first visit to Schedule tab */}
-      {showFullscreenPrompt && (
-        <GanttFullscreenPrompt
-          onDismiss={() => {
-            setPref("ganttFullscreen", "no");
-            setShowFullscreenPrompt(false);
-          }}
-          onEnterFullscreen={() => {
-            setPref("ganttFullscreen", "yes");
-            setFullScreen(true);
-            setShowFullscreenPrompt(false);
-          }}
-        />
-      )}
     </div>
   );
 }

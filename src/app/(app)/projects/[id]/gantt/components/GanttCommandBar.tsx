@@ -208,18 +208,18 @@ export function GanttCommandBar({
     (showConflicts ? 1 : 0) + (showVariance ? 1 : 0) + (showEVM ? 1 : 0);
 
   return (
-    <div className="shrink-0 flex items-center justify-between gap-1.5 px-2.5 h-9 border border-border/90 rounded-lg bg-[var(--navy-deep)]/95 backdrop-blur-md z-15 font-mono text-[11px] shadow-2xs select-none">
+    <div className="shrink-0 mt-2 flex items-center justify-between gap-1.5 px-2 h-9 border border-border rounded-[5px] bg-card/90 z-15 font-mono text-[11px] shadow-[0_1px_2px_rgba(79,62,45,0.06)] select-none">
       {/* ── LEFT SECTION: Mode, Version & Overlay ────────────────────────── */}
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Mode Switcher Pill */}
-        <div className="flex items-center rounded-md border border-border/80 bg-background/90 p-0.5 shadow-2xs">
+        <div className="flex items-center rounded-[4px] border border-border bg-secondary/55 p-0.5 shadow-inner">
           <button
             type="button"
             onClick={() => handleSwitchMode("PLANNING")}
             className={cn(
               "flex items-center gap-1 px-2 h-6 rounded text-[10px] font-mono uppercase font-bold transition-all cursor-pointer",
               isPlanning
-                ? "bg-primary/20 text-primary border border-primary/40 shadow-2xs"
+                ? "bg-card text-primary border border-primary/40 shadow-[0_1px_1px_rgba(79,62,45,0.1)]"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
             )}
             title="Switch to Planning Baseline Schedule"
@@ -233,7 +233,7 @@ export function GanttCommandBar({
             className={cn(
               "flex items-center gap-1 px-2 h-6 rounded text-[10px] font-mono uppercase font-bold transition-all cursor-pointer",
               isExecution
-                ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-2xs"
+                ? "bg-card text-primary border border-primary/40 shadow-[0_1px_1px_rgba(79,62,45,0.1)]"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
             )}
             title="Switch to Live Site Execution Schedule"
@@ -250,7 +250,7 @@ export function GanttCommandBar({
             setSelectedVersionId(v === (defaultVersion?.id ?? "__auto") ? undefined : v)
           }
         >
-          <SelectTrigger className="h-7 w-[110px] md:w-[130px] text-[10px] font-mono bg-background/90 border-border/80 px-2 shadow-2xs">
+          <SelectTrigger className="h-7 w-[110px] md:w-[130px] text-[10px] font-mono bg-card border-border px-2 shadow-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="font-mono bg-card border-border min-w-[200px]">
@@ -283,7 +283,7 @@ export function GanttCommandBar({
             onValueChange={(v) => setOverlayVersionId(v === "__none" ? undefined : v)}
           >
             <SelectTrigger
-              className="h-7 w-[32px] md:w-[95px] text-[10px] font-mono bg-background/90 border-border/80 px-2 text-muted-foreground hover:text-foreground shadow-2xs"
+              className="h-7 w-[32px] md:w-[95px] text-[10px] font-mono bg-card border-border px-2 text-muted-foreground hover:text-foreground shadow-none"
               title="Compare with baseline overlay"
             >
               <Layers className="h-3 w-3 text-muted-foreground shrink-0 md:mr-1" />
@@ -311,14 +311,14 @@ export function GanttCommandBar({
       {activeTab === "schedule" && (
         <div className="flex items-center gap-1 shrink-0">
           {/* Critical Path & Calc Group */}
-          <div className="flex items-center rounded-md border border-border/80 bg-background/90 p-0.5 shadow-2xs">
+          <div className="flex items-center rounded-[4px] border border-border bg-secondary/55 p-0.5 shadow-inner">
             <button
               type="button"
               onClick={() => setShowCriticalPath(!showCriticalPath)}
               className={cn(
                 "flex items-center gap-1 px-1.5 h-6 rounded text-[10px] font-mono uppercase font-bold transition-all cursor-pointer",
                 showCriticalPath
-                  ? "bg-red-500/20 text-red-400 border border-red-500/40 shadow-2xs"
+                  ? "bg-destructive/10 text-destructive border border-destructive/40 shadow-none"
                   : "text-muted-foreground hover:text-foreground border border-transparent"
               )}
               title="Toggle Critical Path (CPM)"
@@ -326,7 +326,7 @@ export function GanttCommandBar({
               <Zap
                 className={cn(
                   "h-3 w-3",
-                  showCriticalPath ? "text-red-400 fill-red-400" : "text-muted-foreground"
+                  showCriticalPath ? "text-destructive fill-destructive" : "text-muted-foreground"
                 )}
               />
               <span className="hidden lg:inline">CPM</span>
@@ -350,9 +350,9 @@ export function GanttCommandBar({
               <button
                 type="button"
                 className={cn(
-                  "flex items-center gap-1 rounded-md border border-border/80 bg-background/90 px-1.5 h-7 text-[10px] font-mono font-bold transition-all cursor-pointer shadow-2xs",
+                  "flex items-center gap-1 rounded-[4px] border border-border bg-card px-1.5 h-7 text-[10px] font-mono font-bold transition-all cursor-pointer shadow-none",
                   activeAnalysisCount > 0
-                    ? "bg-primary/20 text-primary border-primary/40"
+                    ? "bg-accent text-primary border-primary/40"
                     : "text-muted-foreground hover:text-foreground"
                 )}
                 title="Analysis Trays (Conflicts, Variance, EVM)"
@@ -447,7 +447,7 @@ export function GanttCommandBar({
             placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-7 w-full pl-6 pr-5 text-[10px] font-mono bg-background/80 border-border/80 focus:border-primary transition-all shadow-2xs"
+            className="h-7 w-full pl-6 pr-5 text-[10px] font-mono bg-card border-border focus:border-primary transition-all shadow-inner"
           />
           {searchQuery && (
             <button
@@ -468,15 +468,15 @@ export function GanttCommandBar({
           <button
             type="button"
             onClick={() => setJumpToTodayTrigger((n) => n + 1)}
-            className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 h-7 text-[10px] font-mono font-bold text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/60 transition-all shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1 rounded-[4px] border border-primary/35 bg-accent/65 px-2 h-7 text-[10px] font-mono font-bold text-primary hover:bg-accent transition-all cursor-pointer whitespace-nowrap"
             title="Scroll timeline to today's date"
           >
-            <Clock className="h-3 w-3 animate-pulse text-emerald-400" />
+            <Clock className="h-3 w-3 text-primary" />
             <span className="hidden sm:inline">Today</span>
           </button>
 
           {/* Zoom Segmented Capsule */}
-          <div className="flex items-center rounded-md border border-border/80 bg-background/90 p-0.5 shadow-2xs">
+          <div className="flex items-center rounded-[4px] border border-border bg-secondary/55 p-0.5 shadow-inner">
             {(["day", "week", "month"] as ZoomLevel[]).map((level) => (
               <button
                 key={level}
@@ -485,7 +485,7 @@ export function GanttCommandBar({
                 className={cn(
                   "px-1.5 h-6 rounded text-[9px] font-mono uppercase font-bold transition-all cursor-pointer",
                   zoom === level
-                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    ? "bg-primary text-primary-foreground shadow-[0_1px_0_#744127]"
                     : "text-muted-foreground hover:text-foreground"
                 )}
                 title={`Scale: ${level}`}
@@ -533,7 +533,7 @@ export function GanttCommandBar({
       {/* ── RIGHT SECTION: History, Share, Panes & Add Task ──────────────── */}
       <div className="flex items-center gap-1 shrink-0">
         {/* Undo / Redo */}
-        <div className="flex items-center rounded-md border border-border/80 bg-background/90 p-0.5 shadow-2xs">
+        <div className="flex items-center rounded-[4px] border border-border bg-secondary/55 p-0.5 shadow-inner">
           <button
             type="button"
             onClick={() => undo()}
@@ -559,7 +559,7 @@ export function GanttCommandBar({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md border border-border/80 bg-background/90 px-2 h-7 text-[10px] font-mono font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shadow-2xs"
+              className="flex items-center gap-1 rounded-[4px] border border-border bg-card px-2 h-7 text-[10px] font-mono font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shadow-none"
               title="Export, Print, or Import MS Project schedules"
             >
               <Share2 className="h-3 w-3 text-primary" />
@@ -611,14 +611,14 @@ export function GanttCommandBar({
         </DropdownMenu>
 
         {/* Viewport Panels: Tasks & Inspector */}
-        <div className="flex items-center rounded-md border border-border/80 bg-background/90 p-0.5 shadow-2xs gap-0.5">
+        <div className="flex items-center rounded-[4px] border border-border bg-secondary/55 p-0.5 shadow-inner gap-0.5">
           <button
             type="button"
             onClick={handleToggleTaskList}
             className={cn(
               "flex items-center justify-center h-6 w-6 rounded transition-colors cursor-pointer",
               taskListVisible
-                ? "bg-muted text-foreground font-bold shadow-2xs"
+                ? "bg-card text-foreground font-bold shadow-[0_1px_1px_rgba(79,62,45,0.1)]"
                 : "text-muted-foreground/60 hover:text-foreground"
             )}
             title="Toggle Left Task Grid"
@@ -631,7 +631,7 @@ export function GanttCommandBar({
             className={cn(
               "flex items-center justify-center h-6 w-6 rounded transition-colors cursor-pointer",
               inspectorVisible
-                ? "bg-muted text-foreground font-bold shadow-2xs"
+                ? "bg-card text-foreground font-bold shadow-[0_1px_1px_rgba(79,62,45,0.1)]"
                 : "text-muted-foreground/60 hover:text-foreground"
             )}
             title="Toggle Right Task Inspector"
@@ -644,7 +644,7 @@ export function GanttCommandBar({
         <button
           type="button"
           onClick={() => setFullScreen(!fullScreen)}
-          className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/80 bg-background/90 cursor-pointer h-7 w-7 flex items-center justify-center shadow-2xs"
+          className="rounded-[4px] p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border bg-card cursor-pointer h-7 w-7 flex items-center justify-center shadow-none"
           title={fullScreen ? "Exit full screen" : "Full screen"}
         >
           {fullScreen ? (
@@ -659,10 +659,10 @@ export function GanttCommandBar({
           <button
             type="button"
             onClick={onOpenTemplates}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-[var(--navy-mid)]/90 px-2.5 h-7 text-[10px] font-mono font-semibold text-foreground hover:border-emerald-500/80 hover:text-emerald-400 hover:bg-[var(--navy-mid)] transition-all cursor-pointer whitespace-nowrap shadow-2xs"
+            className="flex items-center gap-1.5 rounded-[4px] border border-border bg-card px-2.5 h-7 text-[10px] font-mono font-semibold text-foreground hover:border-primary hover:text-primary hover:bg-accent/50 transition-all cursor-pointer whitespace-nowrap shadow-[0_1px_0_rgba(79,62,45,0.12)]"
             title="Open Work Package & Structure Template Library"
           >
-            <Layers className="h-3.5 w-3.5 text-emerald-400" />
+            <Layers className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Templates</span>
           </button>
         )}
@@ -672,7 +672,7 @@ export function GanttCommandBar({
           <button
             type="button"
             onClick={() => setAddTaskTrigger((n) => n + 1)}
-            className="flex items-center gap-1 rounded-md bg-primary px-2.5 h-7 text-[10px] font-mono font-bold text-primary-foreground hover:bg-primary/90 shadow-[0_0_8px_rgba(16,185,129,0.35)] transition-all cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1 rounded-[4px] bg-primary px-2.5 h-7 text-[10px] font-mono font-bold text-primary-foreground hover:bg-primary/90 shadow-[0_2px_0_#744127] hover:translate-y-px active:translate-y-0.5 active:shadow-none transition-all cursor-pointer whitespace-nowrap"
             title="Add a new task"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -697,7 +697,7 @@ export function GanttCommandBar({
               }
             }}
             disabled={creatingVersion}
-            className="flex items-center gap-1 rounded-md bg-primary px-2.5 h-7 text-[10px] font-mono font-bold text-primary-foreground hover:bg-primary/90 shadow-[0_0_8px_rgba(16,185,129,0.35)] transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1 rounded-[4px] bg-primary px-2.5 h-7 text-[10px] font-mono font-bold text-primary-foreground hover:bg-primary/90 shadow-[0_2px_0_#744127] hover:translate-y-px active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
             title="Create a draft revision to edit tasks"
           >
             {creatingVersion ? (
