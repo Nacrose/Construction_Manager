@@ -80,26 +80,14 @@ export function PayrollManagementTab({
   const handleGenerateRun = () => {
     if (!payrollItems.length) return;
 
+    // Phase E (ADR-0007): the run is ORG-wide — the server recomputes every
+    // amount from combined attendance; the client only nominates persons
+    // (and optional audited manual splits). Saving is additive: persons
+    // already in the run from other projects are never dropped.
     createRunMut.mutate({
-      projectId,
       month: selectedMonth,
       records: payrollItems.map((item) => ({
         personId: item.personId,
-        employmentType: item.employmentType,
-        presentDays: item.presentDays,
-        halfDays: item.halfDays,
-        absentDays: item.absentDays,
-        leaveDays: item.leaveDays,
-        overtimeHours: item.overtimeHours,
-        baseRate: item.baseRate,
-        regularPay: item.regularPay,
-        overtimePay: item.overtimePay,
-        allowances: item.allowances,
-        advanceDeduction: item.advanceDeduction,
-        messDeduction: item.messDeduction,
-        otherDeductions: item.otherDeductions,
-        tdsAmount: item.tdsAmount,
-        netPayable: item.netPayable,
       })),
     });
   };
@@ -114,6 +102,9 @@ export function PayrollManagementTab({
             {val}
             <span className="block text-[10px] text-muted-foreground font-normal">
               {row.designation || row.category || "Labor"} {row.gangName ? `• ${row.gangName}` : ""}
+              {!row.onCallingProject && (
+                <span className="ml-1 text-[9px] text-amber-600 dark:text-amber-400">• other site</span>
+              )}
             </span>
           </div>
         ),
@@ -314,7 +305,7 @@ export function PayrollManagementTab({
         emptyState={{
           icon: FileText,
           title: "No Active Staff",
-          description: "No active workers or staff found for this project payroll period.",
+          description: "No workers with active engagements anywhere in the organization for this period.",
         }}
       />
 
@@ -411,7 +402,6 @@ export function PayrollManagementTab({
           onConfirm={async () => {
             if (existingRun) {
               await updateStatusMut.mutateAsync({
-                projectId,
                 runId: existingRun.id,
                 action: confirmAction,
               });

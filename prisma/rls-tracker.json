@@ -48,6 +48,7 @@
     "Payment",
     "PaymentCategory",
     "PayrollAllocation",
+    "PayrollAdvanceRecovery",
     "PayrollPersonRecord",
     "PayrollRun",
     "Person",

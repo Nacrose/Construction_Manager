@@ -86,12 +86,16 @@ export const LIFECYCLE_GRAPHS: Record<SupportedLifecycleModel, Record<string, st
     approved: [],
   },
 
-  // Payroll runs may reopen (approved|disbursed -> draft) to fix errors
-  // before re-approval — matches updateRunStatus's "reopen" action.
+  // Payroll runs (Phase E, ADR-0007): draft → approved (the liability
+  // boundary: advance recovery + liability JE) → disbursed (the settlement
+  // primitive). Reopen (approved → draft) reverses the approve boundary
+  // exactly (JE reversal + ledgered un-recovery). DISBURSED is terminal —
+  // settlement JE and payslip amounts cannot be undone through the
+  // lifecycle (a mis-disbursement needs a proper reversing run).
   payrollRun: {
     draft: ["approved"],
     approved: ["disbursed", "draft"],
-    disbursed: ["draft"],
+    disbursed: [],
   },
 
   dailyProgram: {

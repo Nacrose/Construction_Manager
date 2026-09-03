@@ -30,6 +30,7 @@
 import { TRPCError } from "@trpc/server";
 import type { DbTxClient } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { derivePaymentStatus } from "@/server/utils/settlement";
 
 type Executor = DbTxClient; // db or tx — service runs inside caller's transaction
 
@@ -575,7 +576,11 @@ export async function getPersonHistory(tx: Executor, personId: string) {
     person,
     assignments,
     advances: { rows: advances, outstandingTotal: outstandingAdvance },
-    payrollRecords,
+    // paymentStatus is DERIVED from amounts (ADR-0006 §2) — never stored.
+    payrollRecords: payrollRecords.map((r) => ({
+      ...r,
+      paymentStatus: derivePaymentStatus(r.paidAmount, r.netPayable),
+    })),
     leaveRequests,
   };
 }

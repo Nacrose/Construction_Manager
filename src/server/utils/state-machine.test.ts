@@ -53,11 +53,13 @@ describe("Central Multi-Entity State Machine Engine", () => {
       expect(canTransition("boqVersion", "approved", "draft").allowed).toBe(false);
       expect(canTransition("boqVersion", "approved", "approved").allowed).toBe(false);
 
-      // Payroll run: linear chain with reopen before/after disbursement
+      // Payroll run (Phase E): draft → approved → disbursed, with an exact
+      // reversal edge only BEFORE disbursement — a disbursed run is terminal
+      // (settlement JE + paid amounts cannot be undone through the lifecycle).
       expect(canTransition("payrollRun", "draft", "approved").allowed).toBe(true);
       expect(canTransition("payrollRun", "approved", "disbursed").allowed).toBe(true);
       expect(canTransition("payrollRun", "approved", "draft").allowed).toBe(true);
-      expect(canTransition("payrollRun", "disbursed", "draft").allowed).toBe(true);
+      expect(canTransition("payrollRun", "disbursed", "draft").allowed).toBe(false);
       // Out-of-order moves are rejected: cannot disburse a draft run or
       // re-approve an already disbursed one.
       expect(canTransition("payrollRun", "draft", "disbursed").allowed).toBe(false);

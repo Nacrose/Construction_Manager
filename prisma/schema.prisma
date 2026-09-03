@@ -68,6 +68,7 @@ model Organization {
   leaveBalances        LeaveBalance[]
   payrollRuns          PayrollRun[]
   payrollPersonRecords PayrollPersonRecord[]
+  payrollAdvanceRecoveries PayrollAdvanceRecovery[]
   projects             Project[]
   reportTemplates      ReportTemplate[]
   rateProfiles         RateProfile[]
@@ -2429,6 +2430,7 @@ model StaffAdvance {
   project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   person     Person      @relation(fields: [personId], references: [id], onDelete: Restrict)
   payrollRun PayrollRun? @relation(fields: [recoveredInPayrollId], references: [id], onDelete: SetNull)
+  recoveries PayrollAdvanceRecovery[]
 
   @@index([projectId, personId])
   @@index([recoveredAmount])
@@ -2466,6 +2468,7 @@ model PayrollRun {
   records       PayrollPersonRecord[]
   allocations   PayrollAllocation[]
   advances      StaffAdvance[]
+  recoveries    PayrollAdvanceRecovery[]
 
   @@unique([organizationId, period]) // database-enforced: one run per org per period
   @@index([organizationId, status])
@@ -2491,8 +2494,7 @@ model PayrollPersonRecord {
   otherDeductions  Decimal  @default(0) @db.Decimal(15, 2)
   tdsAmount        Decimal  @default(0) @db.Decimal(15, 2)
   netPayable       Decimal  @default(0) @db.Decimal(15, 2)
-  paidAmount       Decimal  @default(0) @db.Decimal(15, 2)
-  paymentStatus    String   @default("unpaid") // unpaid | paid | partial
+  paidAmount       Decimal  @default(0) @db.Decimal(15, 2) // CAS-incremented; paymentStatus is DERIVED from paidAmount vs netPayable (ADR-0006 §2)
   paymentMethod    String   @default("cash") // cash | bank_transfer | cheque
   paymentReference String?
   remarks          String?
@@ -2503,6 +2505,7 @@ model PayrollPersonRecord {
   payrollRun   PayrollRun          @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   person       Person              @relation(fields: [personId], references: [id], onDelete: Restrict)
   allocations  PayrollAllocation[]
+  recoveries   PayrollAdvanceRecovery[]
 
   @@unique([payrollRunId, personId]) // salary calculated once per person per period
   @@index([payrollRunId])
@@ -2522,7 +2525,7 @@ model PayrollAllocation {
   personRecordId    String
   assignmentId      String
   projectId         String // cost target — becomes JournalEntryLine.projectId
-  basis             String   @default("actual_days") // actual_days | allocation_percent | manual
+  basis             String   @default("actual_days") // actual_days | allocation_percent | manual | residual (no attendance & no percent → primary assignment)
   presentDays       Decimal  @default(0) @db.Decimal(15, 2)
   overtimeHours     Decimal  @default(0) @db.Decimal(15, 4)
   allocationPercent Decimal? @db.Decimal(5, 2) // set when basis = allocation_percent
@@ -2543,6 +2546,33 @@ model PayrollAllocation {
   @@unique([personRecordId, assignmentId])
   @@index([payrollRunId])
   @@index([projectId])
+  @@index([organizationId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Advance recovery ledger (ADR-0007 §4). Each recovery is a
+// CAS-guarded increment on StaffAdvance.recoveredAmount PLUS an exact
+// ledger row here (unique per run+advance), so a run reopen reverses
+// recoveries exactly and concurrent runs can never double-recover.
+// ─────────────────────────────────────────────────────────────
+
+model PayrollAdvanceRecovery {
+  id             String   @id @default(cuid())
+  organizationId String
+  payrollRunId   String
+  advanceId      String
+  personRecordId String
+  amount         Decimal  @db.Decimal(15, 2)
+  createdAt      DateTime @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payrollRun   PayrollRun          @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  advance      StaffAdvance        @relation(fields: [advanceId], references: [id], onDelete: Restrict)
+  personRecord PayrollPersonRecord @relation(fields: [personRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollRunId, advanceId]) // one recovery row per advance per run
+  @@index([advanceId])
+  @@index([payrollRunId])
   @@index([organizationId])
 }
 

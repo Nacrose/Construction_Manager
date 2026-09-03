@@ -277,7 +277,7 @@ export const adminRouter = router({
       "Equipment", "EquipmentRental", "EquipmentTransfer", "InterSiteTransfer",
       "PunchItem", "Submittal", "Correspondence", "ChatChannel", "ChatMessage",
       "Person", "ProjectStaffAssignment", "OrganizationPolicyVersion",
-      "LeaveRequest", "PayrollRun", "PayrollPersonRecord", "PayrollAllocation", "StaffAdvance",
+      "LeaveRequest", "PayrollRun", "PayrollPersonRecord", "PayrollAllocation", "PayrollAdvanceRecovery", "StaffAdvance",
       "VatBill", "HeadOfficeExpense", "CompanyBankAccount", "PaymentCategory",
       "CatalogMaterial", "MaterialSubstitute", "JvPartnerAgreement",
       "JvCommissionPayout", "EquipmentSpotHire", "SubcontractorBill",
