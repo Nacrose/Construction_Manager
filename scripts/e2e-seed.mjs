@@ -5,8 +5,8 @@
  * scripts/e2e-run.py). Idempotent — safe to re-run against the same DB.
  *
  * Seeds:
- *   Organization  code "E2E-ORG"
- *   User          pm@e2e.test (org member, project_manager) — NOT superadmin
+ *   Organization  code "E2E-ORG" (+ active policy version v1, ADR-0004)
+ *   User          pm@e2e.test (org member) — NOT superadmin
  *   Project       "E2E Highway Bridge Project" (code E2E-P1)
  *   ProjectMember the PM as project_manager (unlocks expense approve UI)
  *   SiteExpense   EXP-001 "E2E cement delivery to site", NPR 12,500.50, pending
@@ -33,6 +33,42 @@ async function main() {
     update: { name: "E2E Construction Pvt Ltd" },
   });
 
+  // Active policy version v1 — every org MUST have one (ADR-0004).
+  // Mirror of METHOD_CAPABILITY_DEFAULTS.owner_led (src/lib/capabilities.ts);
+  // this .mjs script cannot import the TS SSOT, so keep them in sync.
+  const OWNER_LED_CAPABILITIES = {
+    procurementChain: "none",
+    inventoryControl: "none",
+    gateRegister: false,
+    financeReview: "owner_recorded",
+    directPurchase: true,
+    directExpense: true,
+    workforcePlanning: true,
+  };
+  const existingPolicy = await db.organizationPolicyVersion.findFirst({
+    where: { organizationId: org.id },
+    orderBy: { version: "desc" },
+  });
+  const activeOrg = await db.organization.findUnique({
+    where: { id: org.id },
+    select: { activePolicyVersionId: true },
+  });
+  if (!activeOrg?.activePolicyVersionId) {
+    const policy = await db.organizationPolicyVersion.create({
+      data: {
+        organizationId: org.id,
+        version: (existingPolicy?.version ?? 0) + 1,
+        operatingMethod: "owner_led",
+        capabilities: OWNER_LED_CAPABILITIES,
+        notes: "Initial policy — E2E seed",
+      },
+    });
+    await db.organization.update({
+      where: { id: org.id },
+      data: { activePolicyVersionId: policy.id },
+    });
+  }
+
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
   const user = await db.user.upsert({
     where: { email: EMAIL },
@@ -40,7 +76,6 @@ async function main() {
       email: EMAIL,
       name: "E2E Project Manager",
       passwordHash,
-      role: "project_manager",
       organizationId: org.id,
       orgRole: "member",
       isSuperAdmin: false,
@@ -87,7 +122,6 @@ async function main() {
       email: "engineer@e2e.test",
       name: "E2E Site Engineer",
       passwordHash,
-      role: "site_engineer",
       organizationId: org.id,
       orgRole: "member",
       isSuperAdmin: false,
@@ -99,8 +133,9 @@ async function main() {
     where: { projectId: project.id, userId: engineer.id },
   });
   if (!engMember) {
+    // Project roles are the ADR-0005 triad: project_manager | engineer | coordinator.
     await db.projectMember.create({
-      data: { projectId: project.id, userId: engineer.id, role: "site_engineer" },
+      data: { projectId: project.id, userId: engineer.id, role: "engineer" },
     });
   }
 
@@ -132,7 +167,6 @@ async function main() {
       email: ADMIN_EMAIL,
       name: "E2E Platform Admin",
       passwordHash: adminHash,
-      role: "project_manager",
       isSuperAdmin: true,
       orgRole: "org_admin",
     },
