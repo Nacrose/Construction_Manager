@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Printer, HardHat, Loader2, ClipboardList, Users, ArrowDownRight, Package } from "lucide-react";
+import { ArrowLeft, Printer, HardHat, Loader2, ClipboardList, Users, ArrowDownRight, Package, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc-client";
@@ -126,6 +126,11 @@ export default function IpcDetailPage({
           <ArrowLeft className="h-4 w-4" /> Back to IPCs
         </Link>
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/projects/${id}/ipc/${ipcId}/worksheets`}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Working papers
+            </Link>
+          </Button>
           {/* View Mode Toggle */}
           <div className="inline-flex rounded-md border bg-card p-0.5 text-xs">
             <button
@@ -479,5 +484,4 @@ export default function IpcDetailPage({
     </div>
   );
 }
-
 

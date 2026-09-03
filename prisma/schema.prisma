@@ -82,6 +82,7 @@ model Organization {
   delegationRules      DelegationRule[]
   interSiteTransfers   InterSiteTransfer[]
   equipmentTransfers   EquipmentTransfer[]
+  worksheetDocuments   WorksheetDocument[]
 
   @@index([status])
 }
@@ -433,6 +434,7 @@ model Project {
   transmittals               Transmittal[]
   drawings                   Drawing[]
   ipcs                       Ipc[]
+  worksheetDocuments         WorksheetDocument[]
   staffAttendance            StaffAttendance[]
   staffRoles                 StaffRole[]
   dailyPrograms              DailyProgram[]
@@ -2237,6 +2239,32 @@ model IpcItem {
   ipc         Ipc     @relation(fields: [ipcId], references: [id], onDelete: Cascade)
 
   @@index([ipcId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Generic worksheet documents
+// ─────────────────────────────────────────────────────────────
+// A workbook is an office working paper, not an IPC/variation itself. The
+// domain document it supports is expressed by scope + scopeId so the same
+// calculation engine can be reused without baking bill-specific rules into it.
+model WorksheetDocument {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String?
+  documentKey    String
+  title          String
+  scope          Json
+  workbook       Json
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, documentKey])
+  @@index([projectId])
+  @@index([organizationId, updatedAt])
 }
 
 // ─────────────────────────────────────────────────────────────

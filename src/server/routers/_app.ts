@@ -56,6 +56,7 @@ import { financialReportingRouter } from "./financial-reporting";
 import { jvPartnerRouter } from "./jv-partner";
 import { interSiteTransferRouter } from "./inter-site-transfer";
 import { lifecycleRouter } from "./lifecycle";
+import { worksheetRouter } from "./worksheet";
 
 export const appRouter = router({
   boq: boqRouter,
@@ -111,7 +112,7 @@ export const appRouter = router({
   jvPartner: jvPartnerRouter,
   interSiteTransfer: interSiteTransferRouter,
   lifecycle: lifecycleRouter,
+  worksheet: worksheetRouter,
 });
 
 export type AppRouter = typeof appRouter;
-

@@ -359,3 +359,131 @@ export function createDemoWorksheetDocument(now = new Date()): WorksheetDocument
     workbook: createDemoWorkbook(),
   };
 }
+
+export type IpcWorksheetItem = {
+  code: string;
+  description: string;
+  unit: string;
+  contractQty: number;
+  previousQty: number;
+  rate: number;
+};
+
+type IpcWorksheetSeed = {
+  projectId: string;
+  ipcId: string;
+  ipcNumber: string;
+  projectName: string;
+  items: IpcWorksheetItem[];
+};
+
+function createIpcCoverCells(seed: IpcWorksheetSeed): IObjectMatrixPrimitiveType<ICellData> {
+  const cells: IObjectMatrixPrimitiveType<ICellData> = {};
+  put(cells, 0, 0, { v: "INTERIM PAYMENT CERTIFICATE — WORKING PAPERS", s: "title" });
+  put(cells, 2, 0, { v: "Project", s: "header" });
+  put(cells, 2, 1, { v: seed.projectName });
+  put(cells, 3, 0, { v: "Certificate", s: "header" });
+  put(cells, 3, 1, { v: seed.ipcNumber });
+  put(cells, 4, 0, { v: "Workbook rule", s: "header" });
+  put(cells, 4, 1, { v: "Add or rename detailed measurement sheets as needed. The four standard sheets remain the common bill bridge.", s: "note" });
+  put(cells, 6, 0, { v: "This bill quantity", s: "header" });
+  put(cells, 6, 1, { f: "=SUM('Measurement Abstract'!E5:E204)", s: "quantity" });
+  put(cells, 7, 0, { v: "This bill amount", s: "header" });
+  put(cells, 7, 1, { f: "=SUM('BOQ Abstract'!J5:J204)", s: "money" });
+  return cells;
+}
+
+function createIpcBoqAbstractCells(seed: IpcWorksheetSeed): IObjectMatrixPrimitiveType<ICellData> {
+  const cells: IObjectMatrixPrimitiveType<ICellData> = {};
+  put(cells, 0, 0, { v: "BOQ ABSTRACT", s: "title" });
+  put(cells, 1, 0, { v: "Previous quantity is supplied from the IPC register. This bill quantity is read from the measurement abstract; do not type it here.", s: "note" });
+  const headers = ["BOQ Ref", "Description", "Unit", "Contract Qty", "Previous Qty", "This Bill", "Up-to-date Qty", "Balance Qty", "Rate", "This Amount"];
+  headers.forEach((header, column) => put(cells, 3, column, { v: header, s: "header" }));
+  seed.items.forEach((item, index) => {
+    const row = index + 4;
+    const excelRow = row + 1;
+    put(cells, row, 0, { v: item.code });
+    put(cells, row, 1, { v: item.description });
+    put(cells, row, 2, { v: item.unit });
+    put(cells, row, 3, { v: item.contractQty, s: "input" });
+    put(cells, row, 4, { v: item.previousQty, s: "quantity" });
+    put(cells, row, 5, { f: `='Measurement Abstract'!E${excelRow}`, s: "quantity" });
+    put(cells, row, 6, { f: `=E${excelRow}+F${excelRow}`, s: "quantity" });
+    put(cells, row, 7, { f: `=D${excelRow}-G${excelRow}`, s: "quantity" });
+    put(cells, row, 8, { v: item.rate, s: "money" });
+    put(cells, row, 9, { f: `=F${excelRow}*I${excelRow}`, s: "money" });
+  });
+  const totalRow = Math.max(seed.items.length + 4, 5);
+  put(cells, totalRow, 0, { v: "TOTAL", s: "total" });
+  [3, 4, 5, 6, 7, 9].forEach((column) => {
+    const letter = String.fromCharCode(65 + column);
+    put(cells, totalRow, column, { f: `=SUM(${letter}5:${letter}${totalRow})`, s: column === 9 ? "total" : "quantity" });
+  });
+  return cells;
+}
+
+function createIpcMeasurementAbstractCells(seed: IpcWorksheetSeed): IObjectMatrixPrimitiveType<ICellData> {
+  const cells: IObjectMatrixPrimitiveType<ICellData> = {};
+  put(cells, 0, 0, { v: "MEASUREMENT ABSTRACT", s: "title" });
+  put(cells, 1, 0, { v: "Rows calculate themselves from every detailed measurement sheet row bearing the same BOQ reference.", s: "note" });
+  const headers = ["BOQ Ref", "Description", "Unit", "Previous Qty", "This Measurement", "Up-to-date Qty", "Measurement Source"];
+  headers.forEach((header, column) => put(cells, 3, column, { v: header, s: "header" }));
+  seed.items.forEach((item, index) => {
+    const row = index + 4;
+    const excelRow = row + 1;
+    put(cells, row, 0, { v: item.code });
+    put(cells, row, 1, { v: item.description });
+    put(cells, row, 2, { v: item.unit });
+    put(cells, row, 3, { f: `='BOQ Abstract'!E${excelRow}`, s: "quantity" });
+    put(cells, row, 4, { f: `=SUMIF(Measurements!A$5:A$204,A${excelRow},Measurements!I$5:I$204)`, s: "quantity" });
+    put(cells, row, 5, { f: `=D${excelRow}+E${excelRow}`, s: "quantity" });
+    put(cells, row, 6, { v: "Measurements!A:I", s: "note" });
+  });
+  return cells;
+}
+
+function createIpcMeasurementsCells(): IObjectMatrixPrimitiveType<ICellData> {
+  const cells: IObjectMatrixPrimitiveType<ICellData> = {};
+  put(cells, 0, 0, { v: "MEASUREMENTS", s: "title" });
+  put(cells, 1, 0, { v: "Enter detailed dimensions here. To add another measurement sheet use the + beside the sheet tabs, then use the same BOQ Ref and Quantity column convention.", s: "note" });
+  const headers = ["BOQ Ref", "Reference", "Description", "Unit", "Nos", "Length", "Width", "Depth / Height", "Quantity", "Remarks"];
+  headers.forEach((header, column) => put(cells, 3, column, { v: header, s: "header" }));
+  for (let index = 0; index < 200; index += 1) {
+    const row = index + 4;
+    const excelRow = row + 1;
+    put(cells, row, 8, { f: `=E${excelRow}*F${excelRow}*G${excelRow}*H${excelRow}`, s: "quantity" });
+  }
+  return cells;
+}
+
+export function createIpcWorksheetDocument(seed: IpcWorksheetSeed, now = new Date()): WorksheetDocument {
+  const documentId = `ipc:${seed.ipcId}:worksheet`;
+  const baseSheet = {
+    rowCount: 240,
+    columnCount: 18,
+    defaultColumnWidth: 90,
+    defaultRowHeight: 24,
+  };
+  const measurementColumns = { 0: { w: 90 }, 1: { w: 120 }, 2: { w: 220 }, 3: { w: 70 }, 4: { w: 70 }, 5: { w: 82 }, 6: { w: 82 }, 7: { w: 110 }, 8: { w: 100 }, 9: { w: 180 } };
+  return {
+    version: WORKSHEET_DOCUMENT_VERSION,
+    documentId,
+    title: `${seed.ipcNumber} Working Papers`,
+    updatedAt: now.toISOString(),
+    scope: { kind: "ipc", projectId: seed.projectId, ipcId: seed.ipcId },
+    workbook: {
+      id: documentId,
+      name: `${seed.ipcNumber} Working Papers`,
+      appVersion: APP_VERSION,
+      locale: "enUS" as IWorkbookData["locale"],
+      styles,
+      sheetOrder: ["cover", "boq-abstract", "measurement-abstract", "measurements"],
+      sheets: {
+        cover: { ...baseSheet, id: "cover", name: "Cover", cellData: createIpcCoverCells(seed), rowData: { 0: { h: 30 }, 4: { h: 44 } }, columnData: { 0: { w: 180 }, 1: { w: 560 } }, mergeData: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 6 }, { startRow: 4, endRow: 4, startColumn: 1, endColumn: 6 }] },
+        "boq-abstract": { ...baseSheet, id: "boq-abstract", name: "BOQ Abstract", cellData: createIpcBoqAbstractCells(seed), freeze: { xSplit: 3, ySplit: 4, startRow: 4, startColumn: 3 }, rowData: { 0: { h: 30 }, 1: { h: 36 }, 3: { h: 34 } }, columnData: { 0: { w: 84 }, 1: { w: 250 }, 2: { w: 64 }, 3: { w: 96 }, 4: { w: 96 }, 5: { w: 96 }, 6: { w: 106 }, 7: { w: 96 }, 8: { w: 96 }, 9: { w: 112 } }, mergeData: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 }, { startRow: 1, endRow: 1, startColumn: 0, endColumn: 9 }] },
+        "measurement-abstract": { ...baseSheet, id: "measurement-abstract", name: "Measurement Abstract", cellData: createIpcMeasurementAbstractCells(seed), freeze: { xSplit: 3, ySplit: 4, startRow: 4, startColumn: 3 }, rowData: { 0: { h: 30 }, 1: { h: 36 }, 3: { h: 34 } }, columnData: { 0: { w: 84 }, 1: { w: 250 }, 2: { w: 64 }, 3: { w: 96 }, 4: { w: 116 }, 5: { w: 106 }, 6: { w: 180 } }, mergeData: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 6 }, { startRow: 1, endRow: 1, startColumn: 0, endColumn: 6 }] },
+        measurements: { ...baseSheet, id: "measurements", name: "Measurements", cellData: createIpcMeasurementsCells(), freeze: { xSplit: 0, ySplit: 4, startRow: 4, startColumn: 0 }, rowData: { 0: { h: 30 }, 1: { h: 38 }, 3: { h: 34 } }, columnData: measurementColumns, mergeData: [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 }, { startRow: 1, endRow: 1, startColumn: 0, endColumn: 9 }] },
+      },
+    },
+  };
+}

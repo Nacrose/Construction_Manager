@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDemoWorkbook,
   createDemoWorksheetDocument,
+  createIpcWorksheetDocument,
 } from "./demo-workbook";
 import { WORKSHEET_DOCUMENT_VERSION } from "./types";
 
@@ -41,5 +42,21 @@ describe("generic worksheet demo", () => {
     expect(Math.max(...populatedRows)).toBeGreaterThanOrEqual(183);
     expect(measurementCells[183]?.[7]?.f).toBe("=D184*E184*F184*G184");
     expect(workbook.sheets.measurements.freeze?.ySplit).toBe(4);
+  });
+
+  it("creates the four standard IPC sheets without imposing a contract-specific measurement layout", () => {
+    const document = createIpcWorksheetDocument({
+      projectId: "project-1",
+      ipcId: "ipc-1",
+      ipcNumber: "IPC 2",
+      projectName: "Bridge package",
+      items: [{ code: "B.1", description: "Concrete", unit: "cum", contractQty: 100, previousQty: 20, rate: 14500 }],
+    });
+
+    expect(document.scope).toEqual({ kind: "ipc", projectId: "project-1", ipcId: "ipc-1" });
+    expect(document.workbook.sheetOrder).toEqual(["cover", "boq-abstract", "measurement-abstract", "measurements"]);
+    expect(document.workbook.sheets["boq-abstract"].cellData?.[4]?.[4]?.v).toBe(20);
+    expect(document.workbook.sheets["measurement-abstract"].cellData?.[4]?.[4]?.f).toContain("SUMIF(Measurements");
+    expect(document.workbook.sheets.measurements.cellData?.[4]?.[8]?.f).toBe("=E5*F5*G5*H5");
   });
 });
