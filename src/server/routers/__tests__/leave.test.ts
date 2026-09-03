@@ -18,7 +18,7 @@
  *     negative allowances rejected
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildUser, createCaller, expectTRPCError } from "./test-utils";
+import { buildUser, createCaller, expectTRPCError, orgPolicyFixture } from "./test-utils";
 
 vi.mock("@/lib/db", async () => {
   const { buildDbMock } = await import("./test-utils");
@@ -58,6 +58,9 @@ function pendingLeave(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // capabilityGuard (leave approve/reject ride typed engine actions from
+  // Phase F) resolves the caller's org policy — fail-loud on a missing org.
+  anyDb.organization.findUnique.mockResolvedValue(orgPolicyFixture());
 });
 
 // ─── list ───────────────────────────────────────────────────────────────────

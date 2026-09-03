@@ -35,9 +35,10 @@ import { computePayrollLine } from "@/server/utils/payroll-calc";
 import { assertNotLocked } from "@/lib/fiscal-year-lock";
 import { createJournalEntry, reverseJournalEntry } from "@/lib/journal-entry";
 import { assertDelegation } from "@/lib/delegation";
-import { transitionEntityState } from "@/server/utils/state-machine";
 import { planPersonAllocations, type ManualSplitRow } from "@/server/services/payroll-allocation";
 import { settlePayrollRun, derivePaymentStatus } from "@/server/utils/settlement";
+import { engineContextFromTrpc } from "@/server/engine/context";
+import { executeAction } from "@/server/engine/execute";
 
 /** CAS-guarded advance recovery (ADR-0007 §4): the increment only lands while
  * recoveredAmount + x ≤ amount. Never a boolean flip, never a principal
@@ -890,11 +891,13 @@ export const payrollRouter = router({
     }),
 
   /**
-   * Run lifecycle: approve (liability boundary), disburse (settlement
-   * primitive), reopen (exact reversal). ORG-admin authority — the run is
-   * org-wide; a project role neither grants nor constrains it.
+   * Run lifecycle as TYPED ACTIONS (ADR-0006 §3): approve (liability
+   * boundary), disburse (settlement primitive), reopen (exact reversal).
+   * ORG-admin authority — the run is org-wide; a project role neither
+   * grants nor constrains it.
    */
   updateRunStatus: protectedProcedure
+    .use(capabilityGuard({ workforcePlanning: true })) // policy snapshot + capability for the engine context
     .input(
       z.object({
         runId: z.string(),
@@ -939,26 +942,31 @@ export const payrollRouter = router({
         }
       }
 
-      // Lifecycle (payrollRun graph): draft → approved → disbursed.
-      // Reopen (approved → draft) reverses exactly; disbursed is terminal —
-      // a disbursed run's settlement JE and paidAmounts cannot be undone
-      // through this endpoint.
-      const targetState =
-        input.action === "approve" ? "approved" : input.action === "disburse" ? "disbursed" : "draft";
+      // Lifecycle as actions (payrollRun graph): draft → approved →
+      // disbursed. Reopen (approved → draft) reverses exactly; disbursed is
+      // terminal — a disbursed run's settlement JE and paidAmounts cannot
+      // be undone through this endpoint.
+      const actionId:
+        | "payrollRun.approve"
+        | "payrollRun.disburse"
+        | "payrollRun.reopen" =
+        input.action === "approve"
+          ? "payrollRun.approve"
+          : input.action === "disburse"
+            ? "payrollRun.disburse"
+            : "payrollRun.reopen";
 
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, organizationId, !!ctx.user.isSuperAdmin);
 
+        // Typed engine context (ADR-0006 §4) — the capability guard above
+        // already resolved the org's ACTIVE policy snapshot into ctx.
+        const engineCtx = await engineContextFromTrpc(ctx, tx);
+
         // Transition FIRST: an invalid/out-of-order move throws before any
         // money moves (everything shares the tx anyway).
-        const result = await transitionEntityState(tx, {
-          model: "payrollRun",
+        const result = await executeAction(engineCtx, actionId, {
           id: input.runId,
-          targetState,
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          allowedCurrentStates:
-            input.action === "approve" ? ["draft"] : input.action === "disburse" ? ["approved"] : ["approved"],
           additionalData: {
             ...(input.action === "disburse" ? { disbursedAmount: run.totalNetPayable } : {}),
             ...(input.notes !== undefined ? { notes: input.notes } : {}),

@@ -105,7 +105,17 @@ const BASELINES = {
      *  (date-derived machine sweep, no user actor). May only grow — new
      *  lifecycle moves must ride the engine so graphs, CAS and attribution
      *  stay centralized. */
-    TRANSITIONS: 37,
+    TRANSITIONS: 33,
+    // (Phase F note: payroll's raw transitionEntityState call moved UP to
+    // the typed action layer (payrollRun.approve/disburse/reopen), as did
+    // site-expense and leave approve/reject — the raw-state bridge shrank
+    // by 4. New lifecycle moves must ride executeAction or the engine
+    // bridge — never hand-rolled updates.)
+    /** Routers executing TYPED ENGINE ACTIONS (ADR-0006 §3) — may only
+     *  grow. Pinned at Phase F adoption: payroll.updateRunStatus (1 call
+     *  site, three actions) + site-expense approve/reject (2) + leave
+     *  approve/reject (2). The registry lives in src/server/engine/. */
+    EXECUTE_ACTIONS: 5,
   },
 };
 
@@ -115,6 +125,7 @@ const FLOAT_MONEY_RE = /\bNumber\(|\bparseFloat\(/g;
 const DOMAIN_ROUTER_RE = /createDomainRouter\(\)/g;
 const FIN_GUARD_RE = /\bfinancialGuard\(\{/g;
 const TRANSITIONS_RE = /\btransitionEntityState\(/g;
+const EXECUTE_ACTION_RE = /\bexecuteAction\(/g;
 
 describe("Engine ratchet — server security pipeline (shrink-only)", () => {
   it("hand-rolled authz calls in routers never grow past the baseline", () => {
@@ -179,5 +190,14 @@ describe("Engine ratchet — declarative adoption floors (grow-only)", () => {
       `transitionEntityState adoption dropped (${count} < ${BASELINES.DECLARATIVE_FLOORS.TRANSITIONS}). ` +
         "Status flips must ride the engine (graphs + CAS + attribution), not hand-rolled updates."
     ).toBeGreaterThanOrEqual(BASELINES.DECLARATIVE_FLOORS.TRANSITIONS);
+  });
+
+  it("typed engine action adoption never shrinks", () => {
+    const count = countPattern(ROUTER_FILES, EXECUTE_ACTION_RE);
+    expect(
+      count,
+      `executeAction adoption dropped (${count} < ${BASELINES.DECLARATIVE_FLOORS.EXECUTE_ACTIONS}). ` +
+        "Controlled transitions must speak ACTIONS (ADR-0006 §3), not raw target states."
+    ).toBeGreaterThanOrEqual(BASELINES.DECLARATIVE_FLOORS.EXECUTE_ACTIONS);
   });
 });

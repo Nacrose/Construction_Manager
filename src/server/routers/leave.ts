@@ -7,11 +7,12 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { createDomainRouter, protectedProcedure } from "@/server/trpc";
+import { createDomainRouter, protectedProcedure, capabilityGuard } from "@/server/trpc";
 import { db } from "@/lib/db";
 import { assertProjectMember, assertProjectAdmin } from "@/lib/authz";
 import { withOrgContext } from "@/lib/rls";
-import { transitionEntityState } from "@/server/utils/state-machine";
+import { engineContextFromTrpc } from "@/server/engine/context";
+import { executeAction } from "@/server/engine/execute";
 
 const { router, proc } = createDomainRouter();
 
@@ -116,6 +117,7 @@ export const leaveRouter = router({
 
   /** PM approves leave request. */
   approve: protectedProcedure
+    .use(capabilityGuard({ workforcePlanning: true })) // policy snapshot for the engine context (ADR-0006 §4)
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
@@ -142,21 +144,16 @@ export const leaveRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Project has no organization; leave balances require an org scope." });
       }
 
-      // STATUS UPDATE (engine CAS) + LEAVE BALANCE UPSERT — ONE TRANSACTION.
-      // transitionEntityState validates the pending→approved edge and claims
-      // the row via compare-and-swap, so a concurrent approval fails with
-      // CONFLICT instead of double-counting the balance.
+      // STATUS UPDATE (typed action, ADR-0006 §3) + LEAVE BALANCE UPSERT —
+      // ONE TRANSACTION. The action resolves leave.approve → pending →
+      // approved and claims the row via compare-and-swap, so a concurrent
+      // approval fails with CONFLICT instead of double-counting the balance.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin);
 
-        const result = await transitionEntityState(tx, {
-          model: "leave",
+        const engineCtx = await engineContextFromTrpc(ctx, tx, { projectId: leave.projectId });
+        const result = await executeAction(engineCtx, "leave.approve", {
           id: input.id,
-          targetState: "approved",
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          projectId: leave.projectId,
-          allowedCurrentStates: ["pending"],
           skipEventEmit: true, // leave has no event consumers today
         });
 
@@ -193,6 +190,7 @@ export const leaveRouter = router({
 
   /** PM/coordinator rejects leave request. */
   reject: protectedProcedure
+    .use(capabilityGuard({ workforcePlanning: true })) // policy snapshot for the engine context (ADR-0006 §4)
     .input(z.object({ id: z.string(), rejectionReason: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const leave = await db.leaveRequest.findUnique({
@@ -202,17 +200,13 @@ export const leaveRouter = router({
       if (!leave) throw new TRPCError({ code: "NOT_FOUND", message: "Leave request not found." });
       await assertProjectAdmin(ctx.user, leave.projectId);
 
-      // Engine transition: validates the pending→rejected edge, CAS-claims the
-      // row, and attributes rejectionReason from `notes`. A concurrent
-      // approve/reject surfaces as CONFLICT instead of a silent overwrite.
-      const result = await transitionEntityState(db, {
-        model: "leave",
+      // Typed engine action: resolves leave.reject → pending → rejected,
+      // CAS-claims the row, and attributes rejectionReason from `notes`. A
+      // concurrent approve/reject surfaces as CONFLICT instead of a silent
+      // overwrite.
+      const engineCtx = await engineContextFromTrpc(ctx, db, { projectId: leave.projectId });
+      const result = await executeAction(engineCtx, "leave.reject", {
         id: input.id,
-        targetState: "rejected",
-        userId: ctx.user.id,
-        userName: ctx.user.name,
-        projectId: leave.projectId,
-        allowedCurrentStates: ["pending"],
         notes: input.rejectionReason,
         skipEventEmit: true, // leave has no event consumers today
       });

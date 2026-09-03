@@ -15,7 +15,8 @@ import { assertDelegation } from "@/lib/delegation";
 import { addMoney } from "@/lib/money";
 import { withOrgContext } from "@/lib/rls";
 import { getNextSequenceNumber } from "@/server/utils/sequence-generator";
-import { transitionEntityState } from "@/server/utils/state-machine";
+import { engineContextFromTrpc } from "@/server/engine/context";
+import { executeAction } from "@/server/engine/execute";
 import { emitDomainEvent } from "@/server/utils/domain-events";
 
 const { router, proc } = createDomainRouter();
@@ -241,22 +242,17 @@ export const siteExpenseRouter = router({
       // back-dated expenses to locked fiscal years are rejected.
       await assertNotLocked(ctx.user.organizationId, expense.date ?? new Date());
 
-      // STATUS UPDATE (engine CAS) + JOURNAL ENTRY — ONE TRANSACTION.
-      // transitionEntityState validates the pending→approved graph edge and
-      // claims the row via compare-and-swap on the status it just read: a
-      // concurrent approval/rejection yields CONFLICT and a second journal
-      // entry can never be posted.
+      // STATUS UPDATE (typed action, ADR-0006 §3) + JOURNAL ENTRY — ONE
+      // TRANSACTION. The action resolves siteExpense.approve → pending →
+      // approved and claims the row via compare-and-swap on the status it
+      // just read: a concurrent approval/rejection yields CONFLICT and a
+      // second journal entry can never be posted.
       const updated = await db.$transaction(async (tx) => {
         await withOrgContext(tx, ctx.user.organizationId, !!ctx.user.isSuperAdmin); // RLS: phase-3m tables are FORCE-scoped
 
-        await transitionEntityState(tx, {
-          model: "siteExpense",
+        const engineCtx = await engineContextFromTrpc(ctx, tx, { projectId: expense.projectId });
+        await executeAction(engineCtx, "siteExpense.approve", {
           id: input.id,
-          targetState: "approved",
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          projectId: expense.projectId,
-          allowedCurrentStates: ["pending"],
           skipEventEmit: true, // richer, expense-specific event emitted after commit below
         });
 
@@ -340,17 +336,12 @@ export const siteExpenseRouter = router({
       if (!expense) throw new TRPCError({ code: "NOT_FOUND", message: "Expense not found." });
       await assertProjectAdmin(ctx.user, expense.projectId);
 
-      // Engine transition: validates the pending→rejected edge and CAS-claims
-      // the row, so an approve/reject race surfaces as CONFLICT instead of a
-      // silent last-write-wins overwrite.
-      const result = await transitionEntityState(db, {
-        model: "siteExpense",
+      // Typed engine action: resolves siteExpense.reject → pending →
+      // rejected and CAS-claims the row, so an approve/reject race surfaces
+      // as CONFLICT instead of a silent last-write-wins overwrite.
+      const engineCtx = await engineContextFromTrpc(ctx, db, { projectId: expense.projectId });
+      const result = await executeAction(engineCtx, "siteExpense.reject", {
         id: input.id,
-        targetState: "rejected",
-        userId: ctx.user.id,
-        userName: ctx.user.name,
-        projectId: expense.projectId,
-        allowedCurrentStates: ["pending"],
         skipEventEmit: true, // richer, expense-specific event emitted below
       });
       const updated = result.entity;
