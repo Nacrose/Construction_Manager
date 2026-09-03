@@ -21,7 +21,12 @@ import {
   Printer,
   Loader2,
   RefreshCw,
+  Split,
 } from "lucide-react";
+import {
+  PayrollAllocationDialog,
+  type StoredAllocation,
+} from "../dialogs/payroll-allocation-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -42,6 +47,11 @@ export function PayrollManagementTab({
   });
   const [selectedPayslip, setSelectedPayslip] = useState<any | null>(null);
   const [confirmAction, setConfirmAction] = useState<"approve" | "disburse" | null>(null);
+  const [splitItem, setSplitItem] = useState<any | null>(null);
+  // Manual splits pinned this session (ADR-0007 §2). Stored draft-run rows
+  // are the source of truth — this map only carries in-session saves so a
+  // global "Update Run" never silently reverts a person to the auto basis.
+  const [localManual, setLocalManual] = useState<Record<string, any[]>>({});
 
   const utils = trpc.useUtils();
 
@@ -53,6 +63,28 @@ export function PayrollManagementTab({
   const payrollItems = data?.payrollItems || [];
   const summary = data?.summary;
   const existingRun = data?.existingRun;
+  const runIsDraft = existingRun?.status === "draft";
+
+  // Draft-run allocations (basis + manual rows) per person — read-only
+  // grounding for the split dialog and the Auto/Manual badge.
+  const { data: runDetail } = trpc.payroll.getRun.useQuery(
+    { runId: existingRun!.id },
+    { enabled: !!existingRun?.id },
+  );
+
+  const storedManualByPerson = useMemo(() => {
+    const map: Record<string, StoredAllocation[]> = {};
+    for (const rec of runDetail?.run.records ?? []) {
+      const allocs = (rec as any).allocations ?? [];
+      if (allocs.some((a: any) => a.basis === "manual")) {
+        map[rec.personId] = allocs;
+      }
+    }
+    return map;
+  }, [runDetail]);
+
+  const effectiveManualFor = (personId: string): StoredAllocation[] | null =>
+    localManual[personId] ?? storedManualByPerson[personId] ?? null;
 
   const createRunMut = trpc.payroll.createPayrollRun.useMutation({
     onSuccess: () => {
@@ -83,12 +115,25 @@ export function PayrollManagementTab({
     // Phase E (ADR-0007): the run is ORG-wide — the server recomputes every
     // amount from combined attendance; the client only nominates persons
     // (and optional audited manual splits). Saving is additive: persons
-    // already in the run from other projects are never dropped.
+    // already in the run from other projects are never dropped. Pinned
+    // manual splits ride along so a re-save never reverts them to auto.
     createRunMut.mutate({
       month: selectedMonth,
-      records: payrollItems.map((item) => ({
-        personId: item.personId,
-      })),
+      records: payrollItems.map((item) => {
+        const manual = effectiveManualFor(item.personId);
+        const rows = manual?.map((a) => ({
+          assignmentId: a.assignmentId,
+          gross: a.gross,
+          allowances: a.allowances,
+          advanceDeduction: a.advanceDeduction,
+          tdsAmount: a.tdsAmount,
+          net: a.net,
+          overrideReason: a.overrideReason ?? "Manual split carried forward",
+        }));
+        return rows && rows.length > 0
+          ? { personId: item.personId, manualAllocations: rows }
+          : { personId: item.personId };
+      }),
     });
   };
 
@@ -172,6 +217,38 @@ export function PayrollManagementTab({
         render: (val) => formatNpr(val),
       },
       {
+        key: "split",
+        header: "Split",
+        align: "center",
+        render: (_val: unknown, row: any) => {
+          const splittable = (row.projectNames?.length ?? 0) > 1;
+          const canEdit = isAdmin && (!existingRun || runIsDraft);
+          const manual =
+            localManual[row.personId] ?? storedManualByPerson[row.personId] ?? null;
+          return (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!canEdit || !splittable}
+              title={
+                !splittable
+                  ? "Single engagement — no split possible"
+                  : !canEdit
+                  ? "Run is locked"
+                  : manual
+                  ? "Manual split pinned (audited) — click to edit"
+                  : "Auto basis (days → % → residual) — click to pin a manual split"
+              }
+              onClick={() => setSplitItem(row)}
+              className="h-6 text-[10px] gap-1 px-1.5 text-primary hover:bg-primary/10 disabled:text-muted-foreground/40"
+            >
+              <Split className="h-3 w-3" />
+              {manual ? "Manual" : "Auto"}
+            </Button>
+          );
+        },
+      },
+      {
         key: "staffId",
         header: "Payslip",
         align: "center",
@@ -187,7 +264,7 @@ export function PayrollManagementTab({
         ),
       },
     ],
-    []
+    [isAdmin, existingRun, runIsDraft, localManual, storedManualByPerson],
   );
 
   return (
@@ -378,6 +455,34 @@ export function PayrollManagementTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Manual allocation split editor (ADR-0007 §2). Gated on the draft-run
+          detail so the prefill has its stored rows before mounting. */}
+      {splitItem && (!runIsDraft || !!runDetail) && (
+        <PayrollAllocationDialog
+          projectId={projectId}
+          month={selectedMonth}
+          item={{
+            personId: splitItem.personId,
+            staffName: splitItem.staffName,
+            gross: splitItem.gross,
+            allowances: splitItem.allowances,
+            advanceDeduction: splitItem.advanceDeduction,
+            tdsAmount: splitItem.tdsAmount,
+            netPayable: splitItem.netPayable,
+          }}
+          storedAllocations={runIsDraft ? effectiveManualFor(splitItem.personId) : null}
+          onSaved={(rows) =>
+            setLocalManual((prev) => {
+              const next = { ...prev };
+              if (rows) next[splitItem.personId] = rows as any[];
+              else delete next[splitItem.personId];
+              return next;
+            })
+          }
+          onClose={() => setSplitItem(null)}
+        />
+      )}
 
       {/* Confirmation Dialog for Payroll Approval / Disbursement */}
       {confirmAction && (
