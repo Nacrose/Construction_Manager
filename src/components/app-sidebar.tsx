@@ -12,6 +12,7 @@ import { capabilitiesSchema, type OperatingCapabilities } from "@/lib/capabiliti
 import { GLOBAL_NAV, PROJECT_MODULE_NAV, filterNavByCapabilities, type SidebarNavItem } from "@/lib/nav-registry";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { NavigationContextMenu } from "@/components/navigation-context-menu";
 
 function groupNavigation(items: readonly SidebarNavItem[]) {
   return items.reduce<Array<{ label: string; items: SidebarNavItem[] }>>((groups, item) => {
@@ -78,11 +79,26 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 pb-3" aria-label={projectId ? "Project navigation" : "Organisation navigation"}>
-        {groups.map((group) => <section key={group.label} className="mt-3 first:mt-0"><p className="px-2 pb-1 text-[9px] font-mono font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p><div className="space-y-px">{group.items.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item);
-          return <Link key={item.href || "overview"} href={hrefFor(item)} className={cn("group flex min-h-7 items-center gap-2 rounded-[4px] border px-2 text-[11px] font-medium transition-colors", active ? "rail-btn-active text-foreground" : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground")}><Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{active && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}</Link>;
-        })}</div></section>)}
+        {groups.map((group) => (
+          <section key={group.label} className="mt-3 first:mt-0">
+            <p className="px-2 pb-1 text-[9px] font-mono font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p>
+            <div className="space-y-px">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item);
+                return (
+                  <NavigationContextMenu key={item.href || "overview"} href={hrefFor(item)} label={item.label}>
+                    <Link href={hrefFor(item)} className={cn("group flex min-h-7 items-center gap-2 rounded-[4px] border px-2 text-[11px] font-medium transition-colors", active ? "rail-btn-active text-foreground" : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground")}>
+                      <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {active && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}
+                    </Link>
+                  </NavigationContextMenu>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </nav>
 
       <div className="border-t border-sidebar-border p-2">

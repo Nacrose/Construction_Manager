@@ -9,6 +9,7 @@ import { isModuleEnabled, type ModuleKey } from "@/lib/project-modules";
 import { capabilitiesSchema, type CapabilityRequirement, type OperatingCapabilities } from "@/lib/capabilities";
 import { filterNavByCapabilities } from "@/lib/nav-registry";
 import { useMemo } from "react";
+import { NavigationContextMenu } from "@/components/navigation-context-menu";
 
 export type ModuleTab = {
   label: string;
@@ -92,18 +93,11 @@ export function ModuleTabs({
         const href = basePath + tab.href;
         const active = pathname === href || pathname.startsWith(href + "/");
         return (
-          <Link
-            key={tab.href}
-            href={href}
-            className={cn(
-              "rounded px-3 py-1 text-xs font-mono transition-all duration-150 shrink-0",
-              active
-                ? "bg-primary/15 text-primary border border-primary/40 font-semibold shadow-[0_0_8px_rgba(245,158,11,0.15)]"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-            )}
-          >
-            {tab.label}
-          </Link>
+          <NavigationContextMenu key={tab.href} href={href} label={tab.label}>
+            <Link href={href} className={cn("rounded px-3 py-1 text-xs font-mono transition-all duration-150 shrink-0", active ? "bg-primary/15 text-primary border border-primary/40 font-semibold shadow-[0_1px_2px_rgba(79,62,45,0.12)]" : "text-muted-foreground hover:text-foreground hover:bg-accent/50")}>
+              {tab.label}
+            </Link>
+          </NavigationContextMenu>
         );
       })}
       {rightContent && (
@@ -114,4 +108,3 @@ export function ModuleTabs({
     </div>
   );
 }
-
