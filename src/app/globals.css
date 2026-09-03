@@ -531,6 +531,12 @@ html {
     flex-shrink: 0;
   }
 
+  /* Finance is a ledger workspace: the navigation is intentionally textual,
+     not a row of colourful dashboard glyphs. */
+  .finance-workspace .aero-icon-sm {
+    display: none;
+  }
+
   /* ── Previously-ghost classes (referenced but never defined) ── */
 
   /* Login / auth hero: ink sheet with survey grid + amber horizon */

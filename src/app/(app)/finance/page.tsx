@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { DayBookTab } from "@/app/(app)/projects/[id]/accounting/components/day-book-tab";
 import { trpc } from "@/lib/trpc-client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,10 +21,16 @@ export default function OrganizationFinancePage() {
   const projectSpecificId = selectedProjectId || (projects.length > 0 ? projects[0]?.id : "");
 
   return (
-    <div className="space-y-2 pb-6">
-      {/* 1. THE ONLY TAB BAR FOR NAVIGATION (Adobe Segmented Card Dock as First Element) */}
+    <div className="finance-workspace space-y-2 pb-6">
+      <header className="flex min-h-10 items-center gap-3 border-b border-border/75 pb-2">
+        <div className="min-w-0 mr-auto"><h1 className="text-sm font-semibold text-foreground">Finance</h1><p className="text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">Organisation books and bank position</p></div>
+        <Select value={selectedProjectId || "all"} onValueChange={(value) => setSelectedProjectId(value === "all" ? "" : value)}>
+          <SelectTrigger className="h-7 w-[175px] bg-card text-[10px] font-mono shadow-inner"><SelectValue placeholder="All projects" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All projects</SelectItem>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.code ? `${project.code} · ` : ""}{project.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </header>
       <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
-        <div className="w-full level-1-dock p-0.5 rounded-lg flex items-center justify-between gap-1 mb-2">
+        <div className="w-full level-1-dock p-0.5 rounded-[5px] flex items-center justify-between gap-1 mb-2">
           <TabsList className="w-full border-0 bg-transparent p-0 flex items-center gap-1">
             
             {/* Tab 1: Day Book & Cashbook */}

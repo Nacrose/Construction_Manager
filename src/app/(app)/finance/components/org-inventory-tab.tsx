@@ -10,22 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Plus,
-  Package,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { LogDirectMaterialDialog } from "@/components/materials/log-direct-material-dialog";
 import { formatNpr } from "@/lib/currency";
 import { ConstructionTable, ConstructionTableColumn } from "@/components/ui/construction-table";
 
 export function OrgInventoryTab() {
-  const [search, setSearch] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [logMaterialOpen, setLogMaterialOpen] = useState(false);
 
-  const { data, isLoading } = trpc.material.listOrgInventory.useQuery({
-    search: search.trim() || undefined,
-  });
+  const { data, isLoading } = trpc.material.listOrgInventory.useQuery({});
 
   const inventory = data?.inventory || [];
   const projects = data?.projects || [];
@@ -178,9 +172,9 @@ export function OrgInventoryTab() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Controls Header Ribbon */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 bg-muted/40 rounded-lg border">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2">
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="h-8 w-44 text-xs font-mono">
@@ -200,18 +194,18 @@ export function OrgInventoryTab() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 bg-muted/60 rounded-md border text-xs font-mono">
-            <span className="text-muted-foreground text-[10px] uppercase">Total Valuation:</span>
+          <div className="flex items-center gap-2 px-2 py-1 text-xs font-mono">
+            <span className="text-muted-foreground text-[10px] uppercase">Valuation</span>
             <span className="text-foreground font-bold">{formatNpr(totalCompanyValuation)}</span>
           </div>
 
           <Button
             onClick={() => setLogMaterialOpen(true)}
             size="sm"
-            className="h-8 px-3 text-xs font-bold text-white rounded-lg gap-1.5 shadow-xs font-mono bg-emerald-600 hover:bg-emerald-700"
+            className="h-7 px-3 text-[10px] font-bold gap-1.5 font-mono"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-            Log Material (दाखिला)
+            Record receipt
           </Button>
         </div>
       </div>

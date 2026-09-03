@@ -4,21 +4,13 @@ import { OrgInventoryTab } from "@/app/(app)/finance/components/org-inventory-ta
 
 export default function OrganizationInventoryPage() {
   return (
-    <div className="space-y-4 pb-8">
-      {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+    <div className="space-y-3 pb-8">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/75 pb-2">
         <div>
-          <h1 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-            Multi-Project Inventory Matrix
-            <span className="text-xs font-normal text-[var(--primary)] font-mono bg-info/10 px-2.5 py-0.5 rounded-full border border-[#bae6fd]">
-              सम्पूर्ण प्रोजेक्ट मौज्दात तुलना
-            </span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time material stock balances, landed valuations, and deliveries across all company project sites.
-          </p>
+          <h1 className="text-sm font-semibold text-foreground">Inventory</h1>
+          <p className="mt-0.5 text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">Cross-project stock matrix and replenishment view</p>
         </div>
-      </div>
+      </header>
 
       {/* Multi-Project Comparative Stock Matrix Component */}
       <OrgInventoryTab />
