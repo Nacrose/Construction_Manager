@@ -72,9 +72,9 @@ describe("rateAnalysis.list", () => {
 });
 
 describe("rateAnalysis.create", () => {
-  it("FORBIDDENs read-only roles", async () => {
+  it("FORBIDDENs non-members", async () => {
     primeItem();
-    member("client");
+    member(null);
     const caller = createCaller(rateAnalysisRouter, ENGINEER);
     await expectTRPCError(
       caller.create({ itemId: "bi-1", name: "Mix B", batchSize: 1 }),

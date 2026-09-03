@@ -177,9 +177,9 @@ describe("rfi.update", () => {
     );
   });
 
-  it("read-only roles cannot update at all", async () => {
+  it("non-members cannot update at all", async () => {
     anyDb.rfi.findUnique.mockResolvedValue(rfi());
-    member("client");
+    member(null);
     const caller = createCaller(rfiRouter, ENGINEER);
     await expectTRPCError(
       caller.update({ id: "rfi-1", subject: "Nope" }),
@@ -293,7 +293,7 @@ describe("rfi.delete", () => {
 describe("rfi comments", () => {
   it("any project member can comment", async () => {
     anyDb.rfi.findUnique.mockResolvedValue(rfi({ status: "submitted" }));
-    member("client");
+    member("engineer");
     const caller = createCaller(rfiRouter, ENGINEER);
     await caller.addComment({ rfiId: "rfi-1", content: "Client note" });
     expect(anyDb.rfiComment.create).toHaveBeenCalledWith(

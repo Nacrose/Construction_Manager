@@ -37,7 +37,7 @@ export default function TaxSummaryPage({ params }: { params: Promise<{ id: strin
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data: pData } = trpc.vatRegister.getPurchaseRegister.useQuery({ projectId: id });
   const { data: sData } = trpc.vatRegister.getSalesRegister.useQuery({ projectId: id });
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
   const missingCount = (pData?.totals.missingScansCount || 0) + (sData?.totals.missingScansCount || 0);
 
   return (

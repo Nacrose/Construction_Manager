@@ -6,7 +6,7 @@
  *   - get: NOT_FOUND, cross-project FORBIDDEN via the submittal's OWN
  *     project (assertProjectMember on s.projectId)
  *   - create: happy path (type default, YYYY-MM-DD → UTC Date transforms,
- *     createdById), zod enum/size validation, read-only FORBIDDEN
+ *     createdById), zod enum/size validation, non-members FORBIDDEN
  *   - submit: state machine — only draft or revise_resubmit submittals can
  *     be submitted (regression: an APPROVED submittal could be flipped back
  *     to "submitted", silently destroying the review decision while
@@ -16,9 +16,9 @@
  *     reviewed/approved without ever being submitted — bypassing the whole
  *     consultant workflow); approved/rejected/revise_resubmit persist
  *     reviewedDate/reviewedBy (default the caller's name)/comments/returned
- *     file; NOT_FOUND + cross-project FORBIDDEN + read-only FORBIDDEN
+ *     file; NOT_FOUND + cross-project FORBIDDEN + non-member FORBIDDEN
  *   - delete: cross-project IDOR guard (findFirst id+projectId — the
- *     pre-existing "IDOR FIX" pattern), happy path, read-only FORBIDDEN
+ *     pre-existing "IDOR FIX" pattern), happy path, non-member FORBIDDEN
  *   - stats: status counts, project-scoped, member-only
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -98,7 +98,7 @@ describe("submittal.list", () => {
 // ─── get ───────────────────────────────────────────────────────────────────
 describe("submittal.get", () => {
   it("returns the submittal to a project member", async () => {
-    member("client"); // even read-only members may read
+    member("engineer"); // any member may read
     anyDb.submittal.findUnique.mockResolvedValue(submittal());
     const caller = createCaller(submittalRouter, USER);
     const res = await caller.get({ id: "sub-1" });
@@ -184,8 +184,8 @@ describe("submittal.create", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
     expect(anyDb.submittal.create).not.toHaveBeenCalled();
@@ -330,8 +330,8 @@ describe("submittal.review", () => {
     expect(anyDb.submittal.updateMany).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     anyDb.submittal.findUnique.mockResolvedValue(submittal({ status: "submitted" }));
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.review(reviewInput), "FORBIDDEN");
@@ -363,8 +363,8 @@ describe("submittal.delete", () => {
     expect(anyDb.submittal.delete).toHaveBeenCalledWith({ where: { id: "sub-1" } });
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(submittalRouter, USER);
     await expectTRPCError(caller.delete({ id: "sub-1", projectId: "p-1" }), "FORBIDDEN");
     expect(anyDb.submittal.delete).not.toHaveBeenCalled();

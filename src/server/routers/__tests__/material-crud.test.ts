@@ -5,12 +5,12 @@
  *   - list / listByType: project-scoped where clauses (materials, suppliers,
  *     purchase orders all filter by projectId), resourceType + search filters,
  *     isActive-only on listByType
- *   - create: read-only roles (client/inspector) FORBIDDEN, catalogMaterialId
+ *   - create: non-members FORBIDDEN, catalogMaterialId
  *     takes precedence over the legacy materialCatalogId alias, zod rejects
  *     negative stock thresholds
  *   - update: NOT_FOUND for unknown ids, cross-project material FORBIDDEN
- *     (IDOR guard — authz runs against the material's OWN project), read-only
- *     role on the owning project FORBIDDEN, negative stock thresholds
+ *     (IDOR guard — authz runs against the material's OWN project), a
+ *     non-member of the owning project FORBIDDEN, negative stock thresholds
  *     rejected by zod (create validates min(0) — update must too)
  *   - delete: NOT_FOUND / cross-project FORBIDDEN / happy path
  *   - checkProjectDeleteImpact: cross-project material ids FORBIDDEN
@@ -154,8 +154,8 @@ describe("materialCrud.create", () => {
     expect(anyDb.material.create.mock.calls[0][0].data.catalogMaterialId).toBe("cat-legacy");
   });
 
-  it("FORBIDDENs read-only roles (client, inspector)", async () => {
-    memberOf({ "p-1": "client" });
+  it("FORBIDDENs non-members (no ProjectMember row, no access)", async () => {
+    memberOf({});
     const caller = createCaller(materialCrudRouter, USER);
     await expectTRPCError(
       caller.create({ ...baseInput }),
@@ -246,8 +246,8 @@ describe("materialCrud.update", () => {
     expect(anyDb.material.update).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs a read-only role on the material's own project", async () => {
-    memberOf({ "p-1": "client" });
+  it("FORBIDDENs a non-member on the material's own project", async () => {
+    memberOf({});
     anyDb.material.findUnique.mockResolvedValue({ projectId: "p-1" });
     const caller = createCaller(materialCrudRouter, USER);
     await expectTRPCError(

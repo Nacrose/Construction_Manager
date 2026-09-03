@@ -81,7 +81,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
   const allRfis = data ? data.pages.flatMap((p) => p.rfis) : [];
 
   const myRole = projectInfo?.myRole;
-  const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
+  const canWrite = !!myRole;
 
   // Keyboard shortcuts: n = new RFI, / = focus search, Esc = blur search
   useEffect(() => {
@@ -190,7 +190,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
     const targetIds = [...selectedIds];
     if (!targetIds.length) return;
     const canDelete = myRole === "project_manager" || myRole === "coordinator";
-    const canDoWrite = myRole && myRole !== "client" && myRole !== "inspector";
+    const canDoWrite = !!myRole;
     Promise.all(
       targetIds.map((targetId) =>
         status === "delete" && canDelete
@@ -321,12 +321,6 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
           )}
         </div>
       </div>
-
-      {myRole === "client" || myRole === "inspector" ? (
-        <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-400 font-mono">
-          Read-only mode. You can review RFI data and decisions.
-        </div>
-      ) : null}
 
       {/* Technical Filter Bar */}
       <RfiToolbar

@@ -141,7 +141,7 @@ export default function DailyReportsPage({
   const utils = trpc.useUtils();
 
   const myRole = projectInfo?.myRole;
-  const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
+  const canWrite = !!myRole;
 
   const createMutation = trpc.workflow.dailyReport.createReport.useMutation({
     onSuccess: (data) => {

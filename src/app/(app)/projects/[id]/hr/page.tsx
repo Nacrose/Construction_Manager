@@ -43,11 +43,7 @@ export default function HrPage({ params }: { params: Promise<{ id: string }> }) 
     status: "active",
   });
 
-  const canWrite = Boolean(
-    projectInfo?.myRole &&
-      projectInfo.myRole !== "client" &&
-      projectInfo.myRole !== "inspector"
-  );
+  const canWrite = Boolean(projectInfo?.myRole);
   const isAdmin =
     projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 

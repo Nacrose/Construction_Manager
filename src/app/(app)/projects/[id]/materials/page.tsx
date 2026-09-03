@@ -103,11 +103,7 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   const gateData = { gateEntries: gateQuery.data ? gateQuery.data.pages.flatMap((p) => p.gateEntries) : [] };
   const allTxns = txnsQuery.data ? txnsQuery.data.pages.flatMap((p) => p.transactions) : [];
 
-  const canWrite = Boolean(
-    projectInfo?.myRole &&
-      projectInfo.myRole !== "client" &&
-      projectInfo.myRole !== "inspector"
-  );
+  const canWrite = Boolean(projectInfo?.myRole);
   const isAdmin =
     projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 

@@ -27,8 +27,8 @@ const anyDb = db as any;
 const ENGINEER = buildUser();
 const PM = buildUser();
 
-function member(role: string) {
-  anyDb.projectMember.findUnique.mockResolvedValue({ role });
+function member(role: string | null) {
+  anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);
 }
 
 beforeEach(() => {
@@ -39,8 +39,8 @@ beforeEach(() => {
 describe("ipc.create", () => {
   const createInput = { projectId: "p-1", number: "IPC-001" };
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(ipcRouter, ENGINEER);
     await expectTRPCError(caller.create(createInput), "FORBIDDEN");
     expect(anyDb.ipc.create).not.toHaveBeenCalled();

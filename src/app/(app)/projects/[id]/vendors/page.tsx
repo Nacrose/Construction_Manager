@@ -63,11 +63,7 @@ function VendorsPageContent({ params }: { params: Promise<{ id: string }> }) {
   );
 
   const partners = partnersQuery.data ? partnersQuery.data.pages.flatMap((p) => p.partners) : [];
-  const canWrite = Boolean(
-    projectInfo?.myRole &&
-      projectInfo.myRole !== "client" &&
-      projectInfo.myRole !== "inspector"
-  );
+  const canWrite = Boolean(projectInfo?.myRole);
 
   const deleteMutation = trpc.partner.deletePartner.useMutation({
     onSuccess: () => {

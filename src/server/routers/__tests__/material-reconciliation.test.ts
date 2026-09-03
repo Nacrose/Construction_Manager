@@ -17,7 +17,7 @@
  *     (YYYY-MM-DD → start/end of day), summary aggregation
  *   - physicalCount: adjustment txn with |difference| at rate 0, stock reset
  *     to the counted qty, no-op when the count matches, zod min(0),
- *     cross-project material NOT_FOUND, read-only role FORBIDDEN, and the
+ *     cross-project material NOT_FOUND, non-member FORBIDDEN, and the
  *     fiscal-year lock (regression: this wrote a MaterialTransaction with no
  *     assertNotLocked while createTransaction enforces it)
  *   - getYieldReconciliation: batched vs payable variance, variancePct
@@ -484,8 +484,8 @@ describe("materialReconciliation.physicalCount", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(materialReconRouter, USER);
     await expectTRPCError(
       caller.physicalCount({ projectId: "p-1", materialId: "m-1", countedQty: 10 }),

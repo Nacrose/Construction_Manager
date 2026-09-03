@@ -112,11 +112,7 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
     onError: (e) => toast.error(e.message),
   });
 
-  const canWrite = Boolean(
-    projectInfo?.myRole &&
-      projectInfo.myRole !== "client" &&
-      projectInfo.myRole !== "inspector"
-  );
+  const canWrite = Boolean(projectInfo?.myRole);
 
   const allEquipment = (data?.equipment || []) as Equipment[];
   const pendingMaintCount = allMaint.filter(

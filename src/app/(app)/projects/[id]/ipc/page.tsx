@@ -53,7 +53,7 @@ export default function IpcPage({ params }: { params: Promise<{ id: string }> })
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.ipc.list.useQuery({ projectId: id });
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
 
   const allIpcs = (data?.ipcs ?? []) as Ipc[];
 

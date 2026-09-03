@@ -18,7 +18,7 @@
  *     name; creates EquipmentVendor AND Partner (type equipment_vendor)
  *     only when missing
  *   - fiscal lock uses the TICKET date, checked BEFORE any vendor writes
- *   - read-only roles blocked; negative rates/hours rejected (zod)
+ *   - non-members blocked; negative rates/hours rejected (zod)
  *   - listSpotHires: org scoping + summary totals (unbilled = Σ net of
  *     unbilled tickets only)
  *   - getVendorHireStatement: groups by trimmed+lowercased vendor name,
@@ -375,8 +375,8 @@ describe("equipmentSpotHire.createSpotHire — guards", () => {
     expect(where.endDate.gte).toEqual(new Date("2025-07-15"));
   });
 
-  it("FORBIDDENs read-only roles (inspector)", async () => {
-    member("inspector");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(spotHireRouter, ENGINEER);
     await expectTRPCError(
       caller.createSpotHire({

@@ -104,7 +104,7 @@ export default function SubcontractorBillingPage({ params }: { params: Promise<{
     { enabled: !!verifyBillId }
   );
 
-  const canWrite = Boolean(projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector");
+  const canWrite = Boolean(projectInfo?.myRole);
   const isAdmin = Boolean(projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "engineer");
 
 

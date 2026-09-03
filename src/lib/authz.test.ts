@@ -1,5 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { authErrorToResponse, assertOrgAdmin, type ProjectRole } from "./authz";
+
+vi.mock("@/lib/db", () => ({
+  db: {
+    projectMember: { findUnique: vi.fn() },
+    project: { findUnique: vi.fn() },
+    companyBankAccount: { findUnique: vi.fn() },
+  },
+}));
+
+import { db } from "@/lib/db";
+import { getProjectRole, assertProjectMember, assertCanWrite, assertProjectAdmin, assertProjectManager, isOrgOwner } from "./authz";
+
+const anyDb = db as any;
 
 describe("Authorization Status Mapping & Security Guards", () => {
   describe("authErrorToResponse HTTP Mapping", () => {
@@ -37,21 +50,22 @@ describe("Authorization Status Mapping & Security Guards", () => {
     });
   });
 
-  describe("Project Role Capability Matrix (35 capability combinations)", () => {
-    const roles: ProjectRole[] = ["project_manager", "coordinator", "engineer", "client", "inspector"];
+  describe("Project Role Capability Matrix (closed triad, ADR-0005)", () => {
+    const roles: ProjectRole[] = ["project_manager", "coordinator", "engineer"];
+
+    it("exactly three project roles exist — external parties never receive roles", () => {
+      expect(roles).toHaveLength(3);
+    });
 
     const capabilityMatrix = [
-      // role, canRead, canWrite, isAdminTier, isOwnerTier
       { role: "project_manager" as ProjectRole, canWrite: true, isAdminTier: true, isOwnerTier: true },
       { role: "coordinator" as ProjectRole, canWrite: true, isAdminTier: true, isOwnerTier: false },
       { role: "engineer" as ProjectRole, canWrite: true, isAdminTier: false, isOwnerTier: false },
-      { role: "inspector" as ProjectRole, canWrite: false, isAdminTier: false, isOwnerTier: false },
-      { role: "client" as ProjectRole, canWrite: false, isAdminTier: false, isOwnerTier: false },
     ];
 
     it.each(capabilityMatrix)("verifies permission matrix for role $role", ({ role, canWrite, isAdminTier, isOwnerTier }) => {
-      const isReadOnly = role === "client" || role === "inspector";
-      expect(!isReadOnly).toBe(canWrite);
+      // Triad members are never read-only.
+      expect(canWrite).toBe(true);
 
       const hasAdminTier = role === "project_manager" || role === "coordinator";
       expect(hasAdminTier).toBe(isAdminTier);
@@ -59,37 +73,113 @@ describe("Authorization Status Mapping & Security Guards", () => {
       const hasOwnerTier = role === "project_manager";
       expect(hasOwnerTier).toBe(isOwnerTier);
     });
+  });
 
-    // Generate 30 parametric role verification checks across simulated action types
-    const actionTypes = ["create_task", "update_task", "delete_task", "approve_ipc", "view_reports", "manage_members"];
-    const actionRolePairs: Array<{ role: ProjectRole; action: string; allowed: boolean }> = [];
+  describe("getProjectRole — explicit membership is the only role source (Phase B cutover)", () => {
+    const mkUser = (over: Record<string, unknown> = {}) =>
+      ({ id: "u-1", organizationId: "org-1", orgRole: "member", impersonating: false, ...over }) as any;
 
-    for (const r of roles) {
-      for (const a of actionTypes) {
-        let allowed = true;
-        if (a === "manage_members") {
-          allowed = r === "project_manager" || r === "coordinator";
-        } else if (a === "delete_task" || a === "approve_ipc") {
-          allowed = r === "project_manager";
-        } else if (a === "create_task" || a === "update_task") {
-          allowed = r !== "client" && r !== "inspector";
-        } else if (a === "view_reports") {
-          allowed = true; // all members can view
-        }
-        actionRolePairs.push({ role: r, action: a, allowed });
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it("returns the explicit ProjectMember row role when one exists", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue({ role: "engineer" });
+      const role = await getProjectRole("u-1", "p-1", { organizationId: "org-1", orgRole: "member" });
+      expect(role).toBe("engineer");
+      // No org lookup needed — explicit row wins.
+      expect(anyDb.project.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("grants the org owner org-wide project access (the ONE implicit grant)", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      const role = await getProjectRole("u-owner", "p-1", { organizationId: "org-1", orgRole: "owner" });
+      expect(role).toBe("project_manager");
+    });
+
+    it("does NOT extend the owner's implicit grant across org boundaries", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-other" });
+      const role = await getProjectRole("u-owner", "p-other", { organizationId: "org-1", orgRole: "owner" });
+      expect(role).toBeNull();
+    });
+
+    it("REMOVED: org members no longer implicitly become engineers", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      const role = await getProjectRole("u-1", "p-1", { organizationId: "org-1", orgRole: "member" });
+      expect(role).toBeNull();
+    });
+
+    it("REMOVED: org_admin no longer implicitly receives project_manager", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      const role = await getProjectRole("u-admin", "p-1", { organizationId: "org-1", orgRole: "org_admin" });
+      expect(role).toBeNull();
+    });
+
+    it("rejects stale role vocabulary (org_owner was never a valid value)", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      const role = await getProjectRole("u-x", "p-1", { organizationId: "org-1", orgRole: "org_owner" });
+      expect(role).toBeNull();
+    });
+
+    it("impersonating superadmin resolves to project_manager inside the tenant org", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-1" });
+      const role = await getProjectRole("u-root", "p-1", { organizationId: "org-1", orgRole: "member", impersonating: true });
+      expect(role).toBe("project_manager");
+    });
+
+    it("impersonation grant does not cross org boundaries either", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      anyDb.project.findUnique.mockResolvedValue({ organizationId: "org-other" });
+      const role = await getProjectRole("u-root", "p-other", { organizationId: "org-1", orgRole: "member", impersonating: true });
+      expect(role).toBeNull();
+    });
+
+    it("returns null for users without an organization (no grant surface)", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      const role = await getProjectRole("u-1", "p-1", { organizationId: null, orgRole: null });
+      expect(role).toBeNull();
+      expect(anyDb.project.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("assertProjectMember throws FORBIDDEN when resolution is null", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue(null);
+      await expect(assertProjectMember(mkUser(), "p-1")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("every triad member can write — assertCanWrite no longer distinguishes read-only roles", async () => {
+      for (const role of ["project_manager", "coordinator", "engineer"] as ProjectRole[]) {
+        anyDb.projectMember.findUnique.mockResolvedValue({ role });
+        const returned = await assertCanWrite(mkUser(), "p-1");
+        expect(returned).toBe(role);
       }
-    }
+    });
 
-    it.each(actionRolePairs)("correctly authorizes $role for action $action (allowed: $allowed)", ({ allowed, role, action }) => {
-      if (action === "manage_members") {
-        expect(role === "project_manager" || role === "coordinator").toBe(allowed);
-      } else if (action === "delete_task" || action === "approve_ipc") {
-        expect(role === "project_manager").toBe(allowed);
-      } else if (action === "create_task" || action === "update_task") {
-        expect(role !== "client" && role !== "inspector").toBe(allowed);
-      } else {
-        expect(true).toBe(allowed);
-      }
+    it("assertProjectAdmin requires coordinator or project_manager", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue({ role: "coordinator" });
+      await expect(assertProjectAdmin(mkUser(), "p-1")).resolves.toBe("coordinator");
+
+      anyDb.projectMember.findUnique.mockResolvedValue({ role: "engineer" });
+      await expect(assertProjectAdmin(mkUser(), "p-1")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("assertProjectManager requires project_manager", async () => {
+      anyDb.projectMember.findUnique.mockResolvedValue({ role: "project_manager" });
+      await expect(assertProjectManager(mkUser(), "p-1")).resolves.toBe("project_manager");
+
+      anyDb.projectMember.findUnique.mockResolvedValue({ role: "coordinator" });
+      await expect(assertProjectManager(mkUser(), "p-1")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("isOrgOwner distinguishes the owner orgRole", () => {
+      expect(isOrgOwner(mkUser({ orgRole: "owner" }))).toBe(true);
+      expect(isOrgOwner(mkUser({ orgRole: "org_admin" }))).toBe(false);
+      expect(isOrgOwner(null)).toBe(false);
     });
   });
 

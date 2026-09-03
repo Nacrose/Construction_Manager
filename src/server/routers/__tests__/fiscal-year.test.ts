@@ -156,8 +156,8 @@ describe("fiscalYear.previewFiscalYearSwitch", () => {
 
 // ─── executeFiscalYearSwitch ────────────────────────────────────────────────
 describe("fiscalYear.executeFiscalYearSwitch", () => {
-  it("requires write access (inspector read-only blocked)", async () => {
-    member("inspector");
+  it("requires write access (non-members blocked)", async () => {
+    member(null);
     const caller = createCaller(fiscalYearRouter, ENGINEER);
     await expectTRPCError(
       caller.executeFiscalYearSwitch({ projectId: "p-1", targetFiscalYear: "2082/83" }),

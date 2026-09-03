@@ -149,10 +149,7 @@ export const materialCrudProcedures = {
         currentStock,
         ...data
       } = input;
-      const role = await assertProjectMember(ctx.user, projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Read-only role." });
-      }
+      await assertProjectMember(ctx.user, projectId);
       const finalCatalogId = catalogMaterialId || materialCatalogId || null;
       const initialStockQty = (openingStock && openingStock > 0) ? openingStock : (currentStock || 0);
 

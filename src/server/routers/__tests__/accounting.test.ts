@@ -91,8 +91,8 @@ describe("accounting.logJournalEntry", () => {
     narration: "IPC 3 running bill payment",
   };
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(accountingRouter, ENGINEER);
     await expectTRPCError(caller.logJournalEntry(inflowInput), "FORBIDDEN");
     expect(anyDb.payment.create).not.toHaveBeenCalled();

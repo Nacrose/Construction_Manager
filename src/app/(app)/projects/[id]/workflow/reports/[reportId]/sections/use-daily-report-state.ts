@@ -24,7 +24,7 @@ export function useDailyReportState({ id, reportId }: { id: string; reportId: st
   const report = reportData?.report;
   const myRole = projectInfo?.myRole;
   const isAdmin = myRole === "project_manager" || myRole === "coordinator";
-  const isWriter = !!(myRole && myRole !== "client" && myRole !== "inspector");
+  const isWriter = !!myRole;
   const canEdit = report?.status === "draft" && isWriter;
   const canDelete = isAdmin || (isWriter && report?.status === "draft");
 

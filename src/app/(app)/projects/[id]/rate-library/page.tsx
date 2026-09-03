@@ -22,9 +22,7 @@ const RES_TABS = [
 export default function RateLibraryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data } = trpc.project.get.useQuery({ id });
-  const canWrite = Boolean(
-    data?.myRole && data.myRole !== "client" && data.myRole !== "inspector"
-  );
+  const canWrite = Boolean(data?.myRole);
   const [activeTab, setActiveTab] = useState("materials");
 
   return (

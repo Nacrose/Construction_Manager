@@ -48,7 +48,7 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
   const tickets = ticketsData?.tickets || [];
 
   const myRole = projectInfo?.myRole;
-  const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
+  const canWrite = !!myRole;
 
   // Modals state
   const [addPlantOpen, setAddPlantOpen] = useState(false);

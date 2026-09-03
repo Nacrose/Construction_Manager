@@ -84,13 +84,7 @@ export const ganttDependenciesRouter = router({
 
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       const boqItem = await db.boqItem.findUnique({
         where: { id: input.boqItemId },
@@ -143,13 +137,7 @@ export const ganttDependenciesRouter = router({
 
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       await db.taskBoqLink.deleteMany({
         where: { id: input.linkId, taskId: input.taskId },
@@ -175,13 +163,7 @@ export const ganttDependenciesRouter = router({
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       const pred = await db.ganttTask.findUnique({
         where: { id: input.predecessorId },
@@ -270,13 +252,7 @@ export const ganttDependenciesRouter = router({
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       const result = await db.taskDependency.deleteMany({
         where: { successorId: input.taskId, predecessorId: input.predecessorId },
@@ -323,13 +299,7 @@ export const ganttDependenciesRouter = router({
       if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       const predecessorIds = input.dependencies.map((d) => d.predecessorId);
       const predecessors = await db.ganttTask.findMany({

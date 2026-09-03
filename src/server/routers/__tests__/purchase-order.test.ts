@@ -176,8 +176,8 @@ describe("purchaseOrder.create", () => {
     );
   });
 
-  it("blocks read-only roles (client) from creating POs", async () => {
-    member("client");
+  it("blocks non-members from creating POs", async () => {
+    member(null);
     const caller = createCaller(purchaseOrderRouter, ENGINEER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
   });

@@ -8,7 +8,7 @@
  *     (multi-tenant guard pin)
  *   - upload: documentType enum; fileSize positive + 10MB zod cap; the
  *     base64 payload re-checked at ~10MB decoded size (zod fileSize alone
- *     could be lied about); signedAt/receivedAt → Date; read-only role gate
+ *     could be lied about); signedAt/receivedAt → Date; non-member gate
  *   - update: metadata-only (file content/size/name are immutable through
  *     this route); explicit null clears signedBy/signedAt/receivedAt
  *   - audit trail: upload + delete record approved_doc.* actions against
@@ -96,7 +96,7 @@ describe("approvedDocument.get", () => {
   });
 
   it("returns the document (with base64 data) for members", async () => {
-    member("client"); // read-only roles may view the archive
+    member("engineer"); // any member may view the archive
     const row = { id: "doc-1", data: "abc", fileName: "f.pdf" };
     anyDb.approvedDocument.findFirst.mockResolvedValue(row);
     const caller = createCaller(approvedDocumentRouter, USER);
@@ -187,12 +187,9 @@ describe("approvedDocument.upload", () => {
     expect(anyDb.approvedDocument.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles and non-members", async () => {
-    member("client");
-    const caller = createCaller(approvedDocumentRouter, USER);
-    await expectTRPCError(caller.upload(uploadInput), "FORBIDDEN");
-
+  it("FORBIDDENs non-members", async () => {
     member(null);
+    const caller = createCaller(approvedDocumentRouter, USER);
     await expectTRPCError(caller.upload(uploadInput), "FORBIDDEN");
     expect(anyDb.approvedDocument.create).not.toHaveBeenCalled();
   });
@@ -282,8 +279,8 @@ describe("approvedDocument.update", () => {
     expect(anyDb.approvedDocument.update).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("inspector");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(approvedDocumentRouter, USER);
     await expectTRPCError(
       caller.update({ id: "doc-1", projectId: "p-1", notes: "x" }),

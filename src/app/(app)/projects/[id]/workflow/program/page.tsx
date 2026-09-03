@@ -71,11 +71,7 @@ export default function DailyProgramPage({
   });
   const utils = trpc.useUtils();
 
-  const canWrite = !!(
-    projectInfo?.myRole &&
-    projectInfo.myRole !== "client" &&
-    projectInfo.myRole !== "inspector"
-  );
+  const canWrite = !!projectInfo?.myRole;
   const isPm = projectInfo?.myRole === "project_manager" || projectInfo?.myRole === "coordinator";
 
   const backlogQuery = trpc.workflow.dailyProgram.listBacklog.useInfiniteQuery(

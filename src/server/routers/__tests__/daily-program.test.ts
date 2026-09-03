@@ -4,7 +4,7 @@
  * Pins:
  *   - getApprovedDailyProgramByDate: only APPROVED programs are returned
  *     (draft → null); carried-over tasks are merged with isCarriedOver +
- *     carriedFromDate; read-only roles FORBIDDEN
+ *     carriedFromDate; non-members FORBIDDEN
  *   - getProgramResources: workforce aggregation math (staff qty → headcount
  *     with 8h reg hours, role qty × headcount, min-1 clamp), equipment
  *     dedupe, ended-assignment exclusion, assignment query scoping,
@@ -138,8 +138,8 @@ describe("dailyProgram.getApprovedDailyProgramByDate", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles (client)", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(dailyProgramRouter, USER);
     await expectTRPCError(
       caller.getApprovedDailyProgramByDate({ projectId: "p-1", programDate: "2026-08-15" }),
@@ -229,8 +229,8 @@ describe("dailyProgram.getProgramResources", () => {
     expect(anyDb.equipment.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1" });
   });
 
-  it("FORBIDDENs read-only roles (inspector)", async () => {
-    member("inspector");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(dailyProgramRouter, USER);
     await expectTRPCError(
       caller.getProgramResources({ projectId: "p-1", programDate: "2026-08-15" }),
@@ -370,8 +370,8 @@ describe("dailyProgram.createProgram", () => {
     expect(anyDb.dailyProgram.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(dailyProgramRouter, USER);
     await expectTRPCError(caller.createProgram(baseInput), "FORBIDDEN");
     expect(anyDb.dailyProgram.create).not.toHaveBeenCalled();

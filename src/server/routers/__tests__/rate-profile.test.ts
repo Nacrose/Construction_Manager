@@ -148,8 +148,8 @@ describe("rate-profile authorization", () => {
     await expectTRPCError(caller.list({ projectId: "p-1" }), "FORBIDDEN");
   });
 
-  it("create FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("create FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(rateProfileRouter, USER);
     await expectTRPCError(
       caller.create({ projectId: "p-1", name: "District Rates 2026" }),

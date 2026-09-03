@@ -114,10 +114,7 @@ export const dailyProgramRouter = router({
   getApprovedDailyProgramByDate: protectedProcedure
     .input(z.object({ projectId: z.string(), programDate: safeIsoDate }))
     .query(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const program = await db.dailyProgram.findUnique({
         where: {
@@ -184,10 +181,7 @@ export const dailyProgramRouter = router({
   getProgramResources: protectedProcedure
     .input(z.object({ projectId: z.string(), programDate: safeIsoDate }))
     .query(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const date = new Date(input.programDate);
 

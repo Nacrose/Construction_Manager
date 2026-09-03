@@ -64,8 +64,8 @@ describe("siteExpense.create", () => {
     category: "fuel",
   };
 
-  it("FORBIDDENs read-only roles with no write", async () => {
-    member("client");
+  it("FORBIDDENs non-members with no write", async () => {
+    member(null);
     const caller = createCaller(siteExpenseRouter, ENGINEER);
     await expectTRPCError(caller.create(createInput), "FORBIDDEN");
     expect(anyDb.siteExpense.create).not.toHaveBeenCalled();

@@ -51,7 +51,7 @@ export default function SubcontractorsPage({ params }: { params: Promise<{ id: s
     { enabled: !!selectedSubId }
   );
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
 
   const debitColumns: ConstructionTableColumn<any>[] = [
     {

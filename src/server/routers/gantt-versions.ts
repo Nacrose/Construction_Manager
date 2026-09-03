@@ -165,9 +165,7 @@ export const ganttVersionsRouter = router({
   createVersion: protectedProcedure
     .input(CreateVersionSchema)
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector")
-        throw new TRPCError({ code: "FORBIDDEN", message: "Read-only" });
+      await assertProjectMember(ctx.user, input.projectId);
 
       const baseVersionId =
         input.baseVersionId ||

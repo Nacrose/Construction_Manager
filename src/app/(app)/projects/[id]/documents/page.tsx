@@ -48,7 +48,7 @@ export default function DocumentsPage({ params }: { params: Promise<{ id: string
   const allDocs = data ? data.pages.flatMap((p) => p.documents) : [];
   const allTransmittals = data ? data.pages.flatMap((p) => p.transmittals) : [];
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
   const filtered = allDocs.filter(
     (d) => d.number.toLowerCase().includes(search.toLowerCase()) || d.title.toLowerCase().includes(search.toLowerCase())
   ) as Doc[];

@@ -205,7 +205,7 @@ export default function ProjectDetailPage({
       {/* Cost Summary — auto-captured + manual expenses */}
       <CostSummaryCard
         projectId={id}
-        canWrite={!!(data?.myRole && data.myRole !== "client" && data.myRole !== "inspector")}
+        canWrite={!!data?.myRole}
       />
 
       <div className="grid gap-4 lg:grid-cols-3">

@@ -77,7 +77,7 @@ function BoqPageContent({
   const myRole = projectInfo?.myRole;
   const isLocked = !!projectInfo?.project?.boqLocked;
   const isAdmin = myRole === "project_manager" || myRole === "coordinator";
-  const canWrite = !!(myRole && myRole !== "client" && myRole !== "inspector");
+  const canWrite = !!myRole;
   const canWriteRateAnalysis = canWrite;
   const utils = trpc.useUtils() as any;
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -265,12 +265,6 @@ function BoqPageContent({
 
   return (
     <AnimatedPage className="space-y-4 pb-8">
-      {myRole === "client" || myRole === "inspector" ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          You have read-only access. BOQ items cannot be edited.
-        </div>
-      ) : null}
-
       <Tabs defaultValue={defaultTab} onValueChange={(v) => setActiveTab(v)}>
         <BoqTabHeader
           id={id}

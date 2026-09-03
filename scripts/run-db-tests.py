@@ -22,7 +22,12 @@ import time
 
 PGDATA = "/tmp/cm-smoke-pg"
 PORT = int(os.environ.get("SMOKE_PG_PORT", "55432"))
-BIN = "/home/z/.venv/lib/python3.12/site-packages/pgserver/pginstall/bin"
+# Binary source: pgserver's bundled PG16 (old sandbox) or @embedded-postgres
+# (npm, PG18) — point SMOKE_PG_BIN at the directory containing initdb/pg_ctl.
+BIN = os.environ.get(
+    "SMOKE_PG_BIN",
+    "/home/z/.venv/lib/python3.12/site-packages/pgserver/pginstall/bin",
+)
 PG_CTL = f"{BIN}/pg_ctl"
 INITDB = f"{BIN}/initdb"
 URL = f"postgresql://postgres@127.0.0.1:{PORT}/postgres"
@@ -54,12 +59,22 @@ def start_pg() -> None:
         print(open(f"{PGDATA}/server.log").read() if os.path.exists(f"{PGDATA}/server.log") else "")
         sys.exit(1)
 
-    # Wait for readiness.
+    # Wait for readiness — pg_isready when available, else a raw TCP probe.
+    isready = f"{BIN}/pg_isready"
     for _ in range(50):
-        p = subprocess.run(
-            [f"{BIN}/pg_isready", "-h", "127.0.0.1", "-p", str(PORT)],
-            capture_output=True, text=True)
-        if p.returncode == 0:
+        if os.path.exists(isready):
+            p = subprocess.run(
+                [isready, "-h", "127.0.0.1", "-p", str(PORT)],
+                capture_output=True, text=True)
+            ok = p.returncode == 0
+        else:
+            import socket
+            try:
+                with socket.create_connection(("127.0.0.1", PORT), timeout=1):
+                    ok = True
+            except OSError:
+                ok = False
+        if ok:
             print(f"[run-db-tests] PG ready at {URL}", flush=True)
             return
         time.sleep(0.2)

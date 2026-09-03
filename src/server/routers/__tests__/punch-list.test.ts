@@ -5,7 +5,7 @@
  *   - list: project scoping + status/severity/q filters (insensitive OR)
  *   - create: happy path (severity default, dueDate YYYY-MM-DD → UTC Date,
  *     createdById, photo passthrough), zod enum/required validation,
- *     read-only roles FORBIDDEN
+ *     non-members FORBIDDEN
  *   - updateStatus: linear state machine open → in_progress → resolved →
  *     verified → closed (regression: ANY status could previously be set to
  *     ANY other — closed defects reopened, resolution audit fields
@@ -15,7 +15,7 @@
  *     cross-project FORBIDDEN via the item's OWN project
  *   - delete: cross-project IDOR guard (regression: the punch item was
  *     never verified against input.projectId — a writer on project B could
- *     delete project A's defect records by id); read-only FORBIDDEN
+ *     delete project A's defect records by id); non-members FORBIDDEN
  *   - stats: status/severity counts, project-scoped, member-only
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -145,8 +145,8 @@ describe("punchList.create", () => {
     expect(anyDb.punchItem.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(punchListRouter, USER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
     expect(anyDb.punchItem.create).not.toHaveBeenCalled();
@@ -261,8 +261,8 @@ describe("punchList.updateStatus", () => {
     expect(anyDb.punchItem.updateMany).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     anyDb.punchItem.findUnique.mockResolvedValue(item());
     const caller = createCaller(punchListRouter, USER);
     await expectTRPCError(
@@ -306,8 +306,8 @@ describe("punchList.delete", () => {
     expect(anyDb.punchItem.delete).toHaveBeenCalledWith({ where: { id: "pi-1" } });
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(punchListRouter, USER);
     await expectTRPCError(caller.delete({ id: "pi-1", projectId: "p-1" }), "FORBIDDEN");
     expect(anyDb.punchItem.delete).not.toHaveBeenCalled();

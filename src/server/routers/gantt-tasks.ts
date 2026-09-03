@@ -222,13 +222,7 @@ export const ganttTasksRouter = router({
   create: protectedProcedure
     .input(CreateTaskSchema)
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       if (input.versionId) {
         // IDOR guard: verify the version belongs to the project the
@@ -328,13 +322,7 @@ export const ganttTasksRouter = router({
 
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       // RLS: GanttTask is FORCE-scoped — the write AND the recalculations
       // run inside one context-pinned transaction (atomic: the persisted
@@ -437,13 +425,7 @@ export const ganttTasksRouter = router({
 
       await assertVersionIsEditable(input.taskId);
 
-      const role = await assertProjectMember(ctx.user, task.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, task.projectId);
 
       // RLS: delete + both recalculations atomically, with tenant context
       // pinned (GanttTask is FORCE-scoped — pooled writes/recalcs can
@@ -478,13 +460,7 @@ export const ganttTasksRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const { updatedCount, cycleDetected, cyclicTaskNames, criticalPath, durationMismatches } =
         await recalculateProjectScheduleForUser(ctx.user, input.projectId, input.versionId);
@@ -515,13 +491,7 @@ export const ganttTasksRouter = router({
   reorder: protectedProcedure
     .input(ReorderSchema)
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },
@@ -681,13 +651,7 @@ export const ganttTasksRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const task = await db.ganttTask.findUnique({
         where: { id: input.taskId },

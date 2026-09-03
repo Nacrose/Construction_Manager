@@ -25,8 +25,8 @@ const anyDb = db as any;
 const ENGINEER = buildUser();
 const PM = buildUser();
 
-function member(role: string) {
-  anyDb.projectMember.findUnique.mockResolvedValue({ role });
+function member(role: string | null) {
+  anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);
 }
 
 beforeEach(() => {
@@ -146,8 +146,8 @@ describe("subcontractorBill.certify", () => {
 });
 
 describe("subcontractorBill.create", () => {
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(subcontractorBillRouter, ENGINEER);
     await expectTRPCError(caller.create(createInput), "FORBIDDEN");
     expect(anyDb.subcontractorBill.create).not.toHaveBeenCalled();

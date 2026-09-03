@@ -247,13 +247,7 @@ const dailyReportCoreRouter = router({
   createReport: protectedProcedure
     .input(CreateReportSchema)
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       const dup = await db.dailyReport.findUnique({
         where: { projectId_number: { projectId: input.projectId, number: input.number } },
@@ -325,12 +319,6 @@ const dailyReportCoreRouter = router({
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
 
       const role = await assertProjectMember(ctx.user, report.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Your role on this project is read-only.",
-        });
-      }
 
       const updateData: Record<string, any> = {};
       if (report.status === "draft") {

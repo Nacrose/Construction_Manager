@@ -55,7 +55,7 @@ export default function IpcDetailPage({
     { enabled: !!data?.ipc.subcontractorId }
   );
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
 
   const loadBoqMutation = trpc.ipc.loadBoq.useMutation({
     onSuccess: (d) => {

@@ -25,7 +25,7 @@ const anyDb = db as any;
 
 const ENGINEER = buildUser(); // org-1 member
 const PM = buildUser();
-const CLIENT = buildUser(); // read-only role comes from membership mock
+const CLIENT = buildUser(); // role comes from the membership mock
 
 function member(role: string | null) {
   anyDb.projectMember.findUnique.mockResolvedValue(role ? { role } : null);
@@ -50,8 +50,8 @@ describe("vendorBill.list", () => {
 });
 
 describe("vendorBill.create authorization", () => {
-  it("FORBIDDENs read-only roles (client/inspector)", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(vendorBillRouter, CLIENT);
     await expectTRPCError(
       caller.create({

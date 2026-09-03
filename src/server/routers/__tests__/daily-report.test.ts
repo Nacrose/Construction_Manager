@@ -8,7 +8,7 @@
  *     (submitted ⊇ "checked", draft ⊇ "rejected") + output normalization
  *   - getReport: NOT_FOUND; cross-project FORBIDDEN; daily-program
  *     merge with carried-over tasks (isCarriedOver + carriedFromDate)
- *   - createReport: read-only role gate; duplicate number CONFLICT;
+ *   - createReport: non-member gate; duplicate number CONFLICT;
  *     reportDate normalization (YYYY-MM-DD → UTC midnight); dayOfWeek
  *     derivation; materialConsumed passthrough into syncNormalizedTables
  *     (regression: the create schema used to omit the field so the sync
@@ -216,8 +216,8 @@ describe("dailyReport.createReport", () => {
     reportDate: "2026-01-15T12:00:00.000Z",
   };
 
-  it("FORBIDDENs read-only roles (client/inspector)", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(dailyReportRouter, ENGINEER);
     await expectTRPCError(caller.createReport(baseInput), "FORBIDDEN");
     expect(anyDb.dailyReport.create).not.toHaveBeenCalled();
@@ -408,8 +408,8 @@ describe("dailyReport.updateReport (fields & status machine)", () => {
     expect(anyDb.dailyReport.update).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles from updating", async () => {
-    member("client");
+  it("FORBIDDENs non-members from updating", async () => {
+    member(null);
     anyDb.dailyReport.findUnique.mockResolvedValue(report());
     const caller = createCaller(dailyReportRouter, ENGINEER);
 

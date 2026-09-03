@@ -7,7 +7,7 @@
  *     not_started/in_progress + actionable only)
  *   - get/getThread: authorization through the letter's own project
  *   - create: ourRef sequence (COR-<year>-<pad 4>), EOT claims start in
- *     "submitted", 10MB base64 file cap, statusHistory seed, read-only gate;
+ *     "submitted", 10MB base64 file cap, statusHistory seed, member gate;
  *     repliesToId must belong to the SAME project (regression: a foreign
  *     parent id was accepted, which leaks the reply into the other
  *     project's thread via the LetterThread relation)
@@ -292,8 +292,8 @@ describe("correspondence.create", () => {
     expect(anyDb.correspondence.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(correspondenceRouter, USER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
     expect(anyDb.correspondence.create).not.toHaveBeenCalled();
@@ -461,7 +461,7 @@ describe("correspondence.delete", () => {
     expect(anyDb.correspondence.delete).not.toHaveBeenCalled();
   });
 
-  it("deletes after verifying ownership, and FORBIDDENs read-only roles", async () => {
+  it("deletes after verifying ownership, and FORBIDDENs non-members", async () => {
     member("engineer");
     anyDb.correspondence.findFirst.mockResolvedValue({ id: "L-1" });
     const caller = createCaller(correspondenceRouter, USER);
@@ -469,7 +469,7 @@ describe("correspondence.delete", () => {
     await caller.delete({ id: "L-1", projectId: "p-1" });
     expect(anyDb.correspondence.delete).toHaveBeenCalledWith({ where: { id: "L-1" } });
 
-    member("client");
+    member(null);
     await expectTRPCError(caller.delete({ id: "L-1", projectId: "p-1" }), "FORBIDDEN");
   });
 });

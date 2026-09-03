@@ -4,11 +4,10 @@
  * Pins:
  *   - listAttachments: metadata-only select (the base64 `data` column must
  *     NOT be pulled by the listing — regression), reportId scoping,
- *     NOT_FOUND for missing reports, read-only roles FORBIDDEN (current
- *     documented behavior — see report for the suspected read-gate issue)
+ *     NOT_FOUND for missing reports, non-members FORBIDDEN on writes
  *   - uploadAttachment: zod size caps (fileSize ≤ 10 MB, base64 data
  *     ≤ 14 MB), MIME whitelist (SVG/exe rejected), NOT_FOUND report,
- *     read-only FORBIDDEN, fail-loud when neither the project nor the
+ *     non-members FORBIDDEN, fail-loud when neither the project nor the
  *     caller has an organization (C-4 storage registration), and the
  *     happy path registering the file with the owning org + linking the
  *     storage URL + EXIF-lite metadata (lat/lon/takenAt)
@@ -108,11 +107,10 @@ describe("dailyReportAttachments.listAttachments", () => {
     expect(anyDb.dailyReportAttachment.findMany).not.toHaveBeenCalled();
   });
 
-  it("ALLOWS read-only roles (client) to view attachments — direction fix", async () => {
-    // AUDIT §4 DIRECTION FIX: viewing report photos is a READ — the old
-    // behavior (assertCanWrite on a view) locked read-only roles out of
-    // their own reports' photo gallery. A client member now succeeds.
-    member("client");
+  it("ALLOWS any project member to view attachments", async () => {
+    // Viewing report photos is a READ — any project member (regardless of
+    // role) may view their own reports' photo gallery.
+    member("engineer");
     anyDb.dailyReport.findUnique.mockResolvedValue(report());
     const caller = createCaller(dailyReportAttachmentsRouter, USER);
     const res = await caller.listAttachments({ reportId: "rep-1" });
@@ -198,8 +196,8 @@ describe("dailyReportAttachments.uploadAttachment", () => {
     expect(uploadFileMock).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles (inspector)", async () => {
-    member("inspector");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     anyDb.dailyReport.findUnique.mockResolvedValue(report());
     const caller = createCaller(dailyReportAttachmentsRouter, USER);
     await expectTRPCError(caller.uploadAttachment(uploadInput), "FORBIDDEN");

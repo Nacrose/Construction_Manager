@@ -39,7 +39,7 @@ export default function VariationsPage() {
   const utils = trpc.useUtils();
 
   const myRole = projectData?.myRole ?? "";
-  const canWrite = myRole && myRole !== "client" && myRole !== "inspector";
+  const canWrite = !!myRole;
 
   const createMutation = trpc.variationOrder.create.useMutation({
     onSuccess: (data) => {

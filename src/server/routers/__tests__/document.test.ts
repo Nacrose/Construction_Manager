@@ -6,8 +6,8 @@
  *   - listDocuments/listDrawings/listSets: project scoping (+ type/
  *     discipline/set filters and search OR clauses)
  *   - create/update/delete document & drawing: ownership re-checks on the
- *     CHILD row's own projectId (cross-project IDOR → FORBIDDEN), read-only
- *     role gate, file-size cap (20M base64 chars)
+ *     CHILD row's own projectId (cross-project IDOR → FORBIDDEN), non-member
+ *     gate, file-size cap (20M base64 chars)
  *   - createDrawing: initial DrawingRevision audit row ("Initial upload",
  *     issuedBy, createdById); ganttTaskId must belong to the SAME project
  *     (regression: foreign task ids were accepted and listDrawings'
@@ -116,8 +116,8 @@ describe("document.createDocument", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(documentRouter, USER);
     await expectTRPCError(
       caller.createDocument({ projectId: "p-1", number: "DOC-001", title: "x" }),
@@ -281,8 +281,8 @@ describe("document.createDrawing", () => {
     expect(anyDb.drawing.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("inspector");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(documentRouter, USER);
     await expectTRPCError(caller.createDrawing(baseInput), "FORBIDDEN");
     expect(anyDb.drawing.create).not.toHaveBeenCalled();
@@ -524,7 +524,7 @@ describe("document.createRfiFromDrawing", () => {
     expect(anyDb.rfi.create).not.toHaveBeenCalled();
   });
 
-  it("validates pin coordinates (0..1) and gates read-only roles", async () => {
+  it("validates pin coordinates (0..1) and gates non-members", async () => {
     member("engineer");
     anyDb.drawing.findFirst.mockResolvedValue({ id: "d-1" });
     const caller = createCaller(documentRouter, USER);
@@ -534,7 +534,7 @@ describe("document.createRfiFromDrawing", () => {
       "BAD_REQUEST",
     );
 
-    member("client");
+    member(null);
     await expectTRPCError(caller.createRfiFromDrawing(input), "FORBIDDEN");
     expect(anyDb.rfi.create).not.toHaveBeenCalled();
   });
@@ -683,8 +683,8 @@ describe("document sets", () => {
     expect(anyDb.drawingSet.findMany.mock.calls[0][0].where).toEqual({ projectId: "p-1" });
   });
 
-  it("createSet FORBIDDENs read-only roles and defaults description to null", async () => {
-    member("client");
+  it("createSet FORBIDDENs non-members and defaults description to null", async () => {
+    member(null);
     const caller = createCaller(documentRouter, USER);
     await expectTRPCError(
       caller.createSet({ projectId: "p-1", name: "Structural" }),

@@ -128,8 +128,8 @@ describe("projectCost.create", () => {
     description: "Diesel",
   };
 
-  it("requires write access (client read-only blocked)", async () => {
-    member("client");
+  it("requires write access (non-members blocked)", async () => {
+    member(null);
     const caller = createCaller(projectCostRouter, ENGINEER);
     await expectTRPCError(caller.create(baseInput), "FORBIDDEN");
   });

@@ -680,7 +680,7 @@ export function GanttCommandBar({
           </button>
         )}
 
-        {!canWrite && myRole && myRole !== "client" && myRole !== "inspector" && (
+        {!canWrite && myRole && (
           <button
             type="button"
             onClick={() => {

@@ -167,7 +167,7 @@ function GanttChartContent({
   const isExecution = currentVersion?.scheduleType === "EXECUTION";
 
   const versionCanWrite = selectedVersion?.status === "DRAFT";
-  const canWrite = !!(myRole && myRole !== "client" && myRole !== "inspector" && versionCanWrite);
+  const canWrite = !!myRole && versionCanWrite;
 
   const allTasks: Task[] = useMemo(() => (data?.tasks ?? []) as unknown as Task[], [data]);
   const taskMap = useMemo(() => new Map(allTasks.map((t) => [t.id, t])), [allTasks]);
@@ -514,7 +514,7 @@ function GanttChartContent({
                 />
               </div>
             )}
-            {!canWrite && myRole && myRole !== "client" && myRole !== "inspector" && (
+            {!canWrite && myRole && (
               <button
                 onClick={() => {
                   if (creatingVersion) return;

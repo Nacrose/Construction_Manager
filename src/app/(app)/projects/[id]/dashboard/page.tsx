@@ -37,7 +37,7 @@ export default function ProjectDashboardPage({
     );
   }
 
-  const canWrite = projectInfo.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo.myRole;
 
   return (
     <AnimatedPage className="space-y-4 pb-8">

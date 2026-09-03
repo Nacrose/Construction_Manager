@@ -4,7 +4,7 @@
  *
  * Pins:
  *   - create: version IDOR guard (version must belong to the authorized
- *     project), non-DRAFT versions are immutable, read-only roles can't
+ *     project), non-DRAFT versions are immutable, non-members can't
  *     create, sortOrder auto-increments from the sibling max
  *   - addDependency: cross-project predecessor rejected, self-dependency
  *     rejected, circular dependencies rejected (real detectCycle), the
@@ -106,8 +106,8 @@ describe("ganttTasks.create", () => {
     expect(anyDb.ganttTask.create).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(ganttTasksRouter, USER);
     await expectTRPCError(caller.create(createInput), "FORBIDDEN");
   });
@@ -191,8 +191,8 @@ describe("ganttDependencies.addDependency", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles on draft versions", async () => {
-    member("client");
+  it("FORBIDDENs non-members on draft versions", async () => {
+    member(null);
     setup();
     const caller = createCaller(ganttDependenciesRouter, USER);
     await expectTRPCError(

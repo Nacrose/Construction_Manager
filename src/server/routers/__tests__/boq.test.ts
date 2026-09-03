@@ -61,8 +61,8 @@ describe("boq.create", () => {
     rate: 75,
   };
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     unlockedProject();
     const caller = createCaller(boqRouter, ENGINEER);
     await expectTRPCError(caller.create(createInput), "FORBIDDEN");
@@ -236,9 +236,9 @@ describe("boq.lockItem", () => {
     );
   });
 
-  it("FORBIDDENs read-only roles", async () => {
+  it("FORBIDDENs non-members", async () => {
     anyDb.boqItem.findUnique.mockResolvedValue({ ...baseItem });
-    member("client");
+    member(null);
     const caller = createCaller(boqRouter, ENGINEER);
     await expectTRPCError(
       caller.lockItem({ itemId: "bi-1", locked: true }),

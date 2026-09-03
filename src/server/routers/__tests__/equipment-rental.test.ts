@@ -280,8 +280,8 @@ describe("equipment.createRental", () => {
     expect(anyDb.equipment.updateMany).not.toHaveBeenCalled();
   });
 
-  it("FORBIDDENs read-only roles and rejects negative rates (zod)", async () => {
-    member("client");
+  it("FORBIDDENs non-members and rejects negative rates (zod)", async () => {
+    member(null);
     const caller = createCaller(rentalRouter, ENGINEER);
     await expectTRPCError(caller.createRental(baseInput), "FORBIDDEN");
     expect(anyDb.equipmentRental.create).not.toHaveBeenCalled();

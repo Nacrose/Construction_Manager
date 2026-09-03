@@ -34,7 +34,8 @@ export type DomainEventPayload = {
   message: string;
   entityType: string;
   entityId: string;
-  targetRoles?: Array<"project_manager" | "engineer" | "coordinator" | "client" | "inspector">;
+  // Project-role triad (ADR-0005): external parties never receive roles.
+  targetRoles?: Array<"project_manager" | "engineer" | "coordinator">;
   metadata?: Record<string, unknown>;
   postToChannel?: boolean;
 };

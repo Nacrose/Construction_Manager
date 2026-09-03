@@ -175,8 +175,8 @@ describe("materialTransaction.createTransaction — stock math", () => {
     expect(err.message).toContain("Insufficient stock at source store");
   });
 
-  it("FORBIDDENs read-only roles", async () => {
-    member("client");
+  it("FORBIDDENs non-members", async () => {
+    member(null);
     const caller = createCaller(materialTxnRouter, USER);
     await expectTRPCError(
       caller.createTransaction({

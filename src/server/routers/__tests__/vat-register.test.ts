@@ -363,8 +363,8 @@ describe("vatRegister.createDirectVatBill", () => {
     tdsPercent: 1.5,
   };
 
-  it("FORBIDDENs read-only roles with no write", async () => {
-    member("client");
+  it("FORBIDDENs non-members with no write", async () => {
+    member(null);
     const caller = createCaller(vatRegisterRouter, ENGINEER);
     await expectTRPCError(caller.createDirectVatBill(baseInput), "FORBIDDEN");
     expect(anyDb.vatBill.create).not.toHaveBeenCalled();

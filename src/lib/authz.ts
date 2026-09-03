@@ -1,17 +1,35 @@
 // Server-side authorization helpers — the replacement for the old
 // client-side _assertXxxWriteAccess guards. Every API route that mutates
 // data must call one of these.
+//
+// Access model (ADR-0005, Phase B):
+// - Project roles are a closed triad: project_manager | engineer | coordinator.
+//   External parties (clients, consultants, inspectors, the building-owner
+//   side) NEVER receive roles or accounts — they exist only as references on
+//   documents.
+// - `ProjectMember.role` is the ONLY project-role source. The legacy implicit
+//   org-member → engineer grant is REMOVED: a non-owner user sees a project
+//   if and only if an explicit ProjectMember row exists for them.
+// - The organization owner (orgRole === "owner") keeps org-wide project
+//   access — the one implicit grant in the system.
+// - Superadmin impersonation resolves to project_manager for the impersonated
+//   session: it is a platform-support path scoped by the admin session kind
+//   and RLS org context, never a stored role.
 
 import { TRPCError } from "@trpc/server";
 import { db } from "@/lib/db";
 import type { AuthUser } from "@/lib/auth";
 
-export type ProjectRole =
-  | "project_manager"
-  | "engineer"
-  | "coordinator"
-  | "client"
-  | "inspector";
+export type ProjectRole = "project_manager" | "engineer" | "coordinator";
+
+/** Organization-level role vocabulary (ADR-0005 §3). */
+export type OrgRole = "owner" | "org_admin" | "member";
+
+export const ORG_ROLES: readonly OrgRole[] = ["owner", "org_admin", "member"] as const;
+
+export function isOrgOwner(user: AuthUser | null | undefined): boolean {
+  return !!user && user.orgRole === "owner";
+}
 
 // Returns true if the user is an organization administrator (top role
 // within their org). This replaces the old platform "super admin" concept:
@@ -56,14 +74,26 @@ export async function assertOrgBankAccount(
   return bank;
 }
 
-// Returns the user's role on a project, or null if not a member.
+/**
+ * Returns the user's role on a project, or null if they have no access.
+ *
+ * Resolution order (ADR-0005):
+ *   1. Explicit ProjectMember row — the only project-role source.
+ *   2. Organization owner — implicit org-wide project access (the ONE
+ *      implicit grant in the system).
+ *   3. Superadmin impersonation — platform-support path, resolves to
+ *      project_manager for the impersonated session only.
+ *   4. Everyone else (org_admin, member) — null. org_admin authority is
+ *      org-level (members, policy) and never confers project visibility;
+ *      admins who need a project are added as explicit ProjectMembers.
+ */
 export async function getProjectRole(
   userId: string,
   projectId: string,
   opts?: { impersonating?: boolean; organizationId?: string | null; orgRole?: string | null },
 ): Promise<ProjectRole | null> {
   // Super admins don't get automatic project access.
-  // They must be explicitly added as project members.
+  // They must be explicitly added as project members (or impersonate).
   const membership = await db.projectMember.findUnique({
     where: { projectId_userId: { projectId, userId } },
     select: { role: true },
@@ -72,17 +102,25 @@ export async function getProjectRole(
     return membership.role as ProjectRole;
   }
 
-  // Grant access if the caller's organization owns this project (or if platform admin is impersonating).
+  // Implicit grants only apply inside the caller's (effective) organization.
   if (opts?.organizationId) {
     const project = await db.project.findUnique({
       where: { id: projectId },
       select: { organizationId: true },
     });
     if (project && project.organizationId === opts.organizationId) {
-      if (opts.orgRole === "org_admin" || opts.orgRole === "org_owner" || opts.impersonating) {
+      // The organization owner keeps org-wide project access — the ONE
+      // implicit grant in the system (ADR-0005 §3).
+      if (opts.orgRole === "owner") {
         return "project_manager";
       }
-      return "engineer";
+
+      // Impersonating superadmins act with manager authority inside the
+      // tenant org (RLS context is already scoped to that org). This is a
+      // platform-support path, never a stored role.
+      if (opts.impersonating) {
+        return "project_manager";
+      }
     }
   }
 
@@ -105,18 +143,19 @@ export async function assertProjectMember(
   return role;
 }
 
-// Throws unless the user can write to the project.
-// Read-only roles: client, inspector. (Inspectors also get read on BOQ/Gantt
-// in the old app — we keep that policy here.)
+/**
+ * Throws unless the user can write to the project.
+ *
+ * Since Phase B (ADR-0005) there are no read-only project roles — external
+ * parties hold no membership at all — so every project member can write.
+ * Kept as a named alias because call sites express *intent* ("this is a
+ * write path"), which keeps the security vocabulary readable.
+ */
 export async function assertCanWrite(
   user: AuthUser,
   projectId: string
 ): Promise<ProjectRole> {
-  const role = await assertProjectMember(user, projectId);
-  if (role === "client" || role === "inspector") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-  }
-  return role;
+  return assertProjectMember(user, projectId);
 }
 
 // Throws unless the user is a project_manager or coordinator (admin-tier).

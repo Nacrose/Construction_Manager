@@ -35,7 +35,7 @@ export default function StockAlertsPage({
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.material.stockAlerts.useQuery({ projectId: id });
 
-  const canWrite = projectInfo?.myRole && projectInfo.myRole !== "client" && projectInfo.myRole !== "inspector";
+  const canWrite = !!projectInfo?.myRole;
   const alerts = (data?.alerts ?? []) as StockAlertItem[];
 
   const columns: ConstructionTableColumn<StockAlertItem>[] = useMemo(

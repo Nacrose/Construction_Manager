@@ -101,10 +101,7 @@ export const boqRouter = router({
   create: protectedProcedure
     .input(CreateBoqSchema)
     .mutation(async ({ ctx, input }) => {
-      const role = await assertProjectMember(ctx.user, input.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, input.projectId);
 
       // Check if BOQ is locked
       const project = await db.project.findUnique({ where: { id: input.projectId }, select: { boqLocked: true } });
@@ -196,10 +193,7 @@ export const boqRouter = router({
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
 
-      const role = await assertProjectMember(ctx.user, item.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, item.projectId);
 
       // Check if BOQ is locked
       const project = await db.project.findUnique({ where: { id: item.projectId }, select: { boqLocked: true } });
@@ -334,10 +328,7 @@ export const boqRouter = router({
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
 
-      const role = await assertProjectMember(ctx.user, item.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, item.projectId);
 
       // Check if BOQ is locked
       const project = await db.project.findUnique({ where: { id: item.projectId }, select: { boqLocked: true } });
@@ -373,10 +364,7 @@ export const boqRouter = router({
       });
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "BOQ item not found." });
 
-      const role = await assertProjectMember(ctx.user, item.projectId);
-      if (role === "client" || role === "inspector") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Your role on this project is read-only." });
-      }
+      await assertProjectMember(ctx.user, item.projectId);
 
       const updated = await db.boqItem.update({
         where: { id: input.itemId },

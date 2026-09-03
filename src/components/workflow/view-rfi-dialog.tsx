@@ -266,7 +266,7 @@ export function ViewRfiDialog({
 
   const myRole = projectInfo?.myRole;
   const currentUser = getUser();
-  const isWriter = myRole && myRole !== "client" && myRole !== "inspector";
+  const isWriter = !!myRole;
   const isAdmin = myRole === "project_manager" || myRole === "coordinator";
   
   const canEdit = rfi?.status === "draft" && isWriter;
