@@ -26,6 +26,8 @@ import {
   Users, Compass, FileSignature, ListChecks, Database, Mail, BookOpen, Boxes,
 } from "lucide-react";
 import type { ModuleKey } from "@/lib/project-modules";
+import type { CapabilityRequirement, OperatingCapabilities } from "@/lib/capabilities";
+import { describeCapabilityShortfall } from "@/lib/capabilities";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -39,6 +41,8 @@ export type NavTab = {
   moduleKey?: ModuleKey;
   /** href already contains its full base (workflow shell only). */
   absolute?: boolean;
+  /** Resolved-capability requirement (ADR-0004): hidden when unmet. */
+  cap?: CapabilityRequirement;
 };
 
 export type SidebarNavItem = {
@@ -46,6 +50,8 @@ export type SidebarNavItem = {
   /** Global nav: absolute app path. Project modules: relative to /projects/[id]. */
   href: string;
   icon: NavIcon;
+  /** Resolved-capability requirement (ADR-0004): hidden when unmet. */
+  cap?: CapabilityRequirement;
 };
 
 // ── Tab Clusters ─────────────────────────────────────────────────
@@ -72,12 +78,15 @@ export type ClusterKey =
 export const NAV_CLUSTERS: Record<ClusterKey, readonly NavTab[]> = {
   /** Site Materials / Rate Library / Equipment / Production / Subcontractors / HR / Vendors */
   resources: [
+    // Materials stays visible for EVERY capability set: direct purchases are
+    // first-class (ADR product principles) even when procurementChain=none —
+    // the requisition/PO/quote tabs inside the page are server-gated.
     { label: "Materials & Procurement", href: "/materials" },
     { label: "Resource & Rate Library", href: "/rate-library" },
     { label: "Equipment & Fleet", href: "/equipment", moduleKey: "equipment" },
     { label: "Plant & Production", href: "/production", moduleKey: "production" },
     { label: "Subcontractors", href: "/subcontractors", moduleKey: "subcontractors" },
-    { label: "HR / Staff", href: "/hr", moduleKey: "hr" },
+    { label: "HR / Staff", href: "/hr", moduleKey: "hr", cap: { workforcePlanning: true } },
     { label: "Vendors Directory", href: "/vendors", moduleKey: "purchaseOrders" },
   ],
 
@@ -162,6 +171,18 @@ const ORPHAN_MODULE_KEYS: Record<string, ModuleKey> = {
   "/daily-program": "dailyProgramme",
 };
 
+/**
+ * Capability requirements by href (ADR-0004 §4): the nav-level projection of
+ * "this surface does not exist server-side under that capability map". Only
+ * entries whose PAGES are server-gated by capabilityGuard belong here — a
+ * hidden link can never unlock anything; a shown link can still 403.
+ * Cluster `cap` fields feed this map automatically; orphans are explicit.
+ */
+const ORPHAN_CAPABILITY_REQS: Record<string, CapabilityRequirement> = {
+  "/hr/payroll": { workforcePlanning: true },
+  "/hr/leaves": { workforcePlanning: true },
+};
+
 export const MODULE_KEY_BY_HREF: Readonly<Record<string, ModuleKey>> = (() => {
   const map: Record<string, ModuleKey> = { ...ORPHAN_MODULE_KEYS };
   for (const tabs of Object.values(NAV_CLUSTERS)) {
@@ -180,7 +201,9 @@ export const MODULE_KEY_BY_HREF: Readonly<Record<string, ModuleKey>> = (() => {
 export const GLOBAL_NAV: readonly SidebarNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Inventory Hub", href: "/inventory", icon: Boxes },
+  // Stores/stock control does not exist server-side under inventoryControl
+  // "none" (ADR-0004 §4 owner_led) — the hub is a projection of that.
+  { label: "Inventory Hub", href: "/inventory", icon: Boxes, cap: { inventoryControl: "basic" } },
   { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
   { label: "Drawings Vault", href: "/drawings", icon: Compass },
   { label: "Correspondence", href: "/correspondence", icon: Mail },
@@ -200,9 +223,60 @@ export const PROJECT_MODULE_NAV: readonly SidebarNavItem[] = [
   { label: "Rate Library", href: "/rate-library", icon: BookOpen },
 ];
 
+/**
+ * Capability requirements by href (ADR-0004 §4): the nav-level projection of
+ * "this surface does not exist server-side under that capability map". Only
+ * entries whose PAGES are server-gated by capabilityGuard belong here — a
+ * hidden link can never unlock anything; a shown link can still 403.
+ * Cluster `cap` fields, sidebar annotations and explicit orphans all feed
+ * this map — declared after the arrays it harvests.
+ */
+export const CAPABILITY_REQ_BY_HREF: Readonly<Record<string, CapabilityRequirement>> = (() => {
+  const map: Record<string, CapabilityRequirement> = { ...ORPHAN_CAPABILITY_REQS };
+  const sources: ReadonlyArray<ReadonlyArray<{ href: string; cap?: CapabilityRequirement }>> = [
+    ...Object.values(NAV_CLUSTERS),
+    GLOBAL_NAV,
+    PROJECT_MODULE_NAV,
+  ];
+  for (const tabs of sources) {
+    for (const tab of tabs) {
+      if (tab.cap && !(tab.href in map)) map[tab.href] = tab.cap;
+    }
+  }
+  return map;
+})();
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 /** Resolve a tab's gating key: explicit moduleKey wins, else href lookup. */
 export function moduleKeyForTab(tab: NavTab): ModuleKey | undefined {
   return tab.moduleKey ?? MODULE_KEY_BY_HREF[tab.href];
+}
+
+/**
+ * Resolve a nav item's capability requirement (ADR-0004): the explicit
+ * `cap` field wins, else the href map. Pure.
+ */
+export function capabilityReqFor(
+  item: { href: string; cap?: CapabilityRequirement },
+): CapabilityRequirement | undefined {
+  return item.cap ?? CAPABILITY_REQ_BY_HREF[item.href];
+}
+
+/**
+ * Filter nav items by the RESOLVED capability map (ADR-0004: a projection,
+ * never the guard). `capabilities === null` (not loaded / unparsable) shows
+ * everything — hiding nav because data is missing would be a regression
+ * masquerading as policy, and a shown link can still 403 server-side, never
+ * the reverse. Pure.
+ */
+export function filterNavByCapabilities<
+  T extends { href: string; cap?: CapabilityRequirement },
+>(items: readonly T[], capabilities: OperatingCapabilities | null): T[] {
+  if (!capabilities) return [...items];
+  return items.filter((item) => {
+    const req = capabilityReqFor(item);
+    if (!req) return true;
+    return describeCapabilityShortfall(capabilities, req) === null;
+  });
 }

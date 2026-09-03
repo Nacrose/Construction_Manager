@@ -5,50 +5,45 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  HardHat, LayoutDashboard, FolderKanban, ClipboardList, ReceiptText,
-  Users, ChevronLeft, Compass, FileSignature, ListChecks, LogOut,
-  Settings, Database, Mail, ShieldAlert, BookOpen, Boxes, ChevronRight,
+  HardHat, ChevronLeft, LogOut,
+  Settings, ShieldAlert, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth, clearAuth } from "@/lib/client-auth";
+import { trpc } from "@/lib/trpc-client";
+import { capabilitiesSchema, type OperatingCapabilities } from "@/lib/capabilities";
+import {
+  GLOBAL_NAV,
+  PROJECT_MODULE_NAV,
+  filterNavByCapabilities,
+  type SidebarNavItem,
+} from "@/lib/nav-registry";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-};
-
-const GLOBAL_NAV: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Inventory Hub", href: "/inventory", icon: Boxes },
-  { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
-  { label: "Drawings Vault", href: "/drawings", icon: Compass },
-  { label: "Correspondence", href: "/correspondence", icon: Mail },
-  { label: "Team & Workspace", href: "/team", icon: Users },
-  { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
-];
-
-const PROJECT_MODULES: NavItem[] = [
-  { label: "Project Overview", href: "", icon: LayoutDashboard },
-  { label: "BoQ & Planning", href: "/boq", icon: ClipboardList },
-  { label: "Workflow & RFIs", href: "/workflow/rfi", icon: ListChecks },
-  { label: "Site Materials", href: "/materials", icon: Boxes },
-  { label: "Site Accounting", href: "/accounting", icon: ReceiptText },
-  { label: "Quality & Safety", href: "/quality", icon: HardHat },
-  { label: "Variation Orders", href: "/variations", icon: FileSignature },
-  { label: "Rate Library", href: "/rate-library", icon: BookOpen },
-];
+const GLOBAL_NAV_ITEMS = GLOBAL_NAV; // extractive migration: data lives in the registry
+const PROJECT_NAV_ITEMS = PROJECT_MODULE_NAV;
 
 export function AppSidebar() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+
+  // Resolved capability map (ADR-0004): nav is a PROJECTION of it, never
+  // the guard — the same tRPC query the team page and ModuleTabs use, so
+  // react-query serves all three from one request. Fail-open while loading
+  // or unparsable; server-side capabilityGuard owns the real enforcement.
+  const { data: orgProfile } = trpc.project.getOrgProfile.useQuery(undefined, {
+    staleTime: 300_000,
+  });
+  const orgCapabilities = React.useMemo<OperatingCapabilities | null>(() => {
+    const parsed = capabilitiesSchema.safeParse(orgProfile?.org?.capabilities);
+    return parsed.success ? parsed.data : null;
+  }, [orgProfile]);
+  const globalNav = filterNavByCapabilities(GLOBAL_NAV_ITEMS, orgCapabilities);
+  const projectNav = filterNavByCapabilities(PROJECT_NAV_ITEMS, orgCapabilities);
 
   const projectId = React.useMemo(() => {
     const m = pathname?.match(/^\/projects\/([^/]+)/);
@@ -86,13 +81,13 @@ export function AppSidebar() {
         .toUpperCase()
     : "CU";
 
-  const isGlobalActive = (item: NavItem) => {
+  const isGlobalActive = (item: SidebarNavItem) => {
     if (projectId) return false;
     if (item.href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
     return pathname.startsWith(item.href);
   };
 
-  const isProjectModuleActive = (item: NavItem) => {
+  const isProjectModuleActive = (item: SidebarNavItem) => {
     if (!projectId) return false;
     const base = `/projects/${projectId}`;
     if (item.href === "") {
@@ -145,7 +140,7 @@ export function AppSidebar() {
               <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
                 Project Modules
               </span>
-              {PROJECT_MODULES.map((item) => {
+              {projectNav.map((item) => {
                 const Icon = item.icon;
                 const active = isProjectModuleActive(item);
                 const targetUrl = `/projects/${projectId}${item.href}`;
@@ -175,7 +170,7 @@ export function AppSidebar() {
           <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
             Enterprise Hub
           </span>
-          {GLOBAL_NAV.map((item) => {
+          {globalNav.map((item) => {
             const Icon = item.icon;
             const active = isGlobalActive(item);
             return (

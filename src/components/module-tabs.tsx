@@ -6,11 +6,16 @@ import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 import { trpc } from "@/lib/trpc-client";
 import { isModuleEnabled, type ModuleKey } from "@/lib/project-modules";
+import { capabilitiesSchema, type CapabilityRequirement, type OperatingCapabilities } from "@/lib/capabilities";
+import { filterNavByCapabilities } from "@/lib/nav-registry";
+import { useMemo } from "react";
 
 export type ModuleTab = {
   label: string;
   href: string;
   moduleKey?: ModuleKey;
+  /** Resolved-capability requirement (ADR-0004): hidden when unmet. */
+  cap?: CapabilityRequirement;
 };
 
 const AUTO_MODULE_MAP: Record<string, ModuleKey> = {
@@ -63,7 +68,19 @@ export function ModuleTabs({
   );
   const enabledModules = data?.modules;
 
-  const visibleTabs = tabs.filter((tab) => {
+  // Resolved capability map (ADR-0004) — shared react-query cache with the
+  // sidebar and the team page (same getOrgProfile query). Nav is a
+  // PROJECTION, never the guard: fail-open while loading or unparsable,
+  // because capabilityGuard owns the real server-side enforcement.
+  const { data: orgProfile } = trpc.project.getOrgProfile.useQuery(undefined, {
+    staleTime: 300_000,
+  });
+  const orgCapabilities = useMemo<OperatingCapabilities | null>(() => {
+    const parsed = capabilitiesSchema.safeParse(orgProfile?.org?.capabilities);
+    return parsed.success ? parsed.data : null;
+  }, [orgProfile]);
+
+  const visibleTabs = filterNavByCapabilities(tabs, orgCapabilities).filter((tab) => {
     const key = tab.moduleKey ?? AUTO_MODULE_MAP[tab.href];
     if (!key) return true; // not a toggleable module or core
     return isModuleEnabled(enabledModules, key);

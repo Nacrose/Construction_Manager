@@ -119,3 +119,79 @@ describe("sidebar arrays (extractive parity)", () => {
     }
   });
 });
+
+// ── Capability projection (ADR-0004) ────────────────────────────────
+// Nav is a PROJECTION of the resolved capability map, never the guard:
+// a hidden link can never unlock anything, a shown link can still 403.
+// These tests pin the projection's contract — especially the fail-open
+// behavior that keeps nav stable while the capability query loads.
+
+import {
+  CAPABILITY_REQ_BY_HREF,
+  capabilityReqFor,
+  filterNavByCapabilities,
+} from "./nav-registry";
+import { METHOD_CAPABILITY_DEFAULTS } from "@/lib/capabilities";
+
+describe("CAPABILITY_REQ_BY_HREF", () => {
+  it("keeps the orphan workforce entries", () => {
+    expect(CAPABILITY_REQ_BY_HREF["/hr/payroll"]).toEqual({ workforcePlanning: true });
+    expect(CAPABILITY_REQ_BY_HREF["/hr/leaves"]).toEqual({ workforcePlanning: true });
+  });
+
+  it("derives cluster annotations into the map", () => {
+    expect(CAPABILITY_REQ_BY_HREF["/hr"]).toEqual({ workforcePlanning: true });
+  });
+
+  it("matches every sidebar cap annotation", () => {
+    for (const nav of [...GLOBAL_NAV, ...PROJECT_MODULE_NAV]) {
+      if (nav.cap) {
+        expect(CAPABILITY_REQ_BY_HREF[nav.href]).toEqual(nav.cap);
+      }
+    }
+  });
+});
+
+describe("capabilityReqFor", () => {
+  it("prefers the explicit cap field over the href map", () => {
+    expect(capabilityReqFor({ href: "/hr", cap: { gateRegister: true } })).toEqual({
+      gateRegister: true,
+    });
+  });
+
+  it("falls back to the href map", () => {
+    expect(capabilityReqFor({ href: "/hr/payroll" })).toEqual({ workforcePlanning: true });
+  });
+});
+
+describe("filterNavByCapabilities", () => {
+  const items = [
+    { label: "A", href: "/dashboard" },
+    { label: "B", href: "/inventory" },
+  ];
+
+  it("hides Inventory Hub under owner_led (inventoryControl none)", () => {
+    const out = filterNavByCapabilities(items, METHOD_CAPABILITY_DEFAULTS.owner_led);
+    expect(out.map((i) => i.href)).toEqual(["/dashboard"]);
+  });
+
+  it("keeps Inventory Hub under crew_led and delegated", () => {
+    for (const method of ["crew_led", "delegated"] as const) {
+      const out = filterNavByCapabilities(items, METHOD_CAPABILITY_DEFAULTS[method]);
+      expect(out.map((i) => i.href)).toEqual(["/dashboard", "/inventory"]);
+    }
+  });
+
+  it("fails OPEN on null (not loaded / unparsable) — projection, never guard", () => {
+    expect(filterNavByCapabilities(items, null).map((i) => i.href)).toEqual([
+      "/dashboard",
+      "/inventory",
+    ]);
+  });
+
+  it("does not mutate the input array", () => {
+    const source = [{ label: "B", href: "/inventory" }];
+    filterNavByCapabilities(source, METHOD_CAPABILITY_DEFAULTS.owner_led);
+    expect(source).toHaveLength(1);
+  });
+});
