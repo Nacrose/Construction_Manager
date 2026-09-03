@@ -5,8 +5,7 @@ import { format, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
-import { CalendarRange, Plus, Loader2 } from "lucide-react";
-import Link from "next/link";
+import { Plus, Loader2 } from "lucide-react";
 import { UndoRedoProvider, useUndoRedo } from "./undo-redo";
 import { useUserPreferences } from "@/components/user-preferences-provider";
 import {
@@ -250,11 +249,9 @@ function GanttChartContent({
       const local = localStorage.getItem("ganttActivityGridWidthV2");
       if (local) {
         const parsed = parseInt(local, 10);
-        if (!isNaN(parsed) && parsed >= 180) return parsed;
+        if (!isNaN(parsed) && parsed >= 620) return parsed;
       }
     }
-    const saved = getPref<number>("ganttLeftPanelWidth");
-    if (saved && typeof saved === "number" && saved >= 180) return saved;
     return 640;
   });
   const leftPanelWidthRef = useRef(leftPanelWidth);
@@ -274,8 +271,8 @@ function GanttChartContent({
     document.body.style.userSelect = "none";
     const onMove = (ev: MouseEvent) => {
       if (!dragging.current) return;
-      const minW = 180;
-      const maxW = window.innerWidth * 0.6;
+      const minW = 620;
+      const maxW = window.innerWidth * 0.68;
       setLeftPanelWidth(Math.min(Math.max(ev.clientX, minW), maxW));
     };
     const onUp = () => {
@@ -387,24 +384,6 @@ function GanttChartContent({
         fullScreen && "fixed inset-0 z-50 bg-background p-3"
       )}
     >
-      <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border/80 px-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <CalendarRange className="h-4 w-4 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold text-foreground">Planning</h1>
-            <p className="truncate text-[9px] font-mono uppercase tracking-[0.1em] text-muted-foreground">
-              {projectInfo?.project?.name ?? "Project schedule"}{currentVersion ? ` · ${currentVersion.name || `v${currentVersion.versionNumber}`}` : ""}
-            </p>
-          </div>
-        </div>
-        <nav className="ml-2 hidden h-full items-end gap-0.5 lg:flex" aria-label="Planning views">
-          <span className="border-b-2 border-primary px-2.5 pb-2 text-[10px] font-semibold text-primary">Work Plan</span>
-          <Link href={`/projects/${id}/look-ahead`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Lookahead</Link>
-          <Link href={`/projects/${id}/workflow/program`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Daily Program</Link>
-          <Link href={`/projects/${id}/workflow/reports`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Progress</Link>
-        </nav>
-        <p className="ml-auto hidden text-[9px] text-muted-foreground xl:block">Right-click activities for actions</p>
-      </header>
       <GanttCommandBar
         id={id}
         activeTab={activeTab}
@@ -459,7 +438,7 @@ function GanttChartContent({
         createVersionMutation={createVersionMutation}
       />
 
-      <div className="flex-1 min-h-0 mt-2 border border-border/90 rounded-[5px] overflow-hidden bg-card/65 shadow-[0_1px_3px_rgba(79,62,45,0.08)]">
+      <div className="flex-1 min-h-0 border-x border-border/90 overflow-hidden bg-card/65">
         {showEVM || showConflicts || (isExecution && showVariance) ? (
           <GanttAnalysisModals
             showEVM={showEVM}

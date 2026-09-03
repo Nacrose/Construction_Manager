@@ -184,10 +184,10 @@ export function TimelineHeader({
             // distinct from a working day.
             const isHolidayDay = !!d.isHoliday;
             const dayFill = isHolidayDay
-              ? "fill-rose-400 font-bold"
+              ? "fill-rose-600 font-bold"
               : isSaturday
-                ? "fill-slate-300 font-bold"
-                : "fill-slate-400";
+                ? "fill-stone-700 font-bold"
+                : "fill-stone-500";
             const dayWeight = isHolidayDay ? 700 : isSaturday ? 700 : 500;
 
             return (
@@ -235,7 +235,7 @@ export function TimelineHeader({
                     y1={22}
                     x2={xPos}
                     y2={44}
-                    stroke="rgba(255, 255, 255, 0.08)"
+                    stroke="rgba(116, 105, 94, 0.16)"
                     strokeWidth={0.5}
                   />
                 )}
@@ -259,7 +259,7 @@ export function TimelineHeader({
                         textAnchor="middle"
                         fontSize={9}
                         fontWeight={600}
-                        className="fill-slate-400"
+                        className="fill-stone-500"
                       >
                         {`W${wIdx + 1}`}
                       </text>
@@ -269,7 +269,7 @@ export function TimelineHeader({
                           y1={22}
                           x2={weekStartX}
                           y2={44}
-                          stroke="rgba(255, 255, 255, 0.08)"
+                          stroke="rgba(116, 105, 94, 0.16)"
                           strokeWidth={0.5}
                         />
                       )}
@@ -297,7 +297,7 @@ export function TimelineHeader({
         y={44}
         width={svgWidth - 10}
         height={24}
-        fill="rgba(5, 8, 6, 0.75)"
+        fill="#f0e7da"
       />
 
       {zoom === "day"
@@ -315,7 +315,7 @@ export function TimelineHeader({
                     y1={44}
                     x2={xPos}
                     y2={68}
-                    stroke="rgba(255, 255, 255, 0.05)"
+                    stroke="rgba(116, 105, 94, 0.12)"
                     strokeWidth={0.5}
                   />
                 )}
@@ -356,7 +356,7 @@ export function TimelineHeader({
                           ? "#fca5a5"
                           : isPeak
                             ? "#fcd34d"
-                            : "#6ee7b7"
+                            : "#347d61"
                       }
                       className="font-mono"
                     >
@@ -397,7 +397,7 @@ export function TimelineHeader({
                           y1={44}
                           x2={weekStartX}
                           y2={68}
-                          stroke="rgba(255, 255, 255, 0.05)"
+                          stroke="rgba(116, 105, 94, 0.12)"
                           strokeWidth={0.5}
                         />
                       )}
@@ -437,7 +437,7 @@ export function TimelineHeader({
                                 ? "#fca5a5"
                                 : isPeak
                                   ? "#fcd34d"
-                                  : "#6ee7b7"
+                                  : "#347d61"
                             }
                             className="font-mono"
                           >

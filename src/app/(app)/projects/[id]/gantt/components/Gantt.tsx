@@ -55,7 +55,7 @@ export function Gantt({
   zoomScale, onZoomScaleChange, onReplicate,
 }: GanttProps) {
   const svgWidth = days * dayWidth + 20;
-  const headerHeight = 68;
+  const headerHeight = 44;
 
   const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
 
@@ -352,8 +352,8 @@ export function Gantt({
             style={{ width: leftPanelWidth }}
           >
             {/* Spreadsheet-style activity grid header */}
-            <div className="sticky top-0 z-20 shrink-0 flex flex-col h-[68px] text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground bg-secondary/65 border-b border-border">
-              <div className="flex items-center h-[44px] border-b border-border/60">
+            <div className="sticky top-0 z-20 shrink-0 flex h-[44px] items-center text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground bg-secondary/65 border-b border-border">
+              <div className="flex h-full flex-1 items-center">
                 <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/80 h-full text-primary/80 text-[9px]">
                   WBS
                 </div>
@@ -400,10 +400,6 @@ export function Gantt({
                 <div className="w-[58px] shrink-0 text-center border-l border-border/70">Days</div>
                 <div className="w-[64px] shrink-0 text-center border-l border-border/70">Progress</div>
                 <div className="w-[96px] shrink-0 px-2 border-l border-border/70">Responsible</div>
-              </div>
-              <div className="flex items-center justify-between px-2 h-[24px] bg-accent/45 text-[9px] text-primary">
-                <span className="font-semibold">Work breakdown structure</span>
-                <span className="text-[8.5px] text-muted-foreground font-mono">{visibleRows.length} activities · {tasks.reduce((sum, task) => sum + (task.laborCount || 0), 0)} people/day</span>
               </div>
             </div>
             {/* Left body — scrolls only vertically */}
@@ -504,8 +500,8 @@ export function Gantt({
               svgWidth={svgWidth}
               floatMap={floatMap}
               emptyRowsCount={emptyRowsCount}
-              showSCurve={true}
-              showHeatmap={true}
+              showSCurve={false}
+              showHeatmap={false}
             />
           </div>
         </div>
