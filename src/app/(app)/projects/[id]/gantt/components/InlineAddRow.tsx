@@ -119,17 +119,18 @@ export function InlineAddRow({
 
   if (!show) {
     return (
-      <div className="flex items-center h-[38px] border-b border-border/70 bg-[var(--navy-deep)]/90">
-        <div className="w-12 shrink-0 flex items-center justify-center border-r border-border/70 h-full text-emerald-400 font-bold">
+      <div className="flex items-center h-9 border-b border-border/70 bg-card">
+        <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/70 h-full text-primary font-bold">
           {parentId ? <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" /> : <Plus className="h-3.5 w-3.5" />}
         </div>
         <button
           type="button"
           onClick={() => setShow(true)}
-          className="flex-1 flex items-center h-full px-3 text-[11px] font-mono font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/20 transition-colors text-left cursor-pointer"
+          className="min-w-[190px] flex-1 flex items-center h-full px-3 text-[10px] font-mono font-medium text-primary hover:bg-accent/60 transition-colors text-left cursor-pointer border-r border-border/60"
         >
           {parentId ? "Add subtask..." : "Add task..."}
         </button>
+        <div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[58px] border-r border-border/60 h-full" /><div className="w-[64px] border-r border-border/60 h-full" /><div className="w-[96px] h-full" />
       </div>
     );
   }

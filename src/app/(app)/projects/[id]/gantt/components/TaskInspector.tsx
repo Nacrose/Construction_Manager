@@ -227,7 +227,7 @@ export function TaskInspector({ task, allTasks, canWrite, projectId, onClose, ut
   };
 
   return (
-    <div className="w-[260px] shrink-0 border-l border-border bg-card flex flex-col font-mono z-20 shadow-[-6px_0_18px_rgba(79,62,45,0.1)]">
+    <div className="gantt-inspector w-[280px] shrink-0 border-l border-border bg-card flex flex-col font-sans z-20 shadow-[-6px_0_18px_rgba(79,62,45,0.1)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-2.5 py-2 bg-secondary/55">
         <span className="text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">

@@ -537,6 +537,19 @@ html {
     display: none;
   }
 
+  .gantt-inspector input,
+  .gantt-inspector select,
+  .gantt-inspector button {
+    font-size: 10px;
+  }
+
+  .gantt-inspector input,
+  .gantt-inspector select {
+    background: var(--card) !important;
+    color: var(--foreground) !important;
+    border-color: var(--border) !important;
+  }
+
   /* ── Previously-ghost classes (referenced but never defined) ── */
 
   /* Login / auth hero: ink sheet with survey grid + amber horizon */

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
 import { CalendarRange, Plus, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { UndoRedoProvider, useUndoRedo } from "./undo-redo";
 import { useUserPreferences } from "@/components/user-preferences-provider";
 import {
@@ -70,7 +71,7 @@ function GanttChartContent({
   });
   const [inspectorVisible, setInspectorVisible] = useState<boolean>(() => {
     const saved = getPref<boolean>("ganttInspectorVisible");
-    return saved !== undefined && saved !== null ? saved : true;
+    return saved !== undefined && saved !== null ? saved : false;
   });
   const [showVariance, setShowVariance] = useState(false);
   const [showConflicts, setShowConflicts] = useState(false);
@@ -246,7 +247,7 @@ function GanttChartContent({
 
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      const local = localStorage.getItem("ganttLeftPanelWidth");
+      const local = localStorage.getItem("ganttActivityGridWidthV2");
       if (local) {
         const parsed = parseInt(local, 10);
         if (!isNaN(parsed) && parsed >= 180) return parsed;
@@ -254,7 +255,7 @@ function GanttChartContent({
     }
     const saved = getPref<number>("ganttLeftPanelWidth");
     if (saved && typeof saved === "number" && saved >= 180) return saved;
-    return 300;
+    return 640;
   });
   const leftPanelWidthRef = useRef(leftPanelWidth);
   useEffect(() => {
@@ -283,7 +284,7 @@ function GanttChartContent({
       document.body.style.userSelect = "";
       setPref("ganttLeftPanelWidth", leftPanelWidthRef.current);
       if (typeof window !== "undefined") {
-        localStorage.setItem("ganttLeftPanelWidth", String(leftPanelWidthRef.current));
+        localStorage.setItem("ganttActivityGridWidthV2", String(leftPanelWidthRef.current));
       }
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -386,7 +387,7 @@ function GanttChartContent({
         fullScreen && "fixed inset-0 z-50 bg-background p-3"
       )}
     >
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-border/80 px-1">
+      <header className="flex h-10 shrink-0 items-center gap-3 border-b border-border/80 px-1">
         <div className="flex min-w-0 items-center gap-2">
           <CalendarRange className="h-4 w-4 shrink-0 text-primary" />
           <div className="min-w-0">
@@ -396,7 +397,13 @@ function GanttChartContent({
             </p>
           </div>
         </div>
-        <p className="hidden text-[10px] text-muted-foreground md:block">Right-click tasks for actions · Drag divider to resize</p>
+        <nav className="ml-2 hidden h-full items-end gap-0.5 lg:flex" aria-label="Planning views">
+          <span className="border-b-2 border-primary px-2.5 pb-2 text-[10px] font-semibold text-primary">Work Plan</span>
+          <Link href={`/projects/${id}/look-ahead`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Lookahead</Link>
+          <Link href={`/projects/${id}/workflow/program`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Daily Program</Link>
+          <Link href={`/projects/${id}/workflow/reports`} className="border-b-2 border-transparent px-2.5 pb-2 text-[10px] text-muted-foreground hover:text-foreground">Progress</Link>
+        </nav>
+        <p className="ml-auto hidden text-[9px] text-muted-foreground xl:block">Right-click activities for actions</p>
       </header>
       <GanttCommandBar
         id={id}
@@ -577,6 +584,18 @@ function GanttChartContent({
           />
         )}
       </div>
+
+      {activeTab === "schedule" && allTasks.length > 0 && (
+        <footer className="flex h-7 shrink-0 items-center gap-3 border-t border-border/70 px-2 text-[9px] font-mono text-muted-foreground">
+          <span>{allTasks.length} activities</span>
+          <span>·</span>
+          <span>{criticalTaskIds.size} critical</span>
+          <span>·</span>
+          <span>{Math.round(allTasks.reduce((sum, task) => sum + (rolledUpProgress.get(task.id) ?? task.progress ?? 0), 0) / allTasks.length)}% complete</span>
+          <span>·</span>
+          <span>Finish {format(new Date(Math.max(...allTasks.map((task) => new Date(task.endDate).getTime()))), "dd MMM yyyy")}</span>
+        </footer>
+      )}
 
       {/* Work Package & Structure Template Manager / Replicator Modal */}
       <WorkPackageTemplatesModal

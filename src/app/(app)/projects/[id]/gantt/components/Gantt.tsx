@@ -6,10 +6,9 @@ import { Timeline } from "./Timeline";
 import { TimelineHeader } from "./TimelineHeader";
 import { TaskInspector } from "./TaskInspector";
 import { TaskContextMenu, type ContextMenuPosition } from "./TaskContextMenu";
-import { getTaskRowHeight } from "../utils";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown, Layers } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { differenceInDays, format, addDays } from "date-fns";
 
 type GanttProps = {
@@ -55,19 +54,6 @@ export function Gantt({
   addTaskTrigger = 0, jumpToTodayTrigger = 0, onWidthNeeded, hasManuallyResized = false, floatMap,
   zoomScale, onZoomScaleChange, onReplicate,
 }: GanttProps) {
-  const rowCount = useMemo(() => {
-    function count(list: Task[]): number {
-      let c = 0;
-      for (const t of list) {
-        c++;
-        const children = tasks.filter(ch => ch.parentId === t.id);
-        if (children.length > 0) c += count(children);
-      }
-      return c;
-    }
-    return count(rootTasks);
-  }, [rootTasks, tasks]);
-
   const svgWidth = days * dayWidth + 20;
   const headerHeight = 68;
 
@@ -104,9 +90,7 @@ export function Gantt({
     });
   }, [flattened, expandedMap]);
 
-  const rowHeights = useMemo(() => {
-    return visibleRows.map(({ task, depth }) => getTaskRowHeight(task.name, depth, leftPanelWidth));
-  }, [visibleRows, leftPanelWidth]);
+  const rowHeights = useMemo(() => visibleRows.map(() => 36), [visibleRows]);
 
   const rowOffsets = useMemo(() => {
     const offsets: number[] = [];
@@ -115,7 +99,7 @@ export function Gantt({
       offsets.push(current);
       current += h;
     }
-    return { offsets, totalHeight: current + 40 };
+    return { offsets, totalHeight: current + 36 };
   }, [rowHeights]);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -147,7 +131,7 @@ export function Gantt({
   const emptyRowsCount = useMemo(() => {
     const remaining = effectiveTotalHeight - rowOffsets.totalHeight;
     if (remaining <= 0) return 0;
-    return Math.ceil(remaining / 38);
+    return Math.ceil(remaining / 36);
   }, [effectiveTotalHeight, rowOffsets.totalHeight]);
 
   const [contextMenuPos, setContextMenuPos] = useState<ContextMenuPosition | null>(null);
@@ -367,14 +351,14 @@ export function Gantt({
             className="flex flex-col shrink-0 border-r border-border bg-card z-10"
             style={{ width: leftPanelWidth }}
           >
-            {/* Left header */}
+            {/* Spreadsheet-style activity grid header */}
             <div className="sticky top-0 z-20 shrink-0 flex flex-col h-[68px] text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground bg-secondary/65 border-b border-border">
-              <div className="flex items-center h-[44px] border-b border-border/60 px-1">
-                <div className="w-8 shrink-0 flex items-center justify-center border-r border-border/80 h-full text-primary/80 text-[9px]">
+              <div className="flex items-center h-[44px] border-b border-border/60">
+                <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/80 h-full text-primary/80 text-[9px]">
                   WBS
                 </div>
-                <div className="flex-1 flex items-center justify-between px-2 h-full">
-                  <span>Task Name</span>
+                <div className="min-w-[190px] flex-1 flex items-center justify-between px-2 h-full border-r border-border/70">
+                  <span>Activity</span>
                   {/* Expand / Collapse and Level controls */}
                   <div className="flex items-center gap-1 normal-case font-sans">
                     <button
@@ -411,14 +395,15 @@ export function Gantt({
                     </button>
                   </div>
                 </div>
+                <div className="w-[88px] shrink-0 px-2">Start</div>
+                <div className="w-[88px] shrink-0 px-2 border-l border-border/70">Finish</div>
+                <div className="w-[58px] shrink-0 text-center border-l border-border/70">Days</div>
+                <div className="w-[64px] shrink-0 text-center border-l border-border/70">Progress</div>
+                <div className="w-[96px] shrink-0 px-2 border-l border-border/70">Responsible</div>
               </div>
               <div className="flex items-center justify-between px-2 h-[24px] bg-accent/45 text-[9px] text-primary">
-                <span className="flex items-center gap-1 font-semibold">
-                  👥 Manpower / Day
-                </span>
-                <span className="text-[8.5px] text-muted-foreground/80 font-mono">
-                  {tasks.reduce((sum, t) => sum + (t.laborCount || 0), 0)} Total
-                </span>
+                <span className="font-semibold">Work breakdown structure</span>
+                <span className="text-[8.5px] text-muted-foreground font-mono">{visibleRows.length} activities · {tasks.reduce((sum, task) => sum + (task.laborCount || 0), 0)} people/day</span>
               </div>
             </div>
             {/* Left body — scrolls only vertically */}

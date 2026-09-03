@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
-import { ChevronRight, GripVertical, Flag } from "lucide-react";
+import { ChevronRight, Flag } from "lucide-react";
 import { toast } from "sonner";
 import type { Task } from "../../gantt/types";
-import { InlineEdit } from "../../gantt/components/InlineEdit";
 import { InlineAddRow } from "../../gantt/components/InlineAddRow";
 import { trpc } from "@/lib/trpc-client";
-import { adToBs } from "@/lib/nepali-calendar";
-import { useUserPreferences } from "@/components/user-preferences-provider";
 
 type FlattenedRow = { task: Task; depth: number };
 
@@ -43,8 +40,8 @@ export function TaskList({
   flattened, canWrite, projectId, selectedTaskId, onSelectTask,
   hoveredTaskId, onHoverTask, onContextMenu,
   rolledUpProgress, selectedCostLibraryId: _selectedCostLibraryId, pushAction: _pushAction, utils,
-  addTaskTrigger = 0, leftPanelWidth = 320, onWidthNeeded, hasManuallyResized = false,
-  visibleRows, rowHeights, rowOffsets, expandedMap, setExpandedMap,
+  addTaskTrigger = 0, leftPanelWidth: _leftPanelWidth = 320, onWidthNeeded: _onWidthNeeded, hasManuallyResized: _hasManuallyResized = false,
+  visibleRows, rowHeights, rowOffsets: _rowOffsets, expandedMap, setExpandedMap,
   emptyRowsCount = 0,
 }: TaskListProps) {
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
@@ -57,20 +54,6 @@ export function TaskList({
     },
     onError: (e) => toast.error(e.message),
   });
-
-  const estimatedMaxNeededWidth = useMemo(() => {
-    let maxW = 320;
-    for (const { task, depth } of visibleRows) {
-      const indent = depth * 14;
-      const pct = rolledUpProgress.get(task.id) ?? task.progress;
-      const needed = indent + 20 + 8 + 28 + (task.name.length * 6.8) + 55;
-      if (needed > maxW) {
-        maxW = needed;
-      }
-    }
-    const limit = typeof window !== "undefined" ? window.innerWidth * 0.65 : 700;
-    return Math.min(Math.round(maxW), limit);
-  }, [visibleRows, rolledUpProgress]);
 
   const toggleExpand = (id: string) => {
     setExpandedMap(prev => {
@@ -86,36 +69,6 @@ export function TaskList({
   const progress = (task: Task) => {
     if (hasChildren(task)) return rolledUpProgress.get(task.id) ?? task.progress;
     return task.progress;
-  };
-
-  const updateMutation = trpc.gantt.update.useMutation({
-    onSuccess: () => utils.gantt.list.invalidate({ projectId }),
-    onError: (e) => toast.error(e.message),
-  });
-
-  const reorderMutation = trpc.gantt.reorder.useMutation({
-    onSuccess: () => { utils.gantt.list.invalidate({ projectId }); toast.success("Hierarchy updated"); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const { getPref } = useUserPreferences();
-  const calendarType = getPref<string>("calendarType", "BS");
-
-  const formatTaskDateRange = (start: Date, end: Date, dur: number) => {
-    try {
-      if (calendarType === "BS") {
-        const bsStart = adToBs(start);
-        const bsEnd = adToBs(end);
-        return `${bsStart.monthName} ${bsStart.day} → ${bsEnd.monthName} ${bsEnd.day} · ${dur}d`;
-      } else if (calendarType === "DUAL") {
-        const bsStart = adToBs(start);
-        const bsEnd = adToBs(end);
-        return `${bsStart.day} ${bsStart.monthName.slice(0, 3)} (${format(start, "d MMM")}) → ${bsEnd.day} ${bsEnd.monthName.slice(0, 3)} · ${dur}d`;
-      }
-      return `${format(start, "d MMM")} → ${format(end, "d MMM")} · ${dur}d`;
-    } catch {
-      return `${format(start, "d MMM")} → ${format(end, "d MMM")} · ${dur}d`;
-    }
   };
 
   return (
@@ -193,75 +146,25 @@ export function TaskList({
             onMouseEnter={() => onHoverTask(task.id)}
             onMouseLeave={() => onHoverTask(null)}
           >
-            {/* WBS code column with vertical divider and drag grip */}
-            <div className="w-8 shrink-0 flex items-center justify-center border-r border-border/70 h-full px-0.5" title={`WBS: ${task.code || idx + 1}`}>
+            <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/70 h-full px-1" title={`WBS: ${task.code || idx + 1}`}>
               <span className="text-[10px] font-mono text-primary font-bold truncate">
                 {task.code || idx + 1}
               </span>
             </div>
 
-            {/* Task Name column with tree indent & expander */}
             <div
-              className="flex-1 min-w-0 flex flex-col justify-center gap-1 py-1.5 pr-2 overflow-hidden"
-              style={{ paddingLeft: Math.max(4, indent + 4) }}
+              className="min-w-[190px] flex-1 h-full flex items-center gap-1 border-r border-border/60 pr-2 overflow-hidden"
+              style={{ paddingLeft: Math.max(6, indent + 6) }}
             >
-              {/* Top row: Name & % progress */}
-              <div className="flex items-start gap-0.5 min-w-0">
-                {children ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
-                    className="rounded p-0.5 mt-0.5 -ml-0.5 hover:bg-[var(--navy-mid)] text-muted-foreground/80 hover:text-foreground cursor-pointer shrink-0"
-                  >
-                    <ChevronRight className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-90")} />
-                  </button>
-                ) : null}
-                {task.isMilestone && (
-                  <Flag className="h-3 w-3 shrink-0 text-amber-500 mt-0.5" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <span
-                    className="text-[11px] font-medium leading-[14px] text-left whitespace-normal break-words text-foreground block"
-                    title={task.name}
-                  >
-                    {task.name}
-                  </span>
-                </div>
-                <span className="text-[9.5px] text-muted-foreground/80 font-mono shrink-0 mt-0.5">({pct}%)</span>
-              </div>
-
-              {/* Subtitle row: Dates & Compact Indent Arrows */}
-              <div className="flex items-center justify-between min-w-0 gap-1 pl-0.5">
-                <div className="text-[8.5px] text-muted-foreground/80 font-mono truncate leading-tight flex-1 min-w-0">
-                  {formatTaskDateRange(start, end, dur)}
-                </div>
-                {canWrite && (
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 bg-[var(--navy-mid)]/90 rounded border border-border/70 px-0.5 shadow-sm">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        reorderMutation.mutate({ projectId, taskId: task.id, direction: "indent" });
-                      }}
-                      title="Indent (Nest under task above)"
-                      className="px-1 py-0.2 text-[9px] font-mono text-muted-foreground hover:text-emerald-400 hover:bg-[var(--navy-mid)] rounded cursor-pointer leading-none"
-                    >
-                      →
-                    </button>
-                    {task.parentId && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          reorderMutation.mutate({ projectId, taskId: task.id, direction: "outdent" });
-                        }}
-                        title="Outdent (Move 1 level up)"
-                        className="px-1 py-0.2 text-[9px] font-mono text-muted-foreground hover:text-emerald-400 hover:bg-[var(--navy-mid)] rounded cursor-pointer leading-none"
-                      >
-                        ←
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              {children ? <button onClick={(event) => { event.stopPropagation(); toggleExpand(task.id); }} className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"><ChevronRight className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-90")} /></button> : <span className="ml-3.5 h-1 w-1 rounded-full border border-muted-foreground/50" />}
+              {task.isMilestone && <Flag className="h-3 w-3 shrink-0 text-amber-600" />}
+              <span className={cn("min-w-0 flex-1 truncate text-[10.5px] text-foreground", children && "font-semibold")} title={task.name}>{task.name}</span>
             </div>
+            <div className="w-[88px] shrink-0 px-2 text-[9px] text-foreground">{format(start, "dd MMM yy")}</div>
+            <div className="w-[88px] shrink-0 border-l border-border/60 px-2 text-[9px] text-foreground">{format(end, "dd MMM yy")}</div>
+            <div className="w-[58px] shrink-0 border-l border-border/60 text-center text-[9px] text-foreground">{dur}d</div>
+            <div className={cn("w-[64px] shrink-0 border-l border-border/60 text-center text-[9px] font-semibold", pct === 100 ? "text-emerald-700" : "text-foreground")}>{Math.round(pct)}%</div>
+            <div className="w-[96px] shrink-0 truncate border-l border-border/60 px-2 text-[9px] text-muted-foreground">{task.laborCount > 0 ? `${task.laborCount} people` : "—"}</div>
           </div>
         );
       })}
@@ -275,12 +178,13 @@ export function TaskList({
           <div
             key={`ghost-row-${k}`}
             className={cn(
-              "flex items-center h-[38px] border-b border-border/60 pointer-events-none select-none",
+              "flex items-center h-9 border-b border-border/60 pointer-events-none select-none",
               rowIdx % 2 === 0 ? "bg-card" : "bg-[#f7f1e8]/65"
             )}
           >
-            <div className="w-12 shrink-0 border-r border-border/60 h-full" />
-            <div className="flex-1" />
+            <div className="w-[52px] shrink-0 border-r border-border/60 h-full" />
+            <div className="min-w-[190px] flex-1 border-r border-border/60 h-full" />
+            <div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[58px] border-r border-border/60 h-full" /><div className="w-[64px] border-r border-border/60 h-full" /><div className="w-[96px] h-full" />
           </div>
         );
       })}
