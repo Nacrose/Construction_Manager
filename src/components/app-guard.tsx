@@ -74,7 +74,7 @@ export function AppGuard({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#eef5fc] relative z-10">
+    <div className="h-screen flex overflow-hidden bg-background blueprint-grid relative z-10">
       {/* Permanent Left Sidebar */}
       <AppSidebar />
 
@@ -87,7 +87,7 @@ export function AppGuard({ children }: { children: ReactNode }) {
         <ImpersonationBanner />
 
         {/* Full-screen scrollable main container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-5 lg:px-6 py-4">
           <div className="mx-auto w-full max-w-[1920px]">
             {children}
           </div>

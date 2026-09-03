@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[4px] text-sm font-medium transition-all duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-1.5 focus-visible:ring-ring select-none cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[4px] text-sm font-medium transition-all duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-1.5 focus-visible:ring-ring select-none cursor-pointer hover:translate-y-px active:translate-y-0.5",
   {
     variants: {
       variant: {
         default:
-          "bg-amber text-[#1a1206] font-semibold border border-amber/70 shadow-[0_2px_8px_rgba(245,158,11,0.3)] hover:bg-amber-light hover:shadow-[0_4px_14px_rgba(245,158,11,0.4)]",
+          "bg-primary text-primary-foreground font-semibold border border-primary/80 shadow-[0_2px_0_color-mix(in_srgb,var(--primary)_65%,#5b3521)] hover:bg-amber active:shadow-none",
         destructive:
           "bg-destructive/10 text-destructive border border-destructive/40 shadow-xs hover:bg-destructive/20 hover:border-destructive",
         outline:
-          "border border-border bg-card/70 text-foreground shadow-xs hover:border-primary hover:text-primary hover:bg-accent/50",
+          "border border-border bg-card text-foreground shadow-[0_1px_0_rgba(79,62,45,0.16)] hover:border-primary hover:text-primary hover:bg-accent/50 active:shadow-none",
         secondary:
-          "bg-secondary text-secondary-foreground border border-border/60 shadow-xs hover:bg-secondary/80 hover:border-border",
+          "bg-secondary text-secondary-foreground border border-border/60 shadow-[0_1px_0_rgba(79,62,45,0.12)] hover:bg-secondary/80 hover:border-border active:shadow-none",
         ghost:
           "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",

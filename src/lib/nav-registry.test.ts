@@ -21,8 +21,7 @@ import {
  *  3. hrefs are well-formed relative paths (start with "/", never "//")
  *  4. the module-gating map keeps its legacy keys (AUTO_MODULE_MAP parity —
  *     page-level module toggling must not change because of Phase D)
- *  5. sidebar arrays keep their exact entry count and hrefs (extractive
- *     migration: byte-identical data, relocated)
+ *  5. sidebar arrays keep their deliberate information architecture and hrefs
  */
 
 describe("NAV_CLUSTERS structure", () => {
@@ -98,19 +97,25 @@ describe("moduleKeyForTab", () => {
   });
 });
 
-describe("sidebar arrays (extractive parity)", () => {
-  it("GLOBAL_NAV keeps its 8 enterprise entries", () => {
+describe("sidebar arrays", () => {
+  it("GLOBAL_NAV keeps its organisation desk entries", () => {
     expect(GLOBAL_NAV.map((n) => n.href)).toEqual([
       "/dashboard", "/projects", "/inventory", "/finance",
       "/drawings", "/correspondence", "/team", "/rate-catalogs",
     ]);
   });
 
-  it("PROJECT_MODULE_NAV keeps its 8 module entries", () => {
+  it("PROJECT_MODULE_NAV keeps the compact grouped project navigation", () => {
     expect(PROJECT_MODULE_NAV.map((n) => n.href)).toEqual([
-      "", "/boq", "/workflow/rfi", "/materials",
-      "/accounting", "/quality", "/variations", "/rate-library",
+      "", "/gantt", "/boq", "/ipc", "/variations", "/workflow/rfi",
+      "/materials", "/quality", "/drawings", "/accounting", "/rate-library",
     ]);
+  });
+
+  it("assigns every sidebar item to a visual group", () => {
+    for (const nav of [...GLOBAL_NAV, ...PROJECT_MODULE_NAV]) {
+      expect(nav.group, `missing group for "${nav.label}"`).toBeTruthy();
+    }
   });
 
   it("every sidebar entry has an icon component", () => {

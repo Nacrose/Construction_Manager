@@ -75,12 +75,11 @@ input[type="number"] {
 }
 
 /* ──────────────────────────────────────────────────────────────
-   BLUEPRINT — Light "Drafting Paper" Tokens (Default Root)
+   WORKSPACE — warm paper, graphite linework, clay actions.
 
-   Metaphor: a living set of architectural drawings. Paper canvas
-   with a fine drafting grid, ink linework, and light amber
-   mark-up highlights — the color an engineer's marker leaves on
-   a fresh print.
+   The application is a working desk, not a dashboard: sheets and
+   registers sit on a quiet sand canvas while only actionable controls
+   receive physical depth.
    ────────────────────────────────────────────────────────────── */
 
 :root,
@@ -89,74 +88,71 @@ html {
   --radius: 0.375rem;
   --panel-alpha: 0.92;
 
-  /* Drafting paper canvas */
-  --background: #f2f7fb;
-  --foreground: #132a45;
+  --background: #f3eee5;
+  --foreground: #322d27;
 
   /* Surfaces: clean print sheets */
-  --card: #ffffff;
-  --card-foreground: #132a45;
+  --card: #fbf8f2;
+  --card-foreground: #322d27;
 
-  --popover: #ffffff;
-  --popover-foreground: #132a45;
+  --popover: #fffdf9;
+  --popover-foreground: #322d27;
 
-  /* Primary: mark-up amber (readable on paper for text/links) */
-  --primary: #d97706;
-  --primary-foreground: #fffaf0;
-  --primary-glow: rgba(245, 158, 11, 0.3);
+  --primary: #9f5b35;
+  --primary-foreground: #fffaf3;
+  --primary-glow: rgba(159, 91, 53, 0.26);
 
   /* Amber channel — lighter marker shades for surfaces & washes */
-  --amber: #f59e0b;
-  --amber-light: #fbbf24;
-  --amber-wash: rgba(251, 191, 36, 0.18);
-  --amber-glow: rgba(245, 158, 11, 0.38);
+  --amber: #b97547;
+  --amber-light: #d39a68;
+  --amber-wash: rgba(185, 117, 71, 0.16);
+  --amber-glow: rgba(159, 91, 53, 0.24);
 
   /* Ink channel — deep navy linework */
-  --ink: #132a45;
-  --navy-deep: #060f1c;
-  --navy-mid: #0e2033;
-  --paper: #f2f7fb;
+  --ink: #322d27;
+  --navy-deep: #3b342c;
+  --navy-mid: #5b5145;
+  --paper: #f3eee5;
 
   /* Secondary: graphite ruling */
-  --secondary: #e3edf6;
-  --secondary-foreground: #132a45;
+  --secondary: #e8dfd2;
+  --secondary-foreground: #40382f;
 
   /* Muted: faint pencil wells */
-  --muted: #e9f1f8;
-  --muted-foreground: #4d6480;
+  --muted: #ede6db;
+  --muted-foreground: #74695e;
 
   /* Accent: amber-tinted hover wash */
-  --accent: #fdf3e0;
-  --accent-foreground: #b45309;
+  --accent: #eee1d2;
+  --accent-foreground: #825037;
 
   /* Semantic signals & linework borders */
   --destructive: #dc2626;
-  --border: #b6cbe0;
-  --border-accent: #d97706;
-  --input: #dbe7f2;
-  --ring: #d97706;
-  --info: #0369a1;
+  --border: #d5cabd;
+  --border-accent: #b97547;
+  --input: #ded4c7;
+  --ring: #9f5b35;
+  --info: #3f7180;
 
   /* Charts */
-  --chart-1: #f59e0b;
-  --chart-2: #2563eb;
-  --chart-3: #0d9488;
-  --chart-4: #7c3aed;
-  --chart-5: #e11d48;
+  --chart-1: #b97547;
+  --chart-2: #607c88;
+  --chart-3: #788557;
+  --chart-4: #92735f;
+  --chart-5: #b15d55;
 
-  /* Sidebar: the dark title block edge of the drawing sheet */
-  --sidebar: #0d1f33;
-  --sidebar-foreground: #dbe9f7;
-  --sidebar-primary: #f59e0b;
-  --sidebar-primary-foreground: #1a1206;
-  --sidebar-accent: #16304c;
-  --sidebar-accent-foreground: #fbbf24;
-  --sidebar-border: #1d3a5c;
-  --sidebar-ring: #f59e0b;
+  --sidebar: #e9dfd1;
+  --sidebar-foreground: #41382f;
+  --sidebar-primary: #9f5b35;
+  --sidebar-primary-foreground: #fffaf3;
+  --sidebar-accent: #dfd1c0;
+  --sidebar-accent-foreground: #75452f;
+  --sidebar-border: #d3c5b6;
+  --sidebar-ring: #9f5b35;
 
   /* Complementary action signals */
-  --amber-cta: #f59e0b;
-  --amber-cta-dark: #d97706;
+  --amber-cta: #b97547;
+  --amber-cta-dark: #9f5b35;
   --emerald-excel: #059669;
   --emerald-excel-dark: #047857;
   --rose-debit: #e11d48;
@@ -294,10 +290,10 @@ html {
      grid under a 96px survey grid; both fade toward the bottom. */
   .blueprint-grid {
     background-image:
-      linear-gradient(to right, rgba(19, 42, 69, 0.055) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(19, 42, 69, 0.055) 1px, transparent 1px),
-      linear-gradient(to right, rgba(19, 42, 69, 0.09) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(19, 42, 69, 0.09) 1px, transparent 1px);
+      linear-gradient(to right, rgba(91, 75, 61, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(91, 75, 61, 0.045) 1px, transparent 1px),
+      linear-gradient(to right, rgba(91, 75, 61, 0.065) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(91, 75, 61, 0.065) 1px, transparent 1px);
     background-size:
       12px 12px,
       12px 12px,
@@ -379,8 +375,8 @@ html {
   /* Title block — the ruled header strip of an engineering drawing */
   .title-block {
     background-image:
-      linear-gradient(to right, rgba(19, 42, 69, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(19, 42, 69, 0.035) 1px, transparent 1px);
+      linear-gradient(to right, rgba(91, 75, 61, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(91, 75, 61, 0.035) 1px, transparent 1px);
     background-size: 12px 12px;
     border-bottom: 1px solid var(--border);
   }
@@ -424,30 +420,29 @@ html {
 
   /* Hyper-responsive micro-animation */
   .snappy-btn {
-    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
   }
   .snappy-btn:hover {
-    transform: translateY(-1.5px) scale(1.02);
-    filter: drop-shadow(0 3px 6px var(--amber-glow));
+    transform: translateY(1px);
   }
   .snappy-btn:active {
-    transform: translateY(0.5px) scale(0.97);
+    transform: translateY(2px);
   }
 
   /* Sidebar rail — the dark ink title-block edge */
   .sculpted-sidebar {
-    background: linear-gradient(180deg, var(--sidebar) 0%, var(--navy-deep) 100%);
+    background: var(--sidebar);
     border: 1px solid var(--sidebar-border);
     box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.04),
-      0 4px 16px rgba(6, 15, 28, 0.25);
+      inset -1px 0 0 rgba(255, 255, 255, 0.5),
+      2px 0 12px rgba(79, 62, 45, 0.08);
   }
 
   /* Segmented tab dock container — recessed ink channel */
   .level-1-dock {
-    background: color-mix(in srgb, var(--sidebar) 88%, var(--background));
-    border: 1px solid var(--sidebar-border);
-    box-shadow: inset 0 1.5px 3px rgba(6, 15, 28, 0.12);
+    background: color-mix(in srgb, var(--secondary) 72%, var(--background));
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 2px rgba(79, 62, 45, 0.1);
   }
 
   /* Active tab card — paper sheet lifted out of the ink dock */
@@ -456,28 +451,25 @@ html {
     color: var(--foreground);
     font-weight: 700;
     box-shadow:
-      0 3px 10px rgba(6, 15, 28, 0.18),
-      0 1px 2px rgba(0, 0, 0, 0.06);
-    border: 1px solid var(--sidebar-border);
-    border-top: 2px solid var(--amber);
+      0 1px 2px rgba(79, 62, 45, 0.14);
+    border: 1px solid var(--border);
+    border-bottom-color: var(--amber);
   }
 
   /* Active sidebar rail button — paper chip with amber mark */
   .rail-btn-active {
     background: var(--card);
     box-shadow:
-      0 3px 10px rgba(6, 15, 28, 0.22),
-      0 1px 3px rgba(6, 15, 28, 0.1);
+      0 1px 2px rgba(79, 62, 45, 0.12);
     border: 1px solid var(--sidebar-border);
-    border-left: 2px solid var(--amber);
+    border-left: 2px solid var(--primary);
   }
 
   /* Action bar floating card surface */
   .level-2-surface {
     background: var(--card);
     box-shadow:
-      0 4px 16px -2px rgba(6, 15, 28, 0.1),
-      0 1px 3px rgba(0, 0, 0, 0.04);
+      0 1px 3px rgba(79, 62, 45, 0.08);
     border: 1px solid var(--border);
   }
 
@@ -485,15 +477,14 @@ html {
   .recessed-control {
     background: color-mix(in srgb, var(--muted) 70%, var(--background));
     border: 1px solid var(--border);
-    box-shadow: inset 0 1px 2px rgba(19, 42, 69, 0.05);
+    box-shadow: inset 0 1px 2px rgba(79, 62, 45, 0.08);
     transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .recessed-control:hover,
   .recessed-control:focus {
     background: var(--card);
     border-color: var(--primary);
-    box-shadow: 0 2px 6px var(--amber-glow);
-    transform: translateY(-1px);
+    box-shadow: 0 1px 2px var(--amber-glow);
   }
 
   /* Primary CTA — light amber marker button */
@@ -501,19 +492,20 @@ html {
     background: linear-gradient(180deg, var(--amber-light) 0%, var(--amber) 100%);
     color: #1a1206;
     box-shadow:
-      0 2.5px 9px var(--amber-glow),
+      0 2px 0 var(--amber-cta-dark),
       inset 0 1px 0 rgba(255, 255, 255, 0.55);
     border: 1px solid color-mix(in srgb, var(--amber) 80%, #000);
     transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
   }
   .amber-cta-btn:hover {
-    background: linear-gradient(180deg, #fde68a 0%, var(--amber-light) 100%);
-    transform: translateY(-1.5px) scale(1.02);
-    box-shadow: 0 4px 14px var(--amber-glow);
+    background: linear-gradient(180deg, #dfa979 0%, var(--amber-light) 100%);
+    transform: translateY(1px);
+    box-shadow: 0 1px 0 var(--amber-cta-dark);
   }
   .amber-cta-btn:active {
-    transform: translateY(0.5px) scale(0.97);
+    transform: translateY(2px);
+    box-shadow: none;
   }
 
   /* Icon specular filter (sizes preserved — layout depends on them) */

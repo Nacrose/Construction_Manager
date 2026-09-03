@@ -4,261 +4,90 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  HardHat, ChevronLeft, LogOut,
-  Settings, ShieldAlert, ChevronRight,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, HardHat, LogOut, Settings, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth, clearAuth } from "@/lib/client-auth";
 import { trpc } from "@/lib/trpc-client";
 import { capabilitiesSchema, type OperatingCapabilities } from "@/lib/capabilities";
-import {
-  GLOBAL_NAV,
-  PROJECT_MODULE_NAV,
-  filterNavByCapabilities,
-  type SidebarNavItem,
-} from "@/lib/nav-registry";
+import { GLOBAL_NAV, PROJECT_MODULE_NAV, filterNavByCapabilities, type SidebarNavItem } from "@/lib/nav-registry";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-const GLOBAL_NAV_ITEMS = GLOBAL_NAV; // extractive migration: data lives in the registry
-const PROJECT_NAV_ITEMS = PROJECT_MODULE_NAV;
+function groupNavigation(items: readonly SidebarNavItem[]) {
+  return items.reduce<Array<{ label: string; items: SidebarNavItem[] }>>((groups, item) => {
+    const label = item.group ?? "Workspace";
+    const current = groups.find((group) => group.label === label);
+    if (current) current.items.push(item);
+    else groups.push({ label, items: [item] });
+    return groups;
+  }, []);
+}
 
 export function AppSidebar() {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const projectId = React.useMemo(() => pathname?.match(/^\/projects\/([^/]+)/)?.[1] ?? null, [pathname]);
 
-  // Resolved capability map (ADR-0004): nav is a PROJECTION of it, never
-  // the guard — the same tRPC query the team page and ModuleTabs use, so
-  // react-query serves all three from one request. Fail-open while loading
-  // or unparsable; server-side capabilityGuard owns the real enforcement.
-  const { data: orgProfile } = trpc.project.getOrgProfile.useQuery(undefined, {
-    staleTime: 300_000,
-  });
-  const orgCapabilities = React.useMemo<OperatingCapabilities | null>(() => {
+  const { data: orgProfile } = trpc.project.getOrgProfile.useQuery(undefined, { staleTime: 300_000 });
+  const capabilities = React.useMemo<OperatingCapabilities | null>(() => {
     const parsed = capabilitiesSchema.safeParse(orgProfile?.org?.capabilities);
     return parsed.success ? parsed.data : null;
   }, [orgProfile]);
-  const globalNav = filterNavByCapabilities(GLOBAL_NAV_ITEMS, orgCapabilities);
-  const projectNav = filterNavByCapabilities(PROJECT_NAV_ITEMS, orgCapabilities);
-
-  const projectId = React.useMemo(() => {
-    const m = pathname?.match(/^\/projects\/([^/]+)/);
-    return m?.[1] ?? null;
-  }, [pathname]);
-
+  const { data: projectData } = trpc.project.get.useQuery({ id: projectId ?? "" }, { enabled: Boolean(projectId), staleTime: 300_000 });
   const { data: user } = useQuery({
     queryKey: ["auth-me-sidebar"],
     queryFn: async () => {
-      const res = await fetchWithAuth("/api/auth/me");
-      if (!res.ok) return null;
-      const json = await res.json();
+      const response = await fetchWithAuth("/api/auth/me");
+      if (!response.ok) return null;
+      const json = await response.json();
       return json.user ?? json;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 300_000,
   });
 
-  const logout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      // Best-effort
+  const navigation = filterNavByCapabilities(projectId ? PROJECT_MODULE_NAV : GLOBAL_NAV, capabilities);
+  const groups = groupNavigation(navigation);
+  const projectName = projectData?.project?.name ?? "Project workspace";
+  const initials = user?.name ? user.name.split(" ").map((part: string) => part[0]).slice(0, 2).join("").toUpperCase() : "CU";
+  const isActive = (item: SidebarNavItem) => {
+    if (projectId) {
+      const base = `/projects/${projectId}`;
+      return item.href === "" ? pathname === base || pathname === `${base}/dashboard` : pathname.startsWith(`${base}${item.href}`);
     }
+    return item.href === "/dashboard" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(item.href);
+  };
+  const hrefFor = (item: SidebarNavItem) => projectId ? `/projects/${projectId}${item.href}` : item.href;
+  const logout = async () => {
+    try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* Best effort. */ }
     clearAuth();
     queryClient.clear();
     window.location.href = "/login";
   };
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((p: string) => p[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "CU";
-
-  const isGlobalActive = (item: SidebarNavItem) => {
-    if (projectId) return false;
-    if (item.href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
-    return pathname.startsWith(item.href);
-  };
-
-  const isProjectModuleActive = (item: SidebarNavItem) => {
-    if (!projectId) return false;
-    const base = `/projects/${projectId}`;
-    if (item.href === "") {
-      return pathname === base || pathname === `${base}/dashboard`;
-    }
-    return pathname.startsWith(`${base}${item.href}`);
-  };
-
   return (
-    <aside className="w-64 shrink-0 bg-card border-r border-[var(--border)] flex flex-col h-full select-none z-30 shadow-xs transition-all">
-      {/* Brand Header */}
-      <div className="title-block h-14 px-4 bg-card/70 flex items-center justify-between shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[6px] amber-gradient text-white shadow-[0_2px_8px_rgba(245,158,11,0.35)] border border-amber/70">
-            <HardHat className="h-4.5 w-4.5 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-extrabold tracking-wider text-foreground uppercase font-sans">
-              CONTRACTOR
-            </span>
-            <span className="text-[10px] font-semibold text-[var(--primary)] font-mono leading-none">
-              ENTERPRISE ERP
-            </span>
-          </div>
+    <aside className="sculpted-sidebar w-[220px] shrink-0 flex flex-col h-full select-none z-30">
+      <div className="title-block h-14 px-3 flex items-center shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[5px] bg-primary text-primary-foreground shadow-[0_2px_0_#744127]"><HardHat className="h-4 w-4" /></span>
+          <span className="min-w-0 leading-none"><span className="block text-[11px] font-bold tracking-[0.13em] text-foreground">CONTRACTOR</span><span className="block mt-1 text-[9px] font-mono uppercase tracking-[0.12em] text-muted-foreground">control desk</span></span>
         </Link>
-        <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-[var(--background)] text-[var(--primary)] border border-[var(--border)]">
-          v2.0
-        </span>
       </div>
 
-      {/* Navigation Links Area */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-        {/* If inside Project Context, show Project Navigation Rail */}
-        {projectId ? (
-          <div className="space-y-1">
-            <div className="px-2 pb-2">
-              <Link
-                href="/projects"
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-[var(--primary)] transition-colors"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                <span>All Projects</span>
-              </Link>
-              <div className="mt-1 px-2.5 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--border)] text-xs font-bold text-foreground/90 truncate">
-                Project Workspace
-              </div>
-            </div>
-
-            <div className="pt-1 space-y-0.5">
-              <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
-                Project Modules
-              </span>
-              {projectNav.map((item) => {
-                const Icon = item.icon;
-                const active = isProjectModuleActive(item);
-                const targetUrl = `/projects/${projectId}${item.href}`;
-                return (
-                  <Link
-                    key={item.label}
-                    href={targetUrl}
-                    className={cn(
-                      "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-                      active
-                        ? "bg-[var(--background)] text-[var(--primary)] border border-[var(--border)] font-bold shadow-xs"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
-                    )}
-                  >
-                    <Icon className={cn("h-4 w-4 shrink-0", active ? "text-[var(--primary)]" : "text-muted-foreground")} />
-                    <span className="truncate flex-1">{item.label}</span>
-                    {active && <ChevronRight className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Global Enterprise Modules */}
-        <div className="space-y-0.5">
-          <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
-            Enterprise Hub
-          </span>
-          {globalNav.map((item) => {
-            const Icon = item.icon;
-            const active = isGlobalActive(item);
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-                  active
-                    ? "bg-[var(--background)] text-[var(--primary)] border border-[var(--border)] font-bold shadow-xs"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
-                )}
-              >
-                <Icon className={cn("h-4 w-4 shrink-0", active ? "text-[var(--primary)]" : "text-muted-foreground")} />
-                <span className="truncate flex-1">{item.label}</span>
-                {active && <ChevronRight className="h-3.5 w-3.5 text-[var(--primary)] shrink-0" />}
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Preferences / System */}
-        <div className="space-y-0.5 pt-2 border-t border-[var(--input)]">
-          <span className="px-2 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground">
-            System
-          </span>
-          <Link
-            href="/settings"
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
-              pathname === "/settings"
-                ? "bg-[var(--background)] text-[var(--primary)] border border-[var(--border)] font-bold shadow-xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground border border-transparent"
-            )}
-          >
-            <Settings className={cn("h-4 w-4 shrink-0", pathname === "/settings" ? "text-[var(--primary)]" : "text-muted-foreground")} />
-            <span className="truncate flex-1">Settings</span>
-          </Link>
-        </div>
+      <div className="px-3 pt-3 pb-2 shrink-0">
+        {projectId ? <><Link href="/projects" className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-primary"><ChevronLeft className="h-3 w-3" /> All projects</Link><p className="mt-1.5 truncate text-xs font-semibold text-foreground" title={projectName}>{projectName}</p><p className="mt-0.5 text-[9px] font-mono uppercase tracking-[0.11em] text-muted-foreground">Project workspace</p></> : <><p className="text-xs font-semibold text-foreground">Organisation desk</p><p className="mt-0.5 text-[9px] font-mono uppercase tracking-[0.11em] text-muted-foreground">Across all projects</p></>}
       </div>
 
-      {/* User Footer Profile */}
-      <div className="p-3 border-t border-[var(--input)] bg-[#f8fbfe]">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="w-full flex items-center gap-2.5 p-2 rounded-xl border border-[var(--border)] bg-card hover:bg-muted/60 text-left transition-colors shadow-2xs"
-            >
-              <Avatar className="h-7 w-7 ring-1 ring-[var(--primary)]/40 shrink-0">
-                <AvatarFallback className="bg-gradient-to-br from-[var(--primary)] to-[var(--primary)] text-white text-[10px] font-bold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-foreground truncate">
-                  {user?.name || "Contractor User"}
-                </p>
-                <p className="text-[10px] text-muted-foreground truncate font-mono">
-                  {user?.email || "contractor@os.com"}
-                </p>
-              </div>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" className="w-56 bg-card border border-[var(--border)] text-foreground shadow-xl rounded-xl">
-            <DropdownMenuLabel className="flex flex-col">
-              <span className="font-semibold text-xs">{user?.name || "Contractor User"}</span>
-              <span className="text-[10px] font-mono text-muted-foreground font-normal">{user?.email || "contractor@os.com"}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {(user?.isSuperAdmin || (user as any)?.sessionKind === "admin") && (
-              <>
-                <Link href="/admin">
-                  <DropdownMenuItem className="gap-2 text-amber-600 focus:text-amber-700 font-semibold cursor-pointer text-xs">
-                    <ShieldAlert className="h-3.5 w-3.5" /> Platform Admin
-                  </DropdownMenuItem>
-                </Link>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem
-              className="gap-2 text-rose-600 focus:text-rose-700 cursor-pointer text-xs font-semibold"
-              onClick={logout}
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <nav className="flex-1 overflow-y-auto px-2 pb-3" aria-label={projectId ? "Project navigation" : "Organisation navigation"}>
+        {groups.map((group) => <section key={group.label} className="mt-3 first:mt-0"><p className="px-2 pb-1 text-[9px] font-mono font-semibold uppercase tracking-[0.14em] text-muted-foreground">{group.label}</p><div className="space-y-px">{group.items.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item);
+          return <Link key={item.href || "overview"} href={hrefFor(item)} className={cn("group flex min-h-7 items-center gap-2 rounded-[4px] border px-2 text-[11px] font-medium transition-colors", active ? "rail-btn-active text-foreground" : "border-transparent text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground")}><Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} /><span className="min-w-0 flex-1 truncate">{item.label}</span>{active && <ChevronRight className="h-3 w-3 shrink-0 text-primary" />}</Link>;
+        })}</div></section>)}
+      </nav>
+
+      <div className="border-t border-sidebar-border p-2">
+        <Link href="/settings" className={cn("flex h-7 items-center gap-2 rounded-[4px] px-2 text-[11px] font-medium text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground", pathname === "/settings" && "bg-card text-foreground")}><Settings className="h-3.5 w-3.5" /> Settings</Link>
+        <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="mt-1 flex w-full items-center gap-2 rounded-[4px] px-2 py-1.5 text-left hover:bg-sidebar-accent/70"><Avatar className="h-6 w-6 shrink-0"><AvatarFallback className="bg-primary text-[9px] font-bold text-primary-foreground">{initials}</AvatarFallback></Avatar><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-semibold text-foreground">{user?.name || "Contractor user"}</span><span className="block truncate text-[9px] text-muted-foreground">{user?.email || ""}</span></span></button></DropdownMenuTrigger><DropdownMenuContent side="right" align="end" className="w-56"><DropdownMenuLabel className="text-xs">{user?.name || "Contractor user"}</DropdownMenuLabel><DropdownMenuSeparator />{(user?.isSuperAdmin || (user as { sessionKind?: string } | null)?.sessionKind === "admin") && <><Link href="/admin"><DropdownMenuItem className="gap-2 text-xs"><ShieldAlert className="h-3.5 w-3.5" />Platform admin</DropdownMenuItem></Link><DropdownMenuSeparator /></>}<DropdownMenuItem className="gap-2 text-xs text-destructive" onClick={logout}><LogOut className="h-3.5 w-3.5" />Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
       </div>
     </aside>
   );

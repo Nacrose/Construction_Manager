@@ -24,6 +24,7 @@ import type { ComponentType } from "react";
 import {
   HardHat, LayoutDashboard, FolderKanban, ClipboardList, ReceiptText,
   Users, Compass, FileSignature, ListChecks, Database, Mail, BookOpen, Boxes,
+  CalendarRange, FolderOpen,
 } from "lucide-react";
 import type { ModuleKey } from "@/lib/project-modules";
 import type { CapabilityRequirement, OperatingCapabilities } from "@/lib/capabilities";
@@ -50,6 +51,8 @@ export type SidebarNavItem = {
   /** Global nav: absolute app path. Project modules: relative to /projects/[id]. */
   href: string;
   icon: NavIcon;
+  /** Visual grouping only; routing and authorisation remain unchanged. */
+  group?: string;
   /** Resolved-capability requirement (ADR-0004): hidden when unmet. */
   cap?: CapabilityRequirement;
 };
@@ -199,28 +202,31 @@ export const MODULE_KEY_BY_HREF: Readonly<Record<string, ModuleKey>> = (() => {
 
 /** Enterprise Hub — global, out-of-project navigation. */
 export const GLOBAL_NAV: readonly SidebarNavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Desk", href: "/dashboard", icon: LayoutDashboard, group: "Control" },
+  { label: "Projects", href: "/projects", icon: FolderKanban, group: "Control" },
   // Stores/stock control does not exist server-side under inventoryControl
   // "none" (ADR-0004 §4 owner_led) — the hub is a projection of that.
-  { label: "Inventory Hub", href: "/inventory", icon: Boxes, cap: { inventoryControl: "basic" } },
-  { label: "Finance & Accounts", href: "/finance", icon: ReceiptText },
-  { label: "Drawings Vault", href: "/drawings", icon: Compass },
-  { label: "Correspondence", href: "/correspondence", icon: Mail },
-  { label: "Team & Workspace", href: "/team", icon: Users },
-  { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database },
+  { label: "Inventory", href: "/inventory", icon: Boxes, group: "Organisation", cap: { inventoryControl: "basic" } },
+  { label: "Finance", href: "/finance", icon: ReceiptText, group: "Organisation" },
+  { label: "Documents", href: "/drawings", icon: Compass, group: "Organisation" },
+  { label: "Correspondence", href: "/correspondence", icon: Mail, group: "Organisation" },
+  { label: "People", href: "/team", icon: Users, group: "Organisation" },
+  { label: "Rate Catalogs", href: "/rate-catalogs", icon: Database, group: "Organisation" },
 ];
 
 /** Project Modules rail — hrefs relative to /projects/[id] ("" = overview). */
 export const PROJECT_MODULE_NAV: readonly SidebarNavItem[] = [
-  { label: "Project Overview", href: "", icon: LayoutDashboard },
-  { label: "BoQ & Planning", href: "/boq", icon: ClipboardList },
-  { label: "Workflow & RFIs", href: "/workflow/rfi", icon: ListChecks },
-  { label: "Site Materials", href: "/materials", icon: Boxes },
-  { label: "Site Accounting", href: "/accounting", icon: ReceiptText },
-  { label: "Quality & Safety", href: "/quality", icon: HardHat },
-  { label: "Variation Orders", href: "/variations", icon: FileSignature },
-  { label: "Rate Library", href: "/rate-library", icon: BookOpen },
+  { label: "Overview", href: "", icon: LayoutDashboard, group: "Control" },
+  { label: "Planning", href: "/gantt", icon: CalendarRange, group: "Control" },
+  { label: "BOQ & Rates", href: "/boq", icon: ClipboardList, group: "Commercial" },
+  { label: "IPC Certificates", href: "/ipc", icon: ReceiptText, group: "Commercial" },
+  { label: "Variations", href: "/variations", icon: FileSignature, group: "Commercial" },
+  { label: "Site Log", href: "/workflow/rfi", icon: ListChecks, group: "Site" },
+  { label: "Materials", href: "/materials", icon: Boxes, group: "Site" },
+  { label: "Quality & Safety", href: "/quality", icon: HardHat, group: "Site" },
+  { label: "Documents", href: "/drawings", icon: FolderOpen, group: "Records" },
+  { label: "Accounts", href: "/accounting", icon: ReceiptText, group: "Records" },
+  { label: "Rate Library", href: "/rate-library", icon: BookOpen, group: "Records" },
 ];
 
 /**
