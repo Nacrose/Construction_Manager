@@ -413,6 +413,7 @@ export const ganttTasksRouter = router({
       return { task: refreshed ?? updated };
     }),
 
+
   /** Delete a task. */
   delete: protectedProcedure
     .input(z.object({ taskId: z.string() }))

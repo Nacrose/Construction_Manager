@@ -26,6 +26,8 @@ export function TimelineHeader({
 }) {
   const { getPref } = useUserPreferences();
   const calendarType = getPref<string>("calendarType", "BS");
+  const ganttShowHolidays = getPref<boolean>("ganttShowHolidays", true);
+  const ganttShowWeekends = getPref<boolean>("ganttShowWeekends", true);
 
   const isNepali = calendarType === "BS";
 
@@ -109,16 +111,56 @@ export function TimelineHeader({
     return groups;
   }, [dayLabels, isNepali]);
 
+  // Precompute Year Spans for the top (Tier 1) header row.
+  const yearGroups = useMemo(() => {
+    const groups: { startIndex: number; span: number; label: string }[] = [];
+    if (dayLabels.length === 0) return groups;
+    let currentStart = 0;
+    let currentKey = "";
+    let currentLabel = "";
+    dayLabels.forEach((d, idx) => {
+      let key = "";
+      let label = "";
+      if (isNepali) {
+        try {
+          const bs = adToBs(d.date);
+          key = `${bs.year}`;
+          label = `${bs.year}`;
+        } catch {
+          key = `${d.date.getFullYear()}`;
+          label = `${d.date.getFullYear()}`;
+        }
+      } else {
+        key = `${d.date.getFullYear()}`;
+        label = `${d.date.getFullYear()}`;
+      }
+      if (idx === 0) {
+        currentStart = 0;
+        currentKey = key;
+        currentLabel = label;
+      } else if (key !== currentKey) {
+        groups.push({ startIndex: currentStart, span: idx - currentStart, label: currentLabel });
+        currentStart = idx;
+        currentKey = key;
+        currentLabel = label;
+      }
+    });
+    if (dayLabels.length > currentStart) {
+      groups.push({ startIndex: currentStart, span: dayLabels.length - currentStart, label: currentLabel });
+    }
+    return groups;
+  }, [dayLabels, isNepali]);
+
   return (
     <g className="font-mono select-none">
-      {/* ─── TIER 1: MONTH & YEAR (0px to 22px) ───────────────────────── */}
-      {monthGroups.map((group, gIdx) => {
+      {/* ─── TIER 1: YEAR (month zoom) or MONTH + YEAR (day/week zoom) ── */}
+      {(zoom === "month" ? yearGroups : monthGroups).map((group, gIdx) => {
         const xPos = group.startIndex * dayWidth + 10;
         const colWidth = dayWidth * group.span;
 
         return (
-          <g key={`mo-hdr-${gIdx}`}>
-            {/* Background cell for month */}
+          <g key={`yr-hdr-${gIdx}`}>
+            {/* Background cell for year */}
             <rect
               x={xPos}
               y={0}
@@ -126,7 +168,7 @@ export function TimelineHeader({
               height={22}
               fill="#e8dfd2"
             />
-            {/* Month + Year text */}
+            {/* Year text */}
             <text
               x={xPos + colWidth / 2}
               y={15}
@@ -135,9 +177,9 @@ export function TimelineHeader({
               fontWeight={700}
               className="fill-stone-700 tracking-wider uppercase font-mono"
             >
-              {colWidth > 45 ? group.label : group.label.slice(0, 3)}
+              {colWidth > 45 ? group.label : group.label.slice(0, zoom === "month" ? 2 : 3)}
             </text>
-            {/* Vertical dividing boundary between months */}
+            {/* Vertical dividing boundary between years */}
             {gIdx > 0 && (
               <line
                 x1={xPos}
@@ -178,11 +220,11 @@ export function TimelineHeader({
               dayNumber = `${d.date.getDate()}`;
             }
 
-            const isSaturday = d.isWeekend;
+            const isSaturday = ganttShowWeekends && d.isWeekend;
             // Holiday styling takes precedence over Saturday styling —
             // a festival that lands on a Sun-Fri should still be visually
             // distinct from a working day.
-            const isHolidayDay = !!d.isHoliday;
+            const isHolidayDay = ganttShowHolidays && !!d.isHoliday;
             const dayFill = isHolidayDay
               ? "fill-rose-600 font-bold"
               : isSaturday
@@ -242,43 +284,56 @@ export function TimelineHeader({
               </g>
             );
           })
-        : monthGroups.map((group, gIdx) => {
-            const wCount = 4;
-            const weekWidth = (dayWidth * group.span) / wCount;
-            const groupStartX = group.startIndex * dayWidth + 10;
+        : zoom === "month"
+          ? monthGroups.map((group, gIdx) => {
+              const xPos = group.startIndex * dayWidth + 10;
+              const colWidth = dayWidth * group.span;
+              return (
+                <g key={`month-sub-${gIdx}`}>
+                  {gIdx > 0 && (
+                    <line x1={xPos} y1={22} x2={xPos} y2={44} stroke="rgba(116, 105, 94, 0.16)" strokeWidth={0.5} />
+                  )}
+                  <text x={xPos + colWidth / 2} y={36} textAnchor="middle" fontSize={9} fontWeight={600} className="fill-stone-500">{group.label.split(" ")[0]}</text>
+                </g>
+              );
+            })
+          : monthGroups.map((group, gIdx) => {
+              const wCount = 4;
+              const weekWidth = (dayWidth * group.span) / wCount;
+              const groupStartX = group.startIndex * dayWidth + 10;
 
-            return (
-              <g key={`month-weeks-${gIdx}`}>
-                {[0, 1, 2, 3].map((wIdx) => {
-                  const weekStartX = groupStartX + wIdx * weekWidth;
-                  return (
-                    <g key={`mw-${gIdx}-${wIdx}`}>
-                      <text
-                        x={weekStartX + weekWidth / 2}
-                        y={36}
-                        textAnchor="middle"
-                        fontSize={9}
-                        fontWeight={600}
-                        className="fill-stone-500"
-                      >
-                        {`W${wIdx + 1}`}
-                      </text>
-                      {wIdx > 0 && (
-                        <line
-                          x1={weekStartX}
-                          y1={22}
-                          x2={weekStartX}
-                          y2={44}
-                          stroke="rgba(116, 105, 94, 0.16)"
-                          strokeWidth={0.5}
-                        />
-                      )}
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          })}
+              return (
+                <g key={`month-weeks-${gIdx}`}>
+                  {[0, 1, 2, 3].map((wIdx) => {
+                    const weekStartX = groupStartX + wIdx * weekWidth;
+                    return (
+                      <g key={`mw-${gIdx}-${wIdx}`}>
+                        <text
+                          x={weekStartX + weekWidth / 2}
+                          y={36}
+                          textAnchor="middle"
+                          fontSize={9}
+                          fontWeight={600}
+                          className="fill-stone-500"
+                        >
+                          {`W${wIdx + 1}`}
+                        </text>
+                        {wIdx > 0 && (
+                          <line
+                            x1={weekStartX}
+                            y1={22}
+                            x2={weekStartX}
+                            y2={44}
+                            stroke="rgba(116, 105, 94, 0.16)"
+                            strokeWidth={0.5}
+                          />
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })}
 
       {/* HORIZONTAL DIVIDER BETWEEN TIER 2 & TIER 3 (y=44) */}
       <line

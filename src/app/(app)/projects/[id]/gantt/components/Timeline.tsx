@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
-import { format, differenceInDays } from "date-fns";
+import { useMemo, useCallback, useState, useRef } from "react";
+import { format, differenceInDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc-client";
+import { toast } from "sonner";
 import type { Task } from "../../gantt/types";
 import { getDeps, getBarStatus } from "../../gantt/utils";
 import type { ZoomLevel } from "../../gantt/types";
@@ -60,6 +62,13 @@ type TimelineProps = {
   emptyRowsCount?: number;
   showSCurve?: boolean;
   showHeatmap?: boolean;
+  linkMode?: boolean;
+  linkSourceId?: string | null;
+  onBarClick?: (taskId: string) => void;
+  onArrowClick?: (taskId: string, predecessorId: string) => void;
+  projectId?: string;
+  onViolationClick?: () => void;
+  onLinkFromDrag?: (sourceId: string, targetId: string) => void;
 };
 
 export function Timeline(props: TimelineProps) {
@@ -70,12 +79,178 @@ export function Timeline(props: TimelineProps) {
     taskMap, svgWidth, floatMap,
     emptyRowsCount = 0,
     showSCurve = true,
-    showHeatmap = true,
+    showHeatmap = false,
+    linkMode = false,
+    linkSourceId = null,
+    onBarClick,
+    onArrowClick,
+    projectId,
+    onViolationClick,
+    onLinkFromDrag,
   } = props;
 
   const { getPref } = useUserPreferences();
   const calendarType = getPref<string>("calendarType", "BS");
   const isNepali = calendarType === "BS";
+  const ganttTheme = getPref<any>("ganttTheme", "omniplan");
+  const ganttBarRadius = getPref<any>("ganttBarRadius", "rounded");
+  const ganttShowCritHighlight = getPref<boolean>("ganttShowCritHighlight", true);
+  const ganttShowBaselineStripes = getPref<boolean>("ganttShowBaselineStripes", true);
+  const compactDensity = getPref<boolean>("ganttCompactDensity", true);
+  const ganttShowHolidays = getPref<boolean>("ganttShowHolidays", true);
+  const ganttShowWeekends = getPref<boolean>("ganttShowWeekends", true);
+
+  const utils = trpc.useUtils();
+  const [barDrag, setBarDrag] = useState<{ id: string; days: number } | null>(null);
+  const updateMutation = trpc.gantt.update.useMutation({
+    onSuccess: () => {
+      if (projectId) utils.gantt.list.invalidate({ projectId });
+      toast.success("Task rescheduled");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const progressMutation = trpc.gantt.update.useMutation({
+    onSuccess: () => {
+      if (projectId) utils.gantt.list.invalidate({ projectId });
+      toast.success("Progress updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Drag a bar left/right to reschedule (preserves duration), snapping to days.
+  const startBarDrag = useCallback(
+    (e: React.PointerEvent, task: Task) => {
+      if (linkMode) return; // link mode owns the click
+      e.preventDefault();
+      const startX = e.clientX;
+      const origStart = new Date(task.startDate);
+      const origEnd = new Date(task.endDate);
+      // drag handles take precedence (progress), so ignore handle drags here
+      let dDays = 0;
+      let moved = false;
+      const onMove = (ev: PointerEvent) => {
+        const dd = Math.round((ev.clientX - startX) / dayWidth);
+        if (dd !== 0) moved = true;
+        dDays = dd;
+        setBarDrag({ id: task.id, days: dd });
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setBarDrag(null);
+        if (linkMode) {
+          return;
+        }
+        if (!moved || dDays === 0) {
+          onSelectTask(task.id);
+        } else {
+          updateMutation.mutate({
+            taskId: task.id,
+            startDate: format(addDays(origStart, dDays), "yyyy-MM-dd"),
+            endDate: format(addDays(origEnd, dDays), "yyyy-MM-dd"),
+          });
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [linkMode, dayWidth, updateMutation, onSelectTask]
+  );
+
+  // Drag the progress handle to update % complete inline.
+  const startProgressDrag = useCallback(
+    (e: React.PointerEvent, task: Task) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const startX = e.clientX;
+      const barW = ((differenceInDays(new Date(task.endDate), new Date(task.startDate)) + 1) * dayWidth) || 1;
+      const startPct = task.progress || 0;
+      let lastPct = startPct;
+      const onMove = (ev: PointerEvent) => {
+        const pct = Math.round(Math.min(100, Math.max(0, startPct + ((ev.clientX - startX) / barW) * 100)));
+        lastPct = pct;
+        setProgressPreview({ id: task.id, pct });
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setProgressPreview(null);
+        progressMutation.mutate({ taskId: task.id, progress: lastPct });
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [dayWidth, progressMutation]
+  );
+
+  const [progressPreview, setProgressPreview] = useState<{ id: string; pct: number } | null>(null);
+  const [resizeDrag, setResizeDrag] = useState<{ id: string; side: "start" | "end"; days: number } | null>(null);
+  const [linkDrag, setLinkDrag] = useState<{ sourceId: string; x: number; y: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Drag from a bar's link nub onto another bar to draw a dependency (OmniPlan-style).
+  const startLinkDrag = useCallback(
+    (e: React.PointerEvent, sourceTask: Task) => {
+      if (!linkMode) return;
+      e.stopPropagation();
+      e.preventDefault();
+      setLinkDrag({ sourceId: sourceTask.id, x: e.clientX, y: e.clientY });
+      const onMove = (ev: PointerEvent) => setLinkDrag({ sourceId: sourceTask.id, x: ev.clientX, y: ev.clientY });
+      const onUp = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setLinkDrag(null);
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const target = (el as HTMLElement | null)?.closest?.("[data-task-id]") as HTMLElement | null;
+        const targetId = target?.getAttribute("data-task-id");
+        if (targetId && targetId !== sourceTask.id) {
+          onLinkFromDrag?.(sourceTask.id, targetId);
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [linkMode, onLinkFromDrag]
+  );
+
+  // Resize a bar by dragging its start/end edge (changes duration, snaps to days).
+  const startResize = useCallback(
+    (e: React.PointerEvent, task: Task, side: "start" | "end") => {
+      e.stopPropagation();
+      e.preventDefault();
+      const startX = e.clientX;
+      const origStart = new Date(task.startDate);
+      const origEnd = new Date(task.endDate);
+      let dDays = 0;
+      const onMove = (ev: PointerEvent) => {
+        dDays = Math.round((ev.clientX - startX) / dayWidth);
+        setResizeDrag({ id: task.id, side, days: dDays });
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        setResizeDrag(null);
+        if (dDays === 0) return;
+        if (side === "end") {
+          updateMutation.mutate({
+            taskId: task.id,
+            endDate: format(addDays(origEnd, dDays), "yyyy-MM-dd"),
+            duration: Math.max(1, differenceInDays(addDays(origEnd, dDays), origStart) + 1),
+          });
+        } else {
+          const newStart = addDays(origStart, dDays);
+          updateMutation.mutate({
+            taskId: task.id,
+            startDate: format(newStart, "yyyy-MM-dd"),
+            duration: Math.max(1, differenceInDays(origEnd, newStart) + 1),
+          });
+        }
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [dayWidth, updateMutation]
+  );
 
   // Precompute daily manpower allocated across active leaf tasks
   const dailyLabor = useMemo(() => {
@@ -274,7 +449,7 @@ export function Timeline(props: TimelineProps) {
   }, [visibleRows, taskMap, tasks]);
 
   const deps = useMemo(() => {
-    const result: { from: Task; to: Task; x1: number; x2: number; index: number; type: string; offset: number }[] = [];
+    const result: { from: Task; to: Task; x1: number; x2: number; index: number; type: string; offset: number; lane: number }[] = [];
     let idx = 0;
     for (const { task } of visibleRows) {
       for (const dep of getDeps(task)) {
@@ -293,8 +468,19 @@ export function Timeline(props: TimelineProps) {
           default:   x1 = fromEnd; x2 = toStart; break;
         }
         x2 += dep.offset || 0;
-        result.push({ from: fromTask, to: task, x1, x2, index: idx++, type: dep.type, offset: dep.offset || 0 });
+        result.push({ from: fromTask, to: task, x1, x2, index: idx++, type: dep.type, offset: dep.offset || 0, lane: 0 });
       }
+    }
+    // Fan out arrows that share a source so their mid-sections don't overlap.
+    const fromCount = new Map<string, number>();
+    for (const d of result) fromCount.set(d.from.id, (fromCount.get(d.from.id) ?? 0) + 1);
+    const fromSeen = new Map<string, number>();
+    const SPACING = 12;
+    for (const d of result) {
+      const count = fromCount.get(d.from.id) ?? 1;
+      const seen = fromSeen.get(d.from.id) ?? 0;
+      fromSeen.set(d.from.id, seen + 1);
+      d.lane = (seen - (count - 1) / 2) * SPACING;
     }
     return result;
   }, [visibleRows, taskMap, rangeStart]);
@@ -307,11 +493,11 @@ export function Timeline(props: TimelineProps) {
 
   const posX = useCallback((dayOffset: number) => dayOffset * dayWidth + 10, [dayWidth]);
 
-  const barHeight = 8;
-  const barY = useCallback((taskId: string) => posY(taskId) - barHeight / 2, [posY]);
+  const barHeight = compactDensity ? 12 : 16;
+  const barY = useCallback((taskId: string) => posY(taskId) - barHeight / 2, [posY, barHeight]);
 
   return (
-    <svg width={svgWidth} height={totalHeight} className="block min-h-full">
+    <svg ref={svgRef} width={svgWidth} height={totalHeight} className="block min-h-full">
       <defs>
         <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="hsl(160 84% 48%)" />
@@ -332,10 +518,14 @@ export function Timeline(props: TimelineProps) {
         <clipPath id="barClip">
           <rect x="0" y="0" width="100%" height="100%" rx="3" ry="3" />
         </clipPath>
+        <clipPath id="sCurveClip">
+          <rect x="0" y="0" width={svgWidth} height={totalHeight} />
+        </clipPath>
       </defs>
 
       {/* Weekend shading (only in Day zoom level to prevent bands in Week/Month view) */}
       {zoom === "day" &&
+        ganttShowWeekends &&
         dayLabels.map((d, i) => {
           if (!d.isWeekend) return null;
           const xPos = i * dayWidth + 10;
@@ -356,6 +546,7 @@ export function Timeline(props: TimelineProps) {
           Rendered ABOVE weekend bands so they take visual precedence.
           Red-ish tint with hover tooltip showing the holiday name. */}
       {zoom === "day" &&
+        ganttShowHolidays &&
         dayLabels.map((d, i) => {
           if (!d.isHoliday) return null;
           const xPos = i * dayWidth + 10;
@@ -405,26 +596,29 @@ export function Timeline(props: TimelineProps) {
           if (labor <= 0) return null;
           const xPos = i * dayWidth + 10;
           const intensity = Math.min(labor / 50, 1);
+          const overloaded = labor > 40;
           return (
-            <rect
-              key={`heat-${i}`}
-              x={xPos}
-              y={0}
-              width={dayWidth}
-              height={totalHeight}
-              fill={
-                labor > 40
-                  ? `rgba(245, 158, 11, ${0.03 + intensity * 0.07})`
-                  : `rgba(52, 211, 153, ${0.02 + intensity * 0.05})`
-              }
-              className="pointer-events-none"
-            />
+            <g key={`heat-${i}`} className={overloaded && onViolationClick ? "cursor-pointer" : undefined} onClick={overloaded ? onViolationClick : undefined}>
+              <rect
+                x={xPos}
+                y={0}
+                width={dayWidth}
+                height={totalHeight}
+                fill={overloaded ? `rgba(245, 158, 11, ${0.22 + intensity * 0.3})` : `rgba(63, 113, 128, ${0.12 + intensity * 0.26})`}
+                className="pointer-events-auto"
+              >
+                <title>{`${format(dayLabels[i]?.date ?? new Date(), "dd MMM yyyy")}\nActive manpower: ${labor}${overloaded ? " (over-allocated — click to level)" : ""}`}</title>
+              </rect>
+              {overloaded && dayWidth >= 6 && (
+                <text x={xPos + dayWidth / 2} y={14} textAnchor="middle" fontSize={Math.max(8, dayWidth * 0.5)} fontWeight={700} fill="#dc2626">!</text>
+              )}
+            </g>
           );
         })}
 
       {/* S-Curve Overlay Paths (Planned Progress vs Actual Earned Progress) */}
       {showSCurve && (
-        <g className="pointer-events-none select-none opacity-80">
+        <g className="pointer-events-none select-none opacity-80" clipPath="url(#sCurveClip)">
           {plannedPath && (
             <path
               d={plannedPath}
@@ -572,18 +766,33 @@ export function Timeline(props: TimelineProps) {
 
         const startOff = differenceInDays(barStart, rangeStart);
         const endOff = differenceInDays(barEnd, rangeStart) + 1;
-        const x = posX(startOff);
-        const w = Math.max((endOff - startOff) * dayWidth, hasCh ? 8 : 4);
+        const dragDays = barDrag?.id === task.id ? barDrag.days : 0;
+        let x = posX(startOff);
+        let w = Math.max((endOff - startOff) * dayWidth, hasCh ? 8 : 4);
+        if (resizeDrag?.id === task.id) {
+          if (resizeDrag.side === "start") {
+            x = posX(startOff + resizeDrag.days);
+            w = Math.max(((endOff - startOff) - resizeDrag.days) * dayWidth, hasCh ? 8 : 4);
+          } else {
+            x = posX(startOff);
+            w = Math.max(((endOff - startOff) + resizeDrag.days) * dayWidth, hasCh ? 8 : 4);
+          }
+        }
+        x += dragDays * dayWidth;
         const y = hasCh ? (rowOffsets.offsets[i] + rowHeights[i] / 2 - 4) : barY(task.id);
         const h = barHeight;
-        const pct = hasCh ? (rolledUpProgress.get(task.id) ?? task.progress) : task.progress;
+        const pct = progressPreview?.id === task.id ? progressPreview.pct : hasCh ? (rolledUpProgress.get(task.id) ?? task.progress) : task.progress;
         const barStatus = getBarStatus(task, pct);
         const overlay = overlayMap.get(task.id);
 
         return (
-          <g key={task.id}
-            className={cn("cursor-pointer", selectedTaskId === task.id ? "opacity-90" : "")}
-            onClick={() => onSelectTask(task.id)}
+          <g key={task.id} data-task-id={task.id}
+            className={cn(
+              linkMode ? "cursor-crosshair" : "cursor-pointer",
+              selectedTaskId === task.id && !linkMode ? "opacity-90" : "",
+              linkSourceId === task.id ? "opacity-100" : linkMode ? "opacity-70" : ""
+            )}
+            onPointerDown={(e) => { if (linkMode && onBarClick) { onBarClick(task.id); return; } startBarDrag(e, task); }}
             onContextMenu={(e) => {
               e.preventDefault();
               onContextMenu?.(e, task);
@@ -608,6 +817,10 @@ export function Timeline(props: TimelineProps) {
                 isCritical={false}
                 isSummary={false}
                 isGhost={true}
+                theme={ganttTheme}
+                barRadius={ganttBarRadius}
+                showCriticalHighlight={ganttShowCritHighlight}
+                showBaselineStripes={ganttShowBaselineStripes}
               />
             )}
 
@@ -626,7 +839,55 @@ export function Timeline(props: TimelineProps) {
               drag={criticalDragMap?.get(task.id)}
               resourceLabel={!hasCh && task.laborCount ? `👥 ${task.laborCount} Men` : undefined}
               taskType={task.taskType}
+              theme={ganttTheme}
+              barRadius={ganttBarRadius}
+              showCriticalHighlight={ganttShowCritHighlight}
+              showBaselineStripes={ganttShowBaselineStripes}
             />
+
+            {/* Edge resize handles (drag to change duration) */}
+            {!hasCh && !task.isMilestone && (
+              <>
+                <rect x={x} y={y} width={5} height={h} fill="transparent" className="cursor-ew-resize" onPointerDown={(e) => startResize(e, task, "start")}>
+                  <title>Drag to change start</title>
+                </rect>
+                <rect x={x + w - 5} y={y} width={5} height={h} fill="transparent" className="cursor-ew-resize" onPointerDown={(e) => startResize(e, task, "end")}>
+                  <title>Drag to change duration</title>
+                </rect>
+              </>
+            )}
+
+            {/* Link nub (link mode) — drag onto another bar to draw a dependency */}
+            {linkMode && (
+              <circle
+                cx={x + w}
+                cy={y + h / 2}
+                r={4}
+                fill="#3f7180"
+                stroke="#fff"
+                strokeWidth={1}
+                className="cursor-crosshair"
+                onPointerDown={(e) => startLinkDrag(e, task)}
+              >
+                <title>Drag to link (pred → succ)</title>
+              </circle>
+            )}
+
+            {/* Inline progress handle (leaf tasks) — drag to update % complete */}
+            {!hasCh && !task.isMilestone && (
+              <rect
+                x={x + (w * pct) / 100}
+                y={y}
+                width={Math.max(4, Math.min(10, dayWidth * 0.4))}
+                height={h}
+                rx={2}
+                fill="#b97547"
+                className="cursor-ew-resize"
+                onPointerDown={(e) => startProgressDrag(e, task)}
+              >
+                <title>{`${pct}% complete — drag to update`}</title>
+              </rect>
+            )}
 
             {/* Float / slack tail (OmniPlan style) — non-critical, non-summary leaf tasks only */}
             {!hasCh && !isCritical && !task.isMilestone && (() => {
@@ -682,20 +943,42 @@ export function Timeline(props: TimelineProps) {
       })}
 
       {/* Dependency arrows (drawn after bars so they appear on top) */}
+      {linkDrag && (() => {
+        const src = tasks.find((t) => t.id === linkDrag.sourceId);
+        if (!src) return null;
+        const idx = visibleRows.findIndex((r) => r.task.id === src.id);
+        if (idx === -1) return null;
+        const srcEndX = posX(differenceInDays(new Date(src.endDate), rangeStart) + 1);
+        const srcY = barY(src.id);
+        const r = svgRef.current?.getBoundingClientRect();
+        const lx = r ? linkDrag.x - r.left : srcEndX;
+        const ly = r ? linkDrag.y - r.top : srcY;
+        return (
+          <line x1={srcEndX} y1={srcY} x2={lx} y2={ly} stroke="#3f7180" strokeWidth={1.5} strokeDasharray="5 3" className="pointer-events-none" />
+        );
+      })()}
       {deps.map((dep) => {
         const fromIdx = visibleRows.findIndex(r => r.task.id === dep.from.id);
         const toIdx = visibleRows.findIndex(r => r.task.id === dep.to.id);
         if (fromIdx === -1 || toIdx === -1) return null;
         return (
-          <DependencyArrow
+          <g
             key={`dep-${dep.from.id}-${dep.to.id}-${dep.index}`}
-            x1={posX(dep.x1)}
-            y1={rowOffsets.offsets[fromIdx] + rowHeights[fromIdx] / 2}
-            x2={posX(dep.x2)}
-            y2={rowOffsets.offsets[toIdx] + rowHeights[toIdx] / 2}
-            type={dep.type}
-            offset={dep.offset}
-          />
+            onClick={linkMode && onArrowClick ? () => onArrowClick(dep.to.id, dep.from.id) : undefined}
+            className={linkMode ? "cursor-pointer" : "pointer-events-none"}
+            style={{ pointerEvents: linkMode ? "all" : undefined }}
+          >
+            <DependencyArrow
+              x1={posX(dep.x1)}
+              y1={rowOffsets.offsets[fromIdx] + rowHeights[fromIdx] / 2}
+              x2={posX(dep.x2)}
+              y2={rowOffsets.offsets[toIdx] + rowHeights[toIdx] / 2}
+              type={dep.type}
+              offset={dep.offset}
+              lane={dep.lane}
+              dimmed={hoveredTaskId != null && dep.from.id !== hoveredTaskId && dep.to.id !== hoveredTaskId}
+            />
+          </g>
         );
       })}
 

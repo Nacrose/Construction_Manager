@@ -1,4 +1,4 @@
-import { addDays, differenceInDays, min, max } from "date-fns";
+import { differenceInDays, min, max } from "date-fns";
 import type { Task, Dependency, ZoomLevel } from "./types";
 import { adToBs, bsToAd, getDaysInBsMonth } from "@/lib/nepali-calendar";
 
@@ -446,10 +446,14 @@ export function computeRolledUpProgress(tasks: Task[]): Map<string, number> {
 }
 
 export function getDayWidth(zoom: ZoomLevel): number {
+  // Comfortable per-granularity-unit defaults (Day reads fine at 20px; Week and
+  // Month need more room so bars, labels and dependency arrows stay legible).
+  // The +/− zoom scale then fine-tunes from ~100%.
   switch (zoom) {
-    case "day": return 30;
-    case "week": return 30 / 7;
-    case "month": return 30 / 30; // 1px per day, 30px per month
+    case "day": return 20;
+    case "week": return 36 / 7; // one week ≈ 36px
+    case "month": return 44 / 30; // one month ≈ 44px
+    case "year": return 70 / 365; // one year ≈ 70px
   }
 }
 

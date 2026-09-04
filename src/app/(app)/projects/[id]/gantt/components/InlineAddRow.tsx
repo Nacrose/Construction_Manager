@@ -137,78 +137,93 @@ export function InlineAddRow({
 
   return (
     <div
-      className="mx-2 my-1.5 rounded-lg border bg-emerald-50/80 p-3 dark:bg-emerald-950/20"
-      style={{ marginLeft: `${depth * 20 + 8}px` }}
+      className="flex items-center h-8 border-b border-primary/40 bg-card ring-1 ring-inset ring-primary/30 transition-all text-xs"
     >
-      <div className="flex flex-col gap-2">
-        {/* Row 1: Submit + Name */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={submit}
-            disabled={mutation.isPending || !name.trim()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
-            title="Add (Enter)"
-          >
-            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          </button>
-          <input
-            ref={nameRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={parentId ? "Subtask name…" : "Task name…"}
-            className="h-9 flex-1 rounded-md border bg-background px-3 text-sm shadow-sm"
-          />
-        </div>
+      {/* Col 1: Action indicator / Submit */}
+      <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/70 h-full bg-primary/10">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={mutation.isPending || !name.trim()}
+          className="flex h-5 w-5 items-center justify-center rounded bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700 disabled:opacity-40 cursor-pointer"
+          title="Save Task (Enter)"
+        >
+          {mutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+        </button>
+      </div>
 
-        {/* Row 2: Dates + Days + Milestone + Cancel */}
-        <div className="flex flex-wrap items-center gap-2 pl-2">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="h-8 rounded-md border bg-background px-2 text-sm"
-          />
-          <span className="text-sm text-muted-foreground">→</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => handleEndDateChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="h-8 rounded-md border bg-background px-2 text-sm"
-          />
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              value={duration}
-              min={1}
-              onChange={(e) => handleDurationChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="h-8 w-14 rounded-md border bg-background px-2 text-center text-sm"
-            />
-            <span className="text-xs text-muted-foreground">days</span>
-          </div>
-          <label className="ml-1 flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-background/50">
-            <input
-              type="checkbox"
-              checked={isMilestone}
-              onChange={(e) => setIsMilestone(e.target.checked)}
-              className="h-4 w-4"
-            />
-            <Flag className="h-4 w-4 text-amber-500" />
-            <span>Milestone</span>
-          </label>
-          <div className="ml-auto flex items-center gap-1">
-            <button
-              onClick={() => { setShow(false); setName(""); }}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-background/50 hover:text-foreground"
-              title="Cancel (Esc)"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+      {/* Col 2: Task Name input */}
+      <div className="min-w-[190px] flex-1 h-full flex items-center border-r border-border/60 px-1 bg-background">
+        <input
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={parentId ? "Subtask name… (Enter to save, Esc to cancel)" : "Task name… (Enter to save, Esc to cancel)"}
+          className="h-7 w-full bg-transparent px-2 text-[10.5px] font-medium text-foreground outline-none placeholder:text-muted-foreground/60"
+        />
+      </div>
+
+      {/* Col 3: Start date */}
+      <div className="w-[88px] shrink-0 h-full flex items-center border-r border-border/60 px-1 bg-background">
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => handleStartDateChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="h-6 w-full bg-transparent px-1 text-[9px] text-foreground font-mono outline-none"
+        />
+      </div>
+
+      {/* Col 4: Finish date */}
+      <div className="w-[88px] shrink-0 h-full flex items-center border-r border-border/60 px-1 bg-background">
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => handleEndDateChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="h-6 w-full bg-transparent px-1 text-[9px] text-foreground font-mono outline-none"
+        />
+      </div>
+
+      {/* Col 5: Duration */}
+      <div className="w-[58px] shrink-0 h-full flex items-center justify-center border-r border-border/60 px-1 bg-background">
+        <input
+          type="number"
+          value={duration}
+          min={1}
+          onChange={(e) => handleDurationChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="h-6 w-8 text-center bg-transparent text-[9.5px] font-mono font-semibold text-foreground outline-none"
+        />
+        <span className="text-[9px] text-muted-foreground">d</span>
+      </div>
+
+      {/* Col 6: Milestone toggle */}
+      <div className="w-[64px] shrink-0 h-full flex items-center justify-center border-r border-border/60 bg-background" title="Milestone">
+        <button
+          type="button"
+          onClick={() => setIsMilestone(!isMilestone)}
+          className={cn(
+            "flex h-5 items-center gap-0.5 px-1 rounded text-[9px] font-semibold cursor-pointer",
+            isMilestone ? "bg-amber-500/20 text-amber-600 font-bold border border-amber-500/40" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Flag className="h-2.5 w-2.5" />
+          <span>{isMilestone ? "MS" : "Task"}</span>
+        </button>
+      </div>
+
+      {/* Col 7: Cancel action */}
+      <div className="w-[96px] shrink-0 h-full flex items-center justify-end px-2 bg-background">
+        <button
+          type="button"
+          onClick={() => { setShow(false); setName(""); }}
+          className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+          title="Cancel (Esc)"
+        >
+          <X className="h-3 w-3" />
+        </button>
       </div>
     </div>
   );

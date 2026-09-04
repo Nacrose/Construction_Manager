@@ -66,4 +66,7 @@ export type Task = {
   ignoreResourceCalendar?: boolean | null;
 };
 
-export type ZoomLevel = "day" | "week" | "month";
+export type ZoomLevel = "day" | "week" | "month" | "year";
+
+export type OmniPlanView = "tasks" | "network" | "resources" | "calendar" | "styles";
+export type InspectorTab = "project" | "task" | "resource" | "milestone" | "styles";

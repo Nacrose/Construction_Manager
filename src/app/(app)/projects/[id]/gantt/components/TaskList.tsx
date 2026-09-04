@@ -34,18 +34,29 @@ type TaskListProps = {
   expandedMap: Set<string>;
   setExpandedMap: React.Dispatch<React.SetStateAction<Set<string>>>;
   emptyRowsCount?: number;
+  hiddenCols?: Set<string>;
 };
 
 export function TaskList({
   flattened, canWrite, projectId, selectedTaskId, onSelectTask,
   hoveredTaskId, onHoverTask, onContextMenu,
   rolledUpProgress, selectedCostLibraryId: _selectedCostLibraryId, pushAction: _pushAction, utils,
-  addTaskTrigger = 0, leftPanelWidth: _leftPanelWidth = 320, onWidthNeeded: _onWidthNeeded, hasManuallyResized: _hasManuallyResized = false,
+  addTaskTrigger = 0, leftPanelWidth = 640, onWidthNeeded: _onWidthNeeded, hasManuallyResized: _hasManuallyResized = false,
   visibleRows, rowHeights, rowOffsets: _rowOffsets, expandedMap, setExpandedMap,
-  emptyRowsCount = 0,
+  emptyRowsCount = 0, hiddenCols,
 }: TaskListProps) {
   const [dropIndicator, setDropIndicator] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const canFitCol = (key: string) => {
+    if (hiddenCols?.has(key)) return false;
+    if (leftPanelWidth < 320 && key === "start") return false;
+    if (leftPanelWidth < 410 && key === "finish") return false;
+    if (leftPanelWidth < 465 && key === "days") return false;
+    if (leftPanelWidth < 530 && key === "progress") return false;
+    if (leftPanelWidth < 625 && key === "responsible") return false;
+    return true;
+  };
+  const vis = (key: string) => canFitCol(key);
 
   const moveMutation = trpc.gantt.move.useMutation({
     onSuccess: () => {
@@ -153,18 +164,18 @@ export function TaskList({
             </div>
 
             <div
-              className="min-w-[190px] flex-1 h-full flex items-center gap-1 border-r border-border/60 pr-2 overflow-hidden"
+              className="min-w-[100px] flex-1 h-full flex items-center gap-1 border-r border-border/60 pr-2 overflow-hidden"
               style={{ paddingLeft: Math.max(6, indent + 6) }}
             >
               {children ? <button onClick={(event) => { event.stopPropagation(); toggleExpand(task.id); }} className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"><ChevronRight className={cn("h-3 w-3 transition-transform", isExpanded && "rotate-90")} /></button> : <span className="ml-3.5 h-1 w-1 rounded-full border border-muted-foreground/50" />}
               {task.isMilestone && <Flag className="h-3 w-3 shrink-0 text-amber-600" />}
               <span className={cn("min-w-0 flex-1 truncate text-[10.5px] text-foreground", children && "font-semibold")} title={task.name}>{task.name}</span>
             </div>
-            <div className="w-[88px] shrink-0 px-2 text-[9px] text-foreground">{format(start, "dd MMM yy")}</div>
-            <div className="w-[88px] shrink-0 border-l border-border/60 px-2 text-[9px] text-foreground">{format(end, "dd MMM yy")}</div>
-            <div className="w-[58px] shrink-0 border-l border-border/60 text-center text-[9px] text-foreground">{dur}d</div>
-            <div className={cn("w-[64px] shrink-0 border-l border-border/60 text-center text-[9px] font-semibold", pct === 100 ? "text-emerald-700" : "text-foreground")}>{Math.round(pct)}%</div>
-            <div className="w-[96px] shrink-0 truncate border-l border-border/60 px-2 text-[9px] text-muted-foreground">{task.laborCount > 0 ? `${task.laborCount} people` : "—"}</div>
+            {vis("start") && <div className="w-[88px] shrink-0 px-2 text-[9px] text-foreground">{format(start, "dd MMM yy")}</div>}
+            {vis("finish") && <div className="w-[88px] shrink-0 border-l border-border/60 px-2 text-[9px] text-foreground">{format(end, "dd MMM yy")}</div>}
+            {vis("days") && <div className="w-[58px] shrink-0 border-l border-border/60 text-center text-[9px] text-foreground">{dur}d</div>}
+            {vis("progress") && <div className={cn("w-[64px] shrink-0 border-l border-border/60 text-center text-[9px] font-semibold", pct === 100 ? "text-emerald-700" : "text-foreground")}>{Math.round(pct)}%</div>}
+            {vis("responsible") && <div className="w-[96px] shrink-0 truncate border-l border-border/60 px-2 text-[9px] text-muted-foreground">{task.laborCount > 0 ? `${task.laborCount} people` : "—"}</div>}
           </div>
         );
       })}
@@ -183,8 +194,12 @@ export function TaskList({
             )}
           >
             <div className="w-[52px] shrink-0 border-r border-border/60 h-full" />
-            <div className="min-w-[190px] flex-1 border-r border-border/60 h-full" />
-            <div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[88px] border-r border-border/60 h-full" /><div className="w-[58px] border-r border-border/60 h-full" /><div className="w-[64px] border-r border-border/60 h-full" /><div className="w-[96px] h-full" />
+            <div className="min-w-[100px] flex-1 border-r border-border/60 h-full" />
+            {vis("start") && <div className="w-[88px] border-r border-border/60 h-full" />}
+            {vis("finish") && <div className="w-[88px] border-r border-border/60 h-full" />}
+            {vis("days") && <div className="w-[58px] border-r border-border/60 h-full" />}
+            {vis("progress") && <div className="w-[64px] border-r border-border/60 h-full" />}
+            {vis("responsible") && <div className="w-[96px] h-full" />}
           </div>
         );
       })}

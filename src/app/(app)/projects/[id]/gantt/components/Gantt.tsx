@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import { cn } from "@/lib/utils";
 import type { Task, ZoomLevel } from "../../gantt/types";
 import type { DayLabel } from "./Timeline";
 import { TaskList } from "./TaskList";
@@ -8,8 +9,26 @@ import { TaskInspector } from "./TaskInspector";
 import { TaskContextMenu, type ContextMenuPosition } from "./TaskContextMenu";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { Columns3, ChevronsDownUp, ChevronsUpDown, X, Map as MapIcon } from "lucide-react";
 import { differenceInDays, format, addDays } from "date-fns";
+import { useUserPreferences } from "@/components/user-preferences-provider";
+
+// Task-pane columns (fixed-width except Activity which is flex-1). The
+// label/width are duplicated in TaskList.tsx; keep in sync.
+const TASK_COLUMNS: { key: string; label: string; width: number }[] = [
+  { key: "start", label: "Start", width: 88 },
+  { key: "finish", label: "Finish", width: 88 },
+  { key: "days", label: "Days", width: 58 },
+  { key: "progress", label: "Progress", width: 64 },
+  { key: "responsible", label: "Responsible", width: 96 },
+];
 
 type GanttProps = {
   tasks: Task[];
@@ -29,6 +48,7 @@ type GanttProps = {
   taskListVisible: boolean;
   inspectorVisible: boolean;
   onToggleInspector: () => void;
+  onToggleTaskNameOnly?: () => void;
   dividerRef: React.RefObject<HTMLDivElement | null>;
   startDrag: (e: React.MouseEvent) => void;
   dayLabels: DayLabel[];
@@ -43,16 +63,26 @@ type GanttProps = {
   zoomScale?: number;
   onZoomScaleChange?: (scale: number) => void;
   onReplicate?: (task: Task) => void;
+  linkMode?: boolean;
+  linkSourceId?: string | null;
+  onBarClick?: (taskId: string) => void;
+  onArrowClick?: (taskId: string, predecessorId: string) => void;
+  onAddTask?: () => void;
+  onViolationClick?: () => void;
+  onLinkFromDrag?: (sourceId: string, targetId: string) => void;
+  selectedTaskId?: string | null;
+  onSelectTaskId?: (id: string | null) => void;
 };
 
 export function Gantt({
   tasks, rootTasks, rangeStart, days, dayWidth, zoom, canWrite, projectId,
   overlayMap, criticalTaskIds, criticalDragMap, rolledUpProgress, successorIds: _successorIds,
-  leftPanelWidth, taskListVisible, inspectorVisible, onToggleInspector,
+  leftPanelWidth, taskListVisible, inspectorVisible, onToggleInspector, onToggleTaskNameOnly,
   dividerRef, startDrag, dayLabels,
   selectedCostLibraryId, pushAction, utils,
   addTaskTrigger = 0, jumpToTodayTrigger = 0, onWidthNeeded, hasManuallyResized = false, floatMap,
-  zoomScale, onZoomScaleChange, onReplicate,
+  onReplicate, linkMode, linkSourceId, onBarClick, onArrowClick, onAddTask, onViolationClick, onLinkFromDrag,
+  selectedTaskId: externalSelectedTaskId, onSelectTaskId: externalOnSelectTaskId,
 }: GanttProps) {
   const svgWidth = days * dayWidth + 20;
   const headerHeight = 44;
@@ -90,7 +120,10 @@ export function Gantt({
     });
   }, [flattened, expandedMap]);
 
-  const rowHeights = useMemo(() => visibleRows.map(() => 36), [visibleRows]);
+  const { getPref, setPref } = useUserPreferences();
+  const compactDensity = getPref<boolean>("ganttCompactDensity", true);
+  const rowHeight = compactDensity ? 24 : 36;
+  const rowHeights = useMemo(() => visibleRows.map(() => rowHeight), [visibleRows, rowHeight]);
 
   const rowOffsets = useMemo(() => {
     const offsets: number[] = [];
@@ -102,11 +135,45 @@ export function Gantt({
     return { offsets, totalHeight: current + 36 };
   }, [rowHeights]);
 
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [internalSelectedTaskId, setInternalSelectedTaskId] = useState<string | null>(null);
+  const selectedTaskId = externalSelectedTaskId !== undefined ? externalSelectedTaskId : internalSelectedTaskId;
+  const setSelectedTaskId = useCallback((val: string | null | ((prev: string | null) => string | null)) => {
+    const next = typeof val === "function" ? val(selectedTaskId) : val;
+    if (externalOnSelectTaskId) {
+      externalOnSelectTaskId(next);
+    } else {
+      setInternalSelectedTaskId(next);
+    }
+  }, [externalOnSelectTaskId, selectedTaskId]);
   const selectedTask = useMemo(
     () => selectedTaskId ? tasks.find(t => t.id === selectedTaskId) ?? null : null,
     [selectedTaskId, tasks],
   );
+
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    const saved = getPref<string[]>(`gantt_${projectId}_hiddenCols`) ?? getPref<string[]>("ganttHiddenCols");
+    return new Set(Array.isArray(saved) ? saved : []);
+  });
+
+  useEffect(() => {
+    const saved = getPref<string[]>(`gantt_${projectId}_hiddenCols`) ?? getPref<string[]>("ganttHiddenCols");
+    if (Array.isArray(saved)) {
+      setHiddenCols(new Set(saved));
+    }
+  }, [getPref, projectId]);
+
+  const isColVisible = useCallback((key: string) => !hiddenCols.has(key), [hiddenCols]);
+  const toggleCol = useCallback((key: string) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      const arr = Array.from(next);
+      setPref(`gantt_${projectId}_hiddenCols`, arr);
+      setPref("ganttHiddenCols", arr);
+      return next;
+    });
+  }, [projectId, setPref]);
 
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
@@ -158,6 +225,25 @@ export function Gantt({
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // Keyboard build mode: press A/N to add a task, Delete/Backspace to remove it.
+  useEffect(() => {
+    const handleBuildKeys = (e: KeyboardEvent) => {
+      const target = (e.target as HTMLElement | null)?.closest?.("input,textarea,[contenteditable]");
+      if (target) return;
+      if ((e.metaKey || e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "a" || k === "n") {
+        e.preventDefault();
+        onAddTask?.();
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedTaskId) {
+        e.preventDefault();
+        deleteMutation.mutate({ taskId: selectedTaskId });
+      }
+    };
+    window.addEventListener("keydown", handleBuildKeys);
+    return () => window.removeEventListener("keydown", handleBuildKeys);
+  }, [selectedTaskId, deleteMutation, onAddTask]);
 
   const createMutation = trpc.gantt.create.useMutation({
     onSuccess: (res) => {
@@ -303,6 +389,17 @@ export function Gantt({
   const leftBodyRef = useRef<HTMLDivElement>(null);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [panelWidth, setPanelWidth] = useState(600);
+
+  useEffect(() => {
+    if (!rightPanelRef.current) return;
+    const el = rightPanelRef.current;
+    setPanelWidth(el.clientWidth);
+    const ro = new ResizeObserver(() => setPanelWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function onRightScroll() {
     if (syncingRef.current) return;
@@ -310,6 +407,7 @@ export function Gantt({
     syncingRef.current = true;
     leftBodyRef.current.scrollTop = rightPanelRef.current.scrollTop;
     syncingRef.current = false;
+    setScrollLeft(rightPanelRef.current.scrollLeft);
   }
 
   function onLeftScroll() {
@@ -331,14 +429,63 @@ export function Gantt({
     }
   }, [jumpToTodayTrigger, rangeStart, days, dayWidth]);
 
-  function handleWheel(e: React.WheelEvent) {
-    if ((e.ctrlKey || e.metaKey) && onZoomScaleChange && zoomScale !== undefined) {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? (zoomScale >= 3.0 ? 0.5 : 0.2) : (zoomScale > 3.0 ? -0.5 : -0.2);
-      const next = Math.min(10.0, Math.max(0.2, Number((zoomScale + delta).toFixed(2))));
-      onZoomScaleChange(next);
-    }
+  function handleWheel(_e: React.WheelEvent) {
+    // Gesture (ctrl/cmd + wheel) zoom disabled — it was far too sensitive and
+    // fought with scrolling. Use the Day/Month/Year zoom selector instead.
   }
+
+  // ─── Minimap navigator (OmniPlan-style) ────────────────────────────
+  const [showMinimap, setShowMinimap] = useState<boolean>(() => {
+    const saved = getPref<boolean>(`gantt_${projectId}_showMinimap`) ?? getPref<boolean>("ganttShowMinimap");
+    if (saved !== undefined && saved !== null) return saved;
+    if (typeof window !== "undefined") {
+      const legacy = localStorage.getItem("ganttShowMinimap");
+      if (legacy !== null) return legacy === "true";
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    const saved = getPref<boolean>(`gantt_${projectId}_showMinimap`) ?? getPref<boolean>("ganttShowMinimap");
+    if (saved !== undefined && saved !== null) {
+      setShowMinimap(saved);
+    }
+  }, [getPref, projectId]);
+
+  const handleToggleMinimap = (val: boolean) => {
+    setShowMinimap(val);
+    setPref(`gantt_${projectId}_showMinimap`, val);
+    setPref("ganttShowMinimap", val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ganttShowMinimap", String(val));
+    }
+  };
+
+  const MINI_W = 176;
+  const miniH = Math.max(48, Math.min(176, visibleRows.length * 7 + 14));
+  const miniScaleX = MINI_W / (svgWidth || 1);
+  const miniScaleY = miniH / (effectiveTotalHeight || 1);
+  const todayOff0 = differenceInDays(new Date(), rangeStart);
+  const miniVpW = Math.max(panelWidth, 1) * miniScaleX;
+  const miniVpX = scrollLeft * miniScaleX;
+  const jumpToMini = (e: React.MouseEvent<SVGSVGElement>) => {
+    const panel = rightPanelRef.current;
+    if (!panel) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / (rect.width || 1)));
+    const maxLeft = Math.max(0, svgWidth - panel.clientWidth);
+    panel.scrollTo({ left: ratio * maxLeft });
+  };
+
+  const canFitCol = (key: string) => {
+    if (!isColVisible(key)) return false;
+    if (leftPanelWidth < 320 && key === "start") return false;
+    if (leftPanelWidth < 410 && key === "finish") return false;
+    if (leftPanelWidth < 465 && key === "days") return false;
+    if (leftPanelWidth < 530 && key === "progress") return false;
+    if (leftPanelWidth < 625 && key === "responsible") return false;
+    return true;
+  };
 
   return (
     <div ref={mainAreaRef} className="flex h-full relative">
@@ -357,9 +504,9 @@ export function Gantt({
                 <div className="w-[52px] shrink-0 flex items-center justify-center border-r border-border/80 h-full text-primary/80 text-[9px]">
                   WBS
                 </div>
-                <div className="min-w-[190px] flex-1 flex items-center justify-between px-2 h-full border-r border-border/70">
+                <div className="min-w-[100px] flex-1 flex items-center justify-between px-2 h-full border-r border-border/70">
                   <span>Activity</span>
-                  {/* Expand / Collapse and Level controls */}
+                  {/* Expand / Collapse, Level and column-visibility controls */}
                   <div className="flex items-center gap-1 normal-case font-sans">
                     <button
                       type="button"
@@ -393,13 +540,32 @@ export function Gantt({
                     >
                       L2
                     </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          title="Toggle columns"
+                          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Columns3 className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 text-[11px] font-mono">
+                        <DropdownMenuLabel className="text-[9px] uppercase tracking-wider text-muted-foreground">Columns</DropdownMenuLabel>
+                        {TASK_COLUMNS.map((c) => (
+                          <DropdownMenuItem key={c.key} onClick={() => toggleCol(c.key)}>
+                            {isColVisible(c.key) ? "✓" : "○"} {c.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-                <div className="w-[88px] shrink-0 px-2">Start</div>
-                <div className="w-[88px] shrink-0 px-2 border-l border-border/70">Finish</div>
-                <div className="w-[58px] shrink-0 text-center border-l border-border/70">Days</div>
-                <div className="w-[64px] shrink-0 text-center border-l border-border/70">Progress</div>
-                <div className="w-[96px] shrink-0 px-2 border-l border-border/70">Responsible</div>
+                {TASK_COLUMNS.filter((c) => canFitCol(c.key)).map((c, ci) => (
+                  <div key={c.key} className={`${c.width}px shrink-0 ${ci === 0 ? "" : "border-l border-border/70"} px-2`}>
+                    {c.label}
+                  </div>
+                ))}
               </div>
             </div>
             {/* Left body — scrolls only vertically */}
@@ -432,11 +598,14 @@ export function Gantt({
                 onWidthNeeded={onWidthNeeded}
                 hasManuallyResized={hasManuallyResized}
                 emptyRowsCount={emptyRowsCount}
+                hiddenCols={hiddenCols}
               />
               {/* Drag-to-resize divider with visible grip */}
               <div
                 ref={dividerRef}
                 onMouseDown={startDrag}
+                onDoubleClick={onToggleTaskNameOnly}
+                title="Drag to resize (Double-click to toggle Task Name Only / All Columns)"
                 className="absolute right-0 top-0 bottom-0 w-[6px] cursor-col-resize z-20 flex items-center justify-center group"
               >
                 {/* Visual track */}
@@ -502,6 +671,13 @@ export function Gantt({
               emptyRowsCount={emptyRowsCount}
               showSCurve={false}
               showHeatmap={false}
+              linkMode={linkMode}
+              linkSourceId={linkSourceId}
+              onBarClick={onBarClick}
+              onArrowClick={onArrowClick}
+              projectId={projectId}
+              onViolationClick={onViolationClick}
+              onLinkFromDrag={onLinkFromDrag}
             />
           </div>
         </div>
@@ -558,7 +734,60 @@ export function Gantt({
           utils={utils}
           pushAction={pushAction}
           onReplicate={onReplicate}
+          overlayMap={overlayMap}
         />
+      )}
+
+      {/* Minimap navigator */}
+      {visibleRows.length > 0 && showMinimap && (
+        <div className={cn("group/mini absolute bottom-2 z-30 rounded-md border border-border bg-card/95 p-1 shadow-lg backdrop-blur-sm transition-[right] duration-200", (inspectorVisible && selectedTask) ? "right-[342px]" : "right-2")}>
+          <div className="flex items-center justify-between px-1 pb-1 text-[9px] font-mono text-muted-foreground">
+            <span className="font-semibold tracking-wider">NAVIGATOR</span>
+            <button
+              type="button"
+              onClick={() => handleToggleMinimap(false)}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              title="Hide minimap"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <svg width={MINI_W} height={miniH} className="block" onClick={jumpToMini} style={{ cursor: "pointer" }}>
+            <rect x={0} y={0} width={MINI_W} height={miniH} fill="#f7f1e8" rx={2} />
+            {visibleRows.map(({ task }, i) => {
+              const s = differenceInDays(new Date(task.startDate), rangeStart);
+              const e = differenceInDays(new Date(task.endDate), rangeStart) + 1;
+              const bx = (s * dayWidth + 10) * miniScaleX;
+              const bw = Math.max((e - s) * dayWidth * miniScaleX, 1.5);
+              const by = rowOffsets.offsets[i] * miniScaleY + 1;
+              const bh = Math.max(Math.min(rowHeights[i] * miniScaleY - 2, 5), 2.5);
+              const color = task.progress >= 100 ? "#4a8b57" : task.progress > 0 ? "#f59e0b" : "#3f7180";
+              return <rect key={task.id} x={bx} y={by} width={bw} height={bh} rx={1} fill={color} />;
+            })}
+            {todayOff0 >= 0 && todayOff0 < days && (
+              <line x1={(todayOff0 * dayWidth + 10) * miniScaleX} y1={0} x2={(todayOff0 * dayWidth + 10) * miniScaleX} y2={miniH} stroke="#4a8b57" strokeWidth={1} strokeDasharray="2 2" />
+            )}
+            {miniVpW > 0 && (
+              <rect x={miniVpX} y={0} width={Math.max(miniVpW, 8)} height={miniH} fill="none" stroke="#9f5b35" strokeWidth={1.5} />
+            )}
+          </svg>
+        </div>
+      )}
+
+      {/* Floating Restore Minimap Button */}
+      {visibleRows.length > 0 && !showMinimap && (
+        <button
+          type="button"
+          onClick={() => handleToggleMinimap(true)}
+          className={cn(
+            "absolute bottom-2 z-30 flex h-7 items-center gap-1.5 rounded border border-border bg-card/90 px-2 text-[10px] font-semibold text-muted-foreground shadow-md backdrop-blur-sm hover:text-foreground hover:bg-card cursor-pointer transition-[right] duration-200",
+            (inspectorVisible && selectedTask) ? "right-[342px]" : "right-2"
+          )}
+          title="Show Timeline Navigator (Minimap)"
+        >
+          <MapIcon className="h-3.5 w-3.5 text-primary" />
+          <span>Minimap</span>
+        </button>
       )}
     </div>
   );
