@@ -66,12 +66,12 @@ test.describe("smoke: project → expense approval", () => {
     const row = page.getByRole("row", { name: /EXP-001/ });
     await expect(row).toBeVisible();
 
-    // The "Approved" stat card starts at 0.00 (unique emerald value cell).
-    const approvedTotal = page.locator("div.text-xl.font-mono.text-emerald-600");
+    // The "Approved" stat card starts at 0.00 (unique success value cell).
+    const approvedTotal = page.locator("div.text-xl.font-mono.text-success");
     await expect(approvedTotal).toHaveText(/^0\.00$/);
 
-    // Approve (ghost button with the emerald Check icon in EXP-001's row).
-    await row.locator("button.text-emerald-600").click();
+    // Approve (ghost button with the success Check icon in EXP-001's row).
+    await row.locator("button.text-success").click();
 
     // Row flips to Approved …
     await expect(row.getByText("Approved")).toBeVisible({ timeout: 20_000 });

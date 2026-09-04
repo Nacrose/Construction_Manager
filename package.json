@@ -120,6 +120,9 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "^8.0.0",
+    "@univerjs/core": {
+      "nanoid": "5.1.16"
+    }
   }
 }
