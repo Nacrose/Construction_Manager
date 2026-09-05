@@ -310,214 +310,227 @@ export function AddProgramDialog({
   }
 
   return (
-    <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto font-mono bg-card border-border">
-      <DialogHeader>
+    <DialogContent className="sm:max-w-5xl w-[94vw] aspect-[16/10] max-h-[90vh] p-0 overflow-hidden font-mono bg-card border border-border text-foreground shadow-2xl rounded-2xl flex flex-col">
+      <DialogHeader className="px-6 py-3.5 border-b border-border bg-muted/20 shrink-0">
         <DialogTitle className="text-sm font-bold text-primary uppercase tracking-wide">
           {program ? "Edit Daily Program" : "Create Daily Program"}
         </DialogTitle>
       </DialogHeader>
 
-      <div className="space-y-3 text-xs">
-        {/* Date and General Notes */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Program Date *</Label>
-            <NepaliDatePicker
-              value={programDate}
-              onChange={(_, dateStr) => setProgramDate(dateStr)}
-              className="h-8 text-xs font-mono bg-background border-border/80"
-            />
+      <div className="flex-1 overflow-y-auto px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start text-xs">
+        {/* Left Column: Date, Notes & Source Picker */}
+        <div className="space-y-3">
+          {/* Date and General Notes */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Program Date *</Label>
+              <NepaliDatePicker
+                value={programDate}
+                onChange={(_, dateStr) => setProgramDate(dateStr)}
+                className="h-8 text-xs font-mono bg-background border-border/80"
+              />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Site Notes</Label>
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Site weather, work shift, or general notes…"
+                className="h-8 text-xs font-mono bg-background border-border/80"
+              />
+            </div>
           </div>
-          <div className="col-span-2 space-y-1">
-            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Site Notes</Label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Site weather, work shift, or general notes…"
-              className="h-8 text-xs font-mono bg-background border-border/80"
-            />
+
+          {/* Source Tabs & RFI Resync */}
+          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+              <TabsList className="h-7 bg-muted/40 p-0.5 border border-border/60">
+                <TabsTrigger value="rfi" className="text-[11px] font-mono h-6 px-2.5 gap-1.5">
+                  <FileQuestion className="h-3 w-3" /> Approved RFIs
+                  {selectedItems.filter((s) => s.source === "rfi").length > 0 && (
+                    <span className="px-1 rounded bg-primary text-primary-foreground font-bold text-[9px]">
+                      {selectedItems.filter((s) => s.source === "rfi").length}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="backlog" className="text-[11px] font-mono h-6 px-2.5 gap-1.5">
+                  <ListChecks className="h-3 w-3" /> Backlog
+                  {selectedItems.filter((s) => s.source === "backlog").length > 0 && (
+                    <span className="px-1 rounded bg-amber-500 text-black font-bold text-[9px]">
+                      {selectedItems.filter((s) => s.source === "backlog").length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs font-mono border-border/80 gap-1"
+              onClick={resyncFromRfi}
+              title="Re-sync all items from approved RFIs"
+            >
+              <RefreshCw className="h-3 w-3" /> Auto-Sync RFIs
+            </Button>
           </div>
-        </div>
 
-        {/* Source Tabs & RFI Resync */}
-        <div className="flex items-center justify-between border-b border-border/60 pb-2">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="h-7 bg-muted/40 p-0.5 border border-border/60">
-              <TabsTrigger value="rfi" className="text-[11px] font-mono h-6 px-2.5 gap-1.5">
-                <FileQuestion className="h-3 w-3" /> Approved RFIs
-                {selectedItems.filter((s) => s.source === "rfi").length > 0 && (
-                  <span className="px-1 rounded bg-primary text-primary-foreground font-bold text-[9px]">
-                    {selectedItems.filter((s) => s.source === "rfi").length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="backlog" className="text-[11px] font-mono h-6 px-2.5 gap-1.5">
-                <ListChecks className="h-3 w-3" /> Backlog
-                {selectedItems.filter((s) => s.source === "backlog").length > 0 && (
-                  <span className="px-1 rounded bg-amber-500 text-black font-bold text-[9px]">
-                    {selectedItems.filter((s) => s.source === "backlog").length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs font-mono border-border/80 gap-1"
-            onClick={resyncFromRfi}
-            title="Re-sync all items from approved RFIs"
-          >
-            <RefreshCw className="h-3 w-3" /> Auto-Sync RFIs
-          </Button>
-        </div>
-
-        {/* Tab 1: From Approved RFIs */}
-        {activeTab === "rfi" && (
-          <div>
-            {rfisLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : !rfiData?.rfis?.length ? (
-              <div className="rounded border border-dashed border-border/80 p-4 text-center text-xs text-muted-foreground">
-                No approved RFIs with work items found.
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar">
-                {rfiData.rfis.map((rfi) => (
-                  <div key={rfi.id} className="rounded border border-border/80 bg-background/50 p-2 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-mono font-bold text-primary">{rfi.number}</span>
-                        <span className="truncate font-medium text-foreground">{rfi.subject}</span>
+          {/* Tab 1: From Approved RFIs */}
+          {activeTab === "rfi" && (
+            <div>
+              {rfisLoading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : !rfiData?.rfis?.length ? (
+                <div className="rounded border border-dashed border-border/80 p-4 text-center text-xs text-muted-foreground">
+                  No approved RFIs with work items found.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-60 overflow-y-auto no-scrollbar">
+                  {rfiData.rfis.map((rfi) => (
+                    <div key={rfi.id} className="rounded border border-border/80 bg-background/50 p-2 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-mono font-bold text-primary">{rfi.number}</span>
+                          <span className="truncate font-medium text-foreground">{rfi.subject}</span>
+                        </div>
+                        {rfi.location && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 shrink-0">
+                            <MapPin className="h-2.5 w-2.5" /> {rfi.location}
+                          </span>
+                        )}
                       </div>
-                      {rfi.location && (
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 shrink-0">
-                          <MapPin className="h-2.5 w-2.5" /> {rfi.location}
-                        </span>
-                      )}
+                      <div className="space-y-1">
+                        {rfi.items.map((item) => {
+                          const isSelected = selectedItems.some(
+                            (s) => s.source === "rfi" && s.rfiItemId === item.id
+                          );
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => toggleRfiItem(rfi, item)}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded border px-2 py-1 text-left text-xs transition-colors",
+                                isSelected
+                                  ? "bg-primary/10 border-primary/40 text-foreground"
+                                  : "bg-card border-border/60 hover:bg-muted/30 text-muted-foreground"
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                className="h-3.5 w-3.5 rounded border-border"
+                              />
+                              {item.boqItem && (
+                                <>
+                                  <span className="font-bold text-primary shrink-0">{item.boqItem.code}</span>
+                                  <span className="truncate flex-1">{item.boqItem.description}</span>
+                                  <span className="font-bold tabular-nums shrink-0">{item.quantity} {item.unit}</span>
+                                  <span className="px-1 py-0.5 rounded border border-border text-[9px] uppercase font-bold shrink-0">
+                                    {item.paymentType}
+                                  </span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {rfi.items.map((item) => {
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 2: Backlog */}
+          {activeTab === "backlog" && (
+            <div>
+              {backlogLoading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : !backlogData?.backlogTasks?.length ? (
+                <div className="rounded border border-dashed border-border/80 p-4 text-center text-xs text-muted-foreground">
+                  No uncompleted tasks in backlog.
+                </div>
+              ) : (
+                <div className="rounded border border-border/80 overflow-hidden max-h-60 overflow-y-auto no-scrollbar">
+                  <table className="w-full text-xs tabular-nums font-mono">
+                    <thead className="bg-muted/60 border-b border-border/60">
+                      <tr className="text-left text-muted-foreground text-[10px] uppercase">
+                        <th className="w-7 py-1 px-1 text-center"></th>
+                        <th className="py-1 px-2">Task</th>
+                        <th className="py-1 px-2">Location</th>
+                        <th className="py-1 px-2 text-right">Remaining Qty</th>
+                        <th className="py-1 px-2 text-center">Payment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {backlogData.backlogTasks.map((task) => {
                         const isSelected = selectedItems.some(
-                          (s) => s.source === "rfi" && s.rfiItemId === item.id
+                          (s) => s.source === "backlog" && s.taskName === task.taskName && s.location === task.location
                         );
                         return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => toggleRfiItem(rfi, item)}
-                            className={cn(
-                              "flex w-full items-center gap-2 rounded border px-2 py-1 text-left text-xs transition-colors",
-                              isSelected
-                                ? "bg-primary/10 border-primary/40 text-foreground"
-                                : "bg-card border-border/60 hover:bg-muted/30 text-muted-foreground"
-                            )}
+                          <tr
+                            key={task.id}
+                            className={cn("hover:bg-primary/5 cursor-pointer", isSelected && "bg-primary/10")}
+                            onClick={() => toggleBacklogItem(task)}
                           >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              readOnly
-                              className="h-3.5 w-3.5 rounded border-border"
-                            />
-                            {item.boqItem && (
-                              <>
-                                <span className="font-bold text-primary shrink-0">{item.boqItem.code}</span>
-                                <span className="truncate flex-1">{item.boqItem.description}</span>
-                                <span className="font-bold tabular-nums shrink-0">{item.quantity} {item.unit}</span>
-                                <span className="px-1 py-0.5 rounded border border-border text-[9px] uppercase font-bold shrink-0">
-                                  {item.paymentType}
-                                </span>
-                              </>
-                            )}
-                          </button>
+                            <td className="py-1 px-1 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                readOnly
+                                className="h-3.5 w-3.5 rounded border-border"
+                              />
+                            </td>
+                            <td className="py-1 px-2">
+                              <div className="font-medium text-foreground">{task.taskName}</div>
+                              {task.boqCode && (
+                                <div className="text-[10px] text-muted-foreground font-mono">BOQ: {task.boqCode}</div>
+                              )}
+                            </td>
+                            <td className="py-1 px-2 text-muted-foreground">{task.location || "—"}</td>
+                            <td className="py-1 px-2 text-right font-bold text-amber-400">
+                              {task.plannedQty} {task.unit}
+                            </td>
+                            <td className="py-1 px-2 text-center">
+                              <span className="px-1 py-0.5 rounded border border-border text-[9px] uppercase font-bold">
+                                {task.paymentType}
+                              </span>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-        {/* Tab 2: Backlog */}
-        {activeTab === "backlog" && (
-          <div>
-            {backlogLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : !backlogData?.backlogTasks?.length ? (
-              <div className="rounded border border-dashed border-border/80 p-4 text-center text-xs text-muted-foreground">
-                No uncompleted tasks in backlog.
-              </div>
-            ) : (
-              <div className="rounded border border-border/80 overflow-hidden max-h-52 overflow-y-auto no-scrollbar">
-                <table className="w-full text-xs tabular-nums font-mono">
-                  <thead className="bg-muted/60 border-b border-border/60">
-                    <tr className="text-left text-muted-foreground text-[10px] uppercase">
-                      <th className="w-7 py-1 px-1 text-center"></th>
-                      <th className="py-1 px-2">Task</th>
-                      <th className="py-1 px-2">Location</th>
-                      <th className="py-1 px-2 text-right">Remaining Qty</th>
-                      <th className="py-1 px-2 text-center">Payment</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/30">
-                    {backlogData.backlogTasks.map((task) => {
-                      const isSelected = selectedItems.some(
-                        (s) => s.source === "backlog" && s.taskName === task.taskName && s.location === task.location
-                      );
-                      return (
-                        <tr
-                          key={task.id}
-                          className={cn("hover:bg-primary/5 cursor-pointer", isSelected && "bg-primary/10")}
-                          onClick={() => toggleBacklogItem(task)}
-                        >
-                          <td className="py-1 px-1 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              readOnly
-                              className="h-3.5 w-3.5 rounded border-border"
-                            />
-                          </td>
-                          <td className="py-1 px-2">
-                            <div className="font-medium text-foreground">{task.taskName}</div>
-                            {task.boqCode && (
-                              <div className="text-[10px] text-muted-foreground font-mono">BOQ: {task.boqCode}</div>
-                            )}
-                          </td>
-                          <td className="py-1 px-2 text-muted-foreground">{task.location || "—"}</td>
-                          <td className="py-1 px-2 text-right font-bold text-amber-400">
-                            {task.plannedQty} {task.unit}
-                          </td>
-                          <td className="py-1 px-2 text-center">
-                            <span className="px-1 py-0.5 rounded border border-border text-[9px] uppercase font-bold">
-                              {task.paymentType}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Selected Items List */}
-        {selectedItems.length > 0 && (
-          <div className="space-y-1 border-t border-border/60 pt-2">
+        {/* Right Column: Selected Items List & Ingredients Summary */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-border/60 pb-1">
             <span className="text-[10px] font-bold uppercase text-primary tracking-wider">
               Selected Work Items ({selectedItems.length})
             </span>
-            <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar">
+            <span className="text-[11px] text-muted-foreground">
+              {selectedItems.length === 0 ? "None selected" : `${selectedItems.length} active`}
+            </span>
+          </div>
+
+          {selectedItems.length === 0 ? (
+            <div className="p-8 border border-dashed border-border/80 rounded bg-background/40 text-center text-xs text-muted-foreground">
+              Select items from Approved RFIs or Backlog on the left to include in this daily program.
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-72 overflow-y-auto no-scrollbar">
               {selectedItems.map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between gap-2 rounded border border-border/60 bg-muted/20 px-2 py-1 text-xs"
+                  className="flex items-center justify-between gap-2 rounded border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs"
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="px-1 py-0.5 rounded border border-border/80 text-[9px] uppercase font-bold text-muted-foreground bg-muted/40 shrink-0">
@@ -538,11 +551,11 @@ export function AddProgramDialog({
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <DialogFooter className="gap-2 border-t border-border/60 pt-2">
+      <DialogFooter className="gap-2 border-t border-border px-6 py-3 shrink-0 bg-muted/20">
         <span className="text-xs text-muted-foreground mr-auto">
           {selectedItems.length} item{selectedItems.length !== 1 ? "s" : ""} selected
         </span>

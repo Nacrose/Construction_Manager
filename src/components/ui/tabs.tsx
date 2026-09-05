@@ -1,21 +1,80 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
+import * as React from "react";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { usePathname } from "next/navigation";
+import { useUserPreferences } from "@/components/user-preferences-provider";
+import { cn } from "@/lib/utils";
 
-import { cn } from "@/lib/utils"
+export type TabsProps = React.ComponentProps<typeof TabsPrimitive.Root> & {
+  persistKey?: string;
+  autoPersist?: boolean;
+};
 
 function Tabs({
   className,
+  value: controlledValue,
+  defaultValue,
+  onValueChange,
+  persistKey,
+  autoPersist = false,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
+}: TabsProps) {
+  const { getPref, setPref } = useUserPreferences();
+  const pathname = usePathname();
+
+  const effectiveKey = persistKey || (autoPersist && pathname ? `tab_${pathname}` : undefined);
+
+  // Initialize from saved preference if available
+  const [internalValue, setInternalValue] = React.useState<string | undefined>(() => {
+    if (controlledValue !== undefined) return controlledValue;
+    if (effectiveKey) {
+      const saved = getPref<string>(effectiveKey);
+      if (saved) return saved;
+    }
+    return defaultValue;
+  });
+
+  // Sync if controlledValue changes
+  React.useEffect(() => {
+    if (controlledValue !== undefined) {
+      setInternalValue(controlledValue);
+    }
+  }, [controlledValue]);
+
+  // Sync parent state or internal state on mount and when preferences hydrate
+  React.useEffect(() => {
+    if (!effectiveKey) return;
+    const saved = getPref<string>(effectiveKey);
+    if (saved) {
+      if (controlledValue !== undefined && saved !== controlledValue) {
+        onValueChange?.(saved);
+      } else if (controlledValue === undefined && saved !== internalValue) {
+        setInternalValue(saved);
+      }
+    }
+  }, [effectiveKey, getPref]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleValueChange = (newVal: string) => {
+    if (controlledValue === undefined) {
+      setInternalValue(newVal);
+    }
+    if (effectiveKey) {
+      setPref(effectiveKey, newVal);
+    }
+    onValueChange?.(newVal);
+  };
+
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       className={cn("flex flex-col gap-2.5", className)}
+      value={controlledValue !== undefined ? controlledValue : internalValue}
+      defaultValue={defaultValue}
+      onValueChange={handleValueChange}
       {...props}
     />
-  )
+  );
 }
 
 function TabsList({
@@ -31,7 +90,7 @@ function TabsList({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TabsTrigger({
@@ -50,7 +109,7 @@ function TabsTrigger({
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TabsContent({
@@ -63,7 +122,7 @@ function TabsContent({
       className={cn("flex-1 outline-none", className)}
       {...props}
     />
-  )
+  );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger, TabsContent };

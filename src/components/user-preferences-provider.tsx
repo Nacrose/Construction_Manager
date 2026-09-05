@@ -376,3 +376,44 @@ export function useUserPreferences(): UserPreferencesContextType {
     },
   };
 }
+
+/**
+ * Hook for persisting active tab state across navigation and browser sessions.
+ * Keyed by a unique identifier (e.g. `materials_tab_${projectId}`).
+ * Synchronizes with sessionStorage immediately and background user preferences.
+ */
+export function usePersistedTabState<T extends string>(
+  key: string,
+  defaultValue: T
+): [T, (val: T) => void] {
+  const { getPref, setPref } = useUserPreferences();
+  const [tab, setTab] = useState<T>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sess = sessionStorage.getItem(`cf_tab_${key}`);
+        if (sess) return sess as T;
+      } catch {}
+    }
+    const pref = getPref<T>(`tab_${key}`);
+    return pref ?? defaultValue;
+  });
+
+  useEffect(() => {
+    const pref = getPref<T>(`tab_${key}`);
+    if (pref && pref !== tab) {
+      setTab(pref);
+    }
+  }, [key, getPref]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateTab = useCallback((next: T) => {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(`cf_tab_${key}`, next);
+      } catch {}
+    }
+    setPref(`tab_${key}`, next);
+  }, [key, setPref]);
+
+  return [tab, updateTab];
+}

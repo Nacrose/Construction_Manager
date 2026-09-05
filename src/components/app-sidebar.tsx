@@ -73,11 +73,22 @@ export function AppSidebar() {
     return item.href === "/dashboard" ? pathname === "/dashboard" || pathname === "/" : pathname.startsWith(item.href);
   };
 
-  /** Switch to a project, landing on the SAME module we are in (id-agnostic). */
+  React.useEffect(() => {
+    if (projectId && pathname) {
+      const mod = activeProjectModule(pathname);
+      if (mod && typeof window !== "undefined") {
+        localStorage.setItem(`last_mod_${projectId}`, mod);
+      }
+    }
+  }, [projectId, pathname]);
+
+  /** Switch to a project, landing on the SAME module we are in or its last active module. */
   const switchToProject = (nextId: string) => {
     if (nextId === projectId) return;
     const modulePath = activeProjectModule(pathname ?? "");
-    router.push(nextId === projectId ? "/projects" : `/projects/${nextId}${modulePath}`);
+    const lastModule = typeof window !== "undefined" ? localStorage.getItem(`last_mod_${nextId}`) : null;
+    const targetModule = modulePath || lastModule || "";
+    router.push(`/projects/${nextId}${targetModule}`);
   };
 
   const goToOrg = () => router.push("/projects");

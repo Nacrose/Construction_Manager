@@ -3,6 +3,7 @@
 import { trpc } from "@/lib/trpc-client";
 import { getUser } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
 import Link from "next/link";
 import { DocumentTrail } from "@/components/documents/document-trail";
 import { format, formatDistanceToNow, differenceInHours } from "date-fns";
@@ -211,7 +212,7 @@ export function ViewRfiDialog({
     const win = window.open("", "_blank");
     if (!win) { toast.error("Pop-up blocked. Allow pop-ups for this site."); return; }
     const amount = (qty: number | null, rate: number) =>
-      qty ? `NPR ${(qty * rate).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "—";
+      qty ? formatNpr(qty * rate) : "—";
     win.document.write(`
       <!DOCTYPE html>
       <html>
@@ -247,11 +248,11 @@ export function ViewRfiDialog({
         <p style="white-space:pre-wrap;margin:0 0 12px;font-size:11px">${escapeHtml(rfi.description || "—")}</p>
         ${rfi.boqItem ? `<div class="section-title">Linked BOQ Item</div>
         <table><tr><th>Code</th><th>Description</th><th>Unit</th><th style="text-align:right">Rate</th></tr>
-        <tr><td>${escapeHtml(rfi.boqItem.code)}</td><td>${escapeHtml(rfi.boqItem.description)}</td><td>${escapeHtml(rfi.boqItem.unit)}</td><td style="text-align:right">NPR ${rfi.boqItem.rate.toLocaleString("en-IN")}</td></tr></table>` : ""}
+        <tr><td>${escapeHtml(rfi.boqItem.code)}</td><td>${escapeHtml(rfi.boqItem.description)}</td><td>${escapeHtml(rfi.boqItem.unit)}</td><td style="text-align:right">${formatNpr(rfi.boqItem.rate)}</td></tr></table>` : ""}
         ${rfi.items.length > 0 ? `<div class="section-title">Required Ingredients</div>
         <table><tr><th>Code</th><th>Description</th><th style="text-align:right">Qty</th><th>Unit</th><th>Payment</th><th style="text-align:right">Amount</th></tr>
         ${rfi.items.map(i => `<tr><td>${escapeHtml(i.boqCode || "—")}</td><td>${escapeHtml(i.boqDesc || "—")}</td><td style="text-align:right">${i.quantity ?? "—"}</td><td>${escapeHtml(i.unit || "—")}</td><td>${escapeHtml(i.paymentType)}</td><td style="text-align:right">${amount(i.quantity, (i as any).boqItem?.rate ?? 0)}</td></tr>`).join("")}
-        <tr style="font-weight:600"><td colspan="5" style="text-align:right">Total</td><td style="text-align:right">NPR ${rfi.items.reduce((s, i) => s + ((i.quantity ?? 0) * ((i as any).boqItem?.rate ?? 0)), 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td></tr></table>` : ""}
+        <tr style="font-weight:600"><td colspan="5" style="text-align:right">Total</td><td style="text-align:right">${formatNpr(rfi.items.reduce((s, i) => s + ((i.quantity ?? 0) * ((i as any).boqItem?.rate ?? 0)), 0))}</td></tr></table>` : ""}
         ${rfi.responses.length > 0 ? `<div class="section-title">Responses</div>
         ${rfi.responses.map(r => `<div style="margin:6px 0;padding:6px;background:#f9f9f9;border:1px solid #eee;border-radius:4px"><strong>${escapeHtml(r.responder.name)}</strong> <span class="tag ${r.decision === 'approved' ? 'tag-green' : r.decision === 'rejected' ? 'tag-red' : 'tag-amber'}">${escapeHtml(r.decision.replace(/_/g, ' '))}</span><div style="margin-top:4px;font-size:11px">${escapeHtml(r.response)}</div></div>`).join("")}` : ""}
       </body>
@@ -279,7 +280,7 @@ export function ViewRfiDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[750px] p-0 overflow-hidden bg-background border-border shadow-lg rounded-xl flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-5xl w-[94vw] aspect-[16/10] max-h-[90vh] flex flex-col p-0 overflow-hidden font-mono bg-card border border-border text-foreground shadow-2xl rounded-2xl">
 
         {/* HEADER — no custom X button, DialogContent provides one */}
         <div className="flex shrink-0 items-center px-4 py-2 border-b border-border bg-card">
@@ -418,7 +419,7 @@ export function ViewRfiDialog({
                               </span>
                             </TableCell>
                             <TableCell className="text-right text-xs py-1 px-2 font-mono whitespace-nowrap">
-                              {item.quantity ? `NPR ${amt.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "—"}
+                              {item.quantity ? formatNpr(amt) : "—"}
                             </TableCell>
                           </TableRow>
                         );
@@ -426,7 +427,7 @@ export function ViewRfiDialog({
                       <TableRow className="bg-muted/30 font-medium">
                         <TableCell colSpan={4} className="text-xs py-1 px-2 text-right">Total</TableCell>
                         <TableCell colSpan={2} className="text-xs py-1 px-2 text-right font-mono whitespace-nowrap">
-                          NPR {rfi.items.reduce((sum, item) => sum + ((item.quantity ?? 0) * ((item as any).boqItem?.rate ?? 0)), 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                          {formatNpr(rfi.items.reduce((sum, item) => sum + ((item.quantity ?? 0) * ((item as any).boqItem?.rate ?? 0)), 0))}
                         </TableCell>
                       </TableRow>
                     </TableBody>

@@ -16,11 +16,15 @@ import {
   Percent,
   Calculator,
   Loader2,
-  Sparkles,
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatNpr } from "@/lib/currency";
 import type { BoqItem } from "../types";
 import { UNITS } from "../types";
 import { PresetCombobox } from "./preset-combobox";
@@ -34,9 +38,9 @@ export type RateAnalysisInspectorProps = {
 };
 
 const LIB_TABS = [
-  { id: "client_estimate", name: "Client's Estimate", short: "Estimate", color: "text-foreground/85 border-border/40 bg-muted/60" },
-  { id: "contractor_bid", name: "Contractor Bid", short: "Bid (Tender)", color: "text-amber border-amber/30 bg-amber/10 " },
-  { id: "contractor_actual", name: "Contractor's Actual", short: "Actual Cost", color: "text-info border-info/40 bg-info/10" },
+  { id: "client_estimate", short: "Estimate", label: "Client Estimate" },
+  { id: "contractor_bid", short: "Bid", label: "Contractor Bid" },
+  { id: "contractor_actual", short: "Actual", label: "Actual Cost" },
 ];
 
 export function RateAnalysisInspector({
@@ -48,7 +52,7 @@ export function RateAnalysisInspector({
   const utils = trpc.useUtils() as any;
 
   const [activePurpose, setActivePurpose] = useState<string>("client_estimate");
-  const [addingMode, setAddingMode] = useState<"none" | "fixed" | "percentage">("none");
+  const [addingMode, setAddingMode] = useState<"none" | "material" | "labor" | "equipment" | "overhead">("none");
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [savePresetName, setSavePresetName] = useState("");
   const [presetToLoad, setPresetToLoad] = useState("");
@@ -57,16 +61,22 @@ export function RateAnalysisInspector({
   const [rateCatalogId, setRateCatalogId] = useState("");
   const [rateDistrict, setRateDistrict] = useState("");
 
-  // New ingredient form states
+  // Quick-add input state
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"material" | "labor" | "equipment" | "overhead">("material");
   const [newQty, setNewQty] = useState("");
-  const [newPct, setNewPct] = useState("");
+  const [newPct, setNewPct] = useState("15");
   const [newUnit, setNewUnit] = useState("cum");
   const [newRate, setNewRate] = useState("");
   const [newPctBase, setNewPctBase] = useState("all");
   const [selectedResourceId, setSelectedResourceId] = useState("");
   const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
+
+  // Collapsible category state
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (cat: string) => {
+    setCollapsedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
 
   const itemId = item?.id ?? "";
 
@@ -98,10 +108,9 @@ export function RateAnalysisInspector({
     { enabled: !!itemId && !!analysisId }
   );
 
-  // 3. Fetch rate catalogs for district lookup (v2)
+  // 3. Fetch rate catalogs for district lookup
   const { data: catalogsData } = trpc.catalogV2.listRateCatalogs.useQuery({});
   const activeCatalog = catalogsData?.catalogs?.find((c) => c.id === rateCatalogId);
-  const districts = activeCatalog?.districts ?? [];
 
   const { data: catalogDetails } = trpc.catalogV2.getRateCatalog.useQuery(
     { id: rateCatalogId },
@@ -117,11 +126,10 @@ export function RateAnalysisInspector({
       utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId: analysisId! });
       utils.analysisLibrary.getItems.invalidate();
       utils.boq.list.invalidate({ projectId });
-      toast.success("Ingredient added");
+      toast.success("Resource added to rate analysis");
       setNewName("");
       setNewQty("");
       setNewRate("");
-      setNewPct("");
       setSelectedResourceId("");
       setSelectedCatalogItemId("");
       setAddingMode("none");
@@ -143,7 +151,7 @@ export function RateAnalysisInspector({
       utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId: analysisId! });
       utils.analysisLibrary.getItems.invalidate();
       utils.boq.list.invalidate({ projectId });
-      toast.success("Ingredient removed");
+      toast.success("Resource removed");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -152,7 +160,7 @@ export function RateAnalysisInspector({
     onSuccess: () => {
       utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId: analysisId! });
       utils.analysisLibrary.getItems.invalidate();
-      toast.success("Batch size updated");
+      toast.success("Batch quantity updated");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -162,7 +170,7 @@ export function RateAnalysisInspector({
       utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId: analysisId! });
       utils.analysisLibrary.getItems.invalidate();
       utils.boq.list.invalidate({ projectId });
-      toast.success(`Loaded "${d.presetName}" (${d.loaded} ingredients)`);
+      toast.success(`Applied norm "${d.presetName}" (${d.loaded} items)`);
       setPresetToLoad("");
     },
     onError: (e) => toast.error(e.message),
@@ -171,20 +179,27 @@ export function RateAnalysisInspector({
   const savePresetMutation = trpc.globalPreset.saveFromAnalysis.useMutation({
     onSuccess: (d) => {
       utils.globalPreset.list.invalidate();
-      toast.success(`Saved as preset "${d.preset.name}"`);
+      toast.success(`Saved as norm preset "${d.preset.name}"`);
       setSavePresetName("");
       setShowSavePreset(false);
     },
     onError: (e) => toast.error(e.message),
   });
 
-  // Handle ingredient catalog / resource library selection
+  const copyIngredientsMut = trpc.rateAnalysis.copyIngredients.useMutation({
+    onSuccess: () => {
+      utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId });
+      utils.analysisLibrary.getItems.invalidate();
+      toast.success("Copied breakdown from Client's Estimate");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   function handleIngredientSelect(name: string, resource?: { id: string; name: string; unit: string; catalogMaterialId?: string | null }) {
     setNewName(name);
     setSelectedResourceId(resource?.id ?? "");
     setSelectedCatalogItemId(resource?.catalogMaterialId ?? "");
     if (resource?.unit) setNewUnit(resource.unit);
-    // Try rate catalog district rate first (v2: catalogRates with material relation)
     const catId = resource?.catalogMaterialId;
     if (catId && catalogDetails?.catalog && rateDistrict) {
       const rateEntry = catalogDetails.catalog.catalogRates?.find(
@@ -192,28 +207,14 @@ export function RateAnalysisInspector({
       );
       if (rateEntry && rateEntry.rate > 0) {
         setNewRate(String(rateEntry.rate));
-        return;
       }
     }
   }
 
-  const copyIngredientsMut = trpc.rateAnalysis.copyIngredients.useMutation({
-    onSuccess: () => {
-      utils.rateAnalysis.listIngredients.invalidate({ itemId, analysisId });
-      utils.analysisLibrary.getItems.invalidate();
-      toast.success("Copied ingredients from Client's Estimate");
-    },
-    onError: (e) => {
-      toast.error(e.message);
-    },
-  });
-
-  // Copy from another analysis
   async function handleCopyFromEstimate() {
     if (!analysesData?.analyses?.length || !analysisId) return;
     const est = analysesData.analyses.find((a: any) => a.name === "Client's Estimate");
     if (!est || est.id === analysisId) return;
-
     try {
       await copyIngredientsMut.mutateAsync({
         itemId,
@@ -256,7 +257,6 @@ export function RateAnalysisInspector({
     else if (b === "material_labor") base = matCost + labCost;
     else if (b === "labor_equipment") base = labCost + eqCost;
     else if (b === "all_including_pct") base = directCost + pctCost;
-    else if (b === "all") base = directCost;
     else base = directCost;
     const itemPctCost = (base * (i.percentage || 0)) / 100;
     pctCost += itemPctCost;
@@ -264,90 +264,87 @@ export function RateAnalysisInspector({
 
   const totalBatchCost = directCost + pctCost;
   const ratePerUnit = batch > 0 ? totalBatchCost / batch : 0;
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   const missingRateCount = fixed.filter((i) => !i.rate || i.rate <= 0).length;
+
+  // Contractor Margin Analysis
+  const boqRate = item.rate || 0;
+  const marginAmount = boqRate > 0 ? boqRate - ratePerUnit : 0;
+  const marginPercent = boqRate > 0 ? ((boqRate - ratePerUnit) / boqRate) * 100 : 0;
+  const isProfitable = marginAmount >= 0;
 
   return (
     <aside
-      className="w-full lg:w-[336px] shrink-0 border-l border-border/30 bg-card flex flex-col h-[calc(100vh-140px)] z-20 shadow-md backdrop-blur-md overflow-hidden rounded-r-lg"
+      className="w-full lg:w-[460px] xl:w-[490px] shrink-0 border-l border-border/40 bg-card flex flex-col h-full z-20 overflow-hidden shadow-xl"
       aria-label="Rate Analysis Inspector"
       onWheel={(e) => e.stopPropagation()}
     >
-      {/* 1. Header: Item Identity & BoQ Contract Information */}
-      <div className="p-2 border-b border-border/30 bg-muted/40 shrink-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            {/* Row 1: S.N. + description */}
-            <div className="flex items-start gap-1.5">
-              <span className="px-1.5 py-0.5 rounded bg-info/10 text-info/90 font-mono text-[11px] font-bold border border-info/30 shrink-0">
-                {item.code || "—"}
-              </span>
-              <h2 className="text-[11px] font-semibold text-foreground leading-snug break-words min-w-0">
-                {item.description}
-              </h2>
-            </div>
-            {/* Row 2: quantity @ rate */}
-            <div className="text-[10px] font-mono text-muted-foreground mt-0.5 pl-1">
-              {item.quantity.toLocaleString()} {item.unit || "unit"} @ {fmt(item.rate)}/{item.unit || "unit"}
-            </div>
+      {/* ─── LINE 1: ULTRA-COMPACT IDENTITY & PURPOSE SWITCHER ─── */}
+      <div className="h-9 px-2.5 bg-muted/40 border-b border-border/40 flex items-center justify-between gap-2 shrink-0">
+        {/* Left: Code badge & Description */}
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-mono text-[10.5px] font-bold shrink-0 border border-primary/25">
+            {item.code || "—"}
+          </span>
+          <span
+            className="text-[11.5px] font-semibold text-foreground truncate min-w-0"
+            title={item.description}
+          >
+            {item.description}
+          </span>
+          <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+            ({item.quantity} {item.unit || "unit"})
+          </span>
+        </div>
+
+        {/* Right: Segmented Purpose Switcher & Close Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center p-0.5 rounded-md bg-background border border-border/60">
+            {LIB_TABS.map((tab) => {
+              const active = activePurpose === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActivePurpose(tab.id)}
+                  title={tab.label}
+                  className={cn(
+                    "px-2 py-0.5 text-[10px] font-mono rounded transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.short}
+                </button>
+              );
+            })}
           </div>
+
           <button
             type="button"
             onClick={onClose}
             title="Close Inspector (Esc)"
-            className="p-1 rounded text-foreground/70 hover:text-foreground/85 hover:bg-muted transition-colors shrink-0"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
-        </div>
-
-        {/* 2. Library Purpose Tabs (Estimate / Bid / Actual) */}
-        <div className="flex items-center gap-1 mt-2.5 pt-2 border-t border-border/30">
-          {LIB_TABS.map((tab) => {
-            const isActive = activePurpose === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActivePurpose(tab.id)}
-                className={cn(
-                  "flex-1 py-1 px-1.5 rounded text-[10.5px] font-mono font-medium transition-all text-center border",
-                  isActive
-                    ? tab.color + " font-bold"
-                    : "border-transparent text-foreground hover:text-foreground/85 hover:bg-muted"
-                )}
-              >
-                {tab.short}
-              </button>
-            );
-          })}
         </div>
       </div>
 
-      {/* Warning banner if rates are missing */}
-      {missingRateCount > 0 && (
-        <div className="px-2 py-1 bg-amber/10 border-b border-amber/30 text-[10.5px] text-amber font-mono flex items-center gap-1 shrink-0">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber shrink-0" />
-          <span>
-            {missingRateCount} resource(s) missing rate. Analysis unit rate may be underestimated.
-          </span>
-        </div>
-      )}
-
-      {/* 3. Norms Presets & District Catalog Toolbar */}
-      <div className="px-2 py-1 border-b border-border/30 bg-card flex flex-wrap items-center justify-between gap-1 shrink-0 text-[11px]">
-        {/* Preset Loader */}
-        <div className="flex items-center gap-1 flex-1 min-w-[180px]">
-          <span className="text-[10px] text-foreground/75 font-mono shrink-0">Norms:</span>
-          <div className="flex-1">
+      {/* ─── LINE 2: NORMS, BATCH QUANTITY & LIVE RATE COMPARISON ─── */}
+      <div className="h-9 px-2.5 bg-card border-b border-border/40 flex items-center justify-between gap-2 shrink-0 text-[11px] font-mono">
+        {/* Left: Norms picker + Batch input */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-[155px] shrink-0">
             <PresetCombobox
-              presets={presetsData?.presets?.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                source: p.category || p.source,
-                ingredientCount: p._count?.ingredients,
-              })) ?? []}
+              presets={
+                presetsData?.presets?.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  source: p.category || p.source,
+                  ingredientCount: p._count?.ingredients,
+                })) ?? []
+              }
               selected={presetToLoad}
               onSelect={(pid) => {
                 if (!analysisId) {
@@ -366,49 +363,93 @@ export function RateAnalysisInspector({
                   });
                 }
               }}
-              placeholder="Load DoR / DUDBC Norms…"
+              placeholder="Apply Norms…"
               disabled={!canWrite || !analysisId || loadPresetMutation.isPending}
               popoverWidth={280}
             />
           </div>
+
+          {/* Batch quantity */}
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+            <span>Batch:</span>
+            <input
+              key={`batch-${batch}`}
+              type="number"
+              step="any"
+              defaultValue={batch}
+              disabled={!canWrite}
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value) || 1;
+                if (val !== batch && analysisId) {
+                  updateBatchMutation.mutate({ itemId, analysisId, batchSize: val });
+                }
+              }}
+              className="w-11 px-1 py-0.5 rounded bg-background border border-border/50 text-foreground text-right text-[10px] focus:outline-hidden focus:border-primary font-mono"
+            />
+            <span>{item.unit || "u"}</span>
+          </div>
+
+          {/* Quick copy estimate if on bid or actual */}
+          {activePurpose !== "client_estimate" && canWrite && (
+            <button
+              type="button"
+              onClick={handleCopyFromEstimate}
+              title="Copy breakdown from Client's Estimate"
+              className="px-1.5 py-0.5 rounded bg-muted/60 hover:bg-muted border border-border/50 text-foreground/80 text-[10px] transition-colors flex items-center gap-1"
+            >
+              <Copy className="h-2.5 w-2.5" />
+              <span>Copy</span>
+            </button>
+          )}
+
+          {/* Save Norms button */}
+          {canWrite && !showSavePreset && (
+            <button
+              type="button"
+              onClick={() => setShowSavePreset(true)}
+              title="Save current breakdown as reusable organization preset"
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Save className="h-3 w-3" />
+            </button>
+          )}
         </div>
 
-        {/* Copy from estimate button if on bid or actual */}
-        {activePurpose !== "client_estimate" && canWrite && (
-          <button
-            type="button"
-            onClick={handleCopyFromEstimate}
-            title="Clone ingredients from Client's Estimate"
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-muted border border-border/40 text-foreground/85 text-[10px] font-mono transition-colors"
-          >
-            <Copy className="h-2.5 w-2.5" />
-            <span>Copy Est</span>
-          </button>
-        )}
+        {/* Right: Live Calculated RA Rate vs BOQ Rate & Margin Badge */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-right leading-none">
+            <span className="text-[9px] text-muted-foreground block">RA Unit Rate</span>
+            <span className="text-[11.5px] font-bold text-foreground">
+              {formatNpr(ratePerUnit)}
+            </span>
+          </div>
 
-        {/* Save as Preset */}
-        {canWrite && !showSavePreset && (
-          <button
-            type="button"
-            onClick={() => setShowSavePreset(true)}
-            title="Save current breakdown as reusable organization preset"
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-muted border border-border/40 text-foreground/85 text-[10px] font-mono transition-colors"
-          >
-            <Save className="h-2.5 w-2.5" />
-            <span>Save Norm</span>
-          </button>
-        )}
+          {boqRate > 0 ? (
+            <div
+              className={cn(
+                "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold border",
+                isProfitable
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                  : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+              )}
+              title={`BOQ Rate: ${formatNpr(boqRate)} | Margin: ${isProfitable ? "+" : ""}${formatNpr(marginAmount)}/unit`}
+            >
+              {isProfitable ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+              <span>{isProfitable ? "+" : ""}{marginPercent.toFixed(1)}%</span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {/* Save Preset Dialog Inline */}
+      {/* Inline Save Preset Bar */}
       {showSavePreset && (
-        <div className="p-2 mx-3 mt-1 rounded bg-card border border-border/40 flex items-center gap-1 text-[11px] shrink-0">
+        <div className="px-2.5 py-1.5 bg-muted/70 border-b border-border/40 flex items-center gap-1.5 text-[11px] shrink-0 font-mono">
           <input
             type="text"
             placeholder="Preset Name (e.g. DoR M20 Foundation)..."
             value={savePresetName}
             onChange={(e) => setSavePresetName(e.target.value)}
-            className="flex-1 px-2 py-1 rounded bg-background border border-border/40 text-foreground/85 text-[11px] focus:outline-hidden focus:border-border"
+            className="flex-1 px-2 py-0.5 rounded bg-background border border-border/50 text-foreground text-[11px] focus:outline-hidden focus:border-primary"
           />
           <Button
             size="sm"
@@ -422,145 +463,121 @@ export function RateAnalysisInspector({
                 category: "General",
               });
             }}
-            className="h-6 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90"
+            className="h-6 px-2 text-[10px] bg-primary text-primary-foreground font-mono"
           >
             {savePresetMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
+          <button
+            type="button"
             onClick={() => setShowSavePreset(false)}
-            className="h-6 px-1 text-[11px] text-foreground/70"
+            className="text-muted-foreground hover:text-foreground px-1"
           >
-            Cancel
-          </Button>
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
 
-      {/* 4. Ingredients Breakdown Body - Fixed Height with Matrix Scrollbar */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 matrix-scrollbar">
+      {/* Missing Rate Alert Banner */}
+      {missingRateCount > 0 && (
+        <div className="px-2.5 py-1 bg-amber-500/10 border-b border-amber-500/25 text-[10px] text-amber-700 dark:text-amber-400 font-mono flex items-center gap-1 shrink-0">
+          <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+          <span>{missingRateCount} resource(s) missing unit rate. Analysis rate may be incomplete.</span>
+        </div>
+      )}
+
+      {/* ─── RESOURCE LEDGER TABLE (MAIN BODY) ─── */}
+      <div className="flex-1 min-h-0 overflow-y-auto matrix-scrollbar p-2 space-y-2">
         {ingLoading || analysesLoading ? (
-          <div className="space-y-2 py-3">
-            <Skeleton className="h-6 w-full bg-muted" />
-            <Skeleton className="h-16 w-full bg-muted/30" />
-            <Skeleton className="h-16 w-full bg-muted/30" />
+          <div className="space-y-2 py-2">
+            <Skeleton className="h-6 w-full bg-muted/40" />
+            <Skeleton className="h-12 w-full bg-muted/20" />
+            <Skeleton className="h-12 w-full bg-muted/20" />
           </div>
         ) : (
           <>
-            {/* Batch size configuration */}
-            <div className="flex items-center justify-between p-2 rounded bg-muted/40 border border-border/30 text-[11px]">
-              <span className="text-foreground/85 font-mono text-[11px]">
-                Analysis Batch Quantity:
-              </span>
-              <div className="flex items-center gap-1 font-mono">
-                <input
-                  key={`batch-${batch}`}
-                  type="number"
-                  step="any"
-                  defaultValue={batch}
-                  disabled={!canWrite}
-                  onBlur={(e) => {
-                    const val = parseFloat(e.target.value) || 1;
-                    if (val !== batch && analysisId) {
-                      updateBatchMutation.mutate({ itemId, analysisId, batchSize: val });
-                    }
-                  }}
-                  className="w-16 px-1.5 py-0.5 rounded bg-background border border-border/40 text-foreground/85 text-right text-[11px] focus:outline-hidden focus:border-border"
-                />
-                <span className="text-foreground/75 text-[11px]">{item.unit || "unit"}</span>
-              </div>
-            </div>
-
-            {/* Categorized Tables */}
-            {/* MATERIALS */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-foreground/90 border-b border-border/30 pb-0.5">
-                <span className="flex items-center gap-1">
-                  <Package className="h-3.5 w-3.5 text-info" /> Materials
-                </span>
-                <span className="text-foreground/70 text-[11px]">NPR {fmt(matCost)}</span>
-              </div>
+            {/* 1. MATERIALS SECTION */}
+            <CategoryLedger
+              title="Materials"
+              icon={<Package className="h-3.5 w-3.5 text-blue-500" />}
+              subtotal={matCost}
+              collapsed={collapsedCategories["materials"]}
+              onToggle={() => toggleCategory("materials")}
+            >
               {materials.length === 0 ? (
-                <p className="text-[10.5px] text-muted-foreground/60 italic py-0.5 pl-1">No material resources added.</p>
+                <p className="text-[10px] text-muted-foreground/60 italic py-1 px-2">No material resources added.</p>
               ) : (
-                <div className="space-y-1">
-                  {materials.map((ing) => (
-                    <IngredientRow
-                      key={ing.id}
-                      ing={ing}
-                      canWrite={canWrite}
-                      onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
-                      onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
-                    />
-                  ))}
-                </div>
+                materials.map((ing) => (
+                  <LedgerRow
+                    key={ing.id}
+                    ing={ing}
+                    canWrite={canWrite}
+                    onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
+                    onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
+                  />
+                ))
               )}
-            </div>
+            </CategoryLedger>
 
-            {/* LABOR */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-foreground/90 border-b border-border/30 pb-0.5">
-                <span className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5 text-info" /> Labor & Manpower
-                </span>
-                <span className="text-foreground/70 text-[11px]">NPR {fmt(labCost)}</span>
-              </div>
+            {/* 2. LABOR SECTION */}
+            <CategoryLedger
+              title="Labor & Manpower"
+              icon={<Users className="h-3.5 w-3.5 text-amber-500" />}
+              subtotal={labCost}
+              collapsed={collapsedCategories["labor"]}
+              onToggle={() => toggleCategory("labor")}
+            >
               {labor.length === 0 ? (
-                <p className="text-[10.5px] text-muted-foreground/60 italic py-0.5 pl-1">No labor resources added.</p>
+                <p className="text-[10px] text-muted-foreground/60 italic py-1 px-2">No labor resources added.</p>
               ) : (
-                <div className="space-y-1">
-                  {labor.map((ing) => (
-                    <IngredientRow
-                      key={ing.id}
-                      ing={ing}
-                      canWrite={canWrite}
-                      onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
-                      onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
-                    />
-                  ))}
-                </div>
+                labor.map((ing) => (
+                  <LedgerRow
+                    key={ing.id}
+                    ing={ing}
+                    canWrite={canWrite}
+                    onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
+                    onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
+                  />
+                ))
               )}
-            </div>
+            </CategoryLedger>
 
-            {/* EQUIPMENT */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-foreground/90 border-b border-border/30 pb-0.5">
-                <span className="flex items-center gap-1">
-                  <Wrench className="h-3.5 w-3.5 text-info" /> Equipment & Machinery
-                </span>
-                <span className="text-foreground/70 text-[11px]">NPR {fmt(eqCost)}</span>
-              </div>
+            {/* 3. EQUIPMENT SECTION */}
+            <CategoryLedger
+              title="Equipment & Plant"
+              icon={<Wrench className="h-3.5 w-3.5 text-emerald-500" />}
+              subtotal={eqCost}
+              collapsed={collapsedCategories["equipment"]}
+              onToggle={() => toggleCategory("equipment")}
+            >
               {equipment.length === 0 ? (
-                <p className="text-[10.5px] text-muted-foreground/60 italic py-0.5 pl-1">No equipment resources added.</p>
+                <p className="text-[10px] text-muted-foreground/60 italic py-1 px-2">No equipment resources added.</p>
               ) : (
-                <div className="space-y-1">
-                  {equipment.map((ing) => (
-                    <IngredientRow
-                      key={ing.id}
-                      ing={ing}
-                      canWrite={canWrite}
-                      onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
-                      onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
-                    />
-                  ))}
-                </div>
+                equipment.map((ing) => (
+                  <LedgerRow
+                    key={ing.id}
+                    ing={ing}
+                    canWrite={canWrite}
+                    onUpdate={(data) => updateMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined, ...data })}
+                    onDelete={() => deleteMutation.mutate({ itemId, ingredientId: ing.id, rateAnalysisId: analysisId || undefined })}
+                  />
+                ))
               )}
-            </div>
+            </CategoryLedger>
 
-            {/* OVERHEADS & PROFIT */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-foreground/90 border-b border-border/30 pb-0.5">
-                <span className="flex items-center gap-1">
-                  <Percent className="h-3.5 w-3.5 text-info" /> Overheads & Profit
-                </span>
-                <span className="text-foreground/70 text-[11px]">NPR {fmt(pctCost + ovhFixedCost)}</span>
-              </div>
+            {/* 4. OVERHEAD & PROFIT PROVISIONS */}
+            <CategoryLedger
+              title="Overhead & Profit Provisions"
+              icon={<Percent className="h-3.5 w-3.5 text-purple-500" />}
+              subtotal={pctCost + ovhFixedCost}
+              collapsed={collapsedCategories["overhead"]}
+              onToggle={() => toggleCategory("overhead")}
+            >
               {percentage.length === 0 && overheadFixed.length === 0 ? (
-                <p className="text-[10.5px] text-muted-foreground/60 italic py-0.5 pl-1">No overhead/profit provisions added.</p>
+                <p className="text-[10px] text-muted-foreground/60 italic py-1 px-2">No overhead/profit provisions added.</p>
               ) : (
-                <div className="space-y-1">
+                <>
                   {overheadFixed.map((ing) => (
-                    <IngredientRow
+                    <LedgerRow
                       key={ing.id}
                       ing={ing}
                       canWrite={canWrite}
@@ -585,7 +602,7 @@ export function RateAnalysisInspector({
                     }
 
                     return (
-                      <PercentageIngredientRow
+                      <PercentageRow
                         key={ing.id}
                         ing={ing}
                         directCost={directCost}
@@ -599,242 +616,247 @@ export function RateAnalysisInspector({
                       />
                     );
                   })}
-                </div>
+                </>
               )}
-            </div>
-
-            {/* 5. Add Ingredient Buttons & Form */}
-            {canWrite && (
-              <div className="pt-2 border-t border-border/30">
-                {addingMode === "none" ? (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAddingMode("fixed")}
-                      className="flex-1 h-6 text-[11px] border-border/40 bg-muted hover:bg-muted text-foreground/85"
-                    >
-                      <Plus className="mr-1 h-3 w-3 text-foreground/85" /> + Resource (Fixed)
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAddingMode("percentage")}
-                      className="flex-1 h-6 text-[11px] border-border/40 bg-muted/40 hover:bg-muted text-foreground/80"
-                    >
-                      <Plus className="mr-1 h-3 w-3 text-info" /> + % Provision (OH&CP)
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="p-2 rounded-lg bg-card border border-border/40 space-y-2 text-[11px]">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground/85 text-[11px] font-mono">
-                        {addingMode === "fixed" ? "Add Resource (Material / Labor / Plant)" : "Add % Provision (Overhead / Profit)"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => { setAddingMode("none"); setSelectedCatalogItemId(""); }}
-                        className="text-foreground/70 hover:text-foreground/85"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    {addingMode === "fixed" ? (
-                      <>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] text-foreground/75 font-mono block mb-0.5">Type</label>
-                            <select
-                              value={newType}
-                              onChange={(e) => setNewType(e.target.value as any)}
-                              className="w-full h-6 rounded bg-background border border-border/40 px-2 text-[11px] text-foreground/85 font-mono"
-                            >
-                              <option value="material">📦 Material</option>
-                              <option value="labor">👥 Labor</option>
-                              <option value="equipment">🚜 Equipment</option>
-                              <option value="overhead">💼 Overhead</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-foreground/75 font-mono block mb-0.5">Unit</label>
-                            <select
-                              value={newUnit}
-                              onChange={(e) => setNewUnit(e.target.value)}
-                              className="w-full h-6 rounded bg-background border border-border/40 px-2 text-[11px] text-foreground/85 font-mono"
-                            >
-                              {UNITS.map((u) => (
-                                <option key={u} value={u}>{u}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-foreground/75 font-mono block mb-0.5">Resource Name</label>
-                          <IngredientPicker
-                            value={newName}
-                            onChange={handleIngredientSelect}
-                            projectId={projectId}
-                            resourceType={newType as any}
-                            className="w-full"
-                            placeholder="Search Resource Library..."
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] text-foreground/75 font-mono block mb-0.5">Quantity (per batch)</label>
-                            <input
-                              type="number"
-                              step="any"
-                              placeholder="0.00"
-                              value={newQty}
-                              onChange={(e) => setNewQty(e.target.value)}
-                              className="w-full h-6 px-2 rounded bg-background border border-border/40 text-[11px] text-foreground/85 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-foreground/75 font-mono block mb-0.5">Rate (NPR / unit)</label>
-                            <input
-                              type="number"
-                              step="any"
-                              placeholder="0.00"
-                              value={newRate}
-                              onChange={(e) => setNewRate(e.target.value)}
-                              className="w-full h-6 px-2 rounded bg-background border border-border/40 text-[11px] text-foreground/85 font-mono"
-                            />
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="text-[10px] text-foreground/70 font-mono block mb-0.5">Provision Name</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Contractor's Profit & Overhead (15%)"
-                            value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
-                            className="w-full h-6 px-2 rounded bg-background border border-border/40 text-[11px] text-foreground/80 font-mono"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] text-foreground/70 font-mono block mb-0.5">Percentage (%)</label>
-                            <input
-                              type="number"
-                              step="any"
-                              placeholder="15"
-                              value={newPct}
-                              onChange={(e) => setNewPct(e.target.value)}
-                              className="w-full h-6 px-2 rounded bg-background border border-border/40 text-[11px] text-foreground/80 font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-foreground/70 font-mono block mb-0.5">Calculated On</label>
-                            <select
-                              value={newPctBase}
-                              onChange={(e) => setNewPctBase(e.target.value)}
-                              className="w-full h-6 rounded bg-background border border-border/40 px-2 text-[11px] text-foreground/80 font-mono"
-                            >
-                              <option value="all">Direct Cost (M+L+E)</option>
-                              <option value="material">Materials Only</option>
-                              <option value="labor">Labor Only</option>
-                              <option value="equipment">Equipment Only</option>
-                              <option value="material_labor">Materials + Labor</option>
-                            </select>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => { setAddingMode("none"); setSelectedResourceId(""); setSelectedCatalogItemId(""); }}
-                        className="h-6 px-2 text-[11px] text-foreground/70"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={
-                          !newName.trim() ||
-                          (addingMode === "fixed" && (!newQty || !newRate)) ||
-                          (addingMode === "percentage" && !newPct) ||
-                          addMutation.isPending
-                        }
-                        onClick={() => {
-                          if (addingMode === "fixed") {
-                            addMutation.mutate({
-                              itemId,
-                              rateAnalysisId: analysisId || undefined,
-                              name: newName.trim(),
-                              type: newType,
-                              calcMode: "fixed",
-                              quantity: parseFloat(newQty) || 0,
-                              unit: newUnit,
-                              rate: parseFloat(newRate) || 0,
-                              materialId: selectedResourceId || undefined,
-                              catalogMaterialId: selectedCatalogItemId || undefined,
-                            });
-                          } else {
-                            addMutation.mutate({
-                              itemId,
-                              rateAnalysisId: analysisId || undefined,
-                              name: newName.trim(),
-                              type: "overhead",
-                              calcMode: "percentage",
-                              percentage: parseFloat(newPct) || 0,
-                              pctBase: newPctBase,
-                            });
-                          }
-                        }}
-                        className="h-6 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90 font-mono"
-                      >
-                        {addMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add Resource"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            </CategoryLedger>
           </>
         )}
       </div>
 
-      {/* 6. Footer: Calculated Rate & Total Resource Demands */}
-      <div className="p-2 border-t border-border/30 bg-card shrink-0 space-y-2">
-        {/* Rate calculation summary card */}
-        <div className="p-2 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1">
-              <Calculator className="h-3 w-3 text-foreground/85" />
-              <span className="text-[10px] font-mono text-foreground/75">Analysis Unit Rate:</span>
+      {/* ─── QUICK ADD STRIP (COMPACT FOOTER BAR) ─── */}
+      {canWrite && (
+        <div className="p-2 border-t border-border/40 bg-muted/20 shrink-0 font-mono text-[11px]">
+          {addingMode === "none" ? (
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setAddingMode("material"); setNewUnit("cum"); }}
+                className="flex-1 h-7 text-[10.5px] border-border/60 hover:bg-muted font-mono"
+              >
+                <Plus className="mr-1 h-3 w-3 text-blue-500" /> + Material
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setAddingMode("labor"); setNewUnit("md"); }}
+                className="flex-1 h-7 text-[10.5px] border-border/60 hover:bg-muted font-mono"
+              >
+                <Plus className="mr-1 h-3 w-3 text-amber-500" /> + Labor
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setAddingMode("equipment"); setNewUnit("hr"); }}
+                className="flex-1 h-7 text-[10.5px] border-border/60 hover:bg-muted font-mono"
+              >
+                <Plus className="mr-1 h-3 w-3 text-emerald-500" /> + Plant
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setAddingMode("overhead")}
+                className="flex-1 h-7 text-[10.5px] border-border/60 hover:bg-muted font-mono"
+              >
+                <Plus className="mr-1 h-3 w-3 text-purple-500" /> + % OH&P
+              </Button>
             </div>
-            <div className="text-sm font-bold font-mono text-success mt-0.5">
-              NPR {fmt(ratePerUnit)} <span className="text-[10.5px] font-normal text-foreground/70">/ {item.unit || "unit"}</span>
-            </div>
-          </div>
+          ) : addingMode === "overhead" ? (
+            /* Percentage OH&P Quick Adder */
+            <div className="p-2 rounded-lg bg-card border border-border/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                  <Percent className="h-3.5 w-3.5 text-purple-500" /> Add % Provision (Overhead / Profit)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAddingMode("none")}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
 
-          {/* Independent BoQ rate comparison */}
-          <div className="text-right">
-            <span className="text-[9.5px] font-mono text-success block">Contract BOQ Rate:</span>
-            <span className="text-[11px] font-mono font-semibold text-success/85">
-              NPR {fmt(item.rate)} / {item.unit || "unit"}
-            </span>
-          </div>
+              <div className="grid grid-cols-1 gap-1.5">
+                <input
+                  type="text"
+                  placeholder="Provision name (e.g. Contractor's Profit 15%)"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full h-7 px-2 rounded bg-background border border-border/50 text-[11px] text-foreground font-mono"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 flex-1">
+                  <span className="text-[10px] text-muted-foreground">%:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="15"
+                    value={newPct}
+                    onChange={(e) => setNewPct(e.target.value)}
+                    className="w-16 h-7 px-2 rounded bg-background border border-border/50 text-[11px] text-foreground font-mono text-right"
+                  />
+                </div>
+                <div className="flex items-center gap-1 flex-1">
+                  <span className="text-[10px] text-muted-foreground">On:</span>
+                  <select
+                    value={newPctBase}
+                    onChange={(e) => setNewPctBase(e.target.value)}
+                    className="w-full h-7 rounded bg-background border border-border/50 px-2 text-[10px] text-foreground font-mono"
+                  >
+                    <option value="all">Direct Cost (M+L+E)</option>
+                    <option value="material">Materials Only</option>
+                    <option value="labor">Labor Only</option>
+                    <option value="equipment">Equipment Only</option>
+                    <option value="material_labor">Materials + Labor</option>
+                  </select>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={!newName.trim() || !newPct || addMutation.isPending}
+                  onClick={() => {
+                    addMutation.mutate({
+                      itemId,
+                      rateAnalysisId: analysisId || undefined,
+                      name: newName.trim(),
+                      type: "overhead",
+                      calcMode: "percentage",
+                      percentage: parseFloat(newPct) || 0,
+                      pctBase: newPctBase,
+                    });
+                  }}
+                  className="h-7 px-3 text-[11px] bg-primary text-primary-foreground font-mono shrink-0"
+                >
+                  {addMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add Provision"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Resource (Material / Labor / Equipment) Quick Adder */
+            <div className="p-2 rounded-lg bg-card border border-border/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-foreground flex items-center gap-1 capitalize">
+                  {addingMode === "material" && <Package className="h-3.5 w-3.5 text-blue-500" />}
+                  {addingMode === "labor" && <Users className="h-3.5 w-3.5 text-amber-500" />}
+                  {addingMode === "equipment" && <Wrench className="h-3.5 w-3.5 text-emerald-500" />}
+                  Add {addingMode} Resource
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setAddingMode("none"); setSelectedCatalogItemId(""); }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Resource Name Search */}
+              <div>
+                <IngredientPicker
+                  value={newName}
+                  onChange={handleIngredientSelect}
+                  projectId={projectId}
+                  resourceType={addingMode}
+                  className="w-full"
+                  placeholder={`Search ${addingMode} library...`}
+                />
+              </div>
+
+              {/* Qty, Unit, Rate, Add */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-muted-foreground">Qty:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    value={newQty}
+                    onChange={(e) => setNewQty(e.target.value)}
+                    className="w-16 h-7 px-1.5 rounded bg-background border border-border/50 text-[11px] text-foreground font-mono text-right"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <select
+                    value={newUnit}
+                    onChange={(e) => setNewUnit(e.target.value)}
+                    className="h-7 rounded bg-background border border-border/50 px-1.5 text-[10px] text-foreground font-mono"
+                  >
+                    {UNITS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                  <span className="text-[10px] text-muted-foreground">Rate:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="0.00"
+                    value={newRate}
+                    onChange={(e) => setNewRate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newName.trim() && newQty && newRate) {
+                        addMutation.mutate({
+                          itemId,
+                          rateAnalysisId: analysisId || undefined,
+                          name: newName.trim(),
+                          type: addingMode,
+                          calcMode: "fixed",
+                          quantity: parseFloat(newQty) || 0,
+                          unit: newUnit,
+                          rate: parseFloat(newRate) || 0,
+                          materialId: selectedResourceId || undefined,
+                          catalogMaterialId: selectedCatalogItemId || undefined,
+                        });
+                      }
+                    }}
+                    className="w-full h-7 px-1.5 rounded bg-background border border-border/50 text-[11px] text-foreground font-mono text-right"
+                  />
+                </div>
+
+                <Button
+                  size="sm"
+                  disabled={!newName.trim() || !newQty || !newRate || addMutation.isPending}
+                  onClick={() => {
+                    addMutation.mutate({
+                      itemId,
+                      rateAnalysisId: analysisId || undefined,
+                      name: newName.trim(),
+                      type: addingMode,
+                      calcMode: "fixed",
+                      quantity: parseFloat(newQty) || 0,
+                      unit: newUnit,
+                      rate: parseFloat(newRate) || 0,
+                      materialId: selectedResourceId || undefined,
+                      catalogMaterialId: selectedCatalogItemId || undefined,
+                    });
+                  }}
+                  className="h-7 px-3 text-[11px] bg-primary text-primary-foreground font-mono shrink-0"
+                >
+                  {addMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── SLIM BOTTOM FOOTER BAR ─── */}
+      <div className="h-8 px-2.5 bg-card border-t border-border/40 flex items-center justify-between text-[10px] font-mono text-muted-foreground shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Calculator className="h-3 w-3 text-muted-foreground" />
+          <span>Batch Total: <strong className="text-foreground">{formatNpr(totalBatchCost)}</strong></span>
+          <span className="text-border">|</span>
+          <span>Per {item.unit || "unit"}: <strong className="text-foreground">{formatNpr(ratePerUnit)}</strong></span>
         </div>
 
-        {/* Resource demand card for full quantity */}
         {item.quantity > 0 && ingredients.length > 0 && (
-          <div className="text-[10px] font-mono text-foreground/85 bg-muted/40 rounded px-2 py-1 border border-border/30 flex items-center justify-between">
-            <span>Total Item Demand ({item.quantity.toLocaleString()} {item.unit}):</span>
-            <span className="font-bold text-success">
-              NPR {fmt(ratePerUnit * item.quantity)}
-            </span>
+          <div>
+            <span>Total Item Demand: <strong className="text-foreground font-semibold">{formatNpr(ratePerUnit * item.quantity)}</strong></span>
           </div>
         )}
       </div>
@@ -842,8 +864,48 @@ export function RateAnalysisInspector({
   );
 }
 
-// Subcomponent for fixed ingredient rows
-function IngredientRow({
+// Category ledger wrapper with toggle and subtotal chip
+function CategoryLedger({
+  title,
+  icon,
+  subtotal,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  subtotal: number;
+  collapsed?: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-border/40 bg-card overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-2 py-1 bg-muted/30 hover:bg-muted/50 border-b border-border/30 flex items-center justify-between text-[11px] font-mono transition-colors"
+      >
+        <div className="flex items-center gap-1.5 font-semibold text-foreground">
+          {collapsed ? <ChevronRight className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+          {icon}
+          <span>{title}</span>
+        </div>
+        <span className="text-[10.5px] font-medium text-foreground/80">{formatNpr(subtotal)}</span>
+      </button>
+
+      {!collapsed && (
+        <div className="divide-y divide-border/20">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Aligned Ledger Row Component for fixed resources
+function LedgerRow({
   ing,
   canWrite,
   onUpdate,
@@ -855,76 +917,81 @@ function IngredientRow({
   onDelete: () => void;
 }) {
   const isRateMissing = !ing.rate || ing.rate <= 0;
-  const fmt = (n: number) => (n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const amount = (ing.quantity || 0) * (ing.rate || 0);
 
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-1 p-1.5 rounded bg-muted/40 hover:bg-muted border border-border/30 text-[11px] font-mono group transition-colors",
-        isRateMissing && "border-amber-500/35 bg-amber-500/5"
+        "flex items-center justify-between gap-1.5 px-2 py-1 text-[11px] font-mono group hover:bg-muted/30 transition-colors",
+        isRateMissing && "bg-amber-500/5"
       )}
     >
-      <div className="flex-1 min-w-0 pr-1">
-        <div className="text-foreground/70 font-medium truncate text-[11px] flex items-center gap-1" title={ing.name}>
-          <span>{ing.name}</span>
-          {isRateMissing && (
-            <span className="px-1 py-0.2 rounded bg-amber/10 text-amber border border-amber/30 text-[9px] font-bold">
-              ⚠️ Missing Rate
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1 text-[9.5px] text-foreground/70 mt-0.5">
-          {canWrite ? (
-            <div className="flex items-center gap-1 flex-wrap">
-              <span>Qty:</span>
-              <input
-                type="number"
-                step="any"
-                defaultValue={ing.quantity}
-                onBlur={(e) => {
-                  const val = parseFloat(e.target.value) || 0;
-                  if (val !== ing.quantity) onUpdate({ quantity: val });
-                }}
-                className="w-11 px-1 py-0.2 rounded bg-background border border-border/40 text-foreground/85 text-right text-[10px]"
-              />
-              <span>{ing.unit}</span>
-              <span className="mx-0.5">@</span>
-              <span>NPR</span>
-              <input
-                type="number"
-                step="any"
-                defaultValue={ing.rate}
-                onBlur={(e) => {
-                  const val = parseFloat(e.target.value) || 0;
-                  if (val !== ing.rate) onUpdate({ rate: val });
-                }}
-                className={cn(
-                  "w-14 px-1 py-0.2 rounded bg-background border text-right text-[10px]",
-                  isRateMissing
-                    ? "border-amber/40 text-amber bg-amber/10"
-                    : "border-border/40 text-foreground/85"
-                )}
-              />
-            </div>
-          ) : (
-            <span>
-              {ing.quantity} {ing.unit} @ NPR {fmt(ing.rate)}
-            </span>
-          )}
-        </div>
+      {/* Resource Name */}
+      <div className="flex-1 min-w-0 pr-1 flex items-center gap-1">
+        <span className="text-foreground truncate" title={ing.name}>
+          {ing.name}
+        </span>
+        {isRateMissing && (
+          <span className="px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[8.5px] font-bold shrink-0">
+            Missing Rate
+          </span>
+        )}
       </div>
 
+      {/* Editable Quantity & Unit */}
       <div className="flex items-center gap-1 shrink-0">
-        <span className="text-foreground/85 font-semibold text-[10.5px]">
-          NPR {fmt(amount)}
-        </span>
+        {canWrite ? (
+          <input
+            type="number"
+            step="any"
+            defaultValue={ing.quantity}
+            onBlur={(e) => {
+              const val = parseFloat(e.target.value) || 0;
+              if (val !== ing.quantity) onUpdate({ quantity: val });
+            }}
+            className="w-12 h-6 px-1 rounded bg-background border border-border/40 text-foreground text-right text-[10.5px] focus:outline-hidden focus:border-primary"
+          />
+        ) : (
+          <span className="text-foreground">{ing.quantity}</span>
+        )}
+        <span className="w-8 text-[10px] text-muted-foreground truncate">{ing.unit}</span>
+      </div>
+
+      {/* Editable Rate */}
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-[10px] text-muted-foreground">@</span>
+        {canWrite ? (
+          <input
+            type="number"
+            step="any"
+            defaultValue={ing.rate}
+            onBlur={(e) => {
+              const val = parseFloat(e.target.value) || 0;
+              if (val !== ing.rate) onUpdate({ rate: val });
+            }}
+            className={cn(
+              "w-16 h-6 px-1 rounded bg-background border text-right text-[10.5px] focus:outline-hidden focus:border-primary",
+              isRateMissing ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400" : "border-border/40 text-foreground"
+            )}
+          />
+        ) : (
+          <span className="text-foreground">{formatNpr(ing.rate)}</span>
+        )}
+      </div>
+
+      {/* Line Total */}
+      <div className="w-20 text-right shrink-0 font-semibold text-foreground text-[10.5px]">
+        {formatNpr(amount)}
+      </div>
+
+      {/* Delete Action */}
+      <div className="w-5 shrink-0 text-right">
         {canWrite && (
           <button
             type="button"
             onClick={onDelete}
-            title="Delete ingredient"
-            className="opacity-0 group-hover:opacity-100 p-0.5 text-foreground hover:text-red-400 transition-opacity"
+            title="Remove resource"
+            className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-rose-500 transition-opacity"
           >
             <Trash2 className="h-3 w-3" />
           </button>
@@ -934,8 +1001,8 @@ function IngredientRow({
   );
 }
 
-// Subcomponent for percentage provisions
-function PercentageIngredientRow({
+// Aligned Ledger Row Component for percentage provisions
+function PercentageRow({
   ing,
   directCost,
   matCost,
@@ -956,8 +1023,6 @@ function PercentageIngredientRow({
   onUpdate: (data: any) => void;
   onDelete: () => void;
 }) {
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   let base = directCost;
   const b = ing.pctBase ?? "all";
   if (b === "material") base = matCost;
@@ -971,44 +1036,44 @@ function PercentageIngredientRow({
   const amount = (base * (ing.percentage || 0)) / 100;
 
   return (
-    <div className="flex items-center justify-between gap-1 p-1.5 rounded bg-muted/40 hover:bg-muted/40 border border-border/30 text-[11px] font-mono group transition-colors">
+    <div className="flex items-center justify-between gap-1.5 px-2 py-1 text-[11px] font-mono group hover:bg-muted/30 transition-colors">
       <div className="flex-1 min-w-0 pr-1">
-        <div className="text-foreground/80 font-medium truncate text-[11px]" title={ing.name}>
+        <span className="text-foreground truncate" title={ing.name}>
           {ing.name}
-        </div>
-        <div className="flex items-center gap-1 text-[9.5px] text-info/60 mt-0.5">
-          {canWrite ? (
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                step="any"
-                defaultValue={ing.percentage}
-                onBlur={(e) => {
-                  const val = parseFloat(e.target.value) || 0;
-                  if (val !== ing.percentage) onUpdate({ percentage: val });
-                }}
-                className="w-10 px-1 py-0.2 rounded bg-background border border-border/40 text-foreground/80 text-right text-[10px]"
-              />
-              <span>% on {b}</span>
-            </div>
-          ) : (
-            <span>
-              {ing.percentage}% on {b}
-            </span>
-          )}
-        </div>
+        </span>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="text-foreground/80 font-semibold text-[10.5px]">
-          NPR {fmt(amount)}
-        </span>
+      <div className="flex items-center gap-1 shrink-0 text-[10px] text-muted-foreground">
+        {canWrite ? (
+          <div className="flex items-center gap-0.5">
+            <input
+              type="number"
+              step="any"
+              defaultValue={ing.percentage}
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                if (val !== ing.percentage) onUpdate({ percentage: val });
+              }}
+              className="w-10 h-6 px-1 rounded bg-background border border-border/40 text-foreground text-right text-[10.5px]"
+            />
+            <span>% on {b === "all" ? "direct" : b}</span>
+          </div>
+        ) : (
+          <span>{ing.percentage}% on {b}</span>
+        )}
+      </div>
+
+      <div className="w-20 text-right shrink-0 font-semibold text-foreground text-[10.5px]">
+        {formatNpr(amount)}
+      </div>
+
+      <div className="w-5 shrink-0 text-right">
         {canWrite && (
           <button
             type="button"
             onClick={onDelete}
-            title="Delete percentage provision"
-            className="opacity-0 group-hover:opacity-100 p-0.5 text-info/50 hover:text-red-400 transition-opacity"
+            title="Remove provision"
+            className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-rose-500 transition-opacity"
           >
             <Trash2 className="h-3 w-3" />
           </button>

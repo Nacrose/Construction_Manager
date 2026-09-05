@@ -76,7 +76,7 @@ export default function RateCatalogsPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <Tabs defaultValue="materials" className="space-y-[3px]">
+      <Tabs defaultValue="materials" persistKey="rate_catalogs_tab" className="space-y-[3px]">
         <TabsList className="bg-muted p-1 rounded-xl h-10 border-none shadow-none shrink-0 flex w-fit">
           <TabsTrigger value="materials" className="gap-2 text-xs font-semibold px-4 py-1.5">
             <BookOpen className="h-4 w-4 text-amber-500" /> Material Catalog

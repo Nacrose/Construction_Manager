@@ -54,7 +54,7 @@ export default function HrPage({ params }: { params: Promise<{ id: string }> }) 
       <ModuleTabs projectId={id} tabs={RES_TABS} />
       <AnimatedPage className="space-y-4 pb-8">
         {/* Unified Tab Navigation */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} persistKey={`hr_tab_${id}`} className="w-full">
           <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full mb-4">
             <TabsTrigger value="directory" className="text-xs gap-1.5">
               <Users className="h-3.5 w-3.5" /> Roster

@@ -19,6 +19,7 @@ import { ModuleTabs } from "@/components/module-tabs";
 const WF_TABS = [
   { label: "RFIs", href: "/workflow/rfi" },
   { label: "Daily Program", href: "/workflow/program" },
+  { label: "My Tasks", href: "/workflow/program/my-tasks" },
   { label: "Daily Reports", href: "/workflow/reports" },
   { label: "Correspondence", href: "/correspondence" },
   { label: "Meetings", href: "/meetings" },
@@ -54,37 +55,60 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                 <Plus className="h-3.5 w-3.5" /> + Schedule Meeting (बैठक तय)
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[560px] w-full p-0 gap-0 bg-card border border-[var(--border)] text-foreground rounded-2xl shadow-2xl overflow-hidden font-sans">
-              <div className="px-6 py-4 border-b border-[var(--input)] bg-[#f8fbfe] flex items-center justify-between">
+            <DialogContent className="sm:max-w-4xl w-[92vw] aspect-[16/10] max-h-[90vh] p-0 gap-0 bg-card border border-border text-foreground rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans">
+              <div className="px-6 py-3.5 border-b border-border bg-muted/20 flex items-center justify-between shrink-0">
                 <DialogTitle className="text-base font-bold text-foreground">Schedule Project Meeting (बैठक तय गर्नुहोस्)</DialogTitle>
               </div>
-              <div className="p-6 space-y-3.5 text-xs bg-card">
-                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Title *</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Type</Label>
-                    <Select value={type} onValueChange={setType}>
-                      <SelectTrigger className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]"><SelectValue /></SelectTrigger>
-                      <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs shadow-xl rounded-xl">
-                        <SelectItem value="site_coordination">Site Coordination</SelectItem>
-                        <SelectItem value="progress_review">Progress Review</SelectItem>
-                        <SelectItem value="design_coordination">Design Coordination</SelectItem>
-                        <SelectItem value="safety">Safety</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-foreground/80">Title *</Label>
+                      <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weekly site coordination" className="h-9 text-xs bg-background border-border text-foreground" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold text-foreground/80">Type</Label>
+                        <Select value={type} onValueChange={setType}>
+                          <SelectTrigger className="h-9 text-xs bg-background border-border text-foreground"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-card border-border text-foreground text-xs shadow-xl rounded-xl">
+                            <SelectItem value="site_coordination">Site Coordination</SelectItem>
+                            <SelectItem value="progress_review">Progress Review</SelectItem>
+                            <SelectItem value="design_coordination">Design Coordination</SelectItem>
+                            <SelectItem value="safety">Safety</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px] font-semibold text-foreground/80">Date</Label>
+                        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-xs font-mono bg-background border-border text-foreground" />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-foreground/80">Location</Label>
+                      <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-xs bg-background border-border text-foreground" />
+                    </div>
                   </div>
-                  <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-xs font-mono bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" /></div>
-                </div>
-                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Site office" className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" /></div>
-                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Attendees (comma-separated)</Label><Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" /></div>
-                <div className="space-y-1.5"><Label className="text-[11px] font-semibold text-foreground/80">Agenda</Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={2} className="text-xs bg-card border-[var(--border)] text-foreground focus:border-[var(--primary)]" /></div>
 
-                <div className="flex justify-end gap-2.5 pt-3 border-t border-[var(--input)]">
-                  <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-[var(--border)] text-muted-foreground hover:bg-muted">Cancel</Button>
-                  <Button size="sm" onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-sm">
-                    {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule Meeting (तय गर्नुहोस्)
-                  </Button>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-foreground/80">Attendees (comma-separated)</Label>
+                      <Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="Er. Ram, Er. Sita, Mr. Sharma" className="h-9 text-xs bg-background border-border text-foreground" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] font-semibold text-foreground/80">Agenda</Label>
+                      <Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} rows={4} className="text-xs bg-background border-border text-foreground resize-none" placeholder="Outline meeting topics, critical site milestones, and engineering issues..." />
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 px-6 py-3 border-t border-border bg-muted/20 shrink-0">
+                <Button variant="outline" size="sm" onClick={() => setAddOpen(false)} className="h-8 text-xs border-border text-muted-foreground hover:bg-muted">Cancel</Button>
+                <Button size="sm" onClick={() => createMut.mutate({ projectId: id, title, type: type as any, date: new Date(date).toISOString(), location: location || undefined, attendees: attendees || undefined, agenda: agenda || undefined })} disabled={createMut.isPending || !title} className="amber-cta-btn h-8 text-xs font-bold text-white shadow-xs">
+                  {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Schedule Meeting (तय गर्नुहोस्)
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -114,15 +138,71 @@ function MeetingDetailDialog({ meetingId, projectId, onClose }: { meetingId: str
   if (m && !minutes && m.minutes) setMinutes(m.minutes);
 
   return (
-    <Dialog open={true} onOpenChange={(o) => { if (!o) onClose(); }}><DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>{m?.title ?? "Loading..."}</DialogTitle></DialogHeader>
-      {isLoading ? <Skeleton className="h-48" /> : m ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 text-xs"><div><span className="text-muted-foreground">Date:</span> {format(new Date(m.date), "dd MMM yyyy, HH:mm")}</div><div><span className="text-muted-foreground">Type:</span> <span className="capitalize">{m.type.replace(/_/g, " ")}</span></div>{m.location && <div><span className="text-muted-foreground">Location:</span> {m.location}</div>}{m.attendees && <div className="col-span-2"><span className="text-muted-foreground">Attendees:</span> {m.attendees}</div>}{m.agenda && <div className="col-span-2"><span className="text-muted-foreground">Agenda:</span> {m.agenda}</div>}</div>
-          <div className="space-y-1.5"><Label className="text-xs">Minutes</Label><Textarea value={minutes} onChange={(e) => setMinutes(e.target.value)} rows={4} className="text-sm" onBlur={() => updateMut.mutate({ id: meetingId, minutes })} placeholder="Record meeting minutes..." /></div>
-          <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Action Items ({m.actionItems.length})</p><div className="space-y-1">{m.actionItems.map(ai => (<div key={ai.id} className="flex items-center gap-2 rounded border p-1.5 text-xs"><input type="checkbox" checked={ai.status === "completed"} onChange={() => updateActionMut.mutate({ id: ai.id, status: ai.status === "completed" ? "open" : "completed" })} className="shrink-0" /><div className="flex-1 min-w-0"><span className={cn(ai.status === "completed" && "line-through text-muted-foreground")}>{ai.description}</span><div className="text-[9px] text-muted-foreground">👤 {ai.assignedTo}{ai.dueDate && <> · 📅 {format(new Date(ai.dueDate), "dd MMM")}</>}</div></div></div>))}</div><div className="border-t pt-2 space-y-1.5"><div className="grid grid-cols-2 gap-2"><Input value={actionDesc} onChange={(e) => setActionDesc(e.target.value)} placeholder="Action item description" className="h-8 text-xs" /><Input value={actionAssignee} onChange={(e) => setActionAssignee(e.target.value)} placeholder="Assigned to" className="h-8 text-xs" /></div><div className="flex gap-2"><Input type="date" value={actionDue} onChange={(e) => setActionDue(e.target.value)} className="h-8 text-xs flex-1" /><Button size="sm" className="h-8 text-xs" onClick={() => addActionMut.mutate({ meetingId, description: actionDesc, assignedTo: actionAssignee, dueDate: actionDue ? new Date(actionDue).toISOString() : undefined })} disabled={addActionMut.isPending || !actionDesc || !actionAssignee}>Add</Button></div></div></div>
-          {m.status === "scheduled" && <Button size="sm" className="w-full" onClick={() => updateMut.mutate({ id: meetingId, status: "completed" })}>Mark Meeting Completed</Button>}
-        </div>
-      ) : <p className="text-center text-sm text-muted-foreground py-8">Meeting not found.</p>}
-    </DialogContent></Dialog>
+    <Dialog open={true} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-4xl w-[92vw] aspect-[16/10] max-h-[90vh] p-0 overflow-hidden bg-card border border-border text-foreground shadow-2xl rounded-2xl flex flex-col font-sans">
+        <DialogHeader className="px-6 py-3.5 border-b border-border bg-muted/20 shrink-0">
+          <DialogTitle className="text-base font-bold text-primary">{m?.title ?? "Loading..."}</DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="p-6"><Skeleton className="h-48" /></div>
+        ) : m ? (
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Left Column: Metadata & Minutes */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-xs p-3 rounded-xl border border-border bg-muted/30">
+                  <div><span className="text-muted-foreground">Date:</span> {format(new Date(m.date), "dd MMM yyyy, HH:mm")}</div>
+                  <div><span className="text-muted-foreground">Type:</span> <span className="capitalize">{m.type.replace(/_/g, " ")}</span></div>
+                  {m.location && <div><span className="text-muted-foreground">Location:</span> {m.location}</div>}
+                  {m.attendees && <div className="col-span-2"><span className="text-muted-foreground">Attendees:</span> {m.attendees}</div>}
+                  {m.agenda && <div className="col-span-2"><span className="text-muted-foreground">Agenda:</span> {m.agenda}</div>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Meeting Minutes</Label>
+                  <Textarea value={minutes} onChange={(e) => setMinutes(e.target.value)} rows={5} className="text-xs bg-background border-border text-foreground resize-none" onBlur={() => updateMut.mutate({ id: meetingId, minutes })} placeholder="Record meeting minutes..." />
+                </div>
+                {m.status === "scheduled" && (
+                  <Button size="sm" className="w-full h-8 text-xs font-bold" onClick={() => updateMut.mutate({ id: meetingId, status: "completed" })}>
+                    Mark Meeting Completed
+                  </Button>
+                )}
+              </div>
+
+              {/* Right Column: Action Items */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Action Items ({m.actionItems.length})</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto no-scrollbar">
+                  {m.actionItems.map(ai => (
+                    <div key={ai.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2 text-xs">
+                      <input type="checkbox" checked={ai.status === "completed"} onChange={() => updateActionMut.mutate({ id: ai.id, status: ai.status === "completed" ? "open" : "completed" })} className="shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className={cn(ai.status === "completed" && "line-through text-muted-foreground")}>{ai.description}</span>
+                        <div className="text-[10px] text-muted-foreground">👤 {ai.assignedTo}{ai.dueDate && <> · 📅 {format(new Date(ai.dueDate), "dd MMM")}</>}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-border pt-3 space-y-2">
+                  <span className="text-[10px] font-bold uppercase text-primary tracking-wider">New Action Item</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input value={actionDesc} onChange={(e) => setActionDesc(e.target.value)} placeholder="Action description" className="h-8 text-xs bg-background border-border" />
+                    <Input value={actionAssignee} onChange={(e) => setActionAssignee(e.target.value)} placeholder="Assigned to" className="h-8 text-xs bg-background border-border" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Input type="date" value={actionDue} onChange={(e) => setActionDue(e.target.value)} className="h-8 text-xs flex-1 bg-background border-border" />
+                    <Button size="sm" className="h-8 text-xs font-bold" onClick={() => addActionMut.mutate({ meetingId, description: actionDesc, assignedTo: actionAssignee, dueDate: actionDue ? new Date(actionDue).toISOString() : undefined })} disabled={addActionMut.isPending || !actionDesc || !actionAssignee}>
+                      Add Action
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-center text-sm text-muted-foreground py-8">Meeting not found.</p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

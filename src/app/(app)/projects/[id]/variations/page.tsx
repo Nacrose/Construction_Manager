@@ -69,7 +69,7 @@ export default function VariationsPage() {
 
   return (
     <AnimatedPage className="space-y-4 pb-8">
-      <Tabs defaultValue="orders">
+      <Tabs defaultValue="orders" persistKey={`variations_tab_${projectId}`}>
         {/* Single-Row Action & Filter Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--border)] bg-card">
           <TabsList className="bg-[#f8fbfe] border border-[var(--border)] p-0.5 rounded-xl">

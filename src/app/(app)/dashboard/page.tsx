@@ -118,7 +118,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-2 pb-6">
       {/* 1. SINGLE ADOBE SEGMENTED CARD TAB BAR AT TOP */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} persistKey="dashboard_active_tab" className="w-full">
         <div className="w-full level-1-dock p-0.5 rounded-lg flex items-center justify-between gap-1 mb-2">
           <TabsList className="w-full border-0 bg-transparent p-0 flex items-center gap-1">
             <TabsTrigger value="cockpit" className="flex-1 py-1 px-2.5 text-center text-xs flex items-center justify-center gap-1.5">

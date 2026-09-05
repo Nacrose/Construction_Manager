@@ -401,13 +401,28 @@ export function Gantt({
     return () => ro.disconnect();
   }, []);
 
+  const scrollSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const hasRestoredCanvasScroll = useRef(false);
+
   function onRightScroll() {
     if (syncingRef.current) return;
     if (!leftBodyRef.current || !rightPanelRef.current) return;
     syncingRef.current = true;
     leftBodyRef.current.scrollTop = rightPanelRef.current.scrollTop;
     syncingRef.current = false;
-    setScrollLeft(rightPanelRef.current.scrollLeft);
+    const sLeft = rightPanelRef.current.scrollLeft;
+    const sTop = rightPanelRef.current.scrollTop;
+    setScrollLeft(sLeft);
+
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`gantt_${projectId}_sLeft`, String(sLeft));
+      sessionStorage.setItem(`gantt_${projectId}_sTop`, String(sTop));
+    }
+    if (scrollSaveTimer.current) clearTimeout(scrollSaveTimer.current);
+    scrollSaveTimer.current = setTimeout(() => {
+      setPref(`gantt_${projectId}_scrollLeft`, sLeft);
+      setPref(`gantt_${projectId}_scrollTop`, sTop);
+    }, 400);
   }
 
   function onLeftScroll() {
@@ -417,6 +432,37 @@ export function Gantt({
     rightPanelRef.current.scrollTop = leftBodyRef.current.scrollTop;
     syncingRef.current = false;
   }
+
+  // Restore canvas scroll position on mount
+  useEffect(() => {
+    if (hasRestoredCanvasScroll.current || !rightPanelRef.current || days <= 0) return;
+    let targetLeft: number | null = null;
+    let targetTop: number | null = null;
+
+    if (typeof window !== "undefined") {
+      const sL = sessionStorage.getItem(`gantt_${projectId}_sLeft`);
+      const sT = sessionStorage.getItem(`gantt_${projectId}_sTop`);
+      if (sL !== null) targetLeft = parseInt(sL, 10);
+      if (sT !== null) targetTop = parseInt(sT, 10);
+    }
+    if (targetLeft === null) {
+      const prefL = getPref<number>(`gantt_${projectId}_scrollLeft`);
+      if (prefL !== undefined && prefL !== null) targetLeft = prefL;
+    }
+    if (targetTop === null) {
+      const prefT = getPref<number>(`gantt_${projectId}_scrollTop`);
+      if (prefT !== undefined && prefT !== null) targetTop = prefT;
+    }
+
+    if (targetLeft !== null && targetLeft >= 0) {
+      hasRestoredCanvasScroll.current = true;
+      const el = rightPanelRef.current;
+      requestAnimationFrame(() => {
+        el.scrollLeft = targetLeft!;
+        if (targetTop !== null) el.scrollTop = targetTop;
+      });
+    }
+  }, [projectId, days, getPref]);
 
   // Smooth scroll to today when triggered
   useEffect(() => {

@@ -211,29 +211,28 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
 
   return (
     <AnimatedPage className="space-y-3 pb-8 font-mono">
-      {/* Top Breadcrumbs & Matrix Toolbar */}
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href={`/projects/${id}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            title="Back to project"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <div className="flex items-center gap-1.5 text-xs min-w-0">
-            <Link
-              href={`/projects/${id}`}
-              className="text-muted-foreground hover:text-foreground truncate"
-            >
-              {projectInfo?.project.code ?? "Project"}
-            </Link>
-            <span className="text-muted-foreground/40">/</span>
-            <span className="font-bold text-primary uppercase tracking-wider">RFI Tracking</span>
-          </div>
-        </div>
+      {/* Consolidated Single-Bar Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+        {/* Left: Search & Filter Popover */}
+        <RfiToolbar
+          search={search}
+          setSearch={setSearch}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          priorityFilter={priorityFilter}
+          setPriorityFilter={setPriorityFilter}
+          disciplineFilter={disciplineFilter}
+          setDisciplineFilter={setDisciplineFilter}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+          toDate={toDate}
+          setToDate={setToDate}
+          rfis={allRfis}
+          searchInputRef={searchInputRef}
+        />
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right: View Toggles & Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Density Toggle */}
           <div
             className="flex items-center rounded border border-border/80 bg-muted/40 p-0.5"
@@ -244,7 +243,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
               className={cn(
                 "px-2 py-1 text-[11px] rounded transition-colors",
                 tableDensity === "comfortable"
-                  ? "bg-primary text-primary-foreground font-bold shadow-sm"
+                  ? "bg-primary text-primary-foreground font-bold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -255,7 +254,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
               className={cn(
                 "px-2 py-1 text-[11px] rounded transition-colors",
                 tableDensity === "compact"
-                  ? "bg-primary text-primary-foreground font-bold shadow-sm"
+                  ? "bg-primary text-primary-foreground font-bold shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -306,7 +305,7 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
               <DialogTrigger asChild>
                 <Button
                   size="sm"
-                  className="h-8 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-sm"
+                  className="h-8 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-xs"
                 >
                   <Plus className="h-3.5 w-3.5" /> New RFI
                 </Button>
@@ -321,24 +320,6 @@ export default function RfiListPage({ params }: { params: Promise<{ id: string }
           )}
         </div>
       </div>
-
-      {/* Technical Filter Bar */}
-      <RfiToolbar
-        search={search}
-        setSearch={setSearch}
-        statusFilter={statusFilter}
-        setStatusFilter={setStatusFilter}
-        priorityFilter={priorityFilter}
-        setPriorityFilter={setPriorityFilter}
-        disciplineFilter={disciplineFilter}
-        setDisciplineFilter={setDisciplineFilter}
-        fromDate={fromDate}
-        setFromDate={setFromDate}
-        toDate={toDate}
-        setToDate={setToDate}
-        rfis={allRfis}
-        searchInputRef={searchInputRef}
-      />
 
       {/* Main Content Area */}
       {isLoading ? (

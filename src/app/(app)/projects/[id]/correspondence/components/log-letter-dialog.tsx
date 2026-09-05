@@ -81,20 +81,21 @@ export function LogLetterDialog({ projectId, onDone }: { projectId?: string; onD
   };
 
   return (
-    <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Log Letter (दर्ता / चलानी)</DialogTitle>
-        <DialogDescription>Log a formal incoming/outgoing site letter with full audit tracking.</DialogDescription>
+    <DialogContent className="sm:max-w-4xl w-[92vw] aspect-[16/10] max-h-[90vh] p-0 overflow-hidden font-mono bg-card border border-border text-foreground shadow-2xl rounded-2xl flex flex-col">
+      <DialogHeader className="px-6 py-3.5 border-b border-border bg-muted/20 shrink-0">
+        <DialogTitle className="text-base font-bold text-primary">Log Letter (दर्ता / चलानी)</DialogTitle>
+        <DialogDescription className="text-xs text-muted-foreground">Log a formal incoming/outgoing site letter with full audit tracking.</DialogDescription>
       </DialogHeader>
-      <div className="space-y-3 py-2">
+
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 text-xs">
         {!projectId && (
           <div className="space-y-1.5 p-2.5 rounded-xl bg-info/10 border border-info/20">
             <Label className="text-xs font-semibold text-info/80">Target Project (आयोजना) *</Label>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger className="h-9 text-xs bg-[#f8fbfe] border-[var(--border)] text-foreground">
+              <SelectTrigger className="h-9 text-xs bg-background border-border text-foreground">
                 <SelectValue placeholder="Select target project..." />
               </SelectTrigger>
-              <SelectContent className="bg-card border-[var(--border)] text-foreground text-xs">
+              <SelectContent className="bg-card border-border text-foreground text-xs">
                 {projects.map((p: any) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name} ({p.code})
@@ -104,103 +105,116 @@ export function LogLetterDialog({ projectId, onDone }: { projectId?: string; onD
             </Select>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Direction</Label>
-            <Select value={direction} onValueChange={(v: any) => setDirection(v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="incoming"><ArrowDownLeft className="inline h-3 w-3 mr-1" /> Incoming</SelectItem>
-                <SelectItem value="outgoing"><ArrowUpRight className="inline h-3 w-3 mr-1" /> Outgoing</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Their Ref (letter no.)</Label>
-            <Input value={theirRef} onChange={(e) => setTheirRef(e.target.value)} placeholder="e.g. CL/2026/045" className="h-9 text-sm font-mono" />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Subject</Label>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Approval of revised concrete mix design" className="h-9 text-sm" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">From (Party)</Label>
-            <Select value={fromParty} onValueChange={setFromParty}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>{PARTIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-            </Select>
-            <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Person name" className="h-8 text-xs" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">To (Party)</Label>
-            <Select value={toParty} onValueChange={setToParty}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>{PARTIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-            </Select>
-            <Input value={toName} onChange={(e) => setToName(e.target.value)} placeholder="Person name" className="h-8 text-xs" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>{CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Letter Type</Label>
-            <Select value={letterType} onValueChange={(v: any) => setLetterType(v)}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="informative">ℹ Informative</SelectItem>
-                <SelectItem value="actionable">⚡ Actionable</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
-        {letterType === "actionable" && (
-          <div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/30 dark:bg-amber-950/10 p-3 space-y-3">
-            <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 uppercase">Action Required</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Left Column: Direction, Ref, Subject, Parties */}
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Action Assigned To</Label>
-                <Input value={actionAssignedTo} onChange={(e) => setActionAssignedTo(e.target.value)} placeholder="e.g. Er. Ram Sharma" className="h-9 text-sm" />
+                <Label className="text-xs">Direction</Label>
+                <Select value={direction} onValueChange={(v: any) => setDirection(v)}>
+                  <SelectTrigger className="h-9 text-xs bg-background border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border text-xs">
+                    <SelectItem value="incoming"><ArrowDownLeft className="inline h-3 w-3 mr-1" /> Incoming</SelectItem>
+                    <SelectItem value="outgoing"><ArrowUpRight className="inline h-3 w-3 mr-1" /> Outgoing</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Reply Drafted By</Label>
-                <Input value={replyDraftedBy} onChange={(e) => setReplyDraftedBy(e.target.value)} placeholder="e.g. Er. Sita Thapa" className="h-9 text-sm" />
+                <Label className="text-xs">Their Ref (letter no.)</Label>
+                <Input value={theirRef} onChange={(e) => setTheirRef(e.target.value)} placeholder="e.g. CL/2026/045" className="h-9 text-xs font-mono bg-background border-border" />
               </div>
             </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs">Reply Due Date</Label>
-              <Input type="date" value={replyDueDate} onChange={(e) => setReplyDueDate(e.target.value)} className="h-9 text-sm" />
+              <Label className="text-xs">Subject *</Label>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Approval of revised concrete mix design" className="h-9 text-xs bg-background border-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">From (Party)</Label>
+                <Select value={fromParty} onValueChange={setFromParty}>
+                  <SelectTrigger className="h-9 text-xs bg-background border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border text-xs">{PARTIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Sender person name" className="h-8 text-xs bg-background border-border" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">To (Party)</Label>
+                <Select value={toParty} onValueChange={setToParty}>
+                  <SelectTrigger className="h-9 text-xs bg-background border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border text-xs">{PARTIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                </Select>
+                <Input value={toName} onChange={(e) => setToName(e.target.value)} placeholder="Recipient person name" className="h-8 text-xs bg-background border-border" />
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Letter Scan (optional, max 10MB)</Label>
-          {!file ? (
-            <label className="flex items-center justify-center gap-2 rounded-md border border-dashed h-14 cursor-pointer hover:bg-muted/30 text-xs text-muted-foreground">
-              <Upload className="h-3.5 w-3.5" /> Select file
-              <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFile} className="hidden" />
-            </label>
-          ) : (
-            <div className="flex items-center gap-2 rounded-md border p-2 text-xs">
-              <FileText className="h-4 w-4 text-primary" />
-              <span className="flex-1 truncate">{file.name}</span>
-              <button onClick={() => setFile(null)} className="text-muted-foreground hover:text-destructive">✕</button>
+          {/* Right Column: Category, Actionable, Attachments */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Category</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="h-9 text-xs bg-background border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border text-xs">{CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Letter Type</Label>
+                <Select value={letterType} onValueChange={(v: any) => setLetterType(v)}>
+                  <SelectTrigger className="h-9 text-xs bg-background border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border text-xs">
+                    <SelectItem value="informative">ℹ Informative</SelectItem>
+                    <SelectItem value="actionable">⚡ Actionable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
+
+            {letterType === "actionable" && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-2.5">
+                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Action Required</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Action Assigned To</Label>
+                    <Input value={actionAssignedTo} onChange={(e) => setActionAssignedTo(e.target.value)} placeholder="e.g. Er. Ram Sharma" className="h-8 text-xs bg-background border-border" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Reply Drafted By</Label>
+                    <Input value={replyDraftedBy} onChange={(e) => setReplyDraftedBy(e.target.value)} placeholder="e.g. Er. Sita Thapa" className="h-8 text-xs bg-background border-border" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Reply Due Date</Label>
+                  <Input type="date" value={replyDueDate} onChange={(e) => setReplyDueDate(e.target.value)} className="h-8 text-xs font-mono bg-background border-border" />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Letter Scan / Attachment (max 10MB)</Label>
+              {!file ? (
+                <label className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border h-14 cursor-pointer hover:bg-muted/40 text-xs text-muted-foreground transition-colors">
+                  <Upload className="h-4 w-4 text-primary" /> Select scanned PDF / image
+                  <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFile} className="hidden" />
+                </label>
+              ) : (
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/20 p-2 text-xs">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="flex-1 truncate font-mono">{file.name}</span>
+                  <button onClick={() => setFile(null)} className="text-muted-foreground hover:text-destructive">✕</button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onDone}>Cancel</Button>
-        <Button onClick={handleSubmit} disabled={createMut.isPending}>
+
+      <DialogFooter className="px-6 py-3 border-t border-border bg-muted/20 shrink-0">
+        <Button variant="outline" size="sm" onClick={onDone} className="h-8 text-xs border-border">Cancel</Button>
+        <Button size="sm" onClick={handleSubmit} disabled={createMut.isPending} className="h-8 text-xs font-bold font-mono bg-primary text-primary-foreground hover:bg-primary/90">
           {createMut.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />} Log Letter
         </Button>
       </DialogFooter>

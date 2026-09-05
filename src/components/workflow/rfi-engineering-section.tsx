@@ -36,9 +36,9 @@ export function RfiEngineeringSection({
   const pinY = useWatch({ control: form.control, name: "pinY" }) ?? null;
 
   return (
-    <div className="space-y-3 rounded border border-border/80 bg-muted/20 p-4">
-      <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/60 pb-1.5">
-        2. Engineering Linkages & Schedule
+    <div className="space-y-3">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/40 pb-1">
+        Engineering Linkages &amp; Schedule
       </div>
 
       {/* Linked Gantt Task & Assignee */}

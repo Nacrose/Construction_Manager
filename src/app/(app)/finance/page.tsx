@@ -29,7 +29,7 @@ export default function OrganizationFinancePage() {
           <SelectContent><SelectItem value="all">All projects</SelectItem>{projects.map((project) => <SelectItem key={project.id} value={project.id}>{project.code ? `${project.code} · ` : ""}{project.name}</SelectItem>)}</SelectContent>
         </Select>
       </header>
-      <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+      <Tabs value={activeMainTab} onValueChange={setActiveMainTab} persistKey="finance_active_tab" className="w-full">
         <div className="w-full level-1-dock p-0.5 rounded-[5px] flex items-center justify-between gap-1 mb-2">
           <TabsList className="w-full border-0 bg-transparent p-0 flex items-center gap-1">
             

@@ -28,6 +28,7 @@ import { LogDirectMaterialDialog } from "@/components/materials/log-direct-mater
 import { InterSiteTransfersTab } from "./components/inter-site-transfers-tab";
 import { InterSiteTransferDialog } from "@/components/inventory/inter-site-transfer-dialog";
 import { QuickBuyDialog } from "@/components/inventory/quick-buy-dialog";
+import { usePersistedTabState } from "@/components/user-preferences-provider";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -43,7 +44,10 @@ export default function MaterialsPage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
   const utils = trpc.useUtils();
 
-  const [activeTab, setActiveTab] = useState<MaterialTabId>("inventory");
+  const [activeTab, setActiveTab] = usePersistedTabState<MaterialTabId>(
+    `materials_tab_${id}`,
+    "inventory"
+  );
 
   // Dialog States
   const [addMaterialOpen, setAddMaterialOpen] = useState(false);

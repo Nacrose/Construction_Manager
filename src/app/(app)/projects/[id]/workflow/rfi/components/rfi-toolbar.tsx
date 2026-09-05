@@ -1,10 +1,11 @@
 "use client";
 
 import { RefObject } from "react";
-import { Search, X, Calendar } from "lucide-react";
+import { Search, X, SlidersHorizontal, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export const STATUSES = ["all", "draft", "submitted", "approved", "rejected", "closed"] as const;
@@ -50,189 +51,178 @@ export function RfiToolbar({
   rfis: any[];
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
-  const hasActiveFilters =
-    Boolean(search) ||
-    statusFilter !== "all" ||
-    priorityFilter !== "all" ||
-    disciplineFilter !== "all" ||
-    Boolean(fromDate) ||
-    Boolean(toDate);
+  const activeFilterCount =
+    (statusFilter !== "all" ? 1 : 0) +
+    (priorityFilter !== "all" ? 1 : 0) +
+    (disciplineFilter !== "all" ? 1 : 0) +
+    (fromDate || toDate ? 1 : 0);
+
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setPriorityFilter("all");
+    setDisciplineFilter("all");
+    setFromDate("");
+    setToDate("");
+  };
 
   return (
-    <div className="rounded border border-border/80 bg-card p-2 space-y-2">
-      <div className="flex flex-col md:flex-row gap-2 items-center">
-        {/* Search bar */}
-        <div className="relative flex-1 min-w-[200px] w-full">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            placeholder="Search RFI #, subject, discipline, task... (press /)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 bg-background h-8 text-xs font-mono border-border/80"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Status Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-          {STATUSES.map((s) => {
-            const isSel = statusFilter === s;
-            return (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={cn(
-                  "h-7 px-2.5 rounded text-[11px] font-mono border transition-all uppercase shrink-0",
-                  isSel
-                    ? "bg-primary text-primary-foreground font-bold border-primary shadow-sm"
-                    : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground hover:border-primary/40"
-                )}
-              >
-                {s}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Priority Select */}
-        <div className="flex items-center gap-1 shrink-0">
-          {PRIORITIES.map((p) => {
-            const isSel = priorityFilter === p;
-            return (
-              <button
-                key={p}
-                onClick={() => setPriorityFilter(p)}
-                className={cn(
-                  "h-7 px-2 rounded text-[10px] font-mono border transition-all uppercase",
-                  isSel
-                    ? p === "urgent"
-                      ? "bg-destructive text-destructive-foreground font-bold border-destructive"
-                      : "bg-primary text-primary-foreground font-bold border-primary"
-                    : "bg-muted/30 text-muted-foreground border-border/60 hover:text-foreground"
-                )}
-              >
-                {p}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Date range popover */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 text-xs font-mono border-border/80 gap-1.5 shrink-0",
-                (fromDate || toDate) && "border-primary text-primary bg-primary/10"
-              )}
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              <span>Date</span>
-              {(fromDate || toDate) && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-3 font-mono bg-card border-border" align="end">
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-foreground">Filter Work Date</p>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="h-8 text-xs w-[140px] bg-background border-border"
-                />
-                <span className="text-muted-foreground text-xs">–</span>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="h-8 text-xs w-[140px] bg-background border-border"
-                />
-              </div>
-              {(fromDate || toDate) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs w-full text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setFromDate("");
-                    setToDate("");
-                  }}
-                >
-                  Clear Date Range
-                </Button>
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs font-mono text-muted-foreground hover:text-foreground shrink-0"
-            onClick={() => {
-              setSearch("");
-              setStatusFilter("all");
-              setPriorityFilter("all");
-              setDisciplineFilter("all");
-              setFromDate("");
-              setToDate("");
-            }}
+    <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+      {/* Search Bar */}
+      <div className="relative flex-1">
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          ref={searchInputRef}
+          placeholder="Search RFI #, subject, discipline... (press /)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-8 bg-background h-8 text-xs font-mono border-border/80"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
-            <X className="h-3.5 w-3.5 mr-1" /> Reset
-          </Button>
+            <X className="h-3.5 w-3.5" />
+          </button>
         )}
       </div>
 
-      {/* Quick Discipline Filter Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pt-1 border-t border-border/40 no-scrollbar">
-        <span className="text-[10px] uppercase text-muted-foreground tracking-wider shrink-0 mr-1">
-          Discipline:
-        </span>
-        {DISCIPLINES.map((d) => {
-          const count = (rfis || []).filter((r) =>
-            d === "all" ? true : d === "none" ? !r.discipline : r.discipline === d
-          ).length;
-          const isSel = disciplineFilter === d;
-          return (
-            <button
-              key={d}
-              onClick={() => setDisciplineFilter(d)}
-              className={cn(
-                "px-2 py-0.5 rounded text-[11px] font-mono border transition-all shrink-0 flex items-center gap-1",
-                isSel
-                  ? "bg-primary text-primary-foreground font-bold border-primary shadow-sm"
-                  : "bg-muted/30 text-muted-foreground border-border/60 hover:border-primary/40 hover:text-foreground"
-              )}
-            >
-              <span className="capitalize">
-                {d === "all" ? "All Disciplines" : d === "none" ? "General" : d}
+      {/* Consolidated Filters Popover */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 text-xs font-mono border-border/80 gap-1.5 shrink-0 transition-colors",
+              activeFilterCount > 0 && "border-primary bg-primary/10 text-primary font-bold"
+            )}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-primary text-primary-foreground font-bold leading-none">
+                {activeFilterCount}
               </span>
-              <span
-                className={cn(
-                  "text-[10px] px-1 rounded",
-                  isSel
-                    ? "bg-black/20 text-primary-foreground font-bold"
-                    : "bg-muted text-muted-foreground"
-                )}
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-4 font-mono bg-card border-border shadow-xl space-y-3.5" align="start">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="text-xs font-bold text-foreground">Filter RFIs</span>
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                onClick={resetFilters}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                <RotateCcw className="h-3 w-3" /> Reset
+              </Button>
+            )}
+          </div>
+
+          {/* Status Filter */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Status
+            </Label>
+            <div className="flex flex-wrap gap-1">
+              {STATUSES.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] uppercase font-mono border transition-all",
+                    statusFilter === s
+                      ? "bg-primary text-primary-foreground font-bold border-primary shadow-xs"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Priority Filter */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Priority
+            </Label>
+            <div className="flex flex-wrap gap-1">
+              {PRIORITIES.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPriorityFilter(p)}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] uppercase font-mono border transition-all",
+                    priorityFilter === p
+                      ? p === "urgent"
+                        ? "bg-destructive text-destructive-foreground font-bold border-destructive shadow-xs"
+                        : "bg-primary text-primary-foreground font-bold border-primary shadow-xs"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Discipline Filter */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Discipline
+            </Label>
+            <div className="flex flex-wrap gap-1">
+              {DISCIPLINES.map((d) => {
+                const count = (rfis || []).filter((r) =>
+                  d === "all" ? true : d === "none" ? !r.discipline : r.discipline === d
+                ).length;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setDisciplineFilter(d)}
+                    className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-mono border transition-all flex items-center gap-1",
+                      disciplineFilter === d
+                        ? "bg-primary text-primary-foreground font-bold border-primary shadow-xs"
+                        : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >
+                    <span className="capitalize">
+                      {d === "all" ? "All" : d === "none" ? "General" : d}
+                    </span>
+                    <span className="text-[9px] opacity-70">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Date Range */}
+          <div className="space-y-1.5 pt-1 border-t border-border/60">
+            <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Work / Logged Date
+            </Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-7 text-xs bg-background border-border"
+              />
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-7 text-xs bg-background border-border"
+              />
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

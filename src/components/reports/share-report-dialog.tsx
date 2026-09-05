@@ -162,138 +162,178 @@ export function ShareReportDialog({ open, onOpenChange, report, clientName }: Pr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Share Report — {report.number}</DialogTitle>
-          <DialogDescription>
-            Dispatch {report.number} ({format(new Date(report.reportDate), "dd MMM yyyy")}) to the client or stakeholders.
-            The link opens a live read-only view; the printable view auto-opens the browser print dialog.
-          </DialogDescription>
+      <DialogContent className="sm:max-w-4xl w-[92vw] aspect-[16/10] max-h-[90vh] flex flex-col bg-card border border-border text-foreground rounded-2xl shadow-2xl overflow-hidden p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b border-border shrink-0 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-base font-semibold text-foreground tracking-tight flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Share Report — {report.number}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Dispatch {report.number} ({format(new Date(report.reportDate), "dd MMM yyyy")}) to client or stakeholders.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-success/10 hover:border-success/40 dark:hover:bg-success"
-              onClick={handleWhatsAppClient}
-            >
-              <MessageCircle className="h-5 w-5 text-success" />
-              <div className="text-xs font-medium">WhatsApp</div>
-              <div className="text-[10px] text-muted-foreground">Pre-filled for client</div>
-            </Button>
+        <div className="grid grid-cols-1 md:grid-cols-12 flex-1 min-h-0 divide-y md:divide-y-0 md:divide-x divide-border overflow-hidden">
+          {/* Left Column: Channels & Email */}
+          <div className="md:col-span-6 p-6 space-y-4 overflow-y-auto">
+            <div>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                Quick Channels
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="h-auto py-2.5 px-3 flex items-center justify-start gap-2.5 bg-background border-border text-foreground hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-colors"
+                  onClick={handleWhatsAppClient}
+                >
+                  <MessageCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="text-left leading-tight">
+                    <div className="text-xs font-medium">WhatsApp Client</div>
+                    <div className="text-[10px] text-muted-foreground">Pre-filled message</div>
+                  </div>
+                </Button>
 
-            <Button
-              variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-info/10 hover:border-info/40 dark:hover:bg-[var(--navy-deep)]"
-              onClick={handleSendEmail}
-              disabled={emailMut.isPending}
-            >
-              {emailMut.isPending ? (
-                <Loader2 className="h-5 w-5 text-info animate-spin" />
-              ) : (
-                <Mail className="h-5 w-5 text-info" />
-              )}
-              <div className="text-xs font-medium">Email</div>
-              <div className="text-[10px] text-muted-foreground">Send via SMTP</div>
-            </Button>
+                <Button
+                  variant="outline"
+                  className="h-auto py-2.5 px-3 flex items-center justify-start gap-2.5 bg-background border-border text-foreground hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-colors"
+                  onClick={handleWhatsApp}
+                >
+                  <MessageCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="text-left leading-tight">
+                    <div className="text-xs font-medium">WhatsApp General</div>
+                    <div className="text-[10px] text-muted-foreground">Raw summary & link</div>
+                  </div>
+                </Button>
 
-            <Link href={designerHref} onClick={() => onOpenChange(false)}>
-              <Button
-                variant="outline"
-                className="h-auto py-3 w-full flex flex-col items-center gap-1.5 hover:bg-muted/60 hover:border-border dark:hover:bg-[var(--navy-mid)]"
-              >
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <div className="text-xs font-medium">PDF Designer</div>
-                <div className="text-[10px] text-muted-foreground">Custom layout editor</div>
-              </Button>
-            </Link>
+                <Button
+                  variant="outline"
+                  className="h-auto py-2.5 px-3 flex items-center justify-start gap-2.5 bg-background border-border text-foreground hover:bg-muted/60 transition-colors"
+                  onClick={handleOpenPrint}
+                >
+                  <Printer className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="text-left leading-tight">
+                    <div className="text-xs font-medium">Quick Print</div>
+                    <div className="text-[10px] text-muted-foreground">Default PDF print</div>
+                  </div>
+                </Button>
 
-            <Button
-              variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-muted/60 hover:border-border dark:hover:bg-[var(--navy-mid)]"
-              onClick={handleOpenPrint}
-            >
-              <Printer className="h-5 w-5 text-muted-foreground" />
-              <div className="text-xs font-medium">Quick Print</div>
-              <div className="text-[10px] text-muted-foreground">Default template</div>
-            </Button>
+                <Link href={designerHref} onClick={() => onOpenChange(false)} className="block">
+                  <Button
+                    variant="outline"
+                    className="w-full h-auto py-2.5 px-3 flex items-center justify-start gap-2.5 bg-background border-border text-foreground hover:bg-muted/60 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="text-left leading-tight">
+                      <div className="text-xs font-medium">PDF Designer</div>
+                      <div className="text-[10px] text-muted-foreground">Custom layout</div>
+                    </div>
+                  </Button>
+                </Link>
+              </div>
+            </div>
 
-            <Button
-              variant="outline"
-              className="h-auto py-3 flex flex-col items-center gap-1.5 hover:bg-amber-50 hover:border-amber-300 dark:hover:bg-amber-950"
-              onClick={handleCopyLink}
-            >
-              {copied ? <Check className="h-5 w-5 text-success" /> : <LinkIcon className="h-5 w-5 text-amber-600" />}
-              <div className="text-xs font-medium">{copied ? "Copied!" : "Copy Link"}</div>
-              <div className="text-[10px] text-muted-foreground">Share anywhere</div>
-            </Button>
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs font-medium text-foreground">Direct URL</Label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  readOnly
+                  value={reportUrl}
+                  className="h-8 text-xs font-mono bg-background border-border text-foreground select-all"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 px-2.5 border-border hover:bg-muted"
+                  onClick={handleCopyLink}
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-border">
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                Direct Email Dispatch
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="client@example.com"
+                  value={emailTo}
+                  onChange={(e) => { setEmailTo(e.target.value); setEmailSent(false); }}
+                  className="h-8 text-xs bg-background border-border"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSendEmail}
+                  disabled={emailMut.isPending}
+                  className="h-8 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground text-xs px-3 font-medium"
+                >
+                  {emailMut.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : emailSent ? (
+                    <Check className="h-3.5 w-3.5 mr-1.5" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  {emailMut.isPending ? "Sending..." : emailSent ? "Sent" : "Send"}
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Optional Email Note</Label>
+                <Textarea
+                  placeholder="Add custom note to accompany the email..."
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  className="h-16 text-xs resize-none bg-background border-border"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Email recipient</Label>
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="client@example.com"
-                value={emailTo}
-                onChange={(e) => { setEmailTo(e.target.value); setEmailSent(false); }}
-                className="h-9 text-sm"
-              />
+          {/* Right Column: Dispatch Preview */}
+          <div className="md:col-span-6 p-6 flex flex-col min-h-0 bg-muted/20">
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Live Message Preview
+              </Label>
               <Button
+                variant="ghost"
                 size="sm"
-                variant="outline"
-                onClick={handleSendEmail}
-                disabled={emailMut.isPending}
-                className="h-9 shrink-0"
+                className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                onClick={handleCopyLink}
               >
-                {emailMut.isPending ? (
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                ) : emailSent ? (
-                  <Check className="h-3 w-3 mr-1" />
-                ) : (
-                  <Mail className="h-3 w-3 mr-1" />
-                )}
-                {emailMut.isPending ? "Sending..." : emailSent ? "Sent" : "Send"}
+                {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <LinkIcon className="h-3 w-3" />}
+                {copied ? "Copied" : "Copy Link"}
               </Button>
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Optional message (included in email body)</Label>
-            <Textarea
-              placeholder="Add a note to include in the email..."
-              value={emailMessage}
-              onChange={(e) => setEmailMessage(e.target.value)}
-              className="h-20 text-sm resize-none"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Direct report URL</Label>
-            <div className="flex gap-2 items-center">
-              <Input readOnly value={reportUrl} className="h-9 text-xs font-mono" />
-              <Button size="sm" variant="ghost" className="h-9 shrink-0 px-2" onClick={handleCopyLink}>
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
+            <div className="flex-1 min-h-0 flex flex-col">
+              <Textarea
+                readOnly
+                value={summary}
+                className="font-mono text-xs flex-1 min-h-[160px] resize-none bg-background border-border text-foreground p-3 leading-relaxed rounded-xl focus-visible:ring-0"
+              />
+              <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                Auto-generated summary from report data. Recipients receive this breakdown inline with access credentials or public share token.
+              </p>
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">WhatsApp / Email summary preview</Label>
-            <Textarea
-              readOnly
-              value={summary}
-              className="font-mono text-[11px] h-32 resize-none bg-muted/30"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Auto-generated from report data. The recipient sees the summary inline, plus a clickable link to the full report.
-            </p>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+        <DialogFooter className="px-6 py-3 border-t border-border bg-muted/20 flex items-center justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-border text-xs h-8 px-4"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

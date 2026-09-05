@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useCallback, type ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ChatPiP } from "@/components/chat-pip";
 import { OnboardingModal } from "@/components/onboarding-modal";
@@ -10,6 +10,7 @@ import { AppLoadingScreen } from "@/components/ui/app-loading-screen";
 import { SiteTelemetryTicker } from "@/components/site-telemetry-ticker";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { CommandPalette } from "@/components/command-palette";
+import { useUserPreferences } from "@/components/user-preferences-provider";
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -65,6 +66,64 @@ export function AppGuard({ children }: { children: ReactNode }) {
     };
   }, [router]);
 
+  const pathname = usePathname();
+  const { getPref, setPref } = useUserPreferences();
+  const mainRef = useRef<HTMLElement>(null);
+  const scrollDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Restore scroll position when pathname changes
+  useEffect(() => {
+    if (!pathname || state !== "authed") return;
+
+    // Fast local restore from sessionStorage first, then fallback to user preferences
+    let targetTop = 0;
+    if (typeof window !== "undefined") {
+      const sessionSaved = sessionStorage.getItem(`cf_scroll_${pathname}`);
+      if (sessionSaved) {
+        targetTop = parseInt(sessionSaved, 10) || 0;
+      } else {
+        const prefSaved = getPref<number>(`scroll_${pathname}`);
+        if (prefSaved && typeof prefSaved === "number") targetTop = prefSaved;
+      }
+    }
+
+    if (targetTop > 0) {
+      // Micro-retries to accommodate asynchronous component data loading
+      const attemptRestore = () => {
+        if (mainRef.current) {
+          mainRef.current.scrollTop = targetTop;
+        }
+      };
+
+      requestAnimationFrame(attemptRestore);
+      const t1 = setTimeout(attemptRestore, 60);
+      const t2 = setTimeout(attemptRestore, 200);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, [pathname, state, getPref]);
+
+  // Handle scroll events with debounced saving
+  const handleScroll = useCallback(() => {
+    if (!mainRef.current || !pathname) return;
+    const currentTop = mainRef.current.scrollTop;
+
+    // Immediately cache in sessionStorage so fast back-forward navigation is instant
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`cf_scroll_${pathname}`, String(currentTop));
+    }
+
+    // Debounce persisting to cloud user preferences (400ms)
+    if (scrollDebounceTimer.current) {
+      clearTimeout(scrollDebounceTimer.current);
+    }
+    scrollDebounceTimer.current = setTimeout(() => {
+      setPref(`scroll_${pathname}`, currentTop);
+    }, 400);
+  }, [pathname, setPref]);
+
   if (state === "loading") {
     return <AppLoadingScreen />;
   }
@@ -87,7 +146,11 @@ export function AppGuard({ children }: { children: ReactNode }) {
         <ImpersonationBanner />
 
         {/* Full-screen scrollable main container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-5 lg:px-6 py-4">
+        <main
+          ref={mainRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-4 sm:px-5 lg:px-6 py-4"
+        >
           <div className="mx-auto w-full max-w-[1920px]">
             {children}
           </div>

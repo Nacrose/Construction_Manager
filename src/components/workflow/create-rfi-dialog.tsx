@@ -273,8 +273,8 @@ export function CreateRfiDialog({
   };
 
   return (
-    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto font-mono bg-card border-border">
-      <DialogHeader className="border-b border-border/80 pb-3">
+    <DialogContent className="sm:max-w-5xl w-[94vw] aspect-[16/10] max-h-[90vh] flex flex-col p-0 overflow-hidden font-mono bg-card border border-border text-foreground shadow-2xl rounded-2xl">
+      <DialogHeader className="px-6 py-3.5 border-b border-border bg-muted/20 shrink-0">
         <DialogTitle className="flex items-center gap-2 text-base font-bold text-primary">
           <FileQuestion className="h-5 w-5" />
           Create Engineering Clarification / RFI
@@ -285,174 +285,176 @@ export function CreateRfiDialog({
         </DialogDescription>
       </DialogHeader>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-        {/* Top 2-Column Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          {/* Section 1: Core Clarification & Technical Scope */}
-          <div className="space-y-3 rounded border border-border/80 bg-muted/20 p-4">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/60 pb-1.5">
-              1. Core Clarification &amp; Technical Scope
-            </div>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col justify-between overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-6 py-3 space-y-4">
+          {/* Top 2-Column Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+            {/* Section 1: Core Clarification & Technical Scope */}
+            <div className="space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/40 pb-1">
+                Core Clarification &amp; Technical Scope
+              </div>
 
-            {/* RFI Number & Discipline */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* RFI Number & Discipline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="r-number" className="text-xs">
+                    RFI Number *
+                  </Label>
+                  <Input
+                    id="r-number"
+                    {...form.register("number")}
+                    className="font-mono text-xs h-8 bg-background border-border/80"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="r-discipline" className="text-xs">
+                    Discipline *
+                  </Label>
+                  <Select
+                    value={discipline}
+                    onValueChange={(v: any) => form.setValue("discipline", v)}
+                  >
+                    <SelectTrigger
+                      id="r-discipline"
+                      className="h-8 text-xs bg-background border-border/80"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DISCIPLINES.map((d) => (
+                        <SelectItem key={d.id} value={d.id} className="text-xs">
+                          {d.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Priority Button Selector */}
               <div className="space-y-1">
-                <Label htmlFor="r-number" className="text-xs">
-                  RFI Number *
+                <Label className="text-xs">Priority</Label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(["low", "normal", "high", "urgent"] as const).map((p) => {
+                    const isSel = priority === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => form.setValue("priority", p)}
+                        className={cn(
+                          "py-1 px-2 text-[11px] rounded uppercase font-mono border transition-all",
+                          isSel
+                            ? p === "urgent"
+                              ? "bg-destructive text-destructive-foreground font-bold border-destructive shadow-sm"
+                              : p === "high"
+                                ? "bg-amber-500 text-white font-bold border-amber-600 shadow-sm"
+                                : "bg-primary text-primary-foreground font-bold border-primary shadow-sm"
+                            : "bg-background text-muted-foreground border-border/60 hover:text-foreground"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subject */}
+              <div className="space-y-1">
+                <Label htmlFor="r-subject" className="text-xs">
+                  Subject / Clarification Topic *
                 </Label>
                 <Input
-                  id="r-number"
-                  {...form.register("number")}
-                  className="font-mono text-xs h-8 bg-background border-border/80"
+                  id="r-subject"
+                  {...form.register("subject")}
+                  placeholder="e.g. Foundation rebar lap length clarification at Grid C-4"
+                  className="text-xs h-8 bg-background border-border/80"
                   required
                 />
               </div>
 
+              {/* Location / Chainage */}
               <div className="space-y-1">
-                <Label htmlFor="r-discipline" className="text-xs">
-                  Discipline *
+                <Label htmlFor="r-location" className="text-xs flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                  Physical Location / Grid / Chainage
                 </Label>
-                <Select
-                  value={discipline}
-                  onValueChange={(v: any) => form.setValue("discipline", v)}
-                >
-                  <SelectTrigger
-                    id="r-discipline"
-                    className="h-8 text-xs bg-background border-border/80"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DISCIPLINES.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-xs">
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Priority Button Selector */}
-            <div className="space-y-1">
-              <Label className="text-xs">Priority</Label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {(["low", "normal", "high", "urgent"] as const).map((p) => {
-                  const isSel = priority === p;
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => form.setValue("priority", p)}
-                      className={cn(
-                        "py-1 px-2 text-[11px] rounded uppercase font-mono border transition-all",
-                        isSel
-                          ? p === "urgent"
-                            ? "bg-destructive text-destructive-foreground font-bold border-destructive shadow-sm"
-                            : p === "high"
-                              ? "bg-amber-500 text-white font-bold border-amber-600 shadow-sm"
-                              : "bg-primary text-primary-foreground font-bold border-primary shadow-sm"
-                          : "bg-background text-muted-foreground border-border/60 hover:text-foreground"
-                      )}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Subject */}
-            <div className="space-y-1">
-              <Label htmlFor="r-subject" className="text-xs">
-                Subject / Clarification Topic *
-              </Label>
-              <Input
-                id="r-subject"
-                {...form.register("subject")}
-                placeholder="e.g. Foundation rebar lap length clarification at Grid C-4"
-                className="text-xs h-8 bg-background border-border/80"
-                required
-              />
-            </div>
-
-            {/* Location / Chainage */}
-            <div className="space-y-1">
-              <Label htmlFor="r-location" className="text-xs flex items-center gap-1">
-                <MapPin className="h-3 w-3 text-muted-foreground" />
-                Physical Location / Grid / Chainage
-              </Label>
-              <Input
-                id="r-location"
-                {...form.register("location")}
-                placeholder="e.g. Pier P3, Foundation Level -4.5m"
-                className="text-xs h-8 bg-background border-border/80 font-mono"
-              />
-            </div>
-
-            {/* Question / Description */}
-            <div className="space-y-1">
-              <Label htmlFor="r-desc" className="text-xs">
-                Detailed Question &amp; Observations
-              </Label>
-              <Textarea
-                id="r-desc"
-                {...form.register("description")}
-                rows={3}
-                placeholder="Specify precise drawing discrepancies, site conditions, or engineering queries..."
-                className="text-xs bg-background border-border/80 resize-none font-mono"
-              />
-            </div>
-          </div>
-
-          {/* Section 2: Engineering Linkages & Schedule */}
-          <RfiEngineeringSection
-            form={form}
-            ganttTasks={ganttTasks}
-            drawingsData={drawingsData}
-            membersData={membersData}
-            subcontractorsData={subcontractorsData}
-          />
-        </div>
-
-        {/* Section 3: Linked BOQ Items Table */}
-        <RfiLinkedBoqSection
-          items={items}
-          boqData={boqData}
-          addItem={addItem}
-          removeItem={removeItem}
-          updateItem={updateItem}
-        />
-
-        {/* Section 4: Knowledge Base suggestions if any duplicates found */}
-        {kbData && kbData.rfis.length > 0 && (
-          <KbSuggestions rfis={kbData.rfis} loading={kbLoading} />
-        )}
-
-        {/* Section 5: Attachments Dropzone */}
-        <div className="space-y-2 rounded border border-border/80 bg-muted/20 p-4">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/60 pb-1.5">
-            4. Attachments &amp; Specifications
-          </div>
-          <FileDropzone
-            onUpload={(f) => setAttachFiles((p) => [...p, f])}
-            uploading={attachUploading}
-          />
-          {attachFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {attachFiles.map((f, i) => (
-                <AttachmentBadge
-                  key={i}
-                  file={f}
-                  onRemove={() => setAttachFiles((p) => p.filter((_, j) => j !== i))}
+                <Input
+                  id="r-location"
+                  {...form.register("location")}
+                  placeholder="e.g. Pier P3, Foundation Level -4.5m"
+                  className="text-xs h-8 bg-background border-border/80 font-mono"
                 />
-              ))}
+              </div>
+
+              {/* Question / Description */}
+              <div className="space-y-1">
+                <Label htmlFor="r-desc" className="text-xs">
+                  Detailed Question &amp; Observations
+                </Label>
+                <Textarea
+                  id="r-desc"
+                  {...form.register("description")}
+                  rows={3}
+                  placeholder="Specify precise drawing discrepancies, site conditions, or engineering queries..."
+                  className="text-xs bg-background border-border/80 resize-none font-mono"
+                />
+              </div>
             </div>
+
+            {/* Section 2: Engineering Linkages & Schedule */}
+            <RfiEngineeringSection
+              form={form}
+              ganttTasks={ganttTasks}
+              drawingsData={drawingsData}
+              membersData={membersData}
+              subcontractorsData={subcontractorsData}
+            />
+          </div>
+
+          {/* Section 3: Linked BOQ Items Table */}
+          <RfiLinkedBoqSection
+            items={items}
+            boqData={boqData}
+            addItem={addItem}
+            removeItem={removeItem}
+            updateItem={updateItem}
+          />
+
+          {/* Section 4: Knowledge Base suggestions if any duplicates found */}
+          {kbData && kbData.rfis.length > 0 && (
+            <KbSuggestions rfis={kbData.rfis} loading={kbLoading} />
           )}
+
+          {/* Section 5: Attachments Dropzone */}
+          <div className="space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-primary border-b border-border/40 pb-1">
+              Attachments &amp; Specifications
+            </div>
+            <FileDropzone
+              onUpload={(f) => setAttachFiles((p) => [...p, f])}
+              uploading={attachUploading}
+            />
+            {attachFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {attachFiles.map((f, i) => (
+                  <AttachmentBadge
+                    key={i}
+                    file={f}
+                    onRemove={() => setAttachFiles((p) => p.filter((_, j) => j !== i))}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Dialog Footer Actions */}
-        <div className="flex items-center justify-between border-t border-border/80 pt-4">
+        <div className="flex items-center justify-between border-t border-border px-6 py-3 shrink-0 bg-muted/20">
           <Button
             type="button"
             variant="ghost"
@@ -466,7 +468,7 @@ export function CreateRfiDialog({
             <Button
               type="submit"
               disabled={mutation.isPending}
-              className="h-9 px-4 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-sm"
+              className="h-8 px-4 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-sm"
             >
               {mutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

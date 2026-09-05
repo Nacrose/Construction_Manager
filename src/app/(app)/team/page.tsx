@@ -135,7 +135,7 @@ export default function TeamPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} persistKey="team_active_tab" className="space-y-4">
         <TabsList className="bg-muted p-1 rounded-xl h-10 border-none shadow-none flex w-fit">
           <TabsTrigger value="members" className="gap-2 text-xs font-semibold px-4 py-1.5">
             <Users className="h-4 w-4 text-info/80" /> Team Members ({users.length})

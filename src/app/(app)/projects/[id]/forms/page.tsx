@@ -113,7 +113,7 @@ export default function FormsPage() {
   return (
     <AnimatedPage className="space-y-4 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-border bg-card">
-        <Tabs defaultValue="p" className="w-full">
+        <Tabs defaultValue="p" persistKey={`forms_tab_${projectId}`} className="w-full">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TabsList className="p-1 rounded-xl">
               <TabsTrigger value="p" className="text-xs font-semibold">

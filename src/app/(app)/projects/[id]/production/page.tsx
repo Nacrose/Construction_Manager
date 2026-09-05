@@ -174,7 +174,7 @@ export default function PlantProductionPage({ params }: { params: Promise<{ id: 
       <ModuleTabs projectId={id} tabs={RES_TABS} />
 
       {/* Main Tabs */}
-      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} persistKey={`production_tab_${id}`} className="space-y-4">
         <TabsList className="grid grid-cols-2 md:grid-cols-4 w-full md:w-fit bg-muted/60 p-1">
           <TabsTrigger value="dashboard" className="text-xs gap-1.5">
             <Gauge className="h-3.5 w-3.5" /> Live Operations

@@ -21,6 +21,7 @@ import { SalesRegisterTab } from "./components/sales-register-tab";
 import { VatReturnTab } from "./components/vat-return-tab";
 import { MissingScansTab } from "./components/missing-scans-tab";
 import { LogVatBillDialog } from "./dialogs/log-vat-bill-dialog";
+import { usePersistedTabState } from "@/components/user-preferences-provider";
 
 const FIN_TABS = [
   { label: "Day Book & Cashbook", href: "/accounting" },
@@ -30,7 +31,9 @@ const FIN_TABS = [
 
 export default function TaxSummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [activeTab, setActiveTab] = useState<"purchase" | "sales" | "vat_return" | "missing_scans">("purchase");
+  const [activeTab, setActiveTab] = usePersistedTabState<
+    "purchase" | "sales" | "vat_return" | "missing_scans"
+  >(`tax_summary_tab_${id}`, "purchase");
   const [logDialogOpen, setLogDialogOpen] = useState(false);
 
   const utils = trpc.useUtils();

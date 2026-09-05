@@ -34,11 +34,11 @@ export function RfiLinkedBoqSection({
   ) => void;
 }) {
   return (
-    <div className="space-y-3 rounded border border-border/80 bg-muted/20 p-4">
-      <div className="flex items-center justify-between border-b border-border/60 pb-2">
+    <div className="space-y-2">
+      <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
         <div className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
           <Layers className="h-3.5 w-3.5" />
-          3. Linked Bill of Quantities (BOQ) Items
+          Linked Bill of Quantities (BOQ) Items
         </div>
         <Button
           type="button"

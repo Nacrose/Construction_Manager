@@ -5,6 +5,7 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc-client";
 import { toast } from "sonner";
 import { format, addDays, subDays } from "date-fns";
+import { formatNpr } from "@/lib/currency";
 import { TaskTable } from "./components/task-table";
 import { AddProgramDialog } from "./components/add-program-dialog";
 import { Button } from "@/components/ui/button";
@@ -195,44 +196,7 @@ export default function DailyProgramPage({
 
   return (
     <AnimatedPage className="space-y-3 pb-8 font-mono">
-      {/* ───────── Top Breadcrumbs & Matrix Toolbar ───────── */}
-      <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href={`/projects/${id}`}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border/80 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            title="Back to project"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <div className="flex items-center gap-1.5 text-xs min-w-0">
-            <Link href={`/projects/${id}`} className="text-muted-foreground hover:text-foreground truncate">
-              {projectInfo?.project.code ?? "Project"}
-            </Link>
-            <span className="text-muted-foreground/40">/</span>
-            <span className="font-bold text-primary uppercase tracking-wider">Daily Site Program</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {canWrite && (
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-sm">
-                  <Plus className="h-3.5 w-3.5" /> New Daily Program
-                </Button>
-              </DialogTrigger>
-              <AddProgramDialog
-                projectId={id}
-                defaultDate={selectedDate}
-                onDone={() => setAddOpen(false)}
-              />
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      {/* ───────── Day Navigation & Status Bar ───────── */}
+      {/* ───────── Day Navigation & Action Bar (Zero Redundant Header) ───────── */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border/80 bg-card p-2">
         {/* Date Hopping Controls */}
         <div className="flex items-center gap-1.5">
@@ -285,67 +249,82 @@ export default function DailyProgramPage({
           </span>
         </div>
 
-        {/* Program Status & Action Controls */}
-        <div className="flex items-center gap-2">
-          {currentProgram ? (
-            <>
-              <span
-                className={cn(
-                  "px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border",
-                  currentProgram.status === "approved"
-                    ? "bg-primary/10 text-primary border-primary/40"
-                    : "bg-amber-500/10 text-amber-400 border-amber-500/40"
+          {/* Program Status & Action Controls */}
+          <div className="flex items-center gap-2">
+            {currentProgram ? (
+              <>
+                <span
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border",
+                    currentProgram.status === "approved"
+                      ? "bg-primary/10 text-primary border-primary/40"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/40"
+                  )}
+                >
+                  {currentProgram.status}
+                </span>
+
+                {isPm && currentProgram.status === "draft" && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => approveProgramMutation.mutate({ programId: currentProgram.id, projectId: id })}
+                    disabled={approveProgramMutation.isPending}
+                  >
+                    {approveProgramMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                    Approve Program
+                  </Button>
                 )}
-              >
-                {currentProgram.status}
-              </span>
 
-              {isPm && currentProgram.status === "draft" && (
                 <Button
+                  variant="outline"
                   size="sm"
-                  className="h-7 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={() => approveProgramMutation.mutate({ programId: currentProgram.id, projectId: id })}
-                  disabled={approveProgramMutation.isPending}
+                  className="h-7 text-xs font-mono border-border/80 text-muted-foreground hover:text-foreground"
+                  onClick={() => resyncMutation.mutate({ programId: currentProgram.id, projectId: id })}
+                  disabled={resyncMutation.isPending}
+                  title="Resync with latest approved RFIs"
                 >
-                  {approveProgramMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
-                  Approve Program
+                  <RefreshCw className={cn("h-3 w-3 mr-1", resyncMutation.isPending && "animate-spin")} />
+                  Resync
                 </Button>
-              )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs font-mono border-border/80 text-muted-foreground hover:text-foreground"
-                onClick={() => resyncMutation.mutate({ programId: currentProgram.id, projectId: id })}
-                disabled={resyncMutation.isPending}
-                title="Resync with latest approved RFIs"
-              >
-                <RefreshCw className={cn("h-3 w-3 mr-1", resyncMutation.isPending && "animate-spin")} />
-                Resync
-              </Button>
+                {isPm && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm("Delete this daily program?")) {
+                        deleteProgramMutation.mutate({ programId: currentProgram.id, projectId: id });
+                      }
+                    }}
+                    title="Delete program"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                No program scheduled
+              </span>
+            )}
 
-              {isPm && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                  onClick={() => {
-                    if (confirm("Delete this daily program?")) {
-                      deleteProgramMutation.mutate({ programId: currentProgram.id, projectId: id });
-                    }
-                  }}
-                  title="Delete program"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              No program scheduled for this date
-            </span>
-          )}
-        </div>
+            {canWrite && (
+              <Dialog open={addOpen} onOpenChange={setAddOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="h-7 text-xs font-mono font-bold bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 shadow-sm ml-1">
+                    <Plus className="h-3.5 w-3.5" /> New Program
+                  </Button>
+                </DialogTrigger>
+                <AddProgramDialog
+                  projectId={id}
+                  defaultDate={selectedDate}
+                  onDone={() => setAddOpen(false)}
+                />
+              </Dialog>
+            )}
+          </div>
       </div>
 
       {/* ───────── Main Daily Program Execution Matrix ───────── */}
@@ -384,7 +363,7 @@ export default function DailyProgramPage({
                         <tr key={i} className="hover:bg-muted/20">
                           <td className="py-1 font-medium text-foreground">{l.name}</td>
                           <td className="py-1 text-right font-bold text-primary">{l.qty.toFixed(1)} {l.unit}</td>
-                          <td className="py-1 text-right text-muted-foreground">NPR {l.cost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td>
+                          <td className="py-1 text-right text-muted-foreground">{formatNpr(l.cost)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -408,7 +387,7 @@ export default function DailyProgramPage({
                         <tr key={i} className="hover:bg-muted/20">
                           <td className="py-1 font-medium text-foreground">{eq.name}</td>
                           <td className="py-1 text-right font-bold text-amber-400">{eq.qty.toFixed(1)} {eq.unit}</td>
-                          <td className="py-1 text-right text-muted-foreground">NPR {eq.cost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td>
+                          <td className="py-1 text-right text-muted-foreground">{formatNpr(eq.cost)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -432,7 +411,7 @@ export default function DailyProgramPage({
                         <tr key={i} className="hover:bg-muted/20">
                           <td className="py-1 font-medium text-foreground truncate max-w-[120px]" title={m.name}>{m.name}</td>
                           <td className="py-1 text-right font-bold text-foreground">{m.qty.toFixed(2)} {m.unit}</td>
-                          <td className="py-1 text-right text-muted-foreground">NPR {m.cost.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td>
+                          <td className="py-1 text-right text-muted-foreground">{formatNpr(m.cost)}</td>
                         </tr>
                       ))}
                     </tbody>

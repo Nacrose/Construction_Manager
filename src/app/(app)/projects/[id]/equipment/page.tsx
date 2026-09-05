@@ -34,6 +34,7 @@ import { EquipmentFuelTab } from "./components/equipment-fuel-tab";
 import { EquipmentDialogs } from "./components/equipment-dialogs";
 import { LogSpotHireDialog } from "./dialogs/log-spot-hire-dialog";
 import { Equipment, EquipmentLog, Maintenance } from "./components/types";
+import { usePersistedTabState } from "@/components/user-preferences-provider";
 
 const RES_TABS = [
   { label: "Materials & Procurement", href: "/materials" },
@@ -58,9 +59,9 @@ export default function EquipmentPage({ params }: { params: Promise<{ id: string
   const [activeMaintId, setActiveMaintId] = useState<string | null>(null);
 
   // View state
-  const [activeTab, setActiveTab] = useState<"fleet" | "logs" | "spot" | "maintenance" | "fuel" | "rentals">(
-    "fleet"
-  );
+  const [activeTab, setActiveTab] = usePersistedTabState<
+    "fleet" | "logs" | "spot" | "maintenance" | "fuel" | "rentals"
+  >(`equipment_tab_${id}`, "fleet");
 
   const { data: projectInfo } = trpc.project.get.useQuery({ id }, { staleTime: 300_000 });
   const { data, isLoading } = trpc.equipment.list.useQuery({ projectId: id });

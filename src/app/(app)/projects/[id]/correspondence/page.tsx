@@ -20,6 +20,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 const WF_TABS = [
   { label: "RFIs", href: "/workflow/rfi" },
   { label: "Daily Program", href: "/workflow/program" },
+  { label: "My Tasks", href: "/workflow/program/my-tasks" },
   { label: "Daily Reports", href: "/workflow/reports" },
   { label: "Correspondence", href: "/correspondence" },
   { label: "Meetings", href: "/meetings" },
